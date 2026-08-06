@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "4.6.0"
+version: "4.7.0"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -55,13 +55,16 @@ options:
   enphase_source_url: ""
   enphase_bearer_token: ""
   epex_electricity_enabled: false
+  epex_electricity_output_name: "EPEX stroom.csv"
   epex_electricity_url: ""
   epex_gas_enabled: false
+  epex_gas_output_name: "EPEX gas.csv"
   epex_gas_url: ""
   report_trigger_enabled: false
   report_trigger_url: ""
   report_trigger_token: ""
   require_all_core_sources: true
+  epex_require_full_calendar_month: true
 schema:
   api_key: password
   run_on_start: bool
@@ -104,10 +107,13 @@ schema:
   enphase_source_url: str
   enphase_bearer_token: password
   epex_electricity_enabled: bool
+  epex_electricity_output_name: str
   epex_electricity_url: str
   epex_gas_enabled: bool
+  epex_gas_output_name: str
   epex_gas_url: str
   report_trigger_enabled: bool
   report_trigger_url: str
   report_trigger_token: password
   require_all_core_sources: bool
+  epex_require_full_calendar_month: bool

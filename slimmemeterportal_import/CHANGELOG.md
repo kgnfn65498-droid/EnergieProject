@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.7.0
+
+- EPEX v6-elektriciteit en gas gekoppeld via configureerbare bron-URL's.
+- CSV-dialect, tekencodering en datum-/tijdkolom worden automatisch herkend.
+- Validatie controleert kalendermaand, ontbrekende dagen, dubbele tijdstempels en lege bestanden.
+- EPEX-resultaten worden case-sensitive opgeslagen als `EPEX stroom.csv` en `EPEX gas.csv`.
+- `EPEX_validation.json` wordt per maand aangemaakt.
+- EPEX-bestanden worden automatisch toegevoegd aan de maandmap.
+- Nord Pool en NextEnergy blijven aanvullende controlebronnen.
+- Nieuwe knop `Importeer en valideer EPEX` in de Web UI.
+- Ontbrekende URL's worden expliciet als `not_configured` gemeld.
+
+
 ## 4.6.0
 
 - Eerste volledige maandmap-opbouw toegevoegd onder `/config/output/01_Input/YYYY_MM/`.

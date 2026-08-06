@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "4.6.0"
+APP_VERSION = "4.7.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -84,13 +84,16 @@ class Options:
     enphase_source_url: str
     enphase_bearer_token: str
     epex_electricity_enabled: bool
+    epex_electricity_output_name: str
     epex_electricity_url: str
     epex_gas_enabled: bool
+    epex_gas_output_name: str
     epex_gas_url: str
     report_trigger_enabled: bool
     report_trigger_url: str
     report_trigger_token: str
     require_all_core_sources: bool
+    epex_require_full_calendar_month: bool
 
     @classmethod
     def load(cls) -> "Options":
@@ -138,13 +141,16 @@ class Options:
             enphase_source_url=str(raw.get("enphase_source_url", "")).strip(),
             enphase_bearer_token=str(raw.get("enphase_bearer_token", "")).strip(),
             epex_electricity_enabled=bool(raw.get("epex_electricity_enabled", False)),
+            epex_electricity_output_name=str(raw.get("epex_electricity_output_name", "EPEX stroom.csv")).strip(),
             epex_electricity_url=str(raw.get("epex_electricity_url", "")).strip(),
             epex_gas_enabled=bool(raw.get("epex_gas_enabled", False)),
+            epex_gas_output_name=str(raw.get("epex_gas_output_name", "EPEX gas.csv")).strip(),
             epex_gas_url=str(raw.get("epex_gas_url", "")).strip(),
             report_trigger_enabled=bool(raw.get("report_trigger_enabled", False)),
             report_trigger_url=str(raw.get("report_trigger_url", "")).strip(),
             report_trigger_token=str(raw.get("report_trigger_token", "")).strip(),
             require_all_core_sources=bool(raw.get("require_all_core_sources", True)),
+            epex_require_full_calendar_month=bool(raw.get("epex_require_full_calendar_month", True)),
         )
         result.validate()
         return result
@@ -251,6 +257,8 @@ def default_state() -> dict[str, Any]:
         "epex_electricity_last_error": None,
         "epex_gas_last_import": None,
         "epex_gas_last_error": None,
+        "epex_last_validation": None,
+        "epex_last_validation_status": None,
         "last_central_validation": None,
         "last_report_trigger": None,
         "last_report_trigger_error": None,
@@ -908,6 +916,290 @@ def run_epex_import(kind: str) -> dict[str, Any]:
     else:
         update_state(epex_gas_last_import=str(path), epex_gas_last_error=None)
     return result
+
+
+
+
+EPEX_TIMESTAMP_CANDIDATES = (
+    "timestamp",
+    "datetime",
+    "date_time",
+    "delivery_start",
+    "start",
+    "time",
+    "datum_tijd",
+    "datum",
+    "date",
+)
+
+
+def safe_output_filename(value: str, fallback: str) -> str:
+    value = value.strip() or fallback
+    name = Path(value).name
+    if name != value or name in {".", ".."}:
+        raise ValueError(f"Ongeldige uitvoernaam: {value}")
+    return name if name.lower().endswith(".csv") else f"{name}.csv"
+
+
+def decode_csv_bytes(content: bytes) -> str:
+    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise RuntimeError("CSV kon niet worden gedecodeerd.")
+
+
+def sniff_csv_rows(content: bytes) -> tuple[list[dict[str, str]], list[str]]:
+    text = decode_csv_bytes(content)
+    sample = text[:8192]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\\t|")
+    except csv.Error:
+        dialect = csv.excel
+    reader = csv.DictReader(text.splitlines(), dialect=dialect)
+    rows = [dict(row) for row in reader if isinstance(row, dict)]
+    fields = list(reader.fieldnames or [])
+    return rows, fields
+
+
+def parse_epex_timestamp(value: str) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    normalized = raw.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        pass
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+        "%d-%m-%Y %H:%M:%S",
+        "%d-%m-%Y %H:%M",
+        "%d-%m-%Y",
+        "%d/%m/%Y %H:%M",
+        "%d/%m/%Y",
+    ):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def detect_timestamp_field(fields: list[str], rows: list[dict[str, str]]) -> str | None:
+    lowered = {field.lower().strip(): field for field in fields}
+    for candidate in EPEX_TIMESTAMP_CANDIDATES:
+        if candidate in lowered:
+            return lowered[candidate]
+    for field in fields:
+        parsed = sum(
+            1 for row in rows[:25]
+            if parse_epex_timestamp(str(row.get(field, ""))) is not None
+        )
+        if parsed >= min(3, max(1, len(rows[:25]))):
+            return field
+    return None
+
+
+def validate_epex_csv(
+    content: bytes,
+    *,
+    year: int,
+    month: int,
+    kind: str,
+    require_full_month: bool,
+) -> dict[str, Any]:
+    rows, fields = sniff_csv_rows(content)
+    timestamp_field = detect_timestamp_field(fields, rows)
+    timestamps: list[datetime] = []
+    if timestamp_field:
+        for row in rows:
+            parsed = parse_epex_timestamp(str(row.get(timestamp_field, "")))
+            if parsed is not None:
+                timestamps.append(parsed)
+
+    month_timestamps = [
+        stamp for stamp in timestamps
+        if stamp.year == year and stamp.month == month
+    ]
+    unique_dates = sorted({stamp.date().isoformat() for stamp in month_timestamps})
+    import calendar
+    days_in_month = calendar.monthrange(year, month)[1]
+    expected_dates = {
+        f"{year:04d}-{month:02d}-{day:02d}"
+        for day in range(1, days_in_month + 1)
+    }
+    missing_dates = sorted(expected_dates.difference(unique_dates))
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    if not rows:
+        errors.append("CSV bevat geen gegevensregels.")
+    if not fields:
+        errors.append("CSV bevat geen kolomkoppen.")
+    if timestamp_field is None:
+        errors.append("Geen datum-/tijdkolom herkend.")
+    elif not month_timestamps:
+        errors.append(f"Geen records gevonden voor {year:04d}-{month:02d}.")
+    elif require_full_month and missing_dates:
+        errors.append(f"Kalendermaand onvolledig: {len(missing_dates)} dag(en) ontbreken.")
+    elif missing_dates:
+        warnings.append(f"{len(missing_dates)} dag(en) ontbreken.")
+
+    duplicate_timestamps = len(month_timestamps) - len({
+        stamp.isoformat() for stamp in month_timestamps
+    })
+    if duplicate_timestamps:
+        warnings.append(f"{duplicate_timestamps} dubbele tijdstempel(s).")
+
+    return {
+        "kind": kind,
+        "status": "error" if errors else ("warning" if warnings else "ok"),
+        "row_count": len(rows),
+        "field_count": len(fields),
+        "fields": fields,
+        "timestamp_field": timestamp_field,
+        "month_record_count": len(month_timestamps),
+        "covered_days": len(unique_dates),
+        "days_in_month": days_in_month,
+        "missing_dates": missing_dates,
+        "duplicate_timestamps": duplicate_timestamps,
+        "errors": errors,
+        "warnings": warnings,
+    }
+
+
+def latest_external_source(source_name: str, month_key: str) -> Path | None:
+    root = OUTPUT_ROOT / "external_sources" / source_name / month_key
+    if not root.exists():
+        return None
+    files = [path for path in root.iterdir() if path.is_file()]
+    return max(files, key=lambda path: path.stat().st_mtime) if files else None
+
+
+def run_epex_import_and_validate(month_key: str | None = None) -> dict[str, Any]:
+    options = Options.load()
+    month_key = month_key or datetime.now(TZ).strftime("%Y_%m")
+    year, month = parse_month_key(month_key)
+
+    results: dict[str, Any] = {
+        "version": APP_VERSION,
+        "checked_at": datetime.now(TZ).isoformat(),
+        "month": month_key,
+        "sources": {},
+        "errors": [],
+    }
+
+    for kind, enabled, url, output_name, source_name in (
+        (
+            "electricity",
+            options.epex_electricity_enabled,
+            options.epex_electricity_url,
+            options.epex_electricity_output_name,
+            "epex_electricity",
+        ),
+        (
+            "gas",
+            options.epex_gas_enabled,
+            options.epex_gas_url,
+            options.epex_gas_output_name,
+            "epex_gas",
+        ),
+    ):
+        if not enabled:
+            results["sources"][kind] = {
+                "status": "not_configured",
+                "error": f"{source_name} is uitgeschakeld.",
+            }
+            results["errors"].append(f"{source_name} is uitgeschakeld.")
+            continue
+        if not url:
+            results["sources"][kind] = {
+                "status": "not_configured",
+                "error": f"{source_name}_url ontbreekt.",
+            }
+            results["errors"].append(f"{source_name}_url ontbreekt.")
+            continue
+
+        try:
+            content, content_type = fetch_external_source(
+                url,
+                min(options.request_timeout_seconds, 60),
+            )
+            validation = validate_epex_csv(
+                content,
+                year=year,
+                month=month,
+                kind=kind,
+                require_full_month=options.epex_require_full_calendar_month,
+            )
+            raw_path = store_external_source(source_name, content, content_type)
+            month_root = OUTPUT_ROOT / "epex_monthdata" / month_key
+            month_root.mkdir(parents=True, exist_ok=True)
+            filename = safe_output_filename(
+                output_name,
+                "EPEX stroom.csv" if kind == "electricity" else "EPEX gas.csv",
+            )
+            final_path = month_root / filename
+            final_path.write_bytes(content)
+
+            source_result = {
+                **validation,
+                "url": url,
+                "raw_path": str(raw_path),
+                "path": str(final_path),
+                "bytes": len(content),
+                "content_type": content_type,
+            }
+            results["sources"][kind] = source_result
+            if validation["status"] == "error":
+                results["errors"].extend(
+                    f"{kind}: {error}" for error in validation["errors"]
+                )
+
+            if kind == "electricity":
+                update_state(
+                    epex_electricity_last_import=str(final_path),
+                    epex_electricity_last_error=(
+                        None if validation["status"] != "error"
+                        else "; ".join(validation["errors"])
+                    ),
+                )
+            else:
+                update_state(
+                    epex_gas_last_import=str(final_path),
+                    epex_gas_last_error=(
+                        None if validation["status"] != "error"
+                        else "; ".join(validation["errors"])
+                    ),
+                )
+        except Exception as exc:
+            results["sources"][kind] = {
+                "status": "error",
+                "error": str(exc),
+            }
+            results["errors"].append(f"{kind}: {exc}")
+
+    statuses = [
+        source.get("status")
+        for source in results["sources"].values()
+        if isinstance(source, dict)
+    ]
+    results["status"] = (
+        "error" if results["errors"] or "error" in statuses or "not_configured" in statuses
+        else ("warning" if "warning" in statuses else "ok")
+    )
+    validation_path = OUTPUT_ROOT / "epex_monthdata" / month_key / "EPEX_validation.json"
+    validation_path.parent.mkdir(parents=True, exist_ok=True)
+    write_atomic_json(validation_path, results)
+    update_state(
+        epex_last_validation=str(validation_path),
+        epex_last_validation_status=results["status"],
+    )
+    return results
 
 
 
@@ -2060,6 +2352,8 @@ def expected_month_input_files() -> list[str]:
         "Enphase.csv",
         "Nordpool elektriciteit.csv",
         "NextEnergy actuele stroomprijs.csv",
+        "EPEX stroom.csv",
+        "EPEX gas.csv",
     ]
 
 
@@ -2076,6 +2370,7 @@ def build_month_input(month_key: str | None = None) -> dict[str, Any]:
 
     homewizard_root = OUTPUT_ROOT / "homewizard_monthdata" / month_key
     ha_root = OUTPUT_ROOT / "homeassistant_energy" / month_key
+    epex_root = OUTPUT_ROOT / "epex_monthdata" / month_key
 
     source_map: list[tuple[Path, Path, Any]] = []
     for filename in [
@@ -2090,6 +2385,8 @@ def build_month_input(month_key: str | None = None) -> dict[str, Any]:
         source_map.append((homewizard_root / filename, target / filename, None))
 
     source_map.extend([
+        (epex_root / "EPEX stroom.csv", target / "EPEX stroom.csv", None),
+        (epex_root / "EPEX gas.csv", target / "EPEX gas.csv", None),
         (ha_root / "Enphase.csv", target / "Enphase.csv", transform_enphase_row),
         (
             ha_root / "Nordpool elektriciteit.csv",
@@ -2135,6 +2432,10 @@ def build_month_input(month_key: str | None = None) -> dict[str, Any]:
         required.add("Enphase.csv")
     if options.month_input_require_nordpool:
         required.add("Nordpool elektriciteit.csv")
+    if options.epex_electricity_enabled:
+        required.add("EPEX stroom.csv")
+    if options.epex_gas_enabled:
+        required.add("EPEX gas.csv")
 
     missing_required = sorted(required.intersection(missing))
     empty_required = sorted(required.intersection(empty))
@@ -2342,6 +2643,7 @@ a{{color:#0277bd}}
 <dt>Home Assistant-koppeling</dt><dd>{esc((str(state.get("homewizard_mapping_count", 0)) + " apparaat/apparaten") if state.get("homewizard_mapping_last") else "Nog niet uitgevoerd")}</dd>
 <dt>HA energiesnapshot</dt><dd>{esc(state.get("homeassistant_energy_last_snapshot") or "Nog geen")}</dd>
 <dt>Laatste maandmap</dt><dd>{esc((state.get("month_input_last_month") or "Nog geen") + " — " + (state.get("month_input_last_status") or ""))}</dd>
+<dt>EPEX-validatie</dt><dd>{esc(state.get("epex_last_validation_status") or "Nog niet uitgevoerd")}</dd>
 <dt>HomeWizard fout</dt><dd>{esc(state.get("homewizard_last_error") or "Geen")}</dd>
 <dt>Laatste Enphase-import</dt><dd>{esc(state.get("enphase_last_import") or "Nog geen")}</dd>
 <dt>Laatste EPEX elektriciteit</dt><dd>{esc(state.get("epex_electricity_last_import") or "Nog geen")}</dd>
@@ -2370,6 +2672,9 @@ a{{color:#0277bd}}
 <form method="post" action="homewizard-discover" style="margin-top:12px">
 <button type="submit">Detecteer HomeWizard-apparaten</button>
 <p style="margin:8px 0 0">Scanbereik: instelling <code>homewizard_discovery_cidr</code>.</p>
+</form>
+<form method="post" action="epex-import-validate" style="margin-top:12px">
+<button type="submit">Importeer en valideer EPEX</button>
 </form>
 <form method="post" action="build-month-input" style="margin-top:12px">
 <button type="submit">Bouw maandmap</button>
@@ -2604,6 +2909,24 @@ class Handler(BaseHTTPRequestHandler):
                     homewizard_discovery_error=str(exc),
                     homewizard_discovery_status="error",
                 )
+                result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                (
+                    "<html><meta charset='utf-8'><p>"
+                    + html.escape(json.dumps(result, ensure_ascii=False))
+                    + "</p><p><a href='./'>Terug</a></p></html>"
+                ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/epex-import-validate") or path == "/epex-import-validate":
+            try:
+                result = run_epex_import_and_validate()
+                code = HTTPStatus.OK if result.get("status") != "error" else HTTPStatus.BAD_REQUEST
+            except Exception as exc:
                 result = {"status": "error", "error": str(exc)}
                 code = HTTPStatus.BAD_REQUEST
             self.send_body(

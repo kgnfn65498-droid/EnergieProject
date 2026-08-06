@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "4.6.0"
+    assert cfg_version == app_version == "4.7.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "4.6.0"' in config
+    assert 'version: "4.7.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -510,3 +510,36 @@ def test_month_input_zip_and_ui_present():
     assert "01_Input_{month_key}.zip" in source
     assert "Bouw maandmap" in source
     assert '"/build-month-input"' in source
+
+
+def test_epex_configuration_present():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert "epex_electricity_output_name" in config
+    assert "epex_gas_output_name" in config
+    assert "epex_require_full_calendar_month" in config
+
+def test_epex_csv_validation_functions_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def sniff_csv_rows" in source
+    assert "def detect_timestamp_field" in source
+    assert "def validate_epex_csv" in source
+    assert "missing_dates" in source
+    assert "duplicate_timestamps" in source
+
+def test_epex_import_and_validation_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def run_epex_import_and_validate" in source
+    assert '"EPEX stroom.csv"' in source
+    assert '"EPEX gas.csv"' in source
+    assert "EPEX_validation.json" in source
+
+def test_epex_is_included_in_month_input():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'epex_root = OUTPUT_ROOT / "epex_monthdata" / month_key' in source
+    assert 'epex_root / "EPEX stroom.csv"' in source
+    assert 'epex_root / "EPEX gas.csv"' in source
+
+def test_epex_ui_endpoint_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Importeer en valideer EPEX" in source
+    assert '"/epex-import-validate"' in source

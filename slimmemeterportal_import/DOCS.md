@@ -309,3 +309,23 @@ De map bevat daarnaast:
 en er wordt een ZIP gemaakt als:
 
 `/config/output/01_Input/01_Input_YYYY_MM.zip`
+
+
+## EPEX import en validatie
+
+Configureer de twee officiële v6-bronnen:
+
+```yaml
+epex_electricity_enabled: true
+epex_electricity_url: "..."
+epex_electricity_output_name: "EPEX stroom.csv"
+epex_gas_enabled: true
+epex_gas_url: "..."
+epex_gas_output_name: "EPEX gas.csv"
+epex_require_full_calendar_month: true
+```
+
+Klik daarna op `Importeer en valideer EPEX`. De app controleert de volledige
+kalendermaand en schrijft de bestanden onder:
+
+`/config/output/epex_monthdata/YYYY_MM/`
