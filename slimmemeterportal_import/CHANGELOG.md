@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.6.0
+
+- Lokale rapportservice staat standaard ingeschakeld.
+- De maandworkflow voert automatisch alle drie officiële generatoren uit.
+- Rapportdelen worden samengevoegd tot `Energierapport_YYYY_MM.pdf`.
+- Recovery_Update bevat uitsluitend `03_Systeem/` en `04_Scripts/`.
+- Definitief rapport en Recovery_Update worden gepubliceerd naar `02_Output/YYYY_MM`.
+- Publicatie controleert bestandsgrootte en SHA-256-checksum.
+- Technische status toont outputmap en gepubliceerde bestanden.
+
+
 ## 6.5.0
 
 - Maanddata-adapter toegevoegd voor pagina 1, pagina 2 en pagina 3-13.

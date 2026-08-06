@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "6.5.0"
+    assert cfg_version == app_version == "6.6.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "6.5.0"' in config
+    assert 'version: "6.6.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -864,7 +864,7 @@ def test_v610_report_status_endpoints():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"/report-generation-status"' in source
     assert '"/run-report-generation"' in source
-    assert "Start rapportgenerator-koppeling" in source
+    assert "Genereer compleet maandrapport" in source
 
 
 def test_v620_report_service_options_exist():
@@ -964,8 +964,35 @@ def test_v650_service_runs_adapter_and_merge():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "adapter = build_report_adapter_data(options, handoff)" in source
     assert "merge = merge_report_pdfs(handoff, work_folder)" in source
-    assert "create_recovery_update_placeholder" in source
+    assert "create_recovery_update(options, handoff, work_folder)" in source
 
 def test_v650_runtime_has_pypdf():
     dockerfile = (ADDON / "Dockerfile").read_text(encoding="utf-8")
     assert "py3-pypdf" in dockerfile
+
+
+def test_v660_report_service_enabled_by_default():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert 'raw.get("report_service_enabled", True)' in source
+    assert "report_service_enabled: true" in config
+
+def test_v660_real_recovery_update_scope():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def create_recovery_update" in source
+    assert '"scope": ["03_Systeem/", "04_Scripts/"]' in source
+    assert "04_Scripts/Rapportgeneratoren/packages/" in source
+    assert "create_recovery_update_placeholder" not in source
+
+def test_v660_publishes_exact_month_output():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def publish_month_output" in source
+    assert 'transfer_folder.parent / "02_Output" / month_key' in source
+    assert '"output_manifest.json"' in source
+    assert "sha256_file(source) != sha256_file(destination)" in source
+
+def test_v660_local_service_requires_publication_success():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "publication = publish_month_output(handoff, work_folder)" in source
+    assert 'publication["status"] == "completed"' in source
+    assert '"publication": publication' in source

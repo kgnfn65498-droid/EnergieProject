@@ -1,14 +1,14 @@
 {
   ".gitignore": "f10529b220b514ca72c66fd592c80ec5b3dea6a0a49f2658d80617824c5aa5e7",
   "INSTALL.md": "9f27e5c02d117239f944e68cffdc2163586f7ec6434f699aa7396ed624f2b081",
-  "README.md": "5c809a635450e6ccaece30fd108497053b5c8996a049321016b2e4346cfb482d",
+  "README.md": "a2da81ee9ce9952b9f8ffdac65f9151d3e6fc19eb968ad82e50ce8b297c83b13",
   "repository.yaml": "53bcc3c35f6757f418727b3f72063e676db73638359dfb2124174f2f17bd8be0",
-  "slimmemeterportal_import/CHANGELOG.md": "c942b30a7ac4e434aeabcc112f856967e9ced6e77906b98a0ac62cc3a6207a19",
+  "slimmemeterportal_import/CHANGELOG.md": "ea7a7227f1062f26c8ad97ce86ac0b08bc68420ed7da821d59d276cb12c436da",
   "slimmemeterportal_import/DOCS.md": "1e6e1d9137fed68a29547809709f2290b9b456f553b3ef2e36983022ea3521d3",
   "slimmemeterportal_import/Dockerfile": "892cee203d69a373bb47ea479b8679722e56f264972169f505dbdb9dcbfe7bb2",
   "slimmemeterportal_import/build.yaml": "8b306792106f48e7b60dc6111f09349796f6baa61dfa1f4003dc4ccd54ae376b",
-  "slimmemeterportal_import/config.yaml": "3985c032b18d915cfa1aa8db884cb5ff3b35840eef90ed37fe256042fc819c37",
-  "slimmemeterportal_import/rootfs/app/main.py": "31490b6bbdf1f96feb13e0cc81210c6093fcf393fddf25776dc9f3d853a4a8f3",
+  "slimmemeterportal_import/config.yaml": "8ca49ec244a824c389747db601cef4d8d5ce3b05a2417a4606304fa6c2cc527e",
+  "slimmemeterportal_import/rootfs/app/main.py": "36c60462d079175389e442d4cef63d57078b403cc5a09cb4118cd02ad91b3b89",
   "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md": "d24232c247a27a6346ccb154c17bbc6bd60821a1c1c700ecb0a745cae68997d4",
   "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/CHANGELOG_v6.md": "7b97d96fce023dc1c6f06e19abfdd1e59852836e3ed5e9c31661a6cd2ed0170d",
   "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/CHANGELOG_v7.md": "a015e64f53e640359348eec607c5d6a1f325b5cf398e8cb972aee326872ec01f",
@@ -62,5 +62,5 @@
   "slimmemeterportal_import/run.sh": "a6d1f2bae0d363e383368fad8b70e35d290632d368a70ed9dcf87b62b948c2c4",
   "slimmemeterportal_import/translations/en.yaml": "90a88eb86cd8a6c766b97dd1eaa1a1bbe78b2a6ba761df7003c69bc0103c940d",
   "slimmemeterportal_import/translations/nl.yaml": "25a80e8ca2e571ca23fe27d69b6b6aa0b76fba7baf4c6acac259b937f6cdb921",
-  "tests/test_static.py": "ef5c48d8d26794970ccb9a2eef37e3d06917096fc59a328792996703f63132f9"
+  "tests/test_static.py": "6a24f8424fce763bd227df0163c5886506180650c2addfacce5abb49ce7029cf"
 }

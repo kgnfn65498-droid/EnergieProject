@@ -36,7 +36,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.5.0"
+APP_VERSION = "6.6.0"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -163,7 +163,7 @@ class Options:
             report_trigger_enabled=bool(raw.get("report_trigger_enabled", False)),
             report_trigger_url=str(raw.get("report_trigger_url", "")).strip(),
             report_trigger_token=str(raw.get("report_trigger_token", "")).strip(),
-            report_service_enabled=bool(raw.get("report_service_enabled", False)),
+            report_service_enabled=bool(raw.get("report_service_enabled", True)),
             report_service_root=str(raw.get("report_service_root", "Energie_Rapportservice")).strip(),
             report_service_timeout_seconds=int(raw.get("report_service_timeout_seconds", 900)),
             require_all_core_sources=bool(raw.get("require_all_core_sources", True)),
@@ -345,6 +345,12 @@ def default_state() -> dict[str, Any]:
         "report_merge_last_status": None,
         "report_merge_last_output": None,
         "report_merge_last_error": None,
+        "report_output_last_created": None,
+        "report_output_last_month": None,
+        "report_output_last_status": None,
+        "report_output_last_folder": None,
+        "report_output_last_files": [],
+        "report_output_last_error": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -1341,27 +1347,124 @@ def merge_report_pdfs(
     return result
 
 
-def create_recovery_update_placeholder(
+def create_recovery_update(
+    options: Options,
     handoff: dict[str, Any],
     work_folder: Path,
 ) -> dict[str, Any]:
+    month_key = str(handoff["month"])
     contract = handoff.get("output_contract") or {}
     recovery_path = work_folder / str(contract.get("recovery_update_zip"))
+    paths = report_service_paths(options)
     manifest = {
         "version": APP_VERSION,
         "created_at": datetime.now(TZ).isoformat(),
-        "status": "handoff_only",
-        "month": handoff.get("month"),
-        "note": (
-            "Deze ZIP bevat uitsluitend de rapportservice-handoff. "
-            "De definitieve Recovery_Update met 03_Systeem en 04_Scripts "
-            "wordt door de project-/Recovery Manager-laag opgebouwd."
-        ),
+        "status": "completed",
+        "month": month_key,
+        "scope": ["03_Systeem/", "04_Scripts/"],
     }
-    with zipfile.ZipFile(recovery_path, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("Recovery_Update_manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
-    return {"status": "handoff_only", "path": str(recovery_path)}
 
+    with zipfile.ZipFile(recovery_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(
+            "03_Systeem/Rapportservice/Recovery_Update_manifest.json",
+            json.dumps(manifest, indent=2, ensure_ascii=False),
+        )
+        service_contract = paths["root"] / "service_contract.json"
+        if service_contract.is_file():
+            archive.write(service_contract, "03_Systeem/Rapportservice/service_contract.json")
+
+        request_path = Path(str(handoff.get("_request_path", "")))
+        if request_path.is_file():
+            archive.write(request_path, "03_Systeem/Rapportservice/report_request.json")
+            request_manifest = request_path.with_name("report_request_manifest.json")
+            if request_manifest.is_file():
+                archive.write(
+                    request_manifest,
+                    "03_Systeem/Rapportservice/report_request_manifest.json",
+                )
+
+        for name in ("adapter_result.json", "merge_result.json"):
+            source = work_folder / name
+            if source.is_file():
+                archive.write(source, f"03_Systeem/Rapportservice/{name}")
+
+        generators_root = paths["generators"]
+        for wrapper in sorted(generators_root.glob("*.py")):
+            archive.write(
+                wrapper,
+                f"04_Scripts/Rapportgeneratoren/wrappers/{wrapper.name}",
+            )
+
+        packages_root = generators_root / "packages"
+        if packages_root.is_dir():
+            for source in sorted(packages_root.rglob("*")):
+                if source.is_file():
+                    relative = source.relative_to(packages_root)
+                    archive.write(
+                        source,
+                        f"04_Scripts/Rapportgeneratoren/packages/{relative}",
+                    )
+
+    result = {
+        "status": "completed",
+        "created_at": manifest["created_at"],
+        "month": month_key,
+        "path": str(recovery_path),
+        "sha256": sha256_file(recovery_path),
+        "size_bytes": recovery_path.stat().st_size,
+    }
+    write_atomic_json(work_folder / "recovery_update_result.json", result)
+    return result
+
+
+def publish_month_output(
+    handoff: dict[str, Any],
+    work_folder: Path,
+) -> dict[str, Any]:
+    month_key = str(handoff["month"])
+    transfer_folder = Path(str(handoff["transfer_folder"]))
+    output_folder = transfer_folder.parent / "02_Output" / month_key
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    contract = handoff.get("output_contract") or {}
+    expected = [
+        work_folder / str(contract.get("report_pdf")),
+        work_folder / str(contract.get("recovery_update_zip")),
+    ]
+    errors: list[str] = []
+    published: list[str] = []
+
+    for source in expected:
+        if not source.is_file() or source.stat().st_size == 0:
+            errors.append(f"Uitvoer ontbreekt of is leeg: {source}")
+            continue
+        destination = output_folder / source.name
+        shutil.copy2(source, destination)
+        if sha256_file(source) != sha256_file(destination):
+            errors.append(f"Checksum verschilt na publicatie: {destination}")
+            continue
+        published.append(str(destination))
+
+    status = "completed" if not errors and len(published) == 2 else "failed"
+    result = {
+        "version": APP_VERSION,
+        "created_at": datetime.now(TZ).isoformat(),
+        "status": status,
+        "month": month_key,
+        "folder": str(output_folder),
+        "files": published,
+        "errors": errors,
+    }
+    write_atomic_json(output_folder / "output_manifest.json", result)
+    update_state(
+        report_output_last_created=result["created_at"],
+        report_output_last_month=month_key,
+        report_output_last_status=status,
+        report_output_last_folder=str(output_folder),
+        report_output_last_files=published,
+        report_output_last_error=None if not errors else "; ".join(errors),
+    )
+    return result
 
 
 def generator_wrapper_source(role: str, bundle_folder: str) -> str:
@@ -1737,7 +1840,7 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
             return {"status": "failed", "month": month_key, "runs": runs, "error": error}
 
     merge = merge_report_pdfs(handoff, work_folder)
-    recovery = create_recovery_update_placeholder(handoff, work_folder)
+    recovery = create_recovery_update(options, handoff, work_folder)
 
     contract = handoff.get("output_contract") or {}
     for key in ("report_pdf", "recovery_update_zip"):
@@ -1746,7 +1849,13 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
             shutil.copy2(source, output_folder / source.name)
 
     validation = validate_report_outputs(handoff, output_folder)
-    status = "completed" if validation["status"] == "ok" else "failed"
+    publication = publish_month_output(handoff, work_folder)
+    status = (
+        "completed"
+        if validation["status"] == "ok"
+        and publication["status"] == "completed"
+        else "failed"
+    )
     result = {
         "status": status,
         "month": month_key,
@@ -1755,6 +1864,7 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
         "runs": runs,
         "merge": merge,
         "recovery": recovery,
+        "publication": publication,
         "output_folder": str(output_folder),
         "validation": validation,
     }
@@ -1762,7 +1872,10 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
     update_state(
         report_service_last_status=status,
         report_service_last_output=str(output_folder),
-        report_service_last_error=None if status == "completed" else "; ".join(validation["errors"]),
+        report_service_last_error=(
+            None if status == "completed"
+            else "; ".join(validation["errors"] + publication["errors"])
+        ),
     )
     return result
 
@@ -1774,6 +1887,7 @@ def run_report_generation_from_handoff(
 ) -> dict[str, Any]:
     started_at = datetime.now(TZ).isoformat()
     handoff = load_report_handoff(handoff_path)
+    handoff["_request_path"] = str(handoff_path)
     month_key = str(handoff["month"])
     validation = validate_report_handoff_files(handoff)
 
@@ -4458,7 +4572,7 @@ a{{color:#0277bd}}
 <button type="submit">Controleer rapportservice</button>
 </form>
 <form method="post" action="run-report-generation" style="margin-top:12px">
-<button type="submit">Start rapportgenerator-koppeling</button>
+<button type="submit">Genereer compleet maandrapport</button>
 </form>
 <form method="post" action="self-test" style="margin-top:12px">
 <button type="submit">Voer volledige zelftest uit</button>
