@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "5.0.1"
+APP_VERSION = "5.0.2"
 
 CONFIG_ROOT = Path("/data")
 
@@ -2743,7 +2743,11 @@ def append_workflow_step(
     })
 
 
-def run_full_month_workflow(month_key: str | None = None) -> dict[str, Any]:
+def run_full_month_workflow(
+    month_key: str | None = None,
+    *,
+    collect_live_snapshots: bool | None = None,
+) -> dict[str, Any]:
     options = Options.load()
     if not options.full_workflow_enabled:
         raise RuntimeError("Volledige maandworkflow is uitgeschakeld.")
@@ -2751,6 +2755,10 @@ def run_full_month_workflow(month_key: str | None = None) -> dict[str, Any]:
     month_key = month_key or workflow_target_month_key(options)
     parse_month_key(month_key)
     year, month = parse_month_key(month_key)
+    current_month_key = datetime.now(TZ).strftime("%Y_%m")
+    target_is_current_month = month_key == current_month_key
+    if collect_live_snapshots is None:
+        collect_live_snapshots = target_is_current_month
 
     started_monotonic = time.monotonic()
     started_at = datetime.now(TZ).isoformat()
@@ -2799,16 +2807,24 @@ def run_full_month_workflow(month_key: str | None = None) -> dict[str, Any]:
             return result
         except Exception as exc:
             step_finished = datetime.now(TZ).isoformat()
-            append_workflow_step(
-                steps,
-                name=name,
-                status="error",
-                started_at=step_started,
-                finished_at=step_finished,
-                error=str(exc),
+            already_recorded = bool(
+                steps
+                and steps[-1].get("name") == name
+                and steps[-1].get("status") == "error"
             )
+            if not already_recorded:
+                append_workflow_step(
+                    steps,
+                    name=name,
+                    status="error",
+                    started_at=step_started,
+                    finished_at=step_finished,
+                    error=str(exc),
+                )
             failed_step = name
-            errors.append(f"{name}: {exc}")
+            error_text = f"{name}: {exc}"
+            if error_text not in errors:
+                errors.append(error_text)
             if required and options.full_workflow_stop_on_error:
                 raise
             warnings.append(f"{name}: overgeslagen na fout")
@@ -2833,17 +2849,50 @@ def run_full_month_workflow(month_key: str | None = None) -> dict[str, Any]:
             required=False,
         )
 
-        execute_step(
-            "HomeWizard snapshot",
-            run_homewizard_snapshot,
-            required=True,
-        )
-
-        execute_step(
-            "Home Assistant energiesnapshot",
-            run_homeassistant_energy_snapshot,
-            required=True,
-        )
+        if collect_live_snapshots and target_is_current_month:
+            execute_step(
+                "HomeWizard snapshot",
+                run_homewizard_snapshot,
+                required=True,
+            )
+            execute_step(
+                "Home Assistant energiesnapshot",
+                run_homeassistant_energy_snapshot,
+                required=True,
+            )
+        else:
+            now_iso = datetime.now(TZ).isoformat()
+            append_workflow_step(
+                steps,
+                name="HomeWizard snapshot",
+                status="skipped",
+                started_at=now_iso,
+                finished_at=now_iso,
+                result={
+                    "status": "skipped",
+                    "reason": (
+                        "Historische maand gebruikt reeds opgebouwde "
+                        "HomeWizard-maandbestanden."
+                    ),
+                },
+            )
+            append_workflow_step(
+                steps,
+                name="Home Assistant energiesnapshot",
+                status="skipped",
+                started_at=now_iso,
+                finished_at=now_iso,
+                result={
+                    "status": "skipped",
+                    "reason": (
+                        "Historische maand gebruikt reeds opgebouwde "
+                        "Home Assistant-maandbestanden."
+                    ),
+                },
+            )
+            warnings.append(
+                "Historische maand: live snapshots niet aan doelmaand toegevoegd."
+            )
 
         if options.full_workflow_run_epex_when_enabled:
             if options.epex_electricity_enabled or options.epex_gas_enabled:
@@ -2899,6 +2948,8 @@ def run_full_month_workflow(month_key: str | None = None) -> dict[str, Any]:
         "workflow": "full_month_workflow",
         "status": status,
         "month": month_key,
+        "target_is_current_month": target_is_current_month,
+        "live_snapshots_collected": bool(collect_live_snapshots and target_is_current_month),
         "started_at": started_at,
         "finished_at": finished_at,
         "duration_seconds": duration_seconds,
@@ -3136,7 +3187,9 @@ a{{color:#0277bd}}
 <p style="margin:8px 0 0">Scanbereik: instelling <code>homewizard_discovery_cidr</code>.</p>
 </form>
 <form method="post" action="run-full-month-workflow" style="margin-top:12px">
+<input type="month" name="month" value="{esc(default_month)}" required>
 <button type="submit">Verwerk maanddata</button>
+<p style="margin:8px 0 0">Handmatige test gebruikt de gekozen maand. De geplande maandrun gebruikt de vorige kalendermaand.</p>
 </form>
 <form method="post" action="create-transfer-package" style="margin-top:12px">
 <button type="submit">Maak overdrachtspakket</button>
@@ -3392,7 +3445,19 @@ class Handler(BaseHTTPRequestHandler):
 
         if path.endswith("/run-full-month-workflow") or path == "/run-full-month-workflow":
             try:
-                result = run_full_month_workflow()
+                content_length = int(self.headers.get("Content-Length", "0") or 0)
+                form_body = self.rfile.read(content_length).decode("utf-8", errors="replace")
+                form = parse_qs(form_body)
+                selected_month = str((form.get("month") or [""])[0]).strip()
+                month_key = (
+                    selected_month.replace("-", "_")
+                    if selected_month
+                    else datetime.now(TZ).strftime("%Y_%m")
+                )
+                result = run_full_month_workflow(
+                    month_key,
+                    collect_live_snapshots=True,
+                )
                 code = HTTPStatus.OK if result.get("status") == "ok" else HTTPStatus.BAD_REQUEST
             except Exception as exc:
                 update_state(

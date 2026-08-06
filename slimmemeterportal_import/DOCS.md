@@ -366,3 +366,13 @@ kalendermaand en voert achtereenvolgens uit:
 Het eindverslag staat onder:
 
 `/config/output/workflow_results/YYYY_MM/workflow_result.json`
+
+
+## Handmatige maandtest
+
+De knop `Verwerk maanddata` bevat vanaf 5.0.2 een maandkeuze.
+
+- Kies de huidige maand voor een directe functionele test met live snapshots.
+- Een historische maand gebruikt uitsluitend de bestanden die tijdens die maand
+  al zijn opgebouwd.
+- De geplande productierun blijft bedoeld voor de vorige kalendermaand.

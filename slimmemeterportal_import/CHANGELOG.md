@@ -1,5 +1,15 @@
 # Changelog
 
+## 5.0.2
+
+- Handmatige knop `Verwerk maanddata` heeft nu een expliciete maandkeuze.
+- Handmatige tests gebruiken standaard de huidige maand, zodat live snapshots in de juiste maandmap terechtkomen.
+- Voor historische maanden worden geen actuele HomeWizard- of Home Assistant-snapshots verkeerd teruggeschreven.
+- Historische maanden gebruiken uitsluitend reeds opgebouwde maandbestanden.
+- Dubbele foutregels en dubbele foutstappen in het workflowverslag zijn verwijderd.
+- Workflowresultaat vermeldt of live snapshots zijn verzameld.
+
+
 ## 5.0.1
 
 - Volledige maandworkflow gebruikt nu de bestaande functie `test_api`.

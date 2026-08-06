@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "5.0.1"
+    assert cfg_version == app_version == "5.0.2"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "5.0.1"' in config
+    assert 'version: "5.0.2"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -650,3 +650,21 @@ def test_full_workflow_direct_function_references_exist():
         "create_transfer_package",
     ]:
         assert f"def {function_name}" in source
+
+
+def test_manual_workflow_has_explicit_month_input():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '<input type="month" name="month"' in source
+    assert "selected_month.replace" in source
+    assert "collect_live_snapshots=True" in source
+
+def test_historical_workflow_skips_live_snapshots():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "target_is_current_month" in source
+    assert "Historische maand gebruikt reeds opgebouwde" in source
+    assert "live_snapshots_collected" in source
+
+def test_workflow_does_not_duplicate_error_steps():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "already_recorded = bool(" in source
+    assert "if error_text not in errors:" in source
