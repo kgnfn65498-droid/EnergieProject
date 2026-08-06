@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "6.1.0"
+    assert cfg_version == app_version == "6.2.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "6.1.0"' in config
+    assert 'version: "6.2.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -858,10 +858,40 @@ def test_v610_workflow_runs_report_coupling():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"Rapportgenerator koppelen"' in source
     assert "run_report_generation_from_handoff(" in source
-    assert "required=options.report_trigger_enabled" in source
+    assert "required=(options.report_service_enabled or options.report_trigger_enabled)" in source
 
 def test_v610_report_status_endpoints():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"/report-generation-status"' in source
     assert '"/run-report-generation"' in source
     assert "Start rapportgenerator-koppeling" in source
+
+
+def test_v620_report_service_options_exist():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert "report_service_enabled: bool" in source
+    assert 'report_service_root: "Energie_Rapportservice"' in config
+    assert 'report_service_timeout_seconds: "int(60,3600)"' in config
+
+def test_v620_report_service_scaffold():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def report_service_paths" in source
+    assert "def initialize_report_service" in source
+    assert "def discover_report_generators" in source
+    assert '"waiting_for_generators"' in source
+    assert '"service_contract.json"' in source
+
+def test_v620_local_generator_execution():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def execute_local_report_service" in source
+    assert "subprocess.run(" in source
+    assert '"--request"' in source
+    assert '"--input"' in source
+    assert '"--output"' in source
+
+def test_v620_output_validation():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def validate_report_outputs" in source
+    assert "Definitief rapport ontbreekt of is leeg" in source
+    assert "Recovery Update ontbreekt of is leeg" in source

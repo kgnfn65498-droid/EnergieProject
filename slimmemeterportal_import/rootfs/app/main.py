@@ -11,6 +11,7 @@ import random
 import hashlib
 import re
 import shutil
+import subprocess
 import signal
 import threading
 import time
@@ -35,7 +36,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.1.0"
+APP_VERSION = "6.2.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -92,6 +93,9 @@ class Options:
     report_trigger_enabled: bool
     report_trigger_url: str
     report_trigger_token: str
+    report_service_enabled: bool
+    report_service_root: str
+    report_service_timeout_seconds: int
     require_all_core_sources: bool
     epex_require_full_calendar_month: bool
     transfer_enabled: bool
@@ -158,6 +162,9 @@ class Options:
             report_trigger_enabled=bool(raw.get("report_trigger_enabled", False)),
             report_trigger_url=str(raw.get("report_trigger_url", "")).strip(),
             report_trigger_token=str(raw.get("report_trigger_token", "")).strip(),
+            report_service_enabled=bool(raw.get("report_service_enabled", False)),
+            report_service_root=str(raw.get("report_service_root", "Energie_Rapportservice")).strip(),
+            report_service_timeout_seconds=int(raw.get("report_service_timeout_seconds", 900)),
             require_all_core_sources=bool(raw.get("require_all_core_sources", True)),
             epex_require_full_calendar_month=bool(raw.get("epex_require_full_calendar_month", True)),
             transfer_enabled=bool(raw.get("transfer_enabled", True)),
@@ -221,6 +228,13 @@ class Options:
             raise ValueError("EPEX gas is ingeschakeld maar URL ontbreekt.")
         if self.report_trigger_enabled and not self.report_trigger_url:
             raise ValueError("Rapporttrigger is ingeschakeld maar URL ontbreekt.")
+        if not self.report_service_root:
+            raise ValueError("report_service_root mag niet leeg zijn.")
+        report_service_path = Path(self.report_service_root)
+        if report_service_path.is_absolute() or ".." in report_service_path.parts:
+            raise ValueError("report_service_root moet een veilige relatieve mapnaam zijn.")
+        if not 60 <= self.report_service_timeout_seconds <= 3600:
+            raise ValueError("report_service_timeout_seconds moet 60 t/m 3600 zijn.")
         for device in self.homewizard_devices:
             if not isinstance(device, dict):
                 raise ValueError("Iedere HomeWizard-configuratie moet een object zijn.")
@@ -307,6 +321,11 @@ def default_state() -> dict[str, Any]:
         "report_generation_last_status": None,
         "report_generation_last_response": None,
         "report_generation_last_error": None,
+        "report_service_last_checked": None,
+        "report_service_last_status": None,
+        "report_service_generators": {},
+        "report_service_last_output": None,
+        "report_service_last_error": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -1012,6 +1031,163 @@ def validate_report_handoff_files(handoff: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+
+def report_service_paths(options: Options) -> dict[str, Path]:
+    root = Path("/share") / options.report_service_root
+    return {
+        "root": root,
+        "generators": root / "generators",
+        "work": root / "work",
+        "output": root / "output",
+        "logs": root / "logs",
+    }
+
+
+def initialize_report_service(options: Options) -> dict[str, Any]:
+    paths = report_service_paths(options)
+    for path in paths.values():
+        path.mkdir(parents=True, exist_ok=True)
+    contract = {
+        "version": APP_VERSION,
+        "schema": "energie_report_service_v1",
+        "updated_at": datetime.now(TZ).isoformat(),
+        "required_generators": REPORT_GENERATORS,
+        "arguments": ["--request", "--input", "--output", "--year", "--month"],
+    }
+    contract_path = paths["root"] / "service_contract.json"
+    write_atomic_json(contract_path, contract)
+    return {"status": "ok", "root": str(paths["root"]), "contract": str(contract_path)}
+
+
+def discover_report_generators(options: Options) -> dict[str, Any]:
+    paths = report_service_paths(options)
+    initialize_report_service(options)
+    found: dict[str, dict[str, Any]] = {}
+    missing: list[str] = []
+    for role, name in REPORT_GENERATORS.items():
+        script = paths["generators"] / f"{name}.py"
+        if script.is_file():
+            found[role] = {"name": name, "path": str(script), "sha256": sha256_file(script)}
+        else:
+            missing.append(name)
+    status = "ready" if not missing else "waiting_for_generators"
+    result = {
+        "version": APP_VERSION,
+        "checked_at": datetime.now(TZ).isoformat(),
+        "status": status,
+        "root": str(paths["root"]),
+        "generators": found,
+        "missing": missing,
+    }
+    update_state(
+        report_service_last_checked=result["checked_at"],
+        report_service_last_status=status,
+        report_service_generators=found,
+        report_service_last_error=None,
+    )
+    return result
+
+
+def validate_report_outputs(handoff: dict[str, Any], output_folder: Path) -> dict[str, Any]:
+    contract = handoff.get("output_contract") or {}
+    report_pdf = output_folder / str(contract.get("report_pdf", ""))
+    recovery_zip = output_folder / str(contract.get("recovery_update_zip", ""))
+    errors: list[str] = []
+    if not report_pdf.is_file() or report_pdf.stat().st_size == 0:
+        errors.append(f"Definitief rapport ontbreekt of is leeg: {report_pdf}")
+    if not recovery_zip.is_file() or recovery_zip.stat().st_size == 0:
+        errors.append(f"Recovery Update ontbreekt of is leeg: {recovery_zip}")
+    return {
+        "status": "ok" if not errors else "error",
+        "checked_at": datetime.now(TZ).isoformat(),
+        "errors": errors,
+        "report_pdf": str(report_pdf),
+        "recovery_update_zip": str(recovery_zip),
+    }
+
+
+def execute_local_report_service(options: Options, handoff_path: str | Path, handoff: dict[str, Any]) -> dict[str, Any]:
+    service = discover_report_generators(options)
+    month_key = str(handoff["month"])
+    if service["status"] != "ready":
+        return {
+            "status": "waiting_for_generators",
+            "month": month_key,
+            "service": service,
+            "reason": "Officiële generatorbestanden ontbreken.",
+        }
+
+    paths = report_service_paths(options)
+    work_folder = paths["work"] / month_key
+    output_folder = paths["output"] / month_key
+    log_folder = paths["logs"] / month_key
+    for folder in (work_folder, output_folder, log_folder):
+        folder.mkdir(parents=True, exist_ok=True)
+
+    runs = []
+    input_folder = Path(str(handoff["input_folder"]))
+    year, month = int(month_key[:4]), int(month_key[5:7])
+    for role in ("page_1", "page_2", "pages_3_13"):
+        generator = service["generators"][role]
+        command = [
+            sys.executable, generator["path"],
+            "--request", str(handoff_path),
+            "--input", str(input_folder),
+            "--output", str(work_folder),
+            "--year", str(year),
+            "--month", str(month),
+        ]
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=options.report_service_timeout_seconds,
+            check=False,
+        )
+        log_path = log_folder / f"{role}.log"
+        log_path.write_text(
+            "COMMAND:\n" + " ".join(command)
+            + "\n\nSTDOUT:\n" + completed.stdout
+            + "\n\nSTDERR:\n" + completed.stderr,
+            encoding="utf-8",
+        )
+        runs.append({
+            "role": role,
+            "generator": generator["name"],
+            "returncode": completed.returncode,
+            "log": str(log_path),
+        })
+        if completed.returncode != 0:
+            error = f"{generator['name']} stopte met code {completed.returncode}."
+            update_state(report_service_last_status="failed", report_service_last_error=error)
+            return {"status": "failed", "month": month_key, "runs": runs, "error": error}
+
+    contract = handoff.get("output_contract") or {}
+    for key in ("report_pdf", "recovery_update_zip"):
+        source = work_folder / str(contract.get(key, ""))
+        if source.is_file():
+            shutil.copy2(source, output_folder / source.name)
+
+    validation = validate_report_outputs(handoff, output_folder)
+    status = "completed" if validation["status"] == "ok" else "failed"
+    result = {
+        "status": status,
+        "month": month_key,
+        "service": service,
+        "runs": runs,
+        "output_folder": str(output_folder),
+        "validation": validation,
+    }
+    write_atomic_json(output_folder / "report_service_result.json", result)
+    update_state(
+        report_service_last_status=status,
+        report_service_last_output=str(output_folder),
+        report_service_last_error=None if status == "completed" else "; ".join(validation["errors"]),
+    )
+    return result
+
+
+
 def run_report_generation_from_handoff(
     options: Options,
     handoff_path: str | Path,
@@ -1037,19 +1213,40 @@ def run_report_generation_from_handoff(
         )
         raise RuntimeError(error)
 
-    if not options.report_trigger_enabled:
+    if options.report_service_enabled:
+        local_result = execute_local_report_service(options, handoff_path, handoff)
         result = {
-            "status": "ready",
+            "status": local_result.get("status"),
             "started_at": started_at,
             "finished_at": datetime.now(TZ).isoformat(),
             "month": month_key,
             "handoff": str(handoff_path),
             "validation": validation,
-            "reason": "Rapportservice is nog niet ingeschakeld.",
+            "service": local_result,
         }
         update_state(
             report_generation_last_finished=result["finished_at"],
-            report_generation_last_status="ready",
+            report_generation_last_status=result["status"],
+            report_generation_last_response=result,
+            report_generation_last_error=local_result.get("error"),
+        )
+        return result
+
+    if not options.report_trigger_enabled:
+        service = discover_report_generators(options)
+        result = {
+            "status": "waiting_for_generators" if service["status"] != "ready" else "ready",
+            "started_at": started_at,
+            "finished_at": datetime.now(TZ).isoformat(),
+            "month": month_key,
+            "handoff": str(handoff_path),
+            "validation": validation,
+            "service": service,
+            "reason": "Officiële generatorbestanden ontbreken." if service["status"] != "ready" else "Lokale rapportservice is uitgeschakeld.",
+        }
+        update_state(
+            report_generation_last_finished=result["finished_at"],
+            report_generation_last_status=result["status"],
             report_generation_last_response=result,
             report_generation_last_error=None,
         )
@@ -3373,10 +3570,10 @@ def run_full_month_workflow(
                         options,
                         report_handoff["request"],
                     ),
-                    required=options.report_trigger_enabled,
+                    required=(options.report_service_enabled or options.report_trigger_enabled),
                 )
                 if (
-                    options.report_trigger_enabled
+                    (options.report_service_enabled or options.report_trigger_enabled)
                     and isinstance(report_result, dict)
                     and report_result.get("status") != "completed"
                 ):
@@ -3668,6 +3865,9 @@ a{{color:#0277bd}}
 <form method="post" action="central-validation" style="margin-top:12px">
 <button type="submit">Voer centrale validatie uit</button>
 </form>
+<form method="post" action="report-service-check" style="margin-top:12px">
+<button type="submit">Controleer rapportservice</button>
+</form>
 <form method="post" action="run-report-generation" style="margin-top:12px">
 <button type="submit">Start rapportgenerator-koppeling</button>
 </form>
@@ -3812,6 +4012,22 @@ class Handler(BaseHTTPRequestHandler):
                     + html.escape(json.dumps(result, ensure_ascii=False))
                     + "</p><p><a href='./'>Terug</a></p></html>"
                 ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/report-service-check") or path == "/report-service-check":
+            try:
+                result = discover_report_generators(Options.load())
+                code = HTTPStatus.OK
+            except Exception as exc:
+                result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                ("<html><meta charset='utf-8'><p>"
+                 + html.escape(json.dumps(result, ensure_ascii=False))
+                 + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return

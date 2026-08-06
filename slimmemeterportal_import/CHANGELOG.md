@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.2.0
+
+- Lokale Rapport Generator Service toegevoegd onder `/share/Energie_Rapportservice`.
+- Vaste mappen voor generatoren, werkbestanden, output en logs.
+- Officiële generatorbestanden worden case-sensitive gecontroleerd.
+- Generatoren worden via een vast CLI-contract aangeroepen.
+- Uitvoer wordt gecontroleerd op definitief PDF-rapport en Recovery_Update ZIP.
+- Ontbrekende generatoren geven `waiting_for_generators`.
+- Configuratie en webknop voor servicecontrole toegevoegd.
+
+
 ## 6.1.0
 
 - Rapportaanvraag wordt ingelezen en technisch gevalideerd.
