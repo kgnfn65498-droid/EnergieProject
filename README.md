@@ -17,6 +17,11 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 6.9.1
+- SlimmeMeterPortal Import 7.0.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
+
+
+## Fase 7
+
+Versie 7.0.0 voegt een bestuurlijke laag toe voor optionele automatische maandafsluiting, veilige historische maandselectie en een compacte operationele status. De bestaande rapportketen en definitieve outputnamen blijven ongewijzigd.

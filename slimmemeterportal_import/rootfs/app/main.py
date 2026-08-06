@@ -37,7 +37,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.9.1"
+APP_VERSION = "7.0.0"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -114,6 +114,10 @@ class Options:
     full_workflow_use_previous_month: bool
     full_workflow_stop_on_error: bool
     full_workflow_run_epex_when_enabled: bool
+    automatic_month_close_enabled: bool
+    automatic_month_close_day: int
+    automatic_month_close_hour: int
+    operation_history_months: int
 
     @classmethod
     def load(cls) -> "Options":
@@ -185,6 +189,10 @@ class Options:
             full_workflow_use_previous_month=bool(raw.get("full_workflow_use_previous_month", True)),
             full_workflow_stop_on_error=bool(raw.get("full_workflow_stop_on_error", True)),
             full_workflow_run_epex_when_enabled=bool(raw.get("full_workflow_run_epex_when_enabled", True)),
+            automatic_month_close_enabled=bool(raw.get("automatic_month_close_enabled", False)),
+            automatic_month_close_day=int(raw.get("automatic_month_close_day", 2)),
+            automatic_month_close_hour=int(raw.get("automatic_month_close_hour", 4)),
+            operation_history_months=int(raw.get("operation_history_months", 12)),
         )
         result.validate()
         return result
@@ -209,6 +217,12 @@ class Options:
             )
         if not 1 <= self.retention_months <= 120:
             raise ValueError("retention_months moet 1 t/m 120 zijn.")
+        if not 1 <= self.automatic_month_close_day <= 28:
+            raise ValueError("automatic_month_close_day moet 1 t/m 28 zijn.")
+        if not 0 <= self.automatic_month_close_hour <= 23:
+            raise ValueError("automatic_month_close_hour moet 0 t/m 23 zijn.")
+        if not 1 <= self.operation_history_months <= 60:
+            raise ValueError("operation_history_months moet 1 t/m 60 zijn.")
         if self.workflow_mode not in {"smp_only", "full_month_workflow"}:
             raise ValueError("workflow_mode is ongeldig.")
         if not 1 <= self.homewizard_discovery_timeout_seconds <= 5:
@@ -4854,6 +4868,84 @@ def run_full_month_workflow(
 
 
 
+def historical_month_allowed(month_key: str) -> str:
+    """Validate and normalize a YYYY_MM month selected by the operator."""
+    year, month = parse_month_key(month_key)
+    selected = date(year, month, 1)
+    current = datetime.now(TZ).date().replace(day=1)
+    if selected > current:
+        raise ValueError("Een toekomstige maand kan niet worden afgesloten.")
+    return f"{year:04d}_{month:02d}"
+
+
+def operation_status(options: Options | None = None) -> dict[str, Any]:
+    """Return one compact operational view without changing workflow state."""
+    options = options or Options.load()
+    state = persist_normalized_status(options)
+    results_root = OUTPUT_ROOT / "workflow_results"
+    history: list[dict[str, Any]] = []
+    if results_root.exists():
+        for month_dir in sorted(
+            (p for p in results_root.iterdir() if p.is_dir()),
+            key=lambda p: p.name,
+            reverse=True,
+        )[: options.operation_history_months]:
+            result_path = month_dir / FULL_WORKFLOW_RESULT_NAME
+            item: dict[str, Any] = {"month": month_dir.name, "status": "unknown"}
+            if result_path.is_file():
+                try:
+                    result = json.loads(result_path.read_text(encoding="utf-8"))
+                    item.update({
+                        "status": result.get("status", "unknown"),
+                        "finished_at": result.get("finished_at"),
+                        "duration_seconds": result.get("duration_seconds"),
+                        "failed_step": result.get("failed_step"),
+                        "steps_completed": result.get("steps_completed"),
+                        "steps_total": result.get("steps_total"),
+                    })
+                except (OSError, json.JSONDecodeError) as exc:
+                    item.update({"status": "unreadable", "error": str(exc)})
+            history.append(item)
+    return {
+        "version": APP_VERSION,
+        "generated_at": datetime.now(TZ).isoformat(),
+        "workflow": {
+            "status": state.get("workflow_lock_status"),
+            "month": state.get("workflow_lock_month"),
+            "step": state.get("workflow_lock_step"),
+            "message": state.get("workflow_lock_message"),
+        },
+        "last_run": {
+            "month": state.get("full_workflow_last_month"),
+            "status": state.get("full_workflow_last_status"),
+            "step": state.get("full_workflow_last_step"),
+            "error": state.get("full_workflow_last_error"),
+        },
+        "automatic_month_close": {
+            "enabled": options.automatic_month_close_enabled,
+            "day": options.automatic_month_close_day,
+            "hour": options.automatic_month_close_hour,
+            "last_month": state.get("automatic_month_close_last_month"),
+            "last_status": state.get("automatic_month_close_last_status"),
+            "last_run": state.get("automatic_month_close_last_run"),
+        },
+        "history": history,
+    }
+
+
+def automatic_month_close_due(options: Options, now: datetime) -> str | None:
+    if not options.automatic_month_close_enabled:
+        return None
+    if now.day < options.automatic_month_close_day or now.hour < options.automatic_month_close_hour:
+        return None
+    year, month = previous_month(now.date())
+    month_key = f"{year:04d}_{month:02d}"
+    state = load_state()
+    if state.get("automatic_month_close_last_month") == month_key and state.get("automatic_month_close_last_status") in {"completed", "completed_warning"}:
+        return None
+    return month_key
+
+
 def scheduler() -> None:
     startup_handled = False
     last_homewizard_run: datetime | None = None
@@ -4905,6 +4997,21 @@ def scheduler() -> None:
                 startup_handled = True
                 year, month = resolve_month("", options)
                 threading.Thread(target=run_import, args=(year, month), daemon=True).start()
+
+            close_month = automatic_month_close_due(options, datetime.now(TZ))
+            if close_month and not WORKFLOW_LOCK.locked():
+                update_state(
+                    automatic_month_close_last_month=close_month,
+                    automatic_month_close_last_status="running",
+                    automatic_month_close_last_run=datetime.now(TZ).isoformat(),
+                )
+                result = run_full_month_workflow(close_month, collect_live_snapshots=False)
+                update_state(
+                    automatic_month_close_last_month=close_month,
+                    automatic_month_close_last_status=result.get("status"),
+                    automatic_month_close_last_run=datetime.now(TZ).isoformat(),
+                )
+
             if not options.schedule_enabled:
                 update_state(next_scheduled_run=None)
                 STOP.wait(30)
@@ -5040,6 +5147,11 @@ a{{color:#0277bd}}
 <button type="submit">Verwerk maanddata</button>
 <p style="margin:8px 0 0">Handmatige test gebruikt de gekozen maand. De geplande maandrun gebruikt de vorige kalendermaand.</p>
 </form>
+<form method="post" action="run-historical-month" style="margin-top:12px">
+<label>Historische maand <input type="month" name="month" value="{esc(default_month)}" required></label>
+<button type="submit">Verwerk geselecteerde historische maand</button>
+<p style="margin:8px 0 0">Live snapshots worden nooit aan een historische maand toegevoegd.</p>
+</form>
 <form method="post" action="create-transfer-package" style="margin-top:12px">
 <button type="submit">Maak overdrachtspakket</button>
 </form>
@@ -5091,7 +5203,7 @@ a{{color:#0277bd}}
 <div class="card"><h2>Bronstatus</h2><ul>{"" .join(f"<li>{esc(k)}: {esc(v)}</li>" for k, v in (state.get("workflow_sources") or {}).items())}</ul></div>
 <div class="card"><h2>Downloads</h2><ul>{downloads}</ul></div>
 <div class="card"><p>API-key en planning staan op het tabblad <strong>Configuratie</strong>.</p>
-<p><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="workflow-lock-status">Workflowstatus</a> · <a href="health">Healthcheck</a></p></div>
+<p><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="workflow-lock-status">Workflowstatus</a> · <a href="operation-status">Operationele status</a> · <a href="health">Healthcheck</a></p></div>
 </main></body></html>""".encode("utf-8")
 
 
@@ -5175,6 +5287,13 @@ class Handler(BaseHTTPRequestHandler):
                 "response": state.get("report_generation_last_response"),
                 "error": state.get("report_generation_last_error"),
             }, ensure_ascii=False, indent=2).encode("utf-8")
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/operation-status") or path == "/operation-status":
+            body = json.dumps(
+                operation_status(Options.load()),
+                ensure_ascii=False,
+                indent=2,
+            ).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
         elif path.endswith("/health") or path == "/health":
             state = load_state()
@@ -5476,6 +5595,24 @@ class Handler(BaseHTTPRequestHandler):
                     + html.escape(json.dumps(result, ensure_ascii=False))
                     + "</p><p><a href='./'>Terug</a></p></html>"
                 ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/run-historical-month") or path == "/run-historical-month":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            form = parse_qs(self.rfile.read(length).decode("utf-8"))
+            selected = (form.get("month") or [""])[0].strip().replace("-", "_")
+            try:
+                month_key = historical_month_allowed(selected)
+                result = run_full_month_workflow(month_key, collect_live_snapshots=False)
+                code = HTTPStatus.OK if result.get("status") in {"completed", "completed_warning"} else HTTPStatus.BAD_REQUEST
+            except Exception as exc:
+                result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                ("<html><meta charset='utf-8'><p>" + html.escape(json.dumps(result, ensure_ascii=False)) + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return

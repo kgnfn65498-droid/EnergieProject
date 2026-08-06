@@ -400,3 +400,12 @@ Vanaf 5.0.4 mag de volledige workflow dezelfde maand opnieuw verwerken. De app:
 5. herstelt automatisch de vorige versie wanneer iets mislukt.
 
 De losse knop `Maak overdrachtspakket` blijft bewust niet-overschrijvend.
+
+
+## Fase 7.0
+
+- `automatic_month_close_enabled`: schakelt de automatische volledige maandafsluiting in. Standaard uit voor veilige ingebruikname.
+- `automatic_month_close_day` en `automatic_month_close_hour`: uitvoermoment in tijdzone Europe/Amsterdam.
+- Historische maanden kunnen in de webinterface expliciet worden gekozen. Daarbij worden geen actuele snapshots toegevoegd.
+- `operation-status` toont de actieve workflow, laatste run, automatische afsluitstatus en recente maandresultaten.
+- Definitieve bestanden blijven `Energierapport_YYYY_MM.pdf` en `Recovery_Update_YYYY_MM.zip`.

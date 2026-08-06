@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "6.9.1"
+    assert cfg_version == app_version == "7.0.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "6.9.1"' in config
+    assert 'version: "7.0.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1144,3 +1144,43 @@ def test_v691_validates_required_report_inputs():
     assert '"NextEnergy actuele stroomprijs.csv"' in source
     assert "Rapportinput is onvolledig" in source
     assert '"input_validation": input_validation' in source
+
+# Fase 7.0: maandafsluiting, historische selectie en operationele status.
+def test_version_7_0_0_matches():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'version: "7.0.0"' in config
+    assert 'APP_VERSION = "7.0.0"' in main
+
+
+def test_phase7_configuration_present():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    for key in (
+        "automatic_month_close_enabled",
+        "automatic_month_close_day",
+        "automatic_month_close_hour",
+        "operation_history_months",
+    ):
+        assert key in config
+
+
+def test_phase7_automatic_month_close_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def automatic_month_close_due" in source
+    assert "automatic_month_close_last_month" in source
+    assert "run_full_month_workflow(close_month, collect_live_snapshots=False)" in source
+
+
+def test_phase7_historical_selection_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def historical_month_allowed" in source
+    assert 'action="run-historical-month"' in source
+    assert 'path.endswith("/run-historical-month")' in source
+    assert "collect_live_snapshots=False" in source
+
+
+def test_phase7_operation_status_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def operation_status" in source
+    assert 'path.endswith("/operation-status")' in source
+    assert "Operationele status" in source

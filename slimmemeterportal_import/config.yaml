@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "6.9.1"
+version: "7.0.0"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -80,6 +80,10 @@ options:
   full_workflow_use_previous_month: true
   full_workflow_stop_on_error: true
   full_workflow_run_epex_when_enabled: true
+  automatic_month_close_enabled: false
+  automatic_month_close_day: 2
+  automatic_month_close_hour: 4
+  operation_history_months: 12
 schema:
   api_key: password
   run_on_start: bool
@@ -146,3 +150,7 @@ schema:
   full_workflow_use_previous_month: bool
   full_workflow_stop_on_error: bool
   full_workflow_run_epex_when_enabled: bool
+  automatic_month_close_enabled: bool
+  automatic_month_close_day: "int(1,28)"
+  automatic_month_close_hour: "int(0,23)"
+  operation_history_months: "int(1,60)"
