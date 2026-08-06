@@ -27,13 +27,14 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
+import ipaddress
 
 BASE_URL = "https://app.slimmemeterportal.nl"
 OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "4.2.0"
+APP_VERSION = "4.2.1"
 
 LOGGER = logging.getLogger("slimmemeterportal_import")
 STOP = threading.Event()
@@ -872,6 +873,13 @@ def run_epex_import(kind: str) -> dict[str, Any]:
         update_state(epex_gas_last_import=str(path), epex_gas_last_error=None)
     return result
 
+
+
+def validate_runtime_dependencies() -> None:
+    try:
+        ipaddress.ip_network("192.0.2.0/24")
+    except Exception as exc:
+        raise RuntimeError(f"Python ipaddress-module niet beschikbaar: {exc}") from exc
 
 
 def derive_local_ipv4_cidr() -> str:
@@ -2019,6 +2027,7 @@ def stop_handler(signum: int, frame: object) -> None:
 def main() -> None:
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", force=True)
+    validate_runtime_dependencies()
     LOGGER.info("Python-app v%s initialiseert.", APP_VERSION)
     signal.signal(signal.SIGTERM, stop_handler)
     signal.signal(signal.SIGINT, stop_handler)

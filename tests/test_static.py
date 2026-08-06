@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "4.2.0"
+    assert cfg_version == app_version == "4.2.1"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "4.2.0"' in config
+    assert 'version: "4.2.1"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -337,3 +337,14 @@ def test_homewizard_classifier_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "def classify_homewizard_device" in source
     assert "def discover_homewizard_device" in source
+
+
+def test_ipaddress_import_present_at_module_scope():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert any(line.strip() == "import ipaddress" for line in source.splitlines())
+
+def test_runtime_dependency_guard_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def validate_runtime_dependencies()" in source
+    assert 'ipaddress.ip_network("192.0.2.0/24")' in source
+    assert "validate_runtime_dependencies()" in source

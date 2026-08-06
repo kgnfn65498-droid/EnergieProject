@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.2.1
+
+- Ontbrekende `ipaddress`-import in de HomeWizard-detectie hersteld.
+- Runtime-controle toegevoegd zodat een ontbrekende standaardmodule direct bij opstart wordt gemeld.
+- Detectielogica opnieuw statisch en syntactisch gevalideerd.
+
+
 ## 4.2.0
 
 - Automatische HomeWizard-detectie binnen één expliciet of automatisch bepaald IPv4-/24-netwerk.
