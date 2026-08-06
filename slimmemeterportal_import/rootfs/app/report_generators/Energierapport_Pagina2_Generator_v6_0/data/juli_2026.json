@@ -1,0 +1,53 @@
+{
+  "meta": {"month": "juli 2026", "contract_period": "15 juli - 15 juli"},
+  "electricity": {
+    "consumption": 196, "consumption_vs_ly": -6.0,
+    "feed_in": 559, "feed_in_vs_ly": -9.2,
+    "net_feed_in": 363, "net_vs_ly": 3.0,
+    "consumption_split": {"t1_pct": 61, "t1_kwh": 2582, "t2_pct": 39, "t2_kwh": 1653},
+    "feedin_split": {"t1_pct": 37, "t1_kwh": 845, "t2_pct": 63, "t2_kwh": 1426},
+    "contract_years": [
+      ["15-07-2022 - 15-07-2023", 3791, 1838, 1953],
+      ["15-07-2023 - 15-07-2024", 3813, 2628, 1185],
+      ["15-07-2024 - 15-07-2025", 4886, 4309, 577],
+      ["15-07-2025 - 15-07-2026 (t/m juli)", 4205, 2271, 1934]
+    ]
+  },
+  "gas": {
+    "month": 594, "month_vs_ly": -15.0,
+    "per_day": 1.6, "per_day_vs_ly": -41.5,
+    "degree_days": 1987, "degree_days_vs_ly": -8.5,
+    "per_degree_day": 0.30, "per_degree_day_vs_ly": -7.0,
+    "series": {
+      "2023-2024": [4,8,16,28,36,26,18,10,5,3,2,1],
+      "2024-2025": [3,7,14,24,32,29,20,12,6,3,2,1],
+      "2025-2026": [2,5,11,19,26,18,11,6,3,2,1,1]
+    }
+  },
+  "costs": {
+    "electricity": -450.23, "feed_in_compensation": 118.26,
+    "grid_costs": 731.97, "gas": 347.45, "variable_total": -679.42,
+    "tariff_t1": 0.253, "tariff_t2": 0.189, "feed_in_tariff": 0.082, "gas_tariff": 0.89,
+    "fixed_costs_note": "volgens nota",
+    "trend_previous": [20,8,14,16,11,18,13,21,16,12,19,17],
+    "trend_current": [12,-10,-7,6,-12,-5,10,-6,-15,-8,8,-14]
+  },
+  "forecast": {
+    "electricity_total": 4950, "feed_in_total": 4300, "net": 650,
+    "current_year_difference": 73, "difference_pct": 12.6,
+    "gas_total": 700, "gas_difference": 1, "gas_difference_pct": 0.1,
+    "monthly_actual": [195,165,180,170,160,205,225,230,215,190,160,135],
+    "monthly_forecast": [180,190,175,145,120,110,120,175,195,165,205,230]
+  },
+  "battery": {
+    "profile": {"annual_feed_in": 4316, "net_import": 642, "self_use_pct": 28, "estimated_shift": 105},
+    "scenarios": [
+      ["Geen batterij", "-", "€ 0", "Referentie"],
+      ["Plug-in", "2,7 kWh", "€ 103-144", "Beperkt"],
+      ["Marstek", "5,1 kWh", "€ 168-216", "Beste match"],
+      ["Vast systeem", "5,0 kWh", "€ 192-264", "Te duur"]
+    ],
+    "decision": {"technical": "Ja", "financial": "Nog niet", "best": "Marstek 5,1 kWh", "payback": "7,6 jaar", "advice": "Volgen"}
+  },
+  "term": {"current": 170.00, "advice": 225.21, "annual_cost": 2702.56, "balance": -662.56, "coverage_pct": 75.5}
+}

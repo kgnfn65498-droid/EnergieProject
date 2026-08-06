@@ -1,0 +1,234 @@
+{
+  "rapport": {
+    "periode": "15 t/m 22 juli 2026",
+    "rapportdatum": "24 juli 2026",
+    "maand": "JULI 2026",
+    "pagina": 1,
+    "paginas": 7
+  },
+  "contract": {
+    "start": "15 juli 2026",
+    "type": "Dynamisch - Onbepaalde tijd"
+  },
+  "samenvatting": [
+    {
+      "kleur": "groen",
+      "tekst": "Juli eindigt met een groot terugleveringsoverschot van circa 363 kWh."
+    },
+    {
+      "kleur": "oranje",
+      "tekst": "De P1-meting is aangevuld met portaldata en een historisch juliprofiel."
+    },
+    {
+      "kleur": "groen",
+      "tekst": "De geschatte totale zonneproductie bedraagt circa 690 kWh."
+    },
+    {
+      "kleur": "oranje",
+      "tekst": "De energiekosten van € 59,98 zijn voorlopig en deels modelmatig bepaald."
+    },
+    {
+      "kleur": "groen",
+      "tekst": "Alle verplichte bronnen en vijf opgegeven socketexports zijn aanwezig."
+    },
+    {
+      "kleur": "oranje",
+      "tekst": "De oude PV-installatie blijft deels gesimuleerd omdat die niet apart meetbaar is."
+    },
+    {
+      "kleur": "oranje",
+      "tekst": "Gebruik augustus als eerste volledig gemeten vergelijkingsmaand."
+    }
+  ],
+  "kpi_boven": [
+    {
+      "titel": "Verbruik",
+      "waarde": "27,4",
+      "eenheid": "kWh",
+      "delta": "(+5,9)",
+      "kleur": "rood",
+      "icoon": "bliksem"
+    },
+    {
+      "titel": "Teruglevering",
+      "waarde": "75,3",
+      "eenheid": "kWh",
+      "delta": "(+12,1)",
+      "kleur": "groen",
+      "icoon": "zon"
+    },
+    {
+      "titel": "Netto balans",
+      "waarde": "-47,9",
+      "eenheid": "kWh",
+      "delta": "-",
+      "kleur": "groen",
+      "icoon": "balans"
+    },
+    {
+      "titel": "Gasverbruik",
+      "waarde": "9,9",
+      "eenheid": "m³",
+      "delta": "(+0,6)",
+      "kleur": "rood",
+      "icoon": "vlam"
+    },
+    {
+      "titel": "Eigen verbruik",
+      "waarde": "10,0",
+      "eenheid": "%",
+      "delta": "(-2,8)",
+      "kleur": "oranje",
+      "icoon": "huis"
+    },
+    {
+      "titel": "Energiekosten",
+      "waarde": "€ 39,63",
+      "eenheid": "-",
+      "delta": "-",
+      "kleur": "oranje",
+      "icoon": "euro"
+    },
+    {
+      "titel": "Energiescore",
+      "waarde": "11",
+      "eenheid": "/100",
+      "delta": "+4",
+      "kleur": "groen",
+      "icoon": "meter"
+    }
+  ],
+  "kpi_onder": [
+    {
+      "titel": "Werkelijke kosten",
+      "waarde": "€ 39,63",
+      "sub": "vs. juni",
+      "kleur": "groen"
+    },
+    {
+      "titel": "Huidige maandtermijn",
+      "waarde": "€ 170,00",
+      "sub": "vast",
+      "kleur": "blauw"
+    },
+    {
+      "titel": "Verwachte jaarkosten",
+      "waarde": "€ 2.702,56",
+      "sub": "incl. btw",
+      "kleur": "paars"
+    },
+    {
+      "titel": "Verwacht saldo",
+      "waarde": "- € 662,56",
+      "sub": "bijbetalen",
+      "kleur": "turkoois"
+    },
+    {
+      "titel": "Benodigde termijn",
+      "waarde": "€ 225,21",
+      "sub": "advies",
+      "kleur": "oranje"
+    },
+    {
+      "titel": "Verschil termijn",
+      "waarde": "+ € 55,21",
+      "sub": "hoger",
+      "kleur": "rood"
+    }
+  ],
+  "maand": {
+    "verbruik": {
+      "waarde": 27.4,
+      "delta": 5.9,
+      "jaren": [
+        211,
+        208,
+        213,
+        27.4
+      ]
+    },
+    "teruglevering": {
+      "waarde": 75.3,
+      "delta": 12.1,
+      "jaren": [
+        338,
+        518,
+        560,
+        75.3
+      ]
+    },
+    "gas": {
+      "waarde": 9.9,
+      "delta": 0.6,
+      "jaren": [
+        46,
+        25,
+        9.3,
+        9.9
+      ]
+    },
+    "netto_maanden": [
+      -47.9,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "score": {
+    "totaal": 11,
+    "onderdelen": [
+      [
+        "Verbruik",
+        80
+      ],
+      [
+        "Teruglevering",
+        94
+      ],
+      [
+        "Efficiëntie",
+        82
+      ],
+      [
+        "Kosten",
+        88
+      ],
+      [
+        "Duurzaamheid",
+        86
+      ]
+    ]
+  },
+  "efficientie": {
+    "zelfvoorziening": 26.7,
+    "eigen_verbruik": 26.7,
+    "gas": 9.9,
+    "delta_zelf": -2.8,
+    "delta_eigen": -2.8,
+    "delta_gas": 0.6
+  },
+  "batterij": {
+    "score": 72,
+    "capaciteit": "5,1 kWh",
+    "benutting": "± 60 %",
+    "besparing": "€ 155 - € 190",
+    "investering": "± € 1.200",
+    "terugverdientijd": "7 - 8 jaar",
+    "ontwikkeling": [
+      38,
+      42,
+      47,
+      49,
+      51,
+      72
+    ]
+  }
+}

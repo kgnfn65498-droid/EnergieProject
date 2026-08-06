@@ -36,7 +36,8 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.3.0"
+APP_VERSION = "6.4.0"
+BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
 
@@ -332,6 +333,10 @@ def default_state() -> dict[str, Any]:
         "report_page1_last_output": None,
         "report_page1_last_log": None,
         "report_page1_last_error": None,
+        "report_generators_install_last": None,
+        "report_generators_install_status": None,
+        "report_generators_install_files": [],
+        "report_generators_install_error": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -1038,6 +1043,124 @@ def validate_report_handoff_files(handoff: dict[str, Any]) -> dict[str, Any]:
 
 
 
+
+GENERATOR_BUNDLE_FOLDERS = {
+    "page_1": "Energierapport_Pagina1_Echte_Generator_v7",
+    "page_2": "Energierapport_Pagina2_Generator_v6_0",
+    "pages_3_13": "Energierapport_Pagina3_tm_13_Generator_v1_0",
+}
+
+
+def generator_wrapper_source(role: str, bundle_folder: str) -> str:
+    if role == "page_1":
+        entrypoint = "generate_energierapport_pagina1.py"
+        data_name = "page_1.json"
+        output_name = "Energierapport_Pagina1_{month_key}.pdf"
+        args = '[sys.executable, str(entry), str(data_file), "-o", str(output_file)]'
+    elif role == "page_2":
+        entrypoint = "src/generate_p2.py"
+        data_name = "page_2.json"
+        output_name = "Energierapport_Pagina2_{month_key}.pdf"
+        args = '[sys.executable, str(entry), "--data", str(data_file), "--output", str(output_file)]'
+    else:
+        entrypoint = "src/generate_pages_3_13.py"
+        data_name = "pages_3_13.json"
+        output_name = "Energierapport_Pagina3_tm_13_{month_key}.pdf"
+        args = '[sys.executable, str(entry), "--data", str(data_file), "--output", str(output_file)]'
+
+    return f"""#!/usr/bin/env python3
+from __future__ import annotations
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+def main() -> int:
+    p = argparse.ArgumentParser()
+    p.add_argument("--request", required=True)
+    p.add_argument("--input", required=True)
+    p.add_argument("--output", required=True)
+    p.add_argument("--year", required=True, type=int)
+    p.add_argument("--month", required=True, type=int)
+    a = p.parse_args()
+
+    month_key = f"{{a.year:04d}}_{{a.month:02d}}"
+    root = Path(__file__).resolve().parent
+    package = root / "packages" / "{bundle_folder}"
+    entry = package / "{entrypoint}"
+    data_file = root / "data" / month_key / "{data_name}"
+    output_file = Path(a.output) / f"{output_name}"
+
+    if not entry.is_file():
+        raise SystemExit(f"Bundled generator ontbreekt: {{entry}}")
+    if not data_file.is_file():
+        raise SystemExit(
+            "Generator-data ontbreekt: "
+            + str(data_file)
+            + ". Bouw eerst de maanddata-adapter."
+        )
+
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    command = {args}
+    return subprocess.run(command, check=False).returncode
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+"""
+
+
+def install_bundled_report_generators(options: Options) -> dict[str, Any]:
+    paths = report_service_paths(options)
+    paths["generators"].mkdir(parents=True, exist_ok=True)
+    packages_root = paths["generators"] / "packages"
+    data_root = paths["generators"] / "data"
+    packages_root.mkdir(parents=True, exist_ok=True)
+    data_root.mkdir(parents=True, exist_ok=True)
+
+    installed: list[str] = []
+    errors: list[str] = []
+
+    for role, official_name in REPORT_GENERATORS.items():
+        bundle_folder = GENERATOR_BUNDLE_FOLDERS[role]
+        source = BUNDLED_REPORT_GENERATORS / bundle_folder
+        destination = packages_root / bundle_folder
+
+        if not source.is_dir():
+            errors.append(f"Bundled generatorpakket ontbreekt: {source}")
+            continue
+
+        if destination.exists():
+            shutil.rmtree(destination)
+        shutil.copytree(source, destination)
+
+        wrapper = paths["generators"] / f"{official_name}.py"
+        wrapper.write_text(
+            generator_wrapper_source(role, bundle_folder),
+            encoding="utf-8",
+        )
+        wrapper.chmod(0o755)
+        installed.extend([str(destination), str(wrapper)])
+
+    status = "completed" if not errors else "failed"
+    result = {
+        "version": APP_VERSION,
+        "installed_at": datetime.now(TZ).isoformat(),
+        "status": status,
+        "root": str(paths["generators"]),
+        "installed": installed,
+        "errors": errors,
+    }
+    write_atomic_json(paths["root"] / "generator_install_result.json", result)
+    update_state(
+        report_generators_install_last=result["installed_at"],
+        report_generators_install_status=status,
+        report_generators_install_files=installed,
+        report_generators_install_error=None if not errors else "; ".join(errors),
+    )
+    return result
+
+
+
 def report_service_paths(options: Options) -> dict[str, Path]:
     root = Path("/share") / options.report_service_root
     return {
@@ -1053,6 +1176,7 @@ def initialize_report_service(options: Options) -> dict[str, Any]:
     paths = report_service_paths(options)
     for path in paths.values():
         path.mkdir(parents=True, exist_ok=True)
+    install_result = install_bundled_report_generators(options)
     contract = {
         "version": APP_VERSION,
         "schema": "energie_report_service_v1",
@@ -1062,7 +1186,12 @@ def initialize_report_service(options: Options) -> dict[str, Any]:
     }
     contract_path = paths["root"] / "service_contract.json"
     write_atomic_json(contract_path, contract)
-    return {"status": "ok", "root": str(paths["root"]), "contract": str(contract_path)}
+    return {
+        "status": "ok" if install_result.get("status") == "completed" else "error",
+        "root": str(paths["root"]),
+        "contract": str(contract_path),
+        "install": install_result,
+    }
 
 
 def discover_report_generators(options: Options) -> dict[str, Any]:
@@ -3995,6 +4124,9 @@ a{{color:#0277bd}}
 <form method="post" action="central-validation" style="margin-top:12px">
 <button type="submit">Voer centrale validatie uit</button>
 </form>
+<form method="post" action="install-report-generators" style="margin-top:12px">
+<button type="submit">Installeer officiële rapportgeneratoren</button>
+</form>
 <form method="post" action="run-report-page1" style="margin-top:12px">
 <button type="submit">Test rapportgenerator pagina 1</button>
 </form>
@@ -4145,6 +4277,22 @@ class Handler(BaseHTTPRequestHandler):
                     + html.escape(json.dumps(result, ensure_ascii=False))
                     + "</p><p><a href='./'>Terug</a></p></html>"
                 ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/install-report-generators") or path == "/install-report-generators":
+            try:
+                result = install_bundled_report_generators(Options.load())
+                code = HTTPStatus.OK if result.get("status") == "completed" else HTTPStatus.BAD_REQUEST
+            except Exception as exc:
+                result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                ("<html><meta charset='utf-8'><p>"
+                 + html.escape(json.dumps(result, ensure_ascii=False))
+                 + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return

@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.4.0
+
+- De drie aangeleverde officiële generatorpakketten zijn in de app opgenomen.
+- Generatorpakketten worden automatisch naar `/share/Energie_Rapportservice/generators/packages` geïnstalleerd.
+- Exacte, case-sensitive wrappers worden aangemaakt met de officiële generatornamen.
+- Pagina 1, pagina 2 en pagina 3-13 worden hierdoor door de service gedetecteerd.
+- ReportLab wordt als runtime-afhankelijkheid geïnstalleerd.
+- Nieuwe installatieknop en technische installatiestatus toegevoegd.
+- Wrappers stoppen veilig wanneer de maanddata-adapterbestanden nog ontbreken.
+
+
 ## 6.3.0
 
 - Gefaseerde koppeling voor de officiële pagina 1-generator toegevoegd.

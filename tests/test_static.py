@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "6.3.0"
+    assert cfg_version == app_version == "6.4.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "6.3.0"' in config
+    assert 'version: "6.4.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -920,3 +920,27 @@ def test_v630_staged_local_service():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"page_1_completed"' in source
     assert "Pagina 1 is uitgevoerd; pagina 2 en pagina 3-13 ontbreken nog." in source
+
+
+def test_v640_bundled_generators_present():
+    root = ADDON / "rootfs/app/report_generators"
+    assert (root / "Energierapport_Pagina1_Echte_Generator_v7").is_dir()
+    assert (root / "Energierapport_Pagina2_Generator_v6_0").is_dir()
+    assert (root / "Energierapport_Pagina3_tm_13_Generator_v1_0").is_dir()
+
+def test_v640_installer_and_wrappers():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def install_bundled_report_generators" in source
+    assert "def generator_wrapper_source" in source
+    assert '"packages"' in source
+    assert '"data"' in source
+    assert "Installeer officiële rapportgeneratoren" in source
+
+def test_v640_exact_official_wrapper_names():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'wrapper = paths["generators"] / f"{official_name}.py"' in source
+    assert "GENERATOR_BUNDLE_FOLDERS" in source
+
+def test_v640_reportlab_runtime_dependency():
+    dockerfile = (ADDON / "Dockerfile").read_text(encoding="utf-8")
+    assert "py3-reportlab" in dockerfile

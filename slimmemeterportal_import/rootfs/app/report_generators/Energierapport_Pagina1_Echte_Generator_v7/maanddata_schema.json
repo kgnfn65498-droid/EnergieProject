@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Energierapport pagina 1 maanddata",
+  "type": "object",
+  "required": ["rapport", "contract", "samenvatting", "kpi_boven", "kpi_onder", "maand", "score", "efficientie", "batterij"],
+  "properties": {
+    "rapport": {"type": "object", "required": ["periode", "rapportdatum", "maand"]},
+    "contract": {"type": "object", "required": ["start", "type"]},
+    "samenvatting": {"type": "array", "minItems": 1, "maxItems": 8},
+    "kpi_boven": {"type": "array", "minItems": 7, "maxItems": 7},
+    "kpi_onder": {"type": "array", "minItems": 6, "maxItems": 6},
+    "maand": {"type": "object", "required": ["verbruik", "teruglevering", "gas", "netto_maanden"]},
+    "score": {"type": "object", "required": ["totaal", "onderdelen"]},
+    "efficientie": {"type": "object", "required": ["zelfvoorziening", "delta_zelf", "eigen_verbruik", "delta_eigen", "gas", "delta_gas"]},
+    "batterij": {"type": "object", "required": ["score", "ontwikkeling", "capaciteit", "benutting", "besparing", "investering", "terugverdientijd"]}
+  },
+  "additionalProperties": true
+}

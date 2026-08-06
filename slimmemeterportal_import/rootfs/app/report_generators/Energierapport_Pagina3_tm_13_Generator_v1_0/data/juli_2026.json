@@ -1,0 +1,12 @@
+{
+  "meta": {"month":"juli 2026","period":"15 t/m 22 juli 2026","days":8,"status":"SIMULATIE - geen echte meetdata"},
+  "dashboard": {"house":36,"solar":84,"self":10.0,"export":48,"score":11,"quality":"Onderzoeken - volledigheid 25,8%"},
+  "electricity": {"grid":27,"feedin":75,"net":-48,"grid_day":3.4,"feedin_day":9.4,"house":36,
+    "daily_grid":[6,5,4,8,9,10,11,13,12,11,7,8,9,6,5,8,9,10,7,6,9,10,11,7,8,10,9,8,6,5,4],
+    "daily_feed":[20,22,24,29,37,47,61,72,80,87,73,57,50,67,76,54,40,47,52,64,68,76,83,85,81,86,72,62,53,46,40]},
+  "solar": {"production":84,"direct":8,"feedin":75,"self":10.0,"coverage":23.4},
+  "gas": {"month":9.9,"per_day":1.24,"reference":685,"history":[12,25,80,190,310,250,220,145,85,40,22,12]},
+  "finance": {"energy_cost":39.63,"term":170.00,"rows":[["Inkoop elektriciteit","27 kWh x werkelijk tarief","€ 18,74"],["Vergoeding teruglevering","75 kWh x werkelijk tarief","- € 6,21"],["Gas","9,9 m³ x werkelijk tarief","€ 13,10"],["Vaste leveringskosten","8/31 van maand","€ 4,80"],["Netbeheerkosten","8/31 van maand","€ 9,20"],["Indicatief maandtotaal","Som bovenstaande","€ 39,63"]]},
+  "forecast": {"rows":[["Elektriciteitsverbruik","4.890 kWh","4.860 kWh","Stabiel"],["Teruglevering","4.000 kWh","4.120 kWh","Licht hoger"],["Gas","685 m³","680 m³","Stabiel"],["Netto elektriciteit","890 kWh","740 kWh","Gunstiger"],["Verwachte afwijking jaarbedrag","-","Beperkt gunstig","Nog onzeker"]]},
+  "battery": {"rows":[["Scenario A","Geen batterij","0 kWh","€ 0","Referentie"],["Scenario B","Plug-in 2,7 kWh","65 kWh/mnd","€ 9-12/mnd","Beperkt voordeel"],["Scenario C","Marstek 5,1 kWh","105 kWh/mnd","€ 14-18/mnd","Beste technische match"],["Scenario D","Vaste batterij 5 kWh","120 kWh/mnd","€ 16-22/mnd","Te hoge investering"]]}
+}
