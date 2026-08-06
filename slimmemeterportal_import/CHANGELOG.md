@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.3.0
+
+- HomeWizard-scan gebruikt standaard het werkelijke thuisnetwerk `192.168.1.0/24`.
+- Het interne Home Assistant-netwerk `172.30.0.0/16` wordt expliciet uitgesloten.
+- Automatische netwerkbepaling accepteert alleen bruikbare particuliere IPv4-adressen.
+- Bij onduidelijk netwerk volgt een concrete configuratiemelding in plaats van een verkeerde scan.
+- Detectiestatus en actief scanbereik zijn zichtbaar in de Web UI.
+- Bestaande handmatige CIDR-configuratie blijft leidend.
+
+
 ## 4.2.2
 
 - Centrale `CONFIG_ROOT`, `OUTPUT_ROOT`, `STATE_PATH` en `OPTIONS_PATH` toegevoegd.

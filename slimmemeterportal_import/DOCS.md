@@ -244,3 +244,16 @@ homewizard_discovery_timeout_seconds: 1
 Een lege CIDR-instelling laat de app het lokale `/24`-netwerk bepalen. De scan
 blijft altijd beperkt tot één IPv4-/24-netwerk. De detectie maakt alleen een
 voorstel en wijzigt de bestaande apparaatconfiguratie niet automatisch.
+
+
+## HomeWizard-netwerk
+
+Voor deze installatie is het standaard scanbereik:
+
+```yaml
+homewizard_discovery_cidr: "192.168.1.0/24"
+```
+
+Het interne Home Assistant-bereik `172.30.0.0/16` wordt nooit als
+HomeWizard-thuisnetwerk gebruikt. Pas het CIDR alleen aan als het lokale netwerk
+later wijzigt.

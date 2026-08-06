@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "4.2.2"
+    assert cfg_version == app_version == "4.3.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "4.2.2"' in config
+    assert 'version: "4.3.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -371,3 +371,24 @@ def test_discovery_logs_result_count():
 def test_discovery_error_includes_type():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"type": type(exc).__name__' in source
+
+
+def test_default_homewizard_cidr_matches_project_network():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert 'homewizard_discovery_cidr: "192.168.1.0/24"' in config
+
+def test_container_network_is_never_used_for_discovery():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'ipaddress.ip_network("172.30.0.0/16")' in source
+    assert "continue" in source
+
+def test_discovery_status_is_tracked():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'homewizard_discovery_status="running"' in source
+    assert 'homewizard_discovery_status="completed"' in source
+    assert 'homewizard_discovery_status="error"' in source
+
+def test_discovery_ui_shows_network():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "HomeWizard netwerk" in source
+    assert "Scanbereik:" in source

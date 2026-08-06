@@ -34,7 +34,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "4.2.2"
+APP_VERSION = "4.3.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -211,6 +211,7 @@ def default_state() -> dict[str, Any]:
         "homewizard_discovery_count": 0,
         "homewizard_discovery_devices": [],
         "homewizard_discovery_error": None,
+        "homewizard_discovery_status": "idle",
         "homewizard_last_error": None,
         "enphase_last_import": None,
         "enphase_last_error": None,
@@ -896,15 +897,46 @@ def validate_runtime_dependencies() -> None:
 
 
 def derive_local_ipv4_cidr() -> str:
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    """
+    Bepaal een bruikbaar thuisnetwerk, maar accepteer nooit het interne
+    Home Assistant-containerbereik 172.30.0.0/16 als HomeWizard-scanbereik.
+    """
+    candidates: list[str] = []
+
     try:
-        sock.connect(("192.0.2.1", 9))
-        local_ip = sock.getsockname()[0]
+        hostname_ip = socket.gethostbyname(socket.gethostname())
+        candidates.append(hostname_ip)
     except OSError:
-        local_ip = socket.gethostbyname(socket.gethostname())
-    finally:
-        sock.close()
-    return str(ipaddress.ip_network(f"{local_ip}/24", strict=False))
+        pass
+
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.connect(("1.1.1.1", 53))
+            candidates.append(sock.getsockname()[0])
+        finally:
+            sock.close()
+    except OSError:
+        pass
+
+    for ip_text in candidates:
+        try:
+            ip = ipaddress.ip_address(ip_text)
+        except ValueError:
+            continue
+        if not isinstance(ip, ipaddress.IPv4Address):
+            continue
+        if ip.is_loopback or ip.is_link_local:
+            continue
+        if ip in ipaddress.ip_network("172.30.0.0/16"):
+            continue
+        if ip.is_private:
+            return str(ipaddress.ip_network(f"{ip}/24", strict=False))
+
+    raise RuntimeError(
+        "Thuisnetwerk kon niet automatisch worden bepaald. "
+        "Vul homewizard_discovery_cidr expliciet in, bijvoorbeeld 192.168.1.0/24."
+    )
 
 
 def classify_homewizard_device(info: dict[str, Any], data: dict[str, Any]) -> str:
@@ -955,6 +987,7 @@ def discover_homewizard_device(host: str, timeout: int) -> dict[str, Any] | None
 
 
 def discover_homewizard_devices(options: Options) -> dict[str, Any]:
+    update_state(homewizard_discovery_status="running", homewizard_discovery_error=None)
     if not options.homewizard_discovery_enabled:
         raise RuntimeError("Automatische HomeWizard-detectie is uitgeschakeld.")
 
@@ -999,6 +1032,7 @@ def discover_homewizard_devices(options: Options) -> dict[str, Any]:
         homewizard_discovery_count=len(found),
         homewizard_discovery_devices=found,
         homewizard_discovery_error=None,
+        homewizard_discovery_status="completed",
     )
     return result
 
@@ -1686,7 +1720,8 @@ a{{color:#0277bd}}
 <dt>Dubbele records</dt><dd>{esc((state.get("last_summary") or {}).get("totals", {}).get("duplicates", "Nog geen"))}</dd>
 <dt>Overdrachtspakket</dt><dd>{esc(state.get("last_transfer_bundle") or "Nog geen")}</dd>
 <dt>Laatste HomeWizard snapshot</dt><dd>{esc(state.get("homewizard_last_snapshot") or "Nog geen")}</dd>
-<dt>HomeWizard detectie</dt><dd>{esc((str(state.get("homewizard_discovery_count", 0)) + " apparaat/apparaten") if state.get("homewizard_discovery_last") else "Nog niet uitgevoerd")}</dd>
+<dt>HomeWizard detectie</dt><dd>{esc((str(state.get("homewizard_discovery_count", 0)) + " apparaat/apparaten") if state.get("homewizard_discovery_last") else state.get("homewizard_discovery_status", "Nog niet uitgevoerd"))}</dd>
+<dt>HomeWizard netwerk</dt><dd>{esc(state.get("homewizard_discovery_cidr") or "Niet bepaald")}</dd>
 <dt>HomeWizard fout</dt><dd>{esc(state.get("homewizard_last_error") or "Geen")}</dd>
 <dt>Laatste Enphase-import</dt><dd>{esc(state.get("enphase_last_import") or "Nog geen")}</dd>
 <dt>Laatste EPEX elektriciteit</dt><dd>{esc(state.get("epex_electricity_last_import") or "Nog geen")}</dd>
@@ -1714,6 +1749,7 @@ a{{color:#0277bd}}
 </form>
 <form method="post" action="homewizard-discover" style="margin-top:12px">
 <button type="submit">Detecteer HomeWizard-apparaten</button>
+<p style="margin:8px 0 0">Scanbereik: instelling <code>homewizard_discovery_cidr</code>.</p>
 </form>
 <form method="post" action="homewizard-snapshot" style="margin-top:12px">
 <button type="submit">Maak HomeWizard snapshot</button>
@@ -1938,7 +1974,10 @@ class Handler(BaseHTTPRequestHandler):
                 result = discover_homewizard_devices(Options.load())
                 code = HTTPStatus.OK
             except Exception as exc:
-                update_state(homewizard_discovery_error=str(exc))
+                update_state(
+                    homewizard_discovery_error=str(exc),
+                    homewizard_discovery_status="error",
+                )
                 result = {"status": "error", "error": str(exc)}
                 code = HTTPStatus.BAD_REQUEST
             self.send_body(
