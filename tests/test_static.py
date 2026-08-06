@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "4.2.1"
+    assert cfg_version == app_version == "4.2.2"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "4.2.1"' in config
+    assert 'version: "4.2.2"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -348,3 +348,26 @@ def test_runtime_dependency_guard_present():
     assert "def validate_runtime_dependencies()" in source
     assert 'ipaddress.ip_network("192.0.2.0/24")' in source
     assert "validate_runtime_dependencies()" in source
+
+
+def test_central_storage_constants_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'CONFIG_ROOT = Path("/data")' in source
+    assert 'OUTPUT_ROOT = Path("/config/output")' in source
+    assert 'STATE_PATH = Path("/config/state.json")' in source
+    assert 'OPTIONS_PATH = Path("/data/options.json")' in source
+
+def test_storage_guard_present_and_used():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def ensure_storage_paths()" in source
+    assert "CONFIG_ROOT.mkdir(parents=True, exist_ok=True)" in source
+    assert "OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)" in source
+    assert "ensure_storage_paths()" in source
+
+def test_discovery_logs_result_count():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "HomeWizard-detectie afgerond" in source
+
+def test_discovery_error_includes_type():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"type": type(exc).__name__' in source

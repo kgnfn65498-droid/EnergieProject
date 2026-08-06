@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.2.2
+
+- Centrale `CONFIG_ROOT`, `OUTPUT_ROOT`, `STATE_PATH` en `OPTIONS_PATH` toegevoegd.
+- HomeWizard-detectie schrijft nu via één vaste opslaglocatie.
+- Opslagmappen worden vóór gebruik gecontroleerd en zo nodig aangemaakt.
+- Duidelijke foutmelding toegevoegd wanneer de Home Assistant-configopslag niet beschikbaar is.
+- Detectieresultaat en aantal gevonden apparaten worden in het log vastgelegd.
+- Backendfouten bevatten nu ook het fouttype.
+
+
 ## 4.2.1
 
 - Ontbrekende `ipaddress`-import in de HomeWizard-detectie hersteld.

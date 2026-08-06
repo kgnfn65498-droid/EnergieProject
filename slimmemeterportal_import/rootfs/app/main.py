@@ -34,7 +34,10 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "4.2.1"
+APP_VERSION = "4.2.2"
+
+CONFIG_ROOT = Path("/data")
+
 
 LOGGER = logging.getLogger("slimmemeterportal_import")
 STOP = threading.Event()
@@ -875,6 +878,16 @@ def run_epex_import(kind: str) -> dict[str, Any]:
 
 
 
+def ensure_storage_paths() -> None:
+    try:
+        CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
+        OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise RuntimeError(
+            f"Home Assistant-opslagmap niet beschikbaar: {CONFIG_ROOT}: {exc}"
+        ) from exc
+
+
 def validate_runtime_dependencies() -> None:
     try:
         ipaddress.ip_network("192.0.2.0/24")
@@ -977,7 +990,9 @@ def discover_homewizard_devices(options: Options) -> dict[str, Any]:
         "devices_found": len(found),
         "devices": found,
     }
+    ensure_storage_paths()
     write_atomic_json(CONFIG_ROOT / "homewizard_discovery.json", result)
+    LOGGER.info("HomeWizard-detectie afgerond: %s apparaat/apparaten gevonden in %s.", len(found), network)
     update_state(
         homewizard_discovery_last=result["checked_at"],
         homewizard_discovery_cidr=str(network),
@@ -1822,7 +1837,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = run_self_test()
                 code = HTTPStatus.OK if result.get("status") != "error" else HTTPStatus.BAD_REQUEST
             except Exception as exc:
-                result = {"status": "error", "error": str(exc)}
+                LOGGER.exception("HomeWizard-detectie mislukt.")
+                result = {"status": "error", "error": str(exc), "type": type(exc).__name__}
                 code = HTTPStatus.BAD_REQUEST
             self.send_body(
                 code,
@@ -2028,6 +2044,7 @@ def main() -> None:
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", force=True)
     validate_runtime_dependencies()
+    ensure_storage_paths()
     LOGGER.info("Python-app v%s initialiseert.", APP_VERSION)
     signal.signal(signal.SIGTERM, stop_handler)
     signal.signal(signal.SIGINT, stop_handler)
