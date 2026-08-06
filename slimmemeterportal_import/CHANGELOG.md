@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.3.0
+
+- Gefaseerde koppeling voor de officiële pagina 1-generator toegevoegd.
+- Service onderscheidt `page_1_ready` van volledige generatorgereedheid.
+- Nieuwe testknop voert uitsluitend pagina 1 uit.
+- Pagina 1 krijgt een eigen resultaatbestand, log en technische statusvelden.
+- Uitvoer wordt gecontroleerd op `Energierapport_Pagina1_YYYY_MM.pdf`.
+- Ontbrekende pagina 1-generator geeft veilig `waiting_for_page_1`.
+- Volledige rapportservice kan pagina 1 alvast uitvoeren terwijl pagina 2 en 3-13 nog ontbreken.
+
+
 ## 6.2.0
 
 - Lokale Rapport Generator Service toegevoegd onder `/share/Energie_Rapportservice`.

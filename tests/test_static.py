@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "6.2.0"
+    assert cfg_version == app_version == "6.3.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "6.2.0"' in config
+    assert 'version: "6.3.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -895,3 +895,28 @@ def test_v620_output_validation():
     assert "def validate_report_outputs" in source
     assert "Definitief rapport ontbreekt of is leeg" in source
     assert "Recovery Update ontbreekt of is leeg" in source
+
+
+def test_v630_page1_state_and_executor():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"report_page1_last_status": None' in source
+    assert "def execute_page1_generator" in source
+    assert '"waiting_for_page_1"' in source
+    assert 'f"Energierapport_Pagina1_{month_key}.pdf"' in source
+
+def test_v630_discovery_has_page1_ready():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"page_1_ready"' in source
+    assert '"role_status": role_status' in source
+    assert 'role_status["page_1"] == "ready"' in source
+
+def test_v630_page1_endpoint_and_button():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"/run-report-page1"' in source
+    assert "Test rapportgenerator pagina 1" in source
+    assert '"page_1_result.json"' in source
+
+def test_v630_staged_local_service():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"page_1_completed"' in source
+    assert "Pagina 1 is uitgevoerd; pagina 2 en pagina 3-13 ontbreken nog." in source

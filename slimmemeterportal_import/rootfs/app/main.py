@@ -36,7 +36,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.2.0"
+APP_VERSION = "6.3.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -326,6 +326,12 @@ def default_state() -> dict[str, Any]:
         "report_service_generators": {},
         "report_service_last_output": None,
         "report_service_last_error": None,
+        "report_page1_last_started": None,
+        "report_page1_last_finished": None,
+        "report_page1_last_status": None,
+        "report_page1_last_output": None,
+        "report_page1_last_log": None,
+        "report_page1_last_error": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -1070,13 +1076,23 @@ def discover_report_generators(options: Options) -> dict[str, Any]:
             found[role] = {"name": name, "path": str(script), "sha256": sha256_file(script)}
         else:
             missing.append(name)
-    status = "ready" if not missing else "waiting_for_generators"
+    role_status = {
+        role: ("ready" if role in found else "missing")
+        for role in REPORT_GENERATORS
+    }
+    if not missing:
+        status = "ready"
+    elif role_status["page_1"] == "ready":
+        status = "page_1_ready"
+    else:
+        status = "waiting_for_generators"
     result = {
         "version": APP_VERSION,
         "checked_at": datetime.now(TZ).isoformat(),
         "status": status,
         "root": str(paths["root"]),
         "generators": found,
+        "role_status": role_status,
         "missing": missing,
     }
     update_state(
@@ -1086,6 +1102,110 @@ def discover_report_generators(options: Options) -> dict[str, Any]:
         report_service_last_error=None,
     )
     return result
+
+
+
+def execute_page1_generator(
+    options: Options,
+    handoff_path: str | Path,
+    handoff: dict[str, Any],
+) -> dict[str, Any]:
+    started_at = datetime.now(TZ).isoformat()
+    service = discover_report_generators(options)
+    month_key = str(handoff["month"])
+    page1 = service.get("generators", {}).get("page_1")
+
+    update_state(
+        report_page1_last_started=started_at,
+        report_page1_last_status="running",
+        report_page1_last_error=None,
+    )
+
+    if not page1:
+        result = {
+            "status": "waiting_for_page_1",
+            "month": month_key,
+            "generator": REPORT_GENERATORS["page_1"],
+            "generator_folder": str(report_service_paths(options)["generators"]),
+            "reason": "Officiële pagina 1-generator ontbreekt.",
+        }
+        update_state(
+            report_page1_last_finished=datetime.now(TZ).isoformat(),
+            report_page1_last_status=result["status"],
+            report_page1_last_error=None,
+        )
+        return result
+
+    paths = report_service_paths(options)
+    output_folder = paths["work"] / month_key
+    log_folder = paths["logs"] / month_key
+    output_folder.mkdir(parents=True, exist_ok=True)
+    log_folder.mkdir(parents=True, exist_ok=True)
+
+    input_folder = Path(str(handoff["input_folder"]))
+    year, month = int(month_key[:4]), int(month_key[5:7])
+    expected_output = output_folder / f"Energierapport_Pagina1_{month_key}.pdf"
+    command = [
+        sys.executable,
+        page1["path"],
+        "--request", str(handoff_path),
+        "--input", str(input_folder),
+        "--output", str(output_folder),
+        "--year", str(year),
+        "--month", str(month),
+    ]
+
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=options.report_service_timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        error = f"Pagina 1-generator overschreed {options.report_service_timeout_seconds} seconden."
+        update_state(
+            report_page1_last_finished=datetime.now(TZ).isoformat(),
+            report_page1_last_status="failed",
+            report_page1_last_error=error,
+        )
+        return {"status": "failed", "month": month_key, "error": error}
+
+    log_path = log_folder / "page_1.log"
+    log_path.write_text(
+        "COMMAND:\n" + " ".join(command)
+        + "\n\nSTDOUT:\n" + completed.stdout
+        + "\n\nSTDERR:\n" + completed.stderr,
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    if completed.returncode != 0:
+        errors.append(f"Pagina 1-generator stopte met code {completed.returncode}.")
+    if not expected_output.is_file() or expected_output.stat().st_size == 0:
+        errors.append(f"Pagina 1-PDF ontbreekt of is leeg: {expected_output}")
+
+    status = "completed" if not errors else "failed"
+    result = {
+        "status": status,
+        "month": month_key,
+        "generator": page1,
+        "returncode": completed.returncode,
+        "output": str(expected_output),
+        "log": str(log_path),
+        "errors": errors,
+    }
+    write_atomic_json(output_folder / "page_1_result.json", result)
+    update_state(
+        report_page1_last_finished=datetime.now(TZ).isoformat(),
+        report_page1_last_status=status,
+        report_page1_last_output=str(expected_output) if status == "completed" else None,
+        report_page1_last_log=str(log_path),
+        report_page1_last_error=None if status == "completed" else "; ".join(errors),
+    )
+    return result
+
 
 
 def validate_report_outputs(handoff: dict[str, Any], output_folder: Path) -> dict[str, Any]:
@@ -1110,11 +1230,21 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
     service = discover_report_generators(options)
     month_key = str(handoff["month"])
     if service["status"] != "ready":
+        page1_result = execute_page1_generator(options, handoff_path, handoff)
         return {
-            "status": "waiting_for_generators",
+            "status": (
+                "page_1_completed"
+                if page1_result.get("status") == "completed"
+                else "waiting_for_generators"
+            ),
             "month": month_key,
             "service": service,
-            "reason": "Officiële generatorbestanden ontbreken.",
+            "page_1": page1_result,
+            "reason": (
+                "Pagina 1 is uitgevoerd; pagina 2 en pagina 3-13 ontbreken nog."
+                if page1_result.get("status") == "completed"
+                else "Officiële generatorbestanden ontbreken."
+            ),
         }
 
     paths = report_service_paths(options)
@@ -3865,6 +3995,9 @@ a{{color:#0277bd}}
 <form method="post" action="central-validation" style="margin-top:12px">
 <button type="submit">Voer centrale validatie uit</button>
 </form>
+<form method="post" action="run-report-page1" style="margin-top:12px">
+<button type="submit">Test rapportgenerator pagina 1</button>
+</form>
 <form method="post" action="report-service-check" style="margin-top:12px">
 <button type="submit">Controleer rapportservice</button>
 </form>
@@ -4012,6 +4145,33 @@ class Handler(BaseHTTPRequestHandler):
                     + html.escape(json.dumps(result, ensure_ascii=False))
                     + "</p><p><a href='./'>Terug</a></p></html>"
                 ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/run-report-page1") or path == "/run-report-page1":
+            state = load_state()
+            handoff_path = state.get("report_handoff_last_path")
+            if not handoff_path:
+                result = {"status": "error", "error": "Geen rapportaanvraag beschikbaar."}
+                code = HTTPStatus.BAD_REQUEST
+            else:
+                try:
+                    handoff = load_report_handoff(handoff_path)
+                    result = execute_page1_generator(
+                        Options.load(),
+                        handoff_path,
+                        handoff,
+                    )
+                    code = HTTPStatus.OK if result.get("status") in {"completed", "waiting_for_page_1"} else HTTPStatus.BAD_REQUEST
+                except Exception as exc:
+                    result = {"status": "error", "error": str(exc)}
+                    code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                ("<html><meta charset='utf-8'><p>"
+                 + html.escape(json.dumps(result, ensure_ascii=False))
+                 + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return
