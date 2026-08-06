@@ -231,3 +231,16 @@ De bestanden worden per kalendermaand opgebouwd onder:
 
 De app hernoemt geen bestaande bestanden. `output_name` wordt exact en
 case-sensitive gebruikt.
+
+
+## HomeWizard-detectie
+
+```yaml
+homewizard_discovery_enabled: true
+homewizard_discovery_cidr: ""
+homewizard_discovery_timeout_seconds: 1
+```
+
+Een lege CIDR-instelling laat de app het lokale `/24`-netwerk bepalen. De scan
+blijft altijd beperkt tot één IPv4-/24-netwerk. De detectie maakt alleen een
+voorstel en wijzigt de bestaande apparaatconfiguratie niet automatisch.

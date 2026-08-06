@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "4.1.0"
+    assert cfg_version == app_version == "4.2.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "4.1.0"' in config
+    assert 'version: "4.2.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -306,3 +306,34 @@ def test_snapshot_records_csv_files():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert 'snapshot["month_csv_files"] = written_csv' in source
     assert "homewizard_last_csv_files" in source
+
+
+def test_homewizard_discovery_configuration_present():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert "homewizard_discovery_enabled" in config
+    assert "homewizard_discovery_cidr" in config
+    assert "homewizard_discovery_timeout_seconds" in config
+
+def test_homewizard_discovery_is_limited_to_slash_24():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "network.prefixlen < 24" in source
+    assert "beperkt tot één IPv4 /24-netwerk" in source
+
+def test_homewizard_discovery_endpoint_and_ui_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"/homewizard-discover"' in source
+    assert "Detecteer HomeWizard-apparaten" in source
+    assert "def discover_homewizard_devices" in source
+
+def test_discovery_does_not_modify_options():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    start = source.index("def discover_homewizard_devices")
+    end = source.index("def homewizard_request", start)
+    block = source[start:end]
+    assert 'write_atomic_json(CONFIG_ROOT / "homewizard_discovery.json"' in block
+    assert "OPTIONS_PATH" not in block
+
+def test_homewizard_classifier_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def classify_homewizard_device" in source
+    assert "def discover_homewizard_device" in source

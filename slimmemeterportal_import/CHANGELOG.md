@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.2.0
+
+- Automatische HomeWizard-detectie binnen één expliciet of automatisch bepaald IPv4-/24-netwerk.
+- P1-meter, Energy Socket en overige HomeWizard-apparaten worden via de lokale API herkend.
+- Detectieresultaten bevatten IP-adres, apparaatinfo, voorbeeldmeting, voorgestelde rol en uitvoernaam.
+- Detectieresultaten worden opgeslagen als `homewizard_discovery.json`.
+- Webinterface bevat de knop `Detecteer HomeWizard-apparaten`.
+- Netwerkscan is bewust beperkt tot maximaal één /24-netwerk.
+- Bestaande apparaatconfiguratie wordt niet automatisch gewijzigd.
+
+
 ## 4.1.0
 
 - Automatische HomeWizard-sampling voor P1-meter en Energy Sockets.

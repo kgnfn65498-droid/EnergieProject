@@ -19,6 +19,7 @@ import socket
 import zipfile
 from calendar import monthrange
 from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -32,7 +33,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "4.1.0"
+APP_VERSION = "4.2.0"
 
 LOGGER = logging.getLogger("slimmemeterportal_import")
 STOP = threading.Event()
@@ -60,6 +61,9 @@ class Options:
     create_transfer_bundle: bool
     workflow_mode: str
     homewizard_enabled: bool
+    homewizard_discovery_enabled: bool
+    homewizard_discovery_cidr: str
+    homewizard_discovery_timeout_seconds: int
     homewizard_devices: list[dict[str, Any]]
     homewizard_sample_seconds: int
     enphase_enabled: bool
@@ -102,6 +106,9 @@ class Options:
             create_transfer_bundle=bool(raw.get("create_transfer_bundle", True)),
             workflow_mode=str(raw.get("workflow_mode", "smp_only")),
             homewizard_enabled=bool(raw.get("homewizard_enabled", False)),
+            homewizard_discovery_enabled=bool(raw.get("homewizard_discovery_enabled", True)),
+            homewizard_discovery_cidr=str(raw.get("homewizard_discovery_cidr", "")).strip(),
+            homewizard_discovery_timeout_seconds=int(raw.get("homewizard_discovery_timeout_seconds", 1)),
             homewizard_devices=list(raw.get("homewizard_devices", [])),
             homewizard_sample_seconds=int(raw.get("homewizard_sample_seconds", 900)),
             enphase_enabled=bool(raw.get("enphase_enabled", False)),
@@ -141,6 +148,15 @@ class Options:
             raise ValueError("retention_months moet 1 t/m 120 zijn.")
         if self.workflow_mode not in {"smp_only", "full_month_workflow"}:
             raise ValueError("workflow_mode is ongeldig.")
+        if not 1 <= self.homewizard_discovery_timeout_seconds <= 5:
+            raise ValueError("homewizard_discovery_timeout_seconds moet 1 t/m 5 zijn.")
+        if self.homewizard_discovery_cidr:
+            try:
+                network = ipaddress.ip_network(self.homewizard_discovery_cidr, strict=False)
+            except ValueError as exc:
+                raise ValueError("homewizard_discovery_cidr is geen geldig CIDR-netwerk.") from exc
+            if network.version != 4 or network.prefixlen < 24:
+                raise ValueError("HomeWizard-detectie is beperkt tot één IPv4 /24-netwerk of kleiner.")
         if not 60 <= self.homewizard_sample_seconds <= 3600:
             raise ValueError("homewizard_sample_seconds moet 60 t/m 3600 zijn.")
         if self.enphase_enabled and not self.enphase_source_url:
@@ -186,6 +202,11 @@ def default_state() -> dict[str, Any]:
         "homewizard_last_snapshot": None,
         "homewizard_last_csv_files": [],
         "homewizard_last_device_count": 0,
+        "homewizard_discovery_last": None,
+        "homewizard_discovery_cidr": None,
+        "homewizard_discovery_count": 0,
+        "homewizard_discovery_devices": [],
+        "homewizard_discovery_error": None,
         "homewizard_last_error": None,
         "enphase_last_import": None,
         "enphase_last_error": None,
@@ -850,6 +871,114 @@ def run_epex_import(kind: str) -> dict[str, Any]:
     else:
         update_state(epex_gas_last_import=str(path), epex_gas_last_error=None)
     return result
+
+
+
+def derive_local_ipv4_cidr() -> str:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("192.0.2.1", 9))
+        local_ip = sock.getsockname()[0]
+    except OSError:
+        local_ip = socket.gethostbyname(socket.gethostname())
+    finally:
+        sock.close()
+    return str(ipaddress.ip_network(f"{local_ip}/24", strict=False))
+
+
+def classify_homewizard_device(info: dict[str, Any], data: dict[str, Any]) -> str:
+    product = str(
+        info.get("product_type")
+        or info.get("product_name")
+        or info.get("type")
+        or ""
+    ).lower()
+    if "p1" in product or "smr" in product:
+        return "p1"
+    if "socket" in product or "plug" in product:
+        return "socket"
+    if "total_gas_m3" in data and "total_power_import_kwh" not in data:
+        return "gas"
+    if "total_power_import_kwh" in data and "active_power_w" in data:
+        return "socket"
+    return "other"
+
+
+def discover_homewizard_device(host: str, timeout: int) -> dict[str, Any] | None:
+    try:
+        info = homewizard_info(host, timeout)
+        data = homewizard_get(host, timeout)
+    except Exception:
+        return None
+
+    role = classify_homewizard_device(info, data)
+    label = str(
+        info.get("name")
+        or info.get("product_name")
+        or info.get("product_type")
+        or f"HomeWizard {host}"
+    ).strip()
+    proposal = {
+        "label": label,
+        "host": host,
+        "role": role,
+        "optional": role not in {"p1", "gas"},
+        "output_name": "",
+    }
+    proposal["output_name"] = safe_homewizard_output_name(proposal)
+    return {
+        **proposal,
+        "device_info": info,
+        "sample_data": data,
+    }
+
+
+def discover_homewizard_devices(options: Options) -> dict[str, Any]:
+    if not options.homewizard_discovery_enabled:
+        raise RuntimeError("Automatische HomeWizard-detectie is uitgeschakeld.")
+
+    cidr = options.homewizard_discovery_cidr or derive_local_ipv4_cidr()
+    network = ipaddress.ip_network(cidr, strict=False)
+    if network.version != 4 or network.prefixlen < 24:
+        raise RuntimeError(
+            "Detectie is om veiligheidsredenen beperkt tot één IPv4 /24-netwerk of kleiner."
+        )
+
+    hosts = [str(host) for host in network.hosts()]
+    found: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=min(32, max(1, len(hosts)))) as pool:
+        futures = {
+            pool.submit(
+                discover_homewizard_device,
+                host,
+                options.homewizard_discovery_timeout_seconds,
+            ): host
+            for host in hosts
+        }
+        for future in as_completed(futures):
+            device = future.result()
+            if device:
+                found.append(device)
+
+    found.sort(key=lambda item: (item.get("role", "other"), item.get("host", "")))
+    result = {
+        "status": "ok",
+        "checked_at": datetime.now(TZ).isoformat(),
+        "cidr": str(network),
+        "hosts_scanned": len(hosts),
+        "devices_found": len(found),
+        "devices": found,
+    }
+    write_atomic_json(CONFIG_ROOT / "homewizard_discovery.json", result)
+    update_state(
+        homewizard_discovery_last=result["checked_at"],
+        homewizard_discovery_cidr=str(network),
+        homewizard_discovery_count=len(found),
+        homewizard_discovery_devices=found,
+        homewizard_discovery_error=None,
+    )
+    return result
+
 
 
 def homewizard_request(host: str, path: str, timeout: int) -> dict[str, Any]:
@@ -1534,6 +1663,7 @@ a{{color:#0277bd}}
 <dt>Dubbele records</dt><dd>{esc((state.get("last_summary") or {}).get("totals", {}).get("duplicates", "Nog geen"))}</dd>
 <dt>Overdrachtspakket</dt><dd>{esc(state.get("last_transfer_bundle") or "Nog geen")}</dd>
 <dt>Laatste HomeWizard snapshot</dt><dd>{esc(state.get("homewizard_last_snapshot") or "Nog geen")}</dd>
+<dt>HomeWizard detectie</dt><dd>{esc((str(state.get("homewizard_discovery_count", 0)) + " apparaat/apparaten") if state.get("homewizard_discovery_last") else "Nog niet uitgevoerd")}</dd>
 <dt>HomeWizard fout</dt><dd>{esc(state.get("homewizard_last_error") or "Geen")}</dd>
 <dt>Laatste Enphase-import</dt><dd>{esc(state.get("enphase_last_import") or "Nog geen")}</dd>
 <dt>Laatste EPEX elektriciteit</dt><dd>{esc(state.get("epex_electricity_last_import") or "Nog geen")}</dd>
@@ -1558,6 +1688,9 @@ a{{color:#0277bd}}
 </form>
 <form method="post" action="verify" style="margin-top:12px">
 <button type="submit">Controleer laatste maand</button>
+</form>
+<form method="post" action="homewizard-discover" style="margin-top:12px">
+<button type="submit">Detecteer HomeWizard-apparaten</button>
 </form>
 <form method="post" action="homewizard-snapshot" style="margin-top:12px">
 <button type="submit">Maak HomeWizard snapshot</button>
@@ -1763,6 +1896,25 @@ class Handler(BaseHTTPRequestHandler):
                 code = HTTPStatus.OK
             except Exception as exc:
                 update_state(epex_gas_last_error=str(exc))
+                result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                (
+                    "<html><meta charset='utf-8'><p>"
+                    + html.escape(json.dumps(result, ensure_ascii=False))
+                    + "</p><p><a href='./'>Terug</a></p></html>"
+                ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/homewizard-discover") or path == "/homewizard-discover":
+            try:
+                result = discover_homewizard_devices(Options.load())
+                code = HTTPStatus.OK
+            except Exception as exc:
+                update_state(homewizard_discovery_error=str(exc))
                 result = {"status": "error", "error": str(exc)}
                 code = HTTPStatus.BAD_REQUEST
             self.send_body(

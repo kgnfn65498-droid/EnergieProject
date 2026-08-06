@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "4.1.0"
+version: "4.2.0"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -36,6 +36,9 @@ options:
   create_transfer_bundle: true
   workflow_mode: "smp_only"
   homewizard_enabled: false
+  homewizard_discovery_enabled: true
+  homewizard_discovery_cidr: ""
+  homewizard_discovery_timeout_seconds: 1
   homewizard_devices: []
   homewizard_sample_seconds: 900
   enphase_enabled: false
@@ -68,6 +71,9 @@ schema:
   create_transfer_bundle: bool
   workflow_mode: "list(smp_only|full_month_workflow)"
   homewizard_enabled: bool
+  homewizard_discovery_enabled: bool
+  homewizard_discovery_cidr: str
+  homewizard_discovery_timeout_seconds: "int(1,5)"
   homewizard_devices:
     - label: str
       host: str
