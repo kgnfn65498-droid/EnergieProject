@@ -37,7 +37,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.6.3"
+APP_VERSION = "6.7.0"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -356,6 +356,11 @@ def default_state() -> dict[str, Any]:
         "report_output_last_folder": None,
         "report_output_last_files": [],
         "report_output_last_error": None,
+        "workflow_audit_last_checked": None,
+        "workflow_audit_last_month": None,
+        "workflow_audit_last_status": None,
+        "workflow_audit_last_result": None,
+        "workflow_audit_last_error": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -1917,6 +1922,24 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
             "returncode": completed.returncode,
             "log": str(log_path),
         })
+        if role == "page_1":
+            page1_output = work_folder / f"Energierapport_Pagina1_{month_key}.pdf"
+            page1_status = (
+                "completed"
+                if completed.returncode == 0
+                and page1_output.is_file()
+                and page1_output.stat().st_size > 0
+                else "failed"
+            )
+            update_state(
+                report_page1_last_started=None,
+                report_page1_last_finished=datetime.now(TZ).isoformat(),
+                report_page1_last_status=page1_status,
+                report_page1_last_output=str(page1_output) if page1_status == "completed" else None,
+                report_page1_last_log=str(log_path),
+                report_page1_last_error=None if page1_status == "completed"
+                else f"{generator['name']} stopte met code {completed.returncode}.",
+            )
         if completed.returncode != 0:
             error = f"{generator['name']} stopte met code {completed.returncode}."
             update_state(report_service_last_status="failed", report_service_last_error=error)
@@ -1959,6 +1982,81 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
             None if status == "completed"
             else "; ".join(validation["errors"] + publication["errors"])
         ),
+    )
+    return result
+
+
+
+
+def audit_completed_month_workflow(month_key: str) -> dict[str, Any]:
+    state = load_state()
+    checks: list[dict[str, Any]] = []
+
+    def add(name: str, status: str, detail: Any = None) -> None:
+        checks.append({"name": name, "status": status, "detail": detail})
+
+    add("central_validation",
+        "ok" if (state.get("last_central_validation") or {}).get("status") == "ok" else "error",
+        state.get("last_central_validation"))
+    add("report_runtime",
+        "ok" if state.get("report_runtime_last_status") == "ok" else "error",
+        state.get("report_runtime_modules"))
+    add("report_generators",
+        "ok" if state.get("report_generators_install_status") == "completed" else "error",
+        state.get("report_service_generators"))
+    add("report_adapter",
+        "ok" if state.get("report_adapter_last_status") == "completed" else "error",
+        state.get("report_adapter_last_files"))
+    add("report_merge",
+        "ok" if state.get("report_merge_last_status") == "completed" else "error",
+        state.get("report_merge_last_output"))
+    add("report_output",
+        "ok" if state.get("report_output_last_status") == "completed" else "error",
+        state.get("report_output_last_files"))
+
+    output_files = [Path(path) for path in state.get("report_output_last_files") or []]
+    output_errors: list[str] = []
+    file_details: list[dict[str, Any]] = []
+    for path in output_files:
+        if not path.is_file() or path.stat().st_size == 0:
+            output_errors.append(f"Ontbrekend of leeg uitvoerbestand: {path}")
+            continue
+        file_details.append({
+            "path": str(path),
+            "bytes": path.stat().st_size,
+            "sha256": sha256_file(path),
+        })
+
+    expected_names = {
+        f"Energierapport_{month_key}.pdf",
+        f"Recovery_Update_{month_key}.zip",
+    }
+    actual_names = {path.name for path in output_files if path.is_file()}
+    if actual_names != expected_names:
+        output_errors.append(
+            f"Uitvoerbestandenset wijkt af: verwacht {sorted(expected_names)}, "
+            f"gevonden {sorted(actual_names)}"
+        )
+
+    add("published_files", "ok" if not output_errors else "error",
+        {"files": file_details, "errors": output_errors})
+
+    failures = [item for item in checks if item["status"] != "ok"]
+    status = "completed" if not failures else "failed"
+    result = {
+        "version": APP_VERSION,
+        "checked_at": datetime.now(TZ).isoformat(),
+        "status": status,
+        "month": month_key,
+        "checks": checks,
+        "errors": [item["name"] for item in failures],
+    }
+    update_state(
+        workflow_audit_last_checked=result["checked_at"],
+        workflow_audit_last_month=month_key,
+        workflow_audit_last_status=status,
+        workflow_audit_last_result=result,
+        workflow_audit_last_error=None if not failures else ", ".join(result["errors"]),
     )
     return result
 
@@ -2007,6 +2105,15 @@ def run_report_generation_from_handoff(
             report_generation_last_response=result,
             report_generation_last_error=local_result.get("error"),
         )
+        if result["status"] == "completed":
+            result["audit"] = audit_completed_month_workflow(month_key)
+            if result["audit"].get("status") != "completed":
+                result["status"] = "failed"
+                update_state(
+                    report_generation_last_status="failed",
+                    report_generation_last_response=result,
+                    report_generation_last_error="Eindcontrole van de maandworkflow is mislukt.",
+                )
         return result
 
     if not options.report_trigger_enabled:
@@ -4666,7 +4773,7 @@ a{{color:#0277bd}}
 <div class="card"><h2>Bronstatus</h2><ul>{"" .join(f"<li>{esc(k)}: {esc(v)}</li>" for k, v in (state.get("workflow_sources") or {}).items())}</ul></div>
 <div class="card"><h2>Downloads</h2><ul>{downloads}</ul></div>
 <div class="card"><p>API-key en planning staan op het tabblad <strong>Configuratie</strong>.</p>
-<p><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="health">Healthcheck</a></p></div>
+<p><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="health">Healthcheck</a></p></div>
 </main></body></html>""".encode("utf-8")
 
 
@@ -4705,6 +4812,17 @@ class Handler(BaseHTTPRequestHandler):
                 ensure_ascii=False,
                 indent=2,
             ).encode("utf-8")
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/workflow-audit-status") or path == "/workflow-audit-status":
+            state = persist_normalized_status(Options.load())
+            body = json.dumps({
+                "version": APP_VERSION,
+                "status": state.get("workflow_audit_last_status"),
+                "month": state.get("workflow_audit_last_month"),
+                "checked_at": state.get("workflow_audit_last_checked"),
+                "result": state.get("workflow_audit_last_result"),
+                "error": state.get("workflow_audit_last_error"),
+            }, ensure_ascii=False, indent=2).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
         elif path.endswith("/report-generation-status") or path == "/report-generation-status":
             state = persist_normalized_status(Options.load())

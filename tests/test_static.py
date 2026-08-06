@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "6.6.3"
+    assert cfg_version == app_version == "6.7.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "6.6.3"' in config
+    assert 'version: "6.7.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1038,3 +1038,28 @@ def test_v663_runtime_button_exists():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"/check-report-runtime"' in source
     assert "Controleer rapportmodules" in source
+
+
+def test_v670_workflow_audit_exists():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def audit_completed_month_workflow" in source
+    assert '"published_files"' in source
+    assert "expected_names" in source
+    assert "sha256_file(path)" in source
+
+def test_v670_audit_runs_after_completed_report():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'result["audit"] = audit_completed_month_workflow(month_key)' in source
+    assert 'result["audit"].get("status") != "completed"' in source
+    assert "Eindcontrole van de maandworkflow is mislukt." in source
+
+def test_v670_page1_status_is_updated_in_full_run():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'if role == "page_1":' in source
+    assert "report_page1_last_status=page1_status" in source
+    assert "report_page1_last_output=str(page1_output)" in source
+
+def test_v670_audit_status_endpoint():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"/workflow-audit-status"' in source
+    assert ">Eindcontrole</a>" in source

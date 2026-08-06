@@ -17,6 +17,6 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 6.6.3
+- SlimmeMeterPortal Import 6.7.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.

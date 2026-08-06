@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.7.0
+
+- End-to-end eindcontrole toegevoegd na iedere geslaagde maandworkflow.
+- Eindcontrole verifieert validatie, runtime, generatoren, adapter, merge en publicatie.
+- Exact twee definitieve outputbestanden worden gecontroleerd op naam, grootte en SHA-256.
+- Een mislukte eindcontrole zet de rapportworkflow alsnog op `failed`.
+- Pagina 1-status wordt tijdens de volledige workflow correct bijgewerkt.
+- Nieuw statusendpoint `workflow-audit-status` en link `Eindcontrole` toegevoegd.
+- De werkende import-, rapport- en publicatieketen is verder ongewijzigd.
+
+
 ## 6.6.3
 
 - ReportLab en pypdf worden met pip geïnstalleerd in `/usr/local/bin/python3`.
