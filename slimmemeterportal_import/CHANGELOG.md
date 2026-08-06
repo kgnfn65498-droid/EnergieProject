@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.6.1
+
+- Ontbrekende `sys`-import toegevoegd voor het starten van de officiële generatorwrappers.
+- Geen wijzigingen aan databronnen, generatorbestanden, outputnamen of mappenstructuur.
+
+
 ## 6.6.0
 
 - Lokale rapportservice staat standaard ingeschakeld.
