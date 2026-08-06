@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "6.0.0"
+    assert cfg_version == app_version == "6.1.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "6.0.0"' in config
+    assert 'version: "6.1.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -838,3 +838,30 @@ def test_v600_state_tracks_report_handoff():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"report_handoff_last_status": None' in source
     assert 'report_handoff_last_status="ready"' in source
+
+
+def test_v610_report_handoff_loader_and_validator():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def load_report_handoff" in source
+    assert "def validate_report_handoff_files" in source
+    assert 'payload.get("schema") != "energie_report_handoff_v1"' in source
+    assert "Officiële generatorconfiguratie wijkt af." in source
+
+def test_v610_report_generation_runner():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def run_report_generation_from_handoff" in source
+    assert 'report_generation_last_status="running"' in source
+    assert '"status": "ready"' in source
+    assert '"status": "completed" if trigger_result.get("status") == "ok" else "failed"' in source
+
+def test_v610_workflow_runs_report_coupling():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"Rapportgenerator koppelen"' in source
+    assert "run_report_generation_from_handoff(" in source
+    assert "required=options.report_trigger_enabled" in source
+
+def test_v610_report_status_endpoints():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"/report-generation-status"' in source
+    assert '"/run-report-generation"' in source
+    assert "Start rapportgenerator-koppeling" in source

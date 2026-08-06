@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.1.0
+
+- Rapportaanvraag wordt ingelezen en technisch gevalideerd.
+- Officiële generatornamen en outputcontract worden vóór koppeling gecontroleerd.
+- Nieuwe statusvelden volgen start, einde en resultaat van de rapportgeneratie.
+- Volledige maandworkflow voert automatisch de rapportgenerator-koppeling uit.
+- Bij uitgeschakelde rapportservice blijft de aanvraag veilig op `ready`.
+- Nieuwe webknop en statusendpoint toegevoegd voor handmatige test.
+- Bij ingeschakelde rapportservice wordt de bestaande beveiligde HTTP-trigger gebruikt.
+
+
 ## 6.0.0
 
 - Nieuwe rapportoverdrachtfase toegevoegd na een geslaagde maandimport.

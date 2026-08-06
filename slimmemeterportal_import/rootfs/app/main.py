@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.0.0"
+APP_VERSION = "6.1.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -301,6 +301,12 @@ def default_state() -> dict[str, Any]:
         "report_handoff_last_status": None,
         "report_handoff_last_path": None,
         "report_handoff_last_error": None,
+        "report_generation_last_started": None,
+        "report_generation_last_finished": None,
+        "report_generation_last_month": None,
+        "report_generation_last_status": None,
+        "report_generation_last_response": None,
+        "report_generation_last_error": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -946,6 +952,138 @@ def create_report_handoff(
         "manifest": str(manifest_path),
         "request_payload": request,
     }
+
+
+
+
+def load_report_handoff(path: str | Path) -> dict[str, Any]:
+    handoff_path = Path(path)
+    if not handoff_path.exists():
+        raise RuntimeError(f"Rapportaanvraag ontbreekt: {handoff_path}")
+    try:
+        payload = json.loads(handoff_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Rapportaanvraag is ongeldig: {exc}") from exc
+
+    required = {
+        "schema",
+        "status",
+        "month",
+        "input_folder",
+        "transfer_folder",
+        "required_generators",
+        "output_contract",
+    }
+    missing = sorted(required - set(payload))
+    if missing:
+        raise RuntimeError(
+            "Rapportaanvraag mist verplichte velden: " + ", ".join(missing)
+        )
+    if payload.get("schema") != "energie_report_handoff_v1":
+        raise RuntimeError("Rapportaanvraag heeft een onbekend schema.")
+    if payload.get("status") != "ready":
+        raise RuntimeError("Rapportaanvraag is niet gereed.")
+    return payload
+
+
+def validate_report_handoff_files(handoff: dict[str, Any]) -> dict[str, Any]:
+    input_folder = Path(str(handoff["input_folder"]))
+    transfer_folder = Path(str(handoff["transfer_folder"]))
+    errors: list[str] = []
+
+    if not input_folder.exists() or not input_folder.is_dir():
+        errors.append(f"Inputmap ontbreekt: {input_folder}")
+    if not transfer_folder.exists() or not transfer_folder.is_dir():
+        errors.append(f"Overdrachtsmap ontbreekt: {transfer_folder}")
+    if (handoff.get("required_generators") or {}) != REPORT_GENERATORS:
+        errors.append("Officiële generatorconfiguratie wijkt af.")
+
+    output_contract = handoff.get("output_contract") or {}
+    for key in ("folder", "report_pdf", "recovery_update_zip"):
+        if not str(output_contract.get(key, "")).strip():
+            errors.append(f"Outputcontract mist {key}.")
+
+    return {
+        "status": "ok" if not errors else "error",
+        "checked_at": datetime.now(TZ).isoformat(),
+        "errors": errors,
+        "input_folder": str(input_folder),
+        "transfer_folder": str(transfer_folder),
+    }
+
+
+def run_report_generation_from_handoff(
+    options: Options,
+    handoff_path: str | Path,
+) -> dict[str, Any]:
+    started_at = datetime.now(TZ).isoformat()
+    handoff = load_report_handoff(handoff_path)
+    month_key = str(handoff["month"])
+    validation = validate_report_handoff_files(handoff)
+
+    update_state(
+        report_generation_last_started=started_at,
+        report_generation_last_month=month_key,
+        report_generation_last_status="running",
+        report_generation_last_error=None,
+    )
+
+    if validation["status"] != "ok":
+        error = "; ".join(validation["errors"])
+        update_state(
+            report_generation_last_finished=datetime.now(TZ).isoformat(),
+            report_generation_last_status="failed",
+            report_generation_last_error=error,
+        )
+        raise RuntimeError(error)
+
+    if not options.report_trigger_enabled:
+        result = {
+            "status": "ready",
+            "started_at": started_at,
+            "finished_at": datetime.now(TZ).isoformat(),
+            "month": month_key,
+            "handoff": str(handoff_path),
+            "validation": validation,
+            "reason": "Rapportservice is nog niet ingeschakeld.",
+        }
+        update_state(
+            report_generation_last_finished=result["finished_at"],
+            report_generation_last_status="ready",
+            report_generation_last_response=result,
+            report_generation_last_error=None,
+        )
+        return result
+
+    trigger_result = trigger_report_generation(
+        options,
+        int(month_key[:4]),
+        int(month_key[5:7]),
+        handoff.get("transfer_zip"),
+        handoff.get("central_validation") or {},
+        report_handoff=handoff,
+    )
+    finished_at = datetime.now(TZ).isoformat()
+    result = {
+        "status": "completed" if trigger_result.get("status") == "ok" else "failed",
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "month": month_key,
+        "handoff": str(handoff_path),
+        "validation": validation,
+        "trigger": trigger_result,
+    }
+    update_state(
+        report_generation_last_finished=finished_at,
+        report_generation_last_status=result["status"],
+        report_generation_last_response=result,
+        report_generation_last_error=(
+            None if result["status"] == "completed" else str(trigger_result)
+        ),
+        last_report_trigger=trigger_result,
+        last_report_trigger_error=None,
+    )
+    return result
 
 
 
@@ -3228,6 +3366,22 @@ def run_full_month_workflow(
             if not report_handoff:
                 errors.append("Rapportoverdracht voorbereiden: report_handoff ontbreekt.")
                 failed_step = "Rapportoverdracht voorbereiden"
+            else:
+                report_result = execute_step(
+                    "Rapportgenerator koppelen",
+                    lambda: run_report_generation_from_handoff(
+                        options,
+                        report_handoff["request"],
+                    ),
+                    required=options.report_trigger_enabled,
+                )
+                if (
+                    options.report_trigger_enabled
+                    and isinstance(report_result, dict)
+                    and report_result.get("status") != "completed"
+                ):
+                    errors.append("Rapportgenerator koppelen: rapport niet voltooid.")
+                    failed_step = "Rapportgenerator koppelen"
 
         status = "failed" if errors else ("completed_warning" if warnings else "completed")
     except Exception as exc:
@@ -3514,13 +3668,16 @@ a{{color:#0277bd}}
 <form method="post" action="central-validation" style="margin-top:12px">
 <button type="submit">Voer centrale validatie uit</button>
 </form>
+<form method="post" action="run-report-generation" style="margin-top:12px">
+<button type="submit">Start rapportgenerator-koppeling</button>
+</form>
 <form method="post" action="self-test" style="margin-top:12px">
 <button type="submit">Voer volledige zelftest uit</button>
 </form></div>
 <div class="card"><h2>Bronstatus</h2><ul>{"" .join(f"<li>{esc(k)}: {esc(v)}</li>" for k, v in (state.get("workflow_sources") or {}).items())}</ul></div>
 <div class="card"><h2>Downloads</h2><ul>{downloads}</ul></div>
 <div class="card"><p>API-key en planning staan op het tabblad <strong>Configuratie</strong>.</p>
-<p><a href="status.json">Technische status</a> · <a href="health">Healthcheck</a></p></div>
+<p><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="health">Healthcheck</a></p></div>
 </main></body></html>""".encode("utf-8")
 
 
@@ -3559,6 +3716,18 @@ class Handler(BaseHTTPRequestHandler):
                 ensure_ascii=False,
                 indent=2,
             ).encode("utf-8")
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/report-generation-status") or path == "/report-generation-status":
+            state = persist_normalized_status(Options.load())
+            body = json.dumps({
+                "version": APP_VERSION,
+                "status": state.get("report_generation_last_status"),
+                "month": state.get("report_generation_last_month"),
+                "started": state.get("report_generation_last_started"),
+                "finished": state.get("report_generation_last_finished"),
+                "response": state.get("report_generation_last_response"),
+                "error": state.get("report_generation_last_error"),
+            }, ensure_ascii=False, indent=2).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
         elif path.endswith("/health") or path == "/health":
             state = load_state()
@@ -3616,6 +3785,33 @@ class Handler(BaseHTTPRequestHandler):
             self.send_body(
                 HTTPStatus.OK,
                 f"<html><meta charset='utf-8'><p>{html.escape(message)}</p><p><a href='./'>Terug</a></p></html>".encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/run-report-generation") or path == "/run-report-generation":
+            state = load_state()
+            handoff_path = state.get("report_handoff_last_path")
+            if not handoff_path:
+                result = {"status": "error", "error": "Geen rapportaanvraag beschikbaar."}
+                code = HTTPStatus.BAD_REQUEST
+            else:
+                try:
+                    result = run_report_generation_from_handoff(
+                        Options.load(),
+                        handoff_path,
+                    )
+                    code = HTTPStatus.OK if result.get("status") in {"ready", "completed"} else HTTPStatus.BAD_REQUEST
+                except Exception as exc:
+                    result = {"status": "error", "error": str(exc)}
+                    code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                (
+                    "<html><meta charset='utf-8'><p>"
+                    + html.escape(json.dumps(result, ensure_ascii=False))
+                    + "</p><p><a href='./'>Terug</a></p></html>"
+                ).encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return
