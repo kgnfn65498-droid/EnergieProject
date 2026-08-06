@@ -1,0 +1,98 @@
+configuration:
+  api_key:
+    name: API key
+    description: Official SlimmeMeterPortal UserAPI key.
+  run_on_start:
+    name: Run on start
+    description: Process the selected or previous month on startup.
+  target_month:
+    name: Default target month
+    description: Optional YYYY-MM; empty means previous month.
+  schedule_enabled:
+    name: Automatic monthly import
+    description: Process the previous calendar month automatically.
+  schedule_day:
+    name: Day of month
+    description: Day on which the automatic import starts.
+  schedule_hour:
+    name: Start hour
+    description: Hour in Europe/Amsterdam.
+  request_timeout_seconds:
+    name: Timeout
+    description: Maximum wait per API request.
+  retry_count:
+    name: Retries
+    description: Retries after a temporary failure.
+
+  resume_incomplete_month:
+    name: Resume incomplete import
+    description: Reuse already downloaded daily files during a retry.
+  retention_months:
+    name: Retention
+    description: Number of monthly output folders to retain locally.
+
+  verify_after_import:
+    name: Verify integrity after import
+    description: Verify all files against the SHA-256 manifest after import.
+  fail_on_validation_errors:
+    name: Fail on validation errors
+    description: Mark the import as failed when validation errors are present.
+
+  detect_duplicates:
+    name: Detect duplicate records
+    description: Detect exact duplicate records per connection.
+  create_month_summary:
+    name: Create monthly summary
+    description: Create month_summary.json with totals and numeric field summaries.
+
+  create_transfer_bundle:
+    name: Create transfer bundle
+    description: Create Energie_Maandimport_YYYY_MM.zip after completion.
+  workflow_mode:
+    name: Workflow mode
+    description: SlimmeMeterPortal only or the full monthly workflow.
+
+  homewizard_enabled:
+    name: Enable HomeWizard
+    description: Enable local HomeWizard snapshots.
+  homewizard_devices:
+    name: HomeWizard devices
+    description: Devices with label, host, role and optional status.
+  homewizard_sample_seconds:
+    name: Snapshot interval
+    description: Seconds between HomeWizard snapshots.
+
+  enphase_enabled:
+    name: Enable Enphase
+    description: Enable import from the configured Enphase source.
+  enphase_source_url:
+    name: Enphase source URL
+    description: HTTPS source for Enphase export or API data.
+  enphase_bearer_token:
+    name: Enphase bearer token
+    description: Optional token for authenticated Enphase sources.
+  epex_electricity_enabled:
+    name: Enable EPEX electricity
+    description: Enable the electricity price source.
+  epex_electricity_url:
+    name: EPEX electricity URL
+    description: HTTPS source for electricity prices.
+  epex_gas_enabled:
+    name: Enable EPEX gas
+    description: Enable the gas price source.
+  epex_gas_url:
+    name: EPEX gas URL
+    description: HTTPS source for gas prices.
+
+  report_trigger_enabled:
+    name: Enable report trigger
+    description: Start report generation after a fully valid monthly import.
+  report_trigger_url:
+    name: Report trigger URL
+    description: HTTP endpoint that starts the report generator.
+  report_trigger_token:
+    name: Report trigger token
+    description: Optional bearer token for the report endpoint.
+  require_all_core_sources:
+    name: Require all core sources
+    description: Require a current import for every enabled core source.

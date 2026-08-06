@@ -1,0 +1,98 @@
+configuration:
+  api_key:
+    name: API-key
+    description: Officiële SlimmeMeterPortal UserAPI-key.
+  run_on_start:
+    name: Uitvoeren bij starten
+    description: Verwerk bij starten de gekozen of vorige maand.
+  target_month:
+    name: Standaarddoelmaand
+    description: Optioneel JJJJ-MM; leeg betekent vorige maand.
+  schedule_enabled:
+    name: Automatische maandimport
+    description: Verwerk maandelijks de vorige kalendermaand.
+  schedule_day:
+    name: Dag van de maand
+    description: Dag waarop de automatische import start.
+  schedule_hour:
+    name: Startuur
+    description: Uur in Europe/Amsterdam.
+  request_timeout_seconds:
+    name: Time-out
+    description: Maximale wachttijd per API-aanroep.
+  retry_count:
+    name: Nieuwe pogingen
+    description: Aantal herhalingen na een tijdelijke fout.
+
+  resume_incomplete_month:
+    name: Onvolledige import hervatten
+    description: Gebruik reeds opgeslagen dagbestanden bij een nieuwe poging.
+  retention_months:
+    name: Bewaartermijn
+    description: Aantal maandmappen dat lokaal bewaard blijft.
+
+  verify_after_import:
+    name: Integriteit na import controleren
+    description: Controleer alle bestanden na afloop tegen het SHA-256-manifest.
+  fail_on_validation_errors:
+    name: Falen bij validatiefouten
+    description: Markeer de import als mislukt wanneer het validatierapport fouten bevat.
+
+  detect_duplicates:
+    name: Dubbele records detecteren
+    description: Zoek exact dubbele records per aansluiting en rapporteer deze.
+  create_month_summary:
+    name: Maandsamenvatting maken
+    description: Maak month_summary.json met totalen en numerieke veldsamenvattingen.
+
+  create_transfer_bundle:
+    name: Overdrachtspakket maken
+    description: Maak na afloop Energie_Maandimport_YYYY_MM.zip.
+  workflow_mode:
+    name: Workflowmodus
+    description: Alleen SlimmeMeterPortal of de volledige maandworkflow.
+
+  homewizard_enabled:
+    name: HomeWizard inschakelen
+    description: Activeer lokale HomeWizard snapshots.
+  homewizard_devices:
+    name: HomeWizard-apparaten
+    description: Lijst met label, host, rol en optionele status.
+  homewizard_sample_seconds:
+    name: Snapshotinterval
+    description: Aantal seconden tussen HomeWizard snapshots.
+
+  enphase_enabled:
+    name: Enphase inschakelen
+    description: Activeer import vanaf de geconfigureerde Enphase-bron.
+  enphase_source_url:
+    name: Enphase bron-URL
+    description: HTTPS-bron voor Enphase-export of API-uitvoer.
+  enphase_bearer_token:
+    name: Enphase Bearer-token
+    description: Optioneel token voor geauthenticeerde Enphase-bronnen.
+  epex_electricity_enabled:
+    name: EPEX elektriciteit inschakelen
+    description: Activeer de elektriciteitsprijsbron.
+  epex_electricity_url:
+    name: EPEX elektriciteit URL
+    description: HTTPS-bron voor elektriciteitsprijzen.
+  epex_gas_enabled:
+    name: EPEX gas inschakelen
+    description: Activeer de gasprijsbron.
+  epex_gas_url:
+    name: EPEX gas URL
+    description: HTTPS-bron voor gasprijzen.
+
+  report_trigger_enabled:
+    name: Rapporttrigger inschakelen
+    description: Start rapportgeneratie na een volledig geldige maandimport.
+  report_trigger_url:
+    name: Rapporttrigger-URL
+    description: HTTP-endpoint dat de rapportgenerator start.
+  report_trigger_token:
+    name: Rapporttrigger-token
+    description: Optioneel Bearer-token voor het rapportendpoint.
+  require_all_core_sources:
+    name: Alle kernbronnen verplicht
+    description: Vereis een actuele import voor iedere ingeschakelde kernbron.
