@@ -1,5 +1,15 @@
 # Changelog
 
+## 5.1.0
+
+- Bronafhankelijke validatieprofielen toegevoegd.
+- SlimmeMeterPortal-elektriciteit en gas worden correct als één dagrecord per dag gevalideerd.
+- HomeWizard- en Nord Pool-profielen zijn afzonderlijk vastgelegd voor vervolgvalidatie.
+- De 62 onterechte SlimmeMeterPortal-waarschuwingen verdwijnen.
+- Workflowstatussen zijn verduidelijkt naar `completed`, `completed_warning` en `failed`.
+- Maandsamenvatting bevat voortaan ook `info_count`.
+
+
 ## 5.0.4
 
 - Volledige maandworkflow kan dezelfde maand veilig opnieuw uitvoeren.

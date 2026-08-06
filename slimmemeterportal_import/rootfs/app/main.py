@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "5.0.4"
+APP_VERSION = "5.1.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -586,16 +586,33 @@ def records_from(payload: Any) -> list[dict[str, Any]]:
     return [flatten(item) if isinstance(item, dict) else {"value": item} for item in source]
 
 
-def expected_count(kind: str, day: date) -> set[int]:
-    start = datetime(day.year, day.month, day.day, tzinfo=TZ)
-    tomorrow = day + timedelta(days=1)
-    end = datetime(tomorrow.year, tomorrow.month, tomorrow.day, tzinfo=TZ)
-    hours = round((end.timestamp() - start.timestamp()) / 3600)
-    if kind.lower() in {"elektriciteit", "electricity"}:
-        return {hours * 4}
-    if kind.lower() == "gas":
-        return {hours}
-    return set()
+VALIDATION_PROFILES: dict[str, dict[str, Any]] = {
+    "slimmemeterportal": {
+        "elektriciteit": {"mode": "daily", "expected_records_per_day": {1}},
+        "electricity": {"mode": "daily", "expected_records_per_day": {1}},
+        "gas": {"mode": "daily", "expected_records_per_day": {1}},
+    },
+    "homewizard": {
+        "elektriciteit": {"mode": "quarter_hour", "expected_records_per_day": {96, 92, 100}},
+        "electricity": {"mode": "quarter_hour", "expected_records_per_day": {96, 92, 100}},
+        "gas": {"mode": "hourly", "expected_records_per_day": {24, 23, 25}},
+    },
+    "nordpool": {
+        "elektriciteit": {"mode": "hourly", "expected_records_per_day": {24, 23, 25}},
+        "electricity": {"mode": "hourly", "expected_records_per_day": {24, 23, 25}},
+    },
+}
+
+
+def validation_profile(source: str, kind: str) -> dict[str, Any]:
+    source_profiles = VALIDATION_PROFILES.get(source.lower(), {})
+    return source_profiles.get(kind.lower(), {"mode": "unknown", "expected_records_per_day": set()})
+
+
+def expected_count(kind: str, day: date, source: str = "slimmemeterportal") -> set[int]:
+    profile = validation_profile(source, kind)
+    expected = profile.get("expected_records_per_day", set())
+    return set(expected)
 
 
 def safe(value: str) -> str:
@@ -678,6 +695,12 @@ def build_month_summary(
             "duplicates": sum(item.get("duplicates", 0) for item in connection_summaries),
             "error_count": len(errors),
             "warning_count": len(warnings),
+"info_count": sum(
+    1
+    for connection in connection_summaries
+    for day in connection.get("days", [])
+    if day.get("status") == "info"
+),
         },
     }
 
@@ -2097,7 +2120,7 @@ def run_import(year: int, month: int) -> None:
                         row.setdefault("_connection_type", kind)
                         row.setdefault("_connection_id", identifier)
                     all_rows.extend(rows)
-                    expected = expected_count(kind, current)
+                    expected = expected_count(kind, current, "slimmemeterportal")
                     day_result = {
                         "date": current.isoformat(),
                         "records": len(rows),
@@ -2116,7 +2139,7 @@ def run_import(year: int, month: int) -> None:
                     day_status.append({
                         "date": current.isoformat(),
                         "records": 0,
-                        "expected_records": sorted(expected_count(kind, current)),
+                        "expected_records": sorted(expected_count(kind, current, "slimmemeterportal")),
                         "status": "error",
                         "error": str(exc),
                     })
@@ -2153,9 +2176,9 @@ def run_import(year: int, month: int) -> None:
             report["connections"].append(connection_summary)
 
         if report["errors"]:
-            report["status"] = "completed_with_errors"
+            report["status"] = "failed"
         elif report["warnings"]:
-            report["status"] = "completed_with_warnings"
+            report["status"] = "completed_warning"
         else:
             report["status"] = "completed"
 
@@ -2215,7 +2238,7 @@ def run_import(year: int, month: int) -> None:
                 }
                 if options.report_trigger_enabled:
                     report["errors"].append(str(exc))
-                    report["status"] = "completed_with_errors"
+                    report["status"] = "failed"
         else:
             report_trigger_result = {
                 "status": "skipped",

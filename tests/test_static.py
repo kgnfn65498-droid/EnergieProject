@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "5.0.4"
+    assert cfg_version == app_version == "5.1.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "5.0.4"' in config
+    assert 'version: "5.1.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -713,3 +713,27 @@ def test_manual_transfer_remains_non_overwriting():
 def test_transfer_manifest_records_replacement():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"existing_destination_replaced": bool(replace_existing)' in source
+
+
+def test_v510_source_aware_validation_profiles():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "VALIDATION_PROFILES" in source
+    assert '"slimmemeterportal"' in source
+    assert '"expected_records_per_day": {1}' in source
+    assert 'expected_count(kind, current, "slimmemeterportal")' in source
+
+def test_v510_smp_daily_records_are_not_quarter_hour_expected():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    block_start = source.index("VALIDATION_PROFILES")
+    block_end = source.index("def safe", block_start)
+    block = source[block_start:block_end]
+    smp = block[block.index('"slimmemeterportal"'):block.index('"homewizard"')]
+    assert "{96" not in smp
+    assert '"expected_records_per_day": {1}' in smp
+
+def test_v510_status_names_are_production_friendly():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"completed_warning"' in source
+    assert '"failed"' in source
+    assert '"completed_with_warnings"' not in source
+    assert '"completed_with_errors"' not in source
