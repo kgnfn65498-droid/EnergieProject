@@ -37,7 +37,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.8.0"
+APP_VERSION = "6.9.0"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -46,6 +46,9 @@ CONFIG_ROOT = Path("/data")
 LOGGER = logging.getLogger("slimmemeterportal_import")
 STOP = threading.Event()
 RUN_LOCK = threading.Lock()
+WORKFLOW_LOCK = threading.Lock()
+WORKFLOW_LOCK_META = threading.Lock()
+WORKFLOW_ACTIVE: dict[str, Any] = {}
 STATE_LOCK = threading.RLock()
 
 
@@ -99,6 +102,7 @@ class Options:
     report_service_root: str
     report_service_timeout_seconds: int
     report_service_retention_months: int
+    workflow_import_wait_seconds: int
     require_all_core_sources: bool
     epex_require_full_calendar_month: bool
     transfer_enabled: bool
@@ -169,6 +173,7 @@ class Options:
             report_service_root=str(raw.get("report_service_root", "Energie_Rapportservice")).strip(),
             report_service_timeout_seconds=int(raw.get("report_service_timeout_seconds", 900)),
             report_service_retention_months=int(raw.get("report_service_retention_months", 3)),
+            workflow_import_wait_seconds=int(raw.get("workflow_import_wait_seconds", 120)),
             require_all_core_sources=bool(raw.get("require_all_core_sources", True)),
             epex_require_full_calendar_month=bool(raw.get("epex_require_full_calendar_month", True)),
             transfer_enabled=bool(raw.get("transfer_enabled", True)),
@@ -241,6 +246,8 @@ class Options:
             raise ValueError("report_service_timeout_seconds moet 60 t/m 3600 zijn.")
         if not 1 <= self.report_service_retention_months <= 24:
             raise ValueError("report_service_retention_months moet 1 t/m 24 zijn.")
+        if not 0 <= self.workflow_import_wait_seconds <= 900:
+            raise ValueError("workflow_import_wait_seconds moet 0 t/m 900 zijn.")
         for device in self.homewizard_devices:
             if not isinstance(device, dict):
                 raise ValueError("Iedere HomeWizard-configuratie moet een object zijn.")
@@ -370,6 +377,14 @@ def default_state() -> dict[str, Any]:
         "report_retention_removed": [],
         "report_retention_last_error": None,
         "workflow_summary_last": None,
+        "workflow_lock_status": "idle",
+        "workflow_lock_started_at": None,
+        "workflow_lock_month": None,
+        "workflow_lock_step": None,
+        "workflow_lock_message": None,
+        "workflow_lock_last_released": None,
+        "workflow_lock_rejected_count": 0,
+        "workflow_import_coordination_last": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -2051,7 +2066,12 @@ def build_compact_workflow_summary(month_key: str) -> dict[str, Any]:
         "version": APP_VERSION,
         "created_at": datetime.now(TZ).isoformat(),
         "month": month_key,
-        "status": state.get("full_workflow_last_status"),
+        "status": (
+            "completed"
+            if state.get("workflow_audit_last_status") == "completed"
+            and state.get("report_output_last_status") == "completed"
+            else state.get("full_workflow_last_status")
+        ),
         "validation": (state.get("last_central_validation") or {}).get("status"),
         "report": state.get("report_generation_last_status"),
         "page_1": state.get("report_page1_last_status"),
@@ -2060,7 +2080,12 @@ def build_compact_workflow_summary(month_key: str) -> dict[str, Any]:
         "audit": state.get("workflow_audit_last_status"),
         "output_folder": state.get("report_output_last_folder"),
         "files": state.get("report_output_last_files") or [],
-        "error": state.get("full_workflow_last_error"),
+        "error": (
+            None
+            if state.get("workflow_audit_last_status") == "completed"
+            and state.get("report_output_last_status") == "completed"
+            else state.get("full_workflow_last_error")
+        ),
     }
     update_state(workflow_summary_last=result)
     return result
@@ -4276,6 +4301,102 @@ def workflow_target_month_key(options: Options) -> str:
     return datetime.now(TZ).strftime("%Y_%m")
 
 
+
+def workflow_lock_snapshot() -> dict[str, Any]:
+    with WORKFLOW_LOCK_META:
+        return dict(WORKFLOW_ACTIVE)
+
+
+def set_workflow_lock_state(
+    *,
+    status: str,
+    month: str | None = None,
+    step: str | None = None,
+    message: str | None = None,
+) -> None:
+    now = datetime.now(TZ).isoformat()
+    with WORKFLOW_LOCK_META:
+        WORKFLOW_ACTIVE.clear()
+        if status == "running":
+            WORKFLOW_ACTIVE.update({
+                "status": status,
+                "started_at": now,
+                "month": month,
+                "step": step,
+                "message": message,
+            })
+    changes = {
+        "workflow_lock_status": status,
+        "workflow_lock_month": month,
+        "workflow_lock_step": step,
+        "workflow_lock_message": message,
+    }
+    if status == "running":
+        changes["workflow_lock_started_at"] = now
+    else:
+        changes["workflow_lock_last_released"] = now
+    update_state(**changes)
+
+
+def update_workflow_lock_step(step: str) -> None:
+    with WORKFLOW_LOCK_META:
+        if WORKFLOW_ACTIVE:
+            WORKFLOW_ACTIVE["step"] = step
+    update_state(workflow_lock_step=step)
+
+
+def coordinated_month_import(
+    year: int,
+    month: int,
+    options: Options,
+) -> dict[str, Any]:
+    month_iso = f"{year:04d}-{month:02d}"
+    deadline = time.monotonic() + options.workflow_import_wait_seconds
+    waited = 0.0
+
+    while RUN_LOCK.locked() and time.monotonic() < deadline:
+        time.sleep(0.5)
+        waited += 0.5
+
+    if RUN_LOCK.locked():
+        state = load_state()
+        same_month_completed = (
+            state.get("status") == "completed"
+            and state.get("last_target_month") == month_iso
+            and not state.get("last_error")
+        )
+        if same_month_completed:
+            result = {
+                "status": "completed_info",
+                "mode": "reused_completed_import",
+                "month": month_iso,
+                "waited_seconds": round(waited, 1),
+                "message": "Bestaande afgeronde maandimport is hergebruikt.",
+            }
+            update_state(workflow_import_coordination_last=result)
+            return result
+        raise RuntimeError(
+            "Maandimport is nog actief na "
+            f"{options.workflow_import_wait_seconds} seconden."
+        )
+
+    run_import(year, month)
+    result = {
+        "status": "completed",
+        "mode": "started_by_workflow",
+        "month": month_iso,
+        "waited_seconds": round(waited, 1),
+        "message": (
+            "Maandimport gestart door workflow."
+            if waited == 0
+            else "Workflow heeft gewacht op de eerdere import en daarna zelf geïmporteerd."
+        ),
+    }
+    update_state(workflow_import_coordination_last=result)
+    return result
+
+
+
 def append_workflow_step(
     steps: list[dict[str, Any]],
     *,
@@ -4308,6 +4429,27 @@ def run_full_month_workflow(
     month_key = month_key or workflow_target_month_key(options)
     parse_month_key(month_key)
     year, month = parse_month_key(month_key)
+
+    if not WORKFLOW_LOCK.acquire(blocking=False):
+        active = workflow_lock_snapshot()
+        state = load_state()
+        rejected = int(state.get("workflow_lock_rejected_count") or 0) + 1
+        update_state(workflow_lock_rejected_count=rejected)
+        return {
+            "version": APP_VERSION,
+            "workflow": "full_month_workflow",
+            "status": "busy",
+            "month": month_key,
+            "active": active,
+            "message": "Er draait al een volledige maandworkflow.",
+        }
+
+    set_workflow_lock_state(
+        status="running",
+        month=month_key,
+        step="Initialiseren",
+        message="Volledige maandworkflow is gestart.",
+    )
     current_month_key = datetime.now(TZ).strftime("%Y_%m")
     target_is_current_month = month_key == current_month_key
     if collect_live_snapshots is None:
@@ -4330,6 +4472,7 @@ def run_full_month_workflow(
         nonlocal failed_step
         step_started = datetime.now(TZ).isoformat()
         update_state(full_workflow_last_step=name)
+        update_workflow_lock_step(name)
         try:
             result = function()
             status = "ok"
@@ -4397,7 +4540,7 @@ def run_full_month_workflow(
 
         execute_step(
             "SlimmeMeterPortal maandimport",
-            lambda: run_import(year, month),
+            lambda: coordinated_month_import(year, month, options),
             required=True,
         )
 
@@ -4615,6 +4758,17 @@ def run_full_month_workflow(
         result["warnings"] = warnings
         write_atomic_json(result_path, result)
 
+    set_workflow_lock_state(
+        status="idle",
+        month=month_key,
+        step=failed_step or "Gereed",
+        message=(
+            "Volledige maandworkflow is afgerond."
+            if status in {"completed", "completed_warning"}
+            else "; ".join(errors)
+        ),
+    )
+    WORKFLOW_LOCK.release()
     return result
 
 
@@ -4856,7 +5010,7 @@ a{{color:#0277bd}}
 <div class="card"><h2>Bronstatus</h2><ul>{"" .join(f"<li>{esc(k)}: {esc(v)}</li>" for k, v in (state.get("workflow_sources") or {}).items())}</ul></div>
 <div class="card"><h2>Downloads</h2><ul>{downloads}</ul></div>
 <div class="card"><p>API-key en planning staan op het tabblad <strong>Configuratie</strong>.</p>
-<p><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="health">Healthcheck</a></p></div>
+<p><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="workflow-lock-status">Workflowstatus</a> · <a href="health">Healthcheck</a></p></div>
 </main></body></html>""".encode("utf-8")
 
 
@@ -4895,6 +5049,19 @@ class Handler(BaseHTTPRequestHandler):
                 ensure_ascii=False,
                 indent=2,
             ).encode("utf-8")
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/workflow-lock-status") or path == "/workflow-lock-status":
+            state = persist_normalized_status(Options.load())
+            body = json.dumps({
+                "version": APP_VERSION,
+                "status": state.get("workflow_lock_status"),
+                "month": state.get("workflow_lock_month"),
+                "step": state.get("workflow_lock_step"),
+                "started_at": state.get("workflow_lock_started_at"),
+                "message": state.get("workflow_lock_message"),
+                "rejected_count": state.get("workflow_lock_rejected_count"),
+                "import_coordination": state.get("workflow_import_coordination_last"),
+            }, ensure_ascii=False, indent=2).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
         elif path.endswith("/workflow-summary") or path == "/workflow-summary":
             state = persist_normalized_status(Options.load())

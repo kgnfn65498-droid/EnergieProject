@@ -1,5 +1,17 @@
 # Changelog
 
+## 6.9.0
+
+- Globale workflow-lock voorkomt dubbele volledige maandworkflows.
+- Een tweede start krijgt status `busy` met actieve maand, stap en starttijd.
+- De workflow wacht gecontroleerd op een reeds actieve SlimmeMeterPortal-import.
+- Een bestaande afgeronde import voor dezelfde maand kan veilig worden hergebruikt.
+- Dubbele-importmelding wordt niet meer als oude fout in de eindsamenvatting meegenomen.
+- Workflow-lockstatus, actieve stap en importcoördinatie zijn zichtbaar via een nieuw endpoint.
+- Alle locks worden na succes of fout vrijgegeven.
+- De werkende rapport-, Recovery_Update- en publicatieketen blijft ongewijzigd.
+
+
 ## 6.8.0
 
 - Automatische retentie toegevoegd voor rapportservice `work`, `output` en `logs`.

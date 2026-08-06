@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "6.8.0"
+    assert cfg_version == app_version == "6.9.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "6.8.0"' in config
+    assert 'version: "6.9.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1088,3 +1088,36 @@ def test_v680_runs_after_successful_audit():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert 'result["retention"] = cleanup_report_service_history(options)' in source
     assert 'result["summary"] = build_compact_workflow_summary(month_key)' in source
+
+
+def test_v690_global_workflow_lock():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "WORKFLOW_LOCK = threading.Lock()" in source
+    assert "def workflow_lock_snapshot" in source
+    assert "if not WORKFLOW_LOCK.acquire(blocking=False):" in source
+    assert '"status": "busy"' in source
+
+def test_v690_coordinated_import():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def coordinated_month_import" in source
+    assert "workflow_import_wait_seconds" in source
+    assert "reused_completed_import" in source
+    assert "coordinated_month_import(year, month, options)" in source
+
+def test_v690_summary_ignores_stale_error_after_success():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'state.get("workflow_audit_last_status") == "completed"' in source
+    assert 'state.get("report_output_last_status") == "completed"' in source
+
+def test_v690_lock_status_endpoint():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"/workflow-lock-status"' in source
+    assert ">Workflowstatus</a>" in source
+
+
+def test_v690_workflow_lock_is_released():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    workflow = source.split("def run_full_month_workflow", 1)[1]
+    assert 'set_workflow_lock_state(' in workflow
+    assert 'status="idle"' in workflow
+    assert "WORKFLOW_LOCK.release()" in workflow
