@@ -1,17 +1,17 @@
 {
   ".gitignore": "f10529b220b514ca72c66fd592c80ec5b3dea6a0a49f2658d80617824c5aa5e7",
   "INSTALL.md": "9f27e5c02d117239f944e68cffdc2163586f7ec6434f699aa7396ed624f2b081",
-  "README.md": "7ad2663f723e5d014a03908fed58c414c158340554e5e4af5a89886967a67568",
+  "README.md": "9925a2ab000e55814d58527cb473dfc9c6ff0f4bce80e6ac686b5f1e170eda25",
   "repository.yaml": "53bcc3c35f6757f418727b3f72063e676db73638359dfb2124174f2f17bd8be0",
-  "slimmemeterportal_import/CHANGELOG.md": "5d10d2be443a3e914879dd7e3632ade500f75dee272d6755d08f385747434467",
+  "slimmemeterportal_import/CHANGELOG.md": "f0ee0b80f7b85f053e2b9029a578a19282a07d0bbad4be4262381bbf78477bc9",
   "slimmemeterportal_import/DOCS.md": "9dca9755bc8a40c2282a0aa0c11b692f12d2e2af1fe042b6b5a9761819fb5f13",
   "slimmemeterportal_import/Dockerfile": "17356e926353583c53faab846dc83017c106c5340fb1a048e3ef9242677a2efe",
   "slimmemeterportal_import/build.yaml": "8b306792106f48e7b60dc6111f09349796f6baa61dfa1f4003dc4ccd54ae376b",
-  "slimmemeterportal_import/config.yaml": "6c8235e7c6352c7df768358db087875fa2f207558a93921850b3d30fb726f6a1",
-  "slimmemeterportal_import/rootfs/app/main.py": "58689b34bdc1ce03653380bd08725a3eff26f904512992ece0e3797a49d38d64",
+  "slimmemeterportal_import/config.yaml": "00e09cc40c878340599473e7113ca4a2c7117623872a6b32ab75bac1794a672b",
+  "slimmemeterportal_import/rootfs/app/main.py": "bd9076de6254f621d6ae254929bb164e278fe300003a0c50e59bc868aa62da83",
   "slimmemeterportal_import/rootfs/app/run.sh": "712337f18a524782c96279914e3a97a4cd32ce2c5237ab73fe7f64eb1775c5d2",
   "slimmemeterportal_import/run.sh": "a6d1f2bae0d363e383368fad8b70e35d290632d368a70ed9dcf87b62b948c2c4",
   "slimmemeterportal_import/translations/en.yaml": "90a88eb86cd8a6c766b97dd1eaa1a1bbe78b2a6ba761df7003c69bc0103c940d",
   "slimmemeterportal_import/translations/nl.yaml": "25a80e8ca2e571ca23fe27d69b6b6aa0b76fba7baf4c6acac259b937f6cdb921",
-  "tests/test_static.py": "503aa01d82d6bf9f3110afd3e0609552322d531112574e17dae0c0a654b37daa"
+  "tests/test_static.py": "1c0c84f95a7e53b377f9120dee86830212d6ba5cf641e4de76ef3165a14ea052"
 }

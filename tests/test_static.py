@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "3.9.4"
+    assert cfg_version == app_version == "4.0.0"
 
 def test_required_files():
     required = [
@@ -250,3 +250,31 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
     run_source = source[run_start:source.index("def next_run", run_start)]
     manifest_pos = run_source.index('write_atomic_json(target / "manifest.json"')
     assert 'write_atomic_json(target / "validation_report.json"' not in run_source[manifest_pos:]
+
+
+def test_production_release_has_no_experimental_stage():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert 'version: "4.0.0"' in config
+    assert "stage: experimental" not in config
+
+def test_disabled_sources_are_skipped_in_central_validation():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    validation_start = source.index("def validate_central_workflow")
+    validation_end = source.index("def trigger_report_generation", validation_start)
+    validation = source[validation_start:validation_end]
+    assert "if not enabled:" in validation
+    assert "continue" in validation
+    assert "Optionele bron niet gereed" not in validation
+
+def test_disabled_report_trigger_is_not_selftest_warning():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    selftest_start = source.index("def run_self_test")
+    selftest_end = source.index("def core_source_requirements", selftest_start)
+    selftest = source[selftest_start:selftest_end]
+    assert 'add("report_trigger_config", "ok", "Bewust uitgeschakeld.")' in selftest
+
+def test_startup_runs_selftest_in_background():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def startup_self_test()" in source
+    assert "result = run_self_test()" in source
+    assert "threading.Thread(target=startup_self_test, daemon=True).start()" in source

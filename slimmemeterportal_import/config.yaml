@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "3.9.4"
+version: "4.0.0"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -13,7 +13,6 @@ ingress: true
 ingress_port: 8099
 panel_icon: "mdi:meter-electric-outline"
 panel_title: "SlimmeMeterPortal"
-stage: experimental
 watchdog: "http://[HOST]:[PORT:8099]/health"
 map:
   - type: addon_config

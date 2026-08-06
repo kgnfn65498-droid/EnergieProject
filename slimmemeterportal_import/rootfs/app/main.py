@@ -32,7 +32,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "3.9.4"
+APP_VERSION = "4.0.0"
 
 LOGGER = logging.getLogger("slimmemeterportal_import")
 STOP = threading.Event()
@@ -624,7 +624,7 @@ def run_self_test() -> dict[str, Any]:
         if options.report_trigger_enabled:
             add("report_trigger_config", "ok", options.report_trigger_url)
         else:
-            add("report_trigger_config", "warning", "Uitgeschakeld.")
+            add("report_trigger_config", "ok", "Bewust uitgeschakeld.")
 
     overall = (
         "error"
@@ -664,12 +664,12 @@ def validate_central_workflow(
     if not month_summary:
         errors.append("SlimmeMeterPortal maandsamenvatting ontbreekt.")
 
-    for source, required in requirements.items():
+    for source, enabled in requirements.items():
+        if not enabled:
+            continue
         status = source_status.get(source, "not_configured")
-        if required and status != "ready":
-            errors.append(f"Verplichte bron niet gereed: {source} ({status}).")
-        elif not required and status != "ready":
-            warnings.append(f"Optionele bron niet gereed: {source} ({status}).")
+        if status != "ready":
+            errors.append(f"Geactiveerde bron niet gereed: {source} ({status}).")
 
     if options.require_all_core_sources:
         enabled_sources = [name for name, enabled in requirements.items() if enabled]
@@ -1727,6 +1727,20 @@ def main() -> None:
     threading.Thread(target=scheduler, daemon=True).start()
     server = ThreadingHTTPServer(("0.0.0.0", 8099), Handler)
     LOGGER.info("SlimmeMeterPortal Import v%s gestart.", APP_VERSION)
+
+    def startup_self_test() -> None:
+        try:
+            time.sleep(1)
+            result = run_self_test()
+            LOGGER.info(
+                "Automatische zelftest afgerond: %s; installatie_gereed=%s",
+                result.get("status"),
+                result.get("status") != "error",
+            )
+        except Exception:
+            LOGGER.exception("Automatische zelftest mislukt.")
+
+    threading.Thread(target=startup_self_test, daemon=True).start()
     try:
         server.serve_forever()
     finally:

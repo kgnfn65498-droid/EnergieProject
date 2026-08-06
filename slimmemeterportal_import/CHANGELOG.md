@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.0.0
+
+- Productieversie van de SlimmeMeterPortal-maandimport.
+- Uitgeschakelde HomeWizard-, Enphase- en EPEX-bronnen veroorzaken geen onterechte centrale waarschuwing meer.
+- Alleen daadwerkelijk geactiveerde bronnen worden als vereiste bron gevalideerd.
+- Bewust uitgeschakelde rapporttrigger geldt niet langer als zelftestwaarschuwing.
+- Automatische zelftest wordt na iedere start uitgevoerd.
+- `Installatie gereed` wordt automatisch bijgewerkt op basis van configuratie, opslag en API-bereikbaarheid.
+- Experimentele status verwijderd na geslaagde GitHub-, installatie-, API-, import- en integriteitstest.
+
+
 ## 3.9.4
 
 - Manifest wordt pas gemaakt nadat alle inhoudelijke maandbestanden definitief zijn.

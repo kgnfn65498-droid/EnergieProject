@@ -12,11 +12,11 @@ Voeg deze openbare repository toe in Home Assistant:
 
 - API-sleutels staan uitsluitend in de Home Assistant-appconfiguratie.
 - `.env`-bestanden, maanddata, rapporten en back-ups horen niet in GitHub.
-- De app staat voorlopig op `experimental` totdat de praktijktest op de Green is geslaagd.
+- De productieketen GitHub → Home Assistant Green → UserAPI → maandpakket is gevalideerd.
 - De webinterface is uitsluitend via Home Assistant Ingress bereikbaar.
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 3.9.4
+- SlimmeMeterPortal Import 4.0.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
