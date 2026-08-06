@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.6.2
+
+- `sys` wordt nu als echte top-level import geladen.
+- De controle kijkt alleen naar de importsectie en niet naar wrappertekst.
+- Rapportfouten sluiten de status af als `failed`.
+- Geen wijzigingen aan generatoren, databronnen, bestandsnamen of mappen.
+
+
 ## 6.6.1
 
 - Ontbrekende `sys`-import toegevoegd voor het starten van de officiële generatorwrappers.

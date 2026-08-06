@@ -12,6 +12,7 @@ import hashlib
 import re
 import shutil
 import subprocess
+import sys
 import signal
 import threading
 import time
@@ -36,7 +37,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.6.1"
+APP_VERSION = "6.6.2"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
