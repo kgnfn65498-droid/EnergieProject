@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "6.7.0"
+    assert cfg_version == app_version == "6.8.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "6.7.0"' in config
+    assert 'version: "6.8.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1063,3 +1063,28 @@ def test_v670_audit_status_endpoint():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"/workflow-audit-status"' in source
     assert ">Eindcontrole</a>" in source
+
+
+def test_v680_retention_option():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert "report_service_retention_months: int" in source
+    assert "report_service_retention_months: 3" in config
+    assert 'raw.get("report_service_retention_months", 3)' in source
+
+def test_v680_cleanup_only_service_history():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def cleanup_report_service_history" in source
+    assert 'for key in ("work", "output", "logs")' in source
+    assert "02_Output" not in source.split("def cleanup_report_service_history", 1)[1].split("def build_compact_workflow_summary", 1)[0]
+
+def test_v680_compact_summary():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def build_compact_workflow_summary" in source
+    assert '"/workflow-summary"' in source
+    assert ">Samenvatting</a>" in source
+
+def test_v680_runs_after_successful_audit():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'result["retention"] = cleanup_report_service_history(options)' in source
+    assert 'result["summary"] = build_compact_workflow_summary(month_key)' in source

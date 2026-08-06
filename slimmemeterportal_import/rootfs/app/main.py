@@ -37,7 +37,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.7.0"
+APP_VERSION = "6.8.0"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -98,6 +98,7 @@ class Options:
     report_service_enabled: bool
     report_service_root: str
     report_service_timeout_seconds: int
+    report_service_retention_months: int
     require_all_core_sources: bool
     epex_require_full_calendar_month: bool
     transfer_enabled: bool
@@ -167,6 +168,7 @@ class Options:
             report_service_enabled=bool(raw.get("report_service_enabled", True)),
             report_service_root=str(raw.get("report_service_root", "Energie_Rapportservice")).strip(),
             report_service_timeout_seconds=int(raw.get("report_service_timeout_seconds", 900)),
+            report_service_retention_months=int(raw.get("report_service_retention_months", 3)),
             require_all_core_sources=bool(raw.get("require_all_core_sources", True)),
             epex_require_full_calendar_month=bool(raw.get("epex_require_full_calendar_month", True)),
             transfer_enabled=bool(raw.get("transfer_enabled", True)),
@@ -237,6 +239,8 @@ class Options:
             raise ValueError("report_service_root moet een veilige relatieve mapnaam zijn.")
         if not 60 <= self.report_service_timeout_seconds <= 3600:
             raise ValueError("report_service_timeout_seconds moet 60 t/m 3600 zijn.")
+        if not 1 <= self.report_service_retention_months <= 24:
+            raise ValueError("report_service_retention_months moet 1 t/m 24 zijn.")
         for device in self.homewizard_devices:
             if not isinstance(device, dict):
                 raise ValueError("Iedere HomeWizard-configuratie moet een object zijn.")
@@ -361,6 +365,11 @@ def default_state() -> dict[str, Any]:
         "workflow_audit_last_status": None,
         "workflow_audit_last_result": None,
         "workflow_audit_last_error": None,
+        "report_retention_last_run": None,
+        "report_retention_last_status": None,
+        "report_retention_removed": [],
+        "report_retention_last_error": None,
+        "workflow_summary_last": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -1988,6 +1997,76 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
 
 
 
+
+def cleanup_report_service_history(options: Options, keep_months: int | None = None) -> dict[str, Any]:
+    keep = keep_months or options.report_service_retention_months
+    paths = report_service_paths(options)
+    removed: list[str] = []
+    errors: list[str] = []
+
+    for key in ("work", "output", "logs"):
+        root = paths[key]
+        if not root.is_dir():
+            continue
+        month_dirs = sorted(
+            [
+                path for path in root.iterdir()
+                if path.is_dir()
+                and len(path.name) == 7
+                and path.name[4] == "_"
+                and path.name[:4].isdigit()
+                and path.name[5:].isdigit()
+            ],
+            key=lambda path: path.name,
+            reverse=True,
+        )
+        for old in month_dirs[keep:]:
+            try:
+                shutil.rmtree(old)
+                removed.append(str(old))
+            except Exception as exc:
+                errors.append(f"{old}: {exc}")
+
+    status = "completed" if not errors else "failed"
+    result = {
+        "version": APP_VERSION,
+        "run_at": datetime.now(TZ).isoformat(),
+        "status": status,
+        "retention_months": keep,
+        "removed": removed,
+        "errors": errors,
+    }
+    update_state(
+        report_retention_last_run=result["run_at"],
+        report_retention_last_status=status,
+        report_retention_removed=removed,
+        report_retention_last_error=None if not errors else "; ".join(errors),
+    )
+    return result
+
+
+def build_compact_workflow_summary(month_key: str) -> dict[str, Any]:
+    state = load_state()
+    result = {
+        "version": APP_VERSION,
+        "created_at": datetime.now(TZ).isoformat(),
+        "month": month_key,
+        "status": state.get("full_workflow_last_status"),
+        "validation": (state.get("last_central_validation") or {}).get("status"),
+        "report": state.get("report_generation_last_status"),
+        "page_1": state.get("report_page1_last_status"),
+        "merge": state.get("report_merge_last_status"),
+        "publication": state.get("report_output_last_status"),
+        "audit": state.get("workflow_audit_last_status"),
+        "output_folder": state.get("report_output_last_folder"),
+        "files": state.get("report_output_last_files") or [],
+        "error": state.get("full_workflow_last_error"),
+    }
+    update_state(workflow_summary_last=result)
+    return result
+
+
+
 def audit_completed_month_workflow(month_key: str) -> dict[str, Any]:
     state = load_state()
     checks: list[dict[str, Any]] = []
@@ -2114,6 +2193,10 @@ def run_report_generation_from_handoff(
                     report_generation_last_response=result,
                     report_generation_last_error="Eindcontrole van de maandworkflow is mislukt.",
                 )
+            else:
+                result["retention"] = cleanup_report_service_history(options)
+                result["summary"] = build_compact_workflow_summary(month_key)
+                update_state(report_generation_last_response=result)
         return result
 
     if not options.report_trigger_enabled:
@@ -4773,7 +4856,7 @@ a{{color:#0277bd}}
 <div class="card"><h2>Bronstatus</h2><ul>{"" .join(f"<li>{esc(k)}: {esc(v)}</li>" for k, v in (state.get("workflow_sources") or {}).items())}</ul></div>
 <div class="card"><h2>Downloads</h2><ul>{downloads}</ul></div>
 <div class="card"><p>API-key en planning staan op het tabblad <strong>Configuratie</strong>.</p>
-<p><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="health">Healthcheck</a></p></div>
+<p><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="health">Healthcheck</a></p></div>
 </main></body></html>""".encode("utf-8")
 
 
@@ -4809,6 +4892,14 @@ class Handler(BaseHTTPRequestHandler):
         if path.endswith("/status.json") or path == "/status.json":
             body = json.dumps(
                 persist_normalized_status(Options.load()),
+                ensure_ascii=False,
+                indent=2,
+            ).encode("utf-8")
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/workflow-summary") or path == "/workflow-summary":
+            state = persist_normalized_status(Options.load())
+            body = json.dumps(
+                state.get("workflow_summary_last") or {},
                 ensure_ascii=False,
                 indent=2,
             ).encode("utf-8")

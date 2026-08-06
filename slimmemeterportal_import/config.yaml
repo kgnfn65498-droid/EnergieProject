@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "6.7.0"
+version: "6.8.0"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -67,6 +67,7 @@ options:
   report_service_enabled: true
   report_service_root: "Energie_Rapportservice"
   report_service_timeout_seconds: 900
+  report_service_retention_months: 3
   require_all_core_sources: true
   epex_require_full_calendar_month: true
   transfer_enabled: true
@@ -131,6 +132,7 @@ schema:
   report_service_enabled: bool
   report_service_root: str
   report_service_timeout_seconds: "int(60,3600)"
+  report_service_retention_months: "int(1,24)"
   require_all_core_sources: bool
   epex_require_full_calendar_month: bool
   transfer_enabled: bool

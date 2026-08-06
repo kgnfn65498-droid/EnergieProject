@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.8.0
+
+- Automatische retentie toegevoegd voor rapportservice `work`, `output` en `logs`.
+- Standaard blijven de laatste drie maandversies bewaard.
+- Definitieve bestanden in `02_Output` worden nooit door deze retentie verwijderd.
+- Na een geslaagde eindcontrole wordt een compacte workflow-samenvatting opgeslagen.
+- Nieuw endpoint en UI-link `Samenvatting` toegevoegd.
+- Retentie en samenvatting worden alleen uitgevoerd na een volledig geslaagde workflow.
+- Bestaande import-, rapport-, Recovery_Update- en publicatielogica blijft ongewijzigd.
+
+
 ## 6.7.0
 
 - End-to-end eindcontrole toegevoegd na iedere geslaagde maandworkflow.
