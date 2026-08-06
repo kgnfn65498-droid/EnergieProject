@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.8.0
+
+- Gevalideerde maandmap kan veilig naar de Home Assistant-share worden overgedragen.
+- Overdracht wordt geblokkeerd wanneer de maandvalidatie niet `ok` is.
+- Standaarddoel is `/share/Energie_Overdracht/YYYY_MM/`.
+- Bestaande doelmappen worden standaard nooit overschreven.
+- Alle gekopieerde bestanden worden na overdracht opnieuw met SHA-256 gecontroleerd.
+- Bij een mislukte verificatie wordt de onvolledige overdracht automatisch verwijderd.
+- Het maand-ZIP-bestand wordt meegekopieerd en apart geverifieerd.
+- `Overdracht_YYYY_MM.json` documenteert bron, doel en verificatieresultaat.
+- Home Assistant krijgt een permanente melding wanneer de overdracht gereed is.
+- Nieuwe knop `Maak overdrachtspakket` in de Web UI.
+- De echte NAS-projectmap wordt bewust nog niet rechtstreeks gewijzigd.
+
+
 ## 4.7.0
 
 - EPEX v6-elektriciteit en gas gekoppeld via configureerbare bron-URL's.

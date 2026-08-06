@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "4.7.0"
+APP_VERSION = "4.8.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -94,6 +94,11 @@ class Options:
     report_trigger_token: str
     require_all_core_sources: bool
     epex_require_full_calendar_month: bool
+    transfer_enabled: bool
+    transfer_share_folder: str
+    transfer_overwrite_existing: bool
+    transfer_require_valid_month: bool
+    transfer_notify_home_assistant: bool
 
     @classmethod
     def load(cls) -> "Options":
@@ -151,6 +156,11 @@ class Options:
             report_trigger_token=str(raw.get("report_trigger_token", "")).strip(),
             require_all_core_sources=bool(raw.get("require_all_core_sources", True)),
             epex_require_full_calendar_month=bool(raw.get("epex_require_full_calendar_month", True)),
+            transfer_enabled=bool(raw.get("transfer_enabled", True)),
+            transfer_share_folder=str(raw.get("transfer_share_folder", "Energie_Overdracht")).strip(),
+            transfer_overwrite_existing=bool(raw.get("transfer_overwrite_existing", False)),
+            transfer_require_valid_month=bool(raw.get("transfer_require_valid_month", True)),
+            transfer_notify_home_assistant=bool(raw.get("transfer_notify_home_assistant", True)),
         )
         result.validate()
         return result
@@ -188,6 +198,11 @@ class Options:
                 raise ValueError("HomeWizard-detectie is beperkt tot één IPv4 /24-netwerk of kleiner.")
         if not 60 <= self.homewizard_sample_seconds <= 3600:
             raise ValueError("homewizard_sample_seconds moet 60 t/m 3600 zijn.")
+        if not self.transfer_share_folder:
+            raise ValueError("transfer_share_folder mag niet leeg zijn.")
+        transfer_folder = Path(self.transfer_share_folder)
+        if transfer_folder.is_absolute() or ".." in transfer_folder.parts:
+            raise ValueError("transfer_share_folder moet een veilige relatieve mapnaam zijn.")
         if not 60 <= self.homeassistant_energy_sample_seconds <= 3600:
             raise ValueError("homeassistant_energy_sample_seconds moet 60 t/m 3600 zijn.")
         if self.enphase_enabled and not self.enphase_source_url:
@@ -259,6 +274,11 @@ def default_state() -> dict[str, Any]:
         "epex_gas_last_error": None,
         "epex_last_validation": None,
         "epex_last_validation_status": None,
+        "transfer_last_created": None,
+        "transfer_last_month": None,
+        "transfer_last_status": None,
+        "transfer_last_path": None,
+        "transfer_last_error": None,
         "last_central_validation": None,
         "last_report_trigger": None,
         "last_report_trigger_error": None,
@@ -2496,6 +2516,181 @@ def build_month_input(month_key: str | None = None) -> dict[str, Any]:
 
 
 
+
+TRANSFER_SHARE_ROOT = Path("/share")
+HOME_ASSISTANT_NOTIFY_URL = (
+    "http://supervisor/core/api/services/persistent_notification/create"
+)
+
+
+def notify_home_assistant(title: str, message: str) -> dict[str, Any]:
+    token = os.environ.get("SUPERVISOR_TOKEN", "").strip()
+    if not token:
+        raise RuntimeError("SUPERVISOR_TOKEN ontbreekt; notificatie kon niet worden verstuurd.")
+    payload = {
+        "title": title,
+        "message": message,
+        "notification_id": "energie_maandimport",
+    }
+    request = urllib.request.Request(
+        HOME_ASSISTANT_NOTIFY_URL,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": f"Energieproject-Transfer/{APP_VERSION}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            body = response.read().decode("utf-8", errors="replace")
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as exc:
+        raise RuntimeError(f"Home Assistant-notificatie mislukt: {exc}") from exc
+    return {
+        "status": "ok",
+        "http_status": getattr(response, "status", 200),
+        "response": body[:1000],
+    }
+
+
+def verify_transfer_copy(source: Path, destination: Path) -> dict[str, Any]:
+    source_files = {
+        str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(source.rglob("*"))
+        if path.is_file()
+    }
+    destination_files = {
+        str(path.relative_to(destination)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(destination.rglob("*"))
+        if path.is_file()
+    }
+    missing = sorted(set(source_files) - set(destination_files))
+    extra = sorted(set(destination_files) - set(source_files))
+    mismatched = sorted(
+        path for path in set(source_files).intersection(destination_files)
+        if source_files[path] != destination_files[path]
+    )
+    return {
+        "status": "ok" if not missing and not extra and not mismatched else "error",
+        "source_file_count": len(source_files),
+        "destination_file_count": len(destination_files),
+        "missing": missing,
+        "extra": extra,
+        "mismatched": mismatched,
+    }
+
+
+def create_transfer_package(month_key: str | None = None) -> dict[str, Any]:
+    options = Options.load()
+    if not options.transfer_enabled:
+        raise RuntimeError("Overdracht is uitgeschakeld.")
+
+    month_key = month_key or datetime.now(TZ).strftime("%Y_%m")
+    parse_month_key(month_key)
+
+    source = MONTH_INPUT_ROOT / month_key
+    validation_path = source / "month_input_validation.json"
+    if not source.exists():
+        raise RuntimeError(
+            f"Maandmap ontbreekt: {source}. Bouw eerst de maandmap."
+        )
+    if not validation_path.exists():
+        raise RuntimeError("month_input_validation.json ontbreekt.")
+
+    validation = json.loads(validation_path.read_text(encoding="utf-8"))
+    if (
+        options.transfer_require_valid_month
+        and validation.get("status") != "ok"
+    ):
+        raise RuntimeError(
+            f"Overdracht geblokkeerd: maandvalidatie is {validation.get('status')}."
+        )
+
+    share_folder = Path(options.transfer_share_folder)
+    destination_root = TRANSFER_SHARE_ROOT / share_folder
+    destination = destination_root / month_key
+
+    if destination.exists():
+        if not options.transfer_overwrite_existing:
+            raise RuntimeError(
+                f"Doelmap bestaat al en overschrijven is uitgeschakeld: {destination}"
+            )
+        shutil.rmtree(destination)
+
+    destination_root.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, destination)
+
+    verification = verify_transfer_copy(source, destination)
+    if verification["status"] != "ok":
+        shutil.rmtree(destination, ignore_errors=True)
+        raise RuntimeError(
+            "Overdracht verificatie mislukt; onvolledige doelmap is verwijderd."
+        )
+
+    zip_source = source.parent / f"01_Input_{month_key}.zip"
+    zip_destination = destination_root / f"01_Input_{month_key}.zip"
+    if zip_source.exists():
+        if zip_destination.exists() and not options.transfer_overwrite_existing:
+            raise RuntimeError(
+                f"Doel-ZIP bestaat al en overschrijven is uitgeschakeld: {zip_destination}"
+            )
+        shutil.copy2(zip_source, zip_destination)
+        if hashlib.sha256(zip_source.read_bytes()).hexdigest() != hashlib.sha256(
+            zip_destination.read_bytes()
+        ).hexdigest():
+            zip_destination.unlink(missing_ok=True)
+            shutil.rmtree(destination, ignore_errors=True)
+            raise RuntimeError("ZIP-verificatie mislukt; overdracht is teruggedraaid.")
+
+    transfer_manifest = {
+        "version": APP_VERSION,
+        "created_at": datetime.now(TZ).isoformat(),
+        "month": month_key,
+        "status": "ok",
+        "source": str(source),
+        "destination": str(destination),
+        "zip": str(zip_destination) if zip_source.exists() else None,
+        "verification": verification,
+        "month_validation_status": validation.get("status"),
+    }
+    write_atomic_json(
+        destination_root / f"Overdracht_{month_key}.json",
+        transfer_manifest,
+    )
+
+    notification = None
+    notification_error = None
+    if options.transfer_notify_home_assistant:
+        try:
+            notification = notify_home_assistant(
+                "Energie maandimport gereed",
+                (
+                    f"Maand {month_key} is gevalideerd en klaargezet in "
+                    f"{destination}. Kopieer deze map naar de echte "
+                    f"Energie/01_Input/{month_key}-map op de NAS."
+                ),
+            )
+        except Exception as exc:
+            notification_error = str(exc)
+            LOGGER.warning("Overdracht gereed, maar notificatie mislukt: %s", exc)
+
+    update_state(
+        transfer_last_created=transfer_manifest["created_at"],
+        transfer_last_month=month_key,
+        transfer_last_status="ok",
+        transfer_last_path=str(destination),
+        transfer_last_error=notification_error,
+    )
+    return {
+        **transfer_manifest,
+        "notification": notification,
+        "notification_error": notification_error,
+    }
+
+
+
 def scheduler() -> None:
     startup_handled = False
     last_homewizard_run: datetime | None = None
@@ -2644,6 +2839,8 @@ a{{color:#0277bd}}
 <dt>HA energiesnapshot</dt><dd>{esc(state.get("homeassistant_energy_last_snapshot") or "Nog geen")}</dd>
 <dt>Laatste maandmap</dt><dd>{esc((state.get("month_input_last_month") or "Nog geen") + " — " + (state.get("month_input_last_status") or ""))}</dd>
 <dt>EPEX-validatie</dt><dd>{esc(state.get("epex_last_validation_status") or "Nog niet uitgevoerd")}</dd>
+<dt>Laatste overdracht</dt><dd>{esc((state.get("transfer_last_month") or "Nog geen") + " — " + (state.get("transfer_last_status") or ""))}</dd>
+<dt>Overdrachtspad</dt><dd>{esc(state.get("transfer_last_path") or "Nog geen")}</dd>
 <dt>HomeWizard fout</dt><dd>{esc(state.get("homewizard_last_error") or "Geen")}</dd>
 <dt>Laatste Enphase-import</dt><dd>{esc(state.get("enphase_last_import") or "Nog geen")}</dd>
 <dt>Laatste EPEX elektriciteit</dt><dd>{esc(state.get("epex_electricity_last_import") or "Nog geen")}</dd>
@@ -2672,6 +2869,9 @@ a{{color:#0277bd}}
 <form method="post" action="homewizard-discover" style="margin-top:12px">
 <button type="submit">Detecteer HomeWizard-apparaten</button>
 <p style="margin:8px 0 0">Scanbereik: instelling <code>homewizard_discovery_cidr</code>.</p>
+</form>
+<form method="post" action="create-transfer-package" style="margin-top:12px">
+<button type="submit">Maak overdrachtspakket</button>
 </form>
 <form method="post" action="epex-import-validate" style="margin-top:12px">
 <button type="submit">Importeer en valideer EPEX</button>
@@ -2908,6 +3108,28 @@ class Handler(BaseHTTPRequestHandler):
                 update_state(
                     homewizard_discovery_error=str(exc),
                     homewizard_discovery_status="error",
+                )
+                result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                (
+                    "<html><meta charset='utf-8'><p>"
+                    + html.escape(json.dumps(result, ensure_ascii=False))
+                    + "</p><p><a href='./'>Terug</a></p></html>"
+                ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/create-transfer-package") or path == "/create-transfer-package":
+            try:
+                result = create_transfer_package()
+                code = HTTPStatus.OK
+            except Exception as exc:
+                update_state(
+                    transfer_last_status="error",
+                    transfer_last_error=str(exc),
                 )
                 result = {"status": "error", "error": str(exc)}
                 code = HTTPStatus.BAD_REQUEST

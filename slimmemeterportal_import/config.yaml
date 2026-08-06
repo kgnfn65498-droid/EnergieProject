@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "4.7.0"
+version: "4.8.0"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -18,6 +18,7 @@ watchdog: "http://[HOST]:[PORT:8099]/health"
 map:
   - type: addon_config
     read_only: false
+  - share:rw
 options:
   api_key: ""
   run_on_start: false
@@ -65,6 +66,11 @@ options:
   report_trigger_token: ""
   require_all_core_sources: true
   epex_require_full_calendar_month: true
+  transfer_enabled: true
+  transfer_share_folder: "Energie_Overdracht"
+  transfer_overwrite_existing: false
+  transfer_require_valid_month: true
+  transfer_notify_home_assistant: true
 schema:
   api_key: password
   run_on_start: bool
@@ -117,3 +123,8 @@ schema:
   report_trigger_token: password
   require_all_core_sources: bool
   epex_require_full_calendar_month: bool
+  transfer_enabled: bool
+  transfer_share_folder: str
+  transfer_overwrite_existing: bool
+  transfer_require_valid_month: bool
+  transfer_notify_home_assistant: bool

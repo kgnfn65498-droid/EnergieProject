@@ -329,3 +329,20 @@ Klik daarna op `Importeer en valideer EPEX`. De app controleert de volledige
 kalendermaand en schrijft de bestanden onder:
 
 `/config/output/epex_monthdata/YYYY_MM/`
+
+
+## Overdracht naar de projectomgeving
+
+De knop `Maak overdrachtspakket` kopieert uitsluitend een volledig gevalideerde
+maandmap naar:
+
+`/share/Energie_Overdracht/YYYY_MM/`
+
+Daarnaast worden geplaatst:
+
+- `/share/Energie_Overdracht/01_Input_YYYY_MM.zip`
+- `/share/Energie_Overdracht/Overdracht_YYYY_MM.json`
+
+De echte NAS-map `Energie/01_Input/YYYY_MM` wordt in deze versie nog niet
+rechtstreeks gewijzigd. Daarmee blijft de bestaande projectstructuur beschermd
+tot de eindworkflow volledig is getest.

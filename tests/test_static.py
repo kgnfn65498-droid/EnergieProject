@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "4.7.0"
+    assert cfg_version == app_version == "4.8.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "4.7.0"' in config
+    assert 'version: "4.8.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -543,3 +543,42 @@ def test_epex_ui_endpoint_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "Importeer en valideer EPEX" in source
     assert '"/epex-import-validate"' in source
+
+
+def test_share_mapping_and_transfer_config_present():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert "- share:rw" in config
+    assert "transfer_enabled" in config
+    assert "transfer_share_folder" in config
+    assert "transfer_overwrite_existing" in config
+    assert "transfer_require_valid_month" in config
+    assert "transfer_notify_home_assistant" in config
+
+def test_transfer_is_validation_gated():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def create_transfer_package" in source
+    assert 'validation.get("status") != "ok"' in source
+    assert "Overdracht geblokkeerd" in source
+
+def test_transfer_never_overwrites_by_default():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert "transfer_overwrite_existing: false" in config
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "overschrijven is uitgeschakeld" in source
+
+def test_transfer_hash_verification_and_rollback_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def verify_transfer_copy" in source
+    assert "hashlib.sha256" in source
+    assert "onvolledige doelmap is verwijderd" in source
+    assert "ZIP-verificatie mislukt; overdracht is teruggedraaid" in source
+
+def test_home_assistant_notification_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "persistent_notification/create" in source
+    assert "Energie maandimport gereed" in source
+
+def test_transfer_ui_endpoint_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Maak overdrachtspakket" in source
+    assert '"/create-transfer-package"' in source
