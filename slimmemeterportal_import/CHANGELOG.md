@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.9.4
+
+- Manifest wordt pas gemaakt nadat alle inhoudelijke maandbestanden definitief zijn.
+- `integrity_report.json` en `report_trigger_result.json` zijn uitgesloten van de zelfreferentiële integriteitsketen.
+- Overdrachtspakket wordt pas na manifest- en integriteitscontrole gebouwd.
+- Bestaande v3.9.2/v3.9.3-maanden met uitsluitend de bekende drie volgordefouten worden veilig hersteld zonder nieuwe API-import.
+- Andere hash-, grootte- of ontbrekende-bestandsfouten blijven ongewijzigd als echte integriteitsfout gemeld.
+
+
 ## 3.9.3
 
 - Startscript naar de app-hoofdmap verplaatst.

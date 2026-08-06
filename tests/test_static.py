@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "3.9.3"
+    assert cfg_version == app_version == "3.9.4"
 
 def test_required_files():
     required = [
@@ -215,3 +215,38 @@ def test_docker_uses_top_level_launcher():
 def test_startup_logging_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "Python-app v%s initialiseert." in source
+
+
+def test_manifest_excludes_dynamic_control_files():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"integrity_report.json"' in source
+    assert '"report_trigger_result.json"' in source
+
+def test_manifest_created_after_central_validation():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    run_start = source.index("def run_import")
+    run_source = source[run_start:source.index("def next_run", run_start)]
+    assert run_source.index('write_atomic_json(target / "central_validation.json"') < run_source.index(
+        'write_atomic_json(target / "manifest.json"'
+    )
+
+def test_bundle_created_after_integrity_report():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    run_start = source.index("def run_import")
+    run_source = source[run_start:source.index("def next_run", run_start)]
+    assert run_source.index('write_atomic_json(target / "integrity_report.json"') < run_source.index(
+        "build_transfer_bundle("
+    )
+
+def test_verify_endpoint_uses_targeted_legacy_repair():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def verify_latest_with_legacy_repair" in source
+    assert "result = verify_latest_with_legacy_repair(target)" in source
+    assert "affected.issubset(LEGACY_MANIFEST_MUTABLE_FILES)" in source
+
+def test_integrity_failure_does_not_rewrite_validation_after_manifest():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    run_start = source.index("def run_import")
+    run_source = source[run_start:source.index("def next_run", run_start)]
+    manifest_pos = run_source.index('write_atomic_json(target / "manifest.json"')
+    assert 'write_atomic_json(target / "validation_report.json"' not in run_source[manifest_pos:]

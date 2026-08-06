@@ -32,7 +32,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "3.9.3"
+APP_VERSION = "3.9.4"
 
 LOGGER = logging.getLogger("slimmemeterportal_import")
 STOP = threading.Event()
@@ -237,7 +237,12 @@ def sha256_file(path: Path) -> str:
 def build_manifest(target: Path) -> dict[str, Any]:
     files: list[dict[str, Any]] = []
     for path in sorted(target.rglob("*")):
-        if path.is_file() and path.name not in {"manifest.json", ".incomplete"}:
+        if path.is_file() and path.name not in {
+            "manifest.json",
+            "integrity_report.json",
+            "report_trigger_result.json",
+            ".incomplete",
+        }:
             files.append({
                 "path": str(path.relative_to(target)),
                 "bytes": path.stat().st_size,
@@ -299,6 +304,50 @@ def verify_manifest(target: Path) -> dict[str, Any]:
         "files_checked": checked,
         "manifest_file_count": manifest.get("file_count", 0),
     }
+
+
+
+LEGACY_MANIFEST_MUTABLE_FILES = {
+    "central_validation.json",
+    "integrity_report.json",
+    "report_trigger_result.json",
+}
+
+
+def verify_latest_with_legacy_repair(target: Path) -> dict[str, Any]:
+    result = verify_manifest(target)
+    if result.get("status") == "ok":
+        return result
+
+    manifest_path = target / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return result
+
+    if str(manifest.get("version", "")) not in {"3.9.2", "3.9.3"}:
+        return result
+
+    errors = list(result.get("errors") or [])
+    affected: set[str] = set()
+    for error in errors:
+        match = re.match(
+            r"^(?:Hash-afwijking|Verkeerde grootte|Ontbrekend bestand): (.+)$",
+            str(error),
+        )
+        if not match:
+            return result
+        affected.add(match.group(1))
+
+    if not affected or not affected.issubset(LEGACY_MANIFEST_MUTABLE_FILES):
+        return result
+
+    write_atomic_json(target / "manifest.json", build_manifest(target))
+    repaired = verify_manifest(target)
+    repaired["legacy_manifest_repaired"] = repaired.get("status") == "ok"
+    repaired["repaired_files"] = sorted(affected)
+    return repaired
+
 
 
 def latest_month_dir() -> Path | None:
@@ -1101,6 +1150,18 @@ def run_import(year: int, month: int) -> None:
         )
         if options.create_month_summary:
             write_atomic_json(target / "month_summary.json", month_summary)
+        # Alle inhoudelijke bestanden eerst definitief maken.
+        incomplete_marker.unlink(missing_ok=True)
+        cleanup_retention(options.retention_months)
+
+        central_validation = validate_central_workflow(
+            options,
+            load_state(),
+            month_summary,
+        )
+        write_atomic_json(target / "central_validation.json", central_validation)
+
+        # Manifest pas maken nadat de inhoudelijke bestanden definitief zijn.
         write_atomic_json(target / "manifest.json", build_manifest(target))
 
         integrity = {
@@ -1111,25 +1172,12 @@ def run_import(year: int, month: int) -> None:
         }
         if options.verify_after_import:
             integrity = verify_manifest(target)
-            write_atomic_json(target / "integrity_report.json", integrity)
-            if integrity["status"] != "ok":
-                report["errors"].append("Integriteitscontrole mislukt.")
-                report["status"] = "completed_with_errors"
-                write_atomic_json(target / "validation_report.json", report)
+        write_atomic_json(target / "integrity_report.json", integrity)
 
+        # Het overdrachtspakket bevat de definitieve maandinhoud en controle-uitkomst.
         transfer_bundle = None
         if options.create_transfer_bundle:
             transfer_bundle = build_transfer_bundle(target, f"{year:04d}_{month:02d}")
-
-        incomplete_marker.unlink(missing_ok=True)
-        cleanup_retention(options.retention_months)
-
-        central_validation = validate_central_workflow(
-            options,
-            load_state(),
-            month_summary,
-        )
-        write_atomic_json(target / "central_validation.json", central_validation)
 
         report_trigger_result = None
         if central_validation["status"] == "ok":
@@ -1147,11 +1195,9 @@ def run_import(year: int, month: int) -> None:
                     "triggered_at": datetime.now(TZ).isoformat(),
                     "error": str(exc),
                 }
-                write_atomic_json(target / "report_trigger_result.json", report_trigger_result)
                 if options.report_trigger_enabled:
                     report["errors"].append(str(exc))
                     report["status"] = "completed_with_errors"
-                    write_atomic_json(target / "validation_report.json", report)
         else:
             report_trigger_result = {
                 "status": "skipped",
@@ -1160,6 +1206,11 @@ def run_import(year: int, month: int) -> None:
             }
 
         write_atomic_json(target / "report_trigger_result.json", report_trigger_result)
+
+        if integrity["status"] == "error":
+            LOGGER.error("Integriteitscontrole mislukt: %s", integrity.get("errors"))
+            if options.fail_on_validation_errors:
+                raise RuntimeError("Integriteitscontrole mislukt.")
 
         if options.fail_on_validation_errors and (
             report["errors"] or central_validation["status"] == "error"
@@ -1602,7 +1653,7 @@ class Handler(BaseHTTPRequestHandler):
                 result = {"status": "error", "error": "Nog geen maanduitvoer aanwezig."}
                 code = HTTPStatus.BAD_REQUEST
             else:
-                result = verify_manifest(target)
+                result = verify_latest_with_legacy_repair(target)
                 update_state(
                     last_integrity_status=result.get("status"),
                     last_integrity_checked_at=result.get("checked_at"),
