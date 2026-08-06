@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "5.0.2"
+APP_VERSION = "5.0.3"
 
 CONFIG_ROOT = Path("/data")
 
@@ -2614,12 +2614,20 @@ def create_transfer_package(month_key: str | None = None) -> dict[str, Any]:
         raise RuntimeError("month_input_validation.json ontbreekt.")
 
     validation = json.loads(validation_path.read_text(encoding="utf-8"))
-    if (
-        options.transfer_require_valid_month
-        and validation.get("status") != "ok"
-    ):
+    missing_required = list(validation.get("missing_required") or [])
+    empty_required = list(validation.get("empty_required") or [])
+    validation_acceptable = (
+        validation.get("status") == "ok"
+        or (
+            validation.get("status") == "warning"
+            and not missing_required
+            and not empty_required
+        )
+    )
+    if options.transfer_require_valid_month and not validation_acceptable:
         raise RuntimeError(
-            f"Overdracht geblokkeerd: maandvalidatie is {validation.get('status')}."
+            f"Overdracht geblokkeerd: maandvalidatie is {validation.get('status')} "
+            f"(missing_required={missing_required}, empty_required={empty_required})."
         )
 
     share_folder = Path(options.transfer_share_folder)
@@ -2668,6 +2676,7 @@ def create_transfer_package(month_key: str | None = None) -> dict[str, Any]:
         "zip": str(zip_destination) if zip_source.exists() else None,
         "verification": verification,
         "month_validation_status": validation.get("status"),
+        "month_validation_accepted": validation_acceptable,
     }
     write_atomic_json(
         destination_root / f"Overdracht_{month_key}.json",
@@ -2924,10 +2933,25 @@ def run_full_month_workflow(
             required=True,
         )
 
-        if isinstance(month_result, dict) and month_result.get("status") != "ok":
-            raise RuntimeError(
-                f"Maandmapvalidatie is {month_result.get('status')}."
+        if isinstance(month_result, dict):
+            month_status = month_result.get("status")
+            missing_required = list(month_result.get("missing_required") or [])
+            empty_required = list(month_result.get("empty_required") or [])
+            month_acceptable = (
+                month_status == "ok"
+                or (
+                    month_status == "warning"
+                    and not missing_required
+                    and not empty_required
+                )
             )
+            if not month_acceptable:
+                failed_step = "Maandmap bouwen"
+                raise RuntimeError(
+                    f"Maandmapvalidatie is {month_status} "
+                    f"(missing_required={missing_required}, "
+                    f"empty_required={empty_required})."
+                )
 
         transfer_result = execute_step(
             "Overdrachtspakket maken",
@@ -2935,7 +2959,7 @@ def run_full_month_workflow(
             required=True,
         )
 
-        status = "ok" if not errors else "error"
+        status = "error" if errors else ("warning" if warnings else "ok")
     except Exception as exc:
         if not errors:
             errors.append(str(exc))
@@ -2979,7 +3003,7 @@ def run_full_month_workflow(
 
     try:
         if options.transfer_notify_home_assistant:
-            if status == "ok":
+            if status in {"ok", "warning"}:
                 notify_home_assistant(
                     "Energie maandworkflow gereed",
                     (
@@ -3458,7 +3482,7 @@ class Handler(BaseHTTPRequestHandler):
                     month_key,
                     collect_live_snapshots=True,
                 )
-                code = HTTPStatus.OK if result.get("status") == "ok" else HTTPStatus.BAD_REQUEST
+                code = HTTPStatus.OK if result.get("status") in {"ok", "warning"} else HTTPStatus.BAD_REQUEST
             except Exception as exc:
                 update_state(
                     full_workflow_last_status="error",

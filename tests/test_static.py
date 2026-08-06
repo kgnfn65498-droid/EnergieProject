@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "5.0.2"
+    assert cfg_version == app_version == "5.0.3"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "5.0.2"' in config
+    assert 'version: "5.0.3"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -557,7 +557,8 @@ def test_share_mapping_and_transfer_config_present():
 def test_transfer_is_validation_gated():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "def create_transfer_package" in source
-    assert 'validation.get("status") != "ok"' in source
+    assert "validation_acceptable = (" in source
+    assert 'validation.get("status") == "warning"' in source
     assert "Overdracht geblokkeerd" in source
 
 def test_transfer_never_overwrites_by_default():
@@ -668,3 +669,22 @@ def test_workflow_does_not_duplicate_error_steps():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "already_recorded = bool(" in source
     assert "if error_text not in errors:" in source
+
+
+def test_warning_month_validation_is_accepted_without_required_gaps():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'month_status == "warning"' in source
+    assert "and not missing_required" in source
+    assert "and not empty_required" in source
+
+def test_transfer_accepts_optional_warning_only():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "validation_acceptable = (" in source
+    assert 'validation.get("status") == "warning"' in source
+    assert '"month_validation_accepted": validation_acceptable' in source
+
+def test_workflow_can_finish_with_warning():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'status = "error" if errors else ("warning" if warnings else "ok")' in source
+    assert 'result.get("status") in {"ok", "warning"}' in source
+    assert 'if status in {"ok", "warning"}:' in source

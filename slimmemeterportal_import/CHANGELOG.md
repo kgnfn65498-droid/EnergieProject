@@ -1,5 +1,16 @@
 # Changelog
 
+## 5.0.3
+
+- Maandvalidatie `warning` wordt geaccepteerd wanneer uitsluitend optionele bestanden ontbreken.
+- Ontbrekende niet-geconfigureerde EPEX-bestanden blokkeren de workflow niet meer.
+- Vereiste ontbrekende of lege bestanden blijven de workflow direct blokkeren.
+- Overdrachtspakket accepteert dezelfde gecontroleerde warning-status.
+- Workflow eindigt als `warning` in plaats van `error` wanneer alle vereiste bronnen aanwezig zijn.
+- Foutmelding noemt voortaan expliciet `missing_required` en `empty_required`.
+- Home Assistant meldt een workflow met alleen waarschuwingen als gereed.
+
+
 ## 5.0.2
 
 - Handmatige knop `Verwerk maanddata` heeft nu een expliciete maandkeuze.

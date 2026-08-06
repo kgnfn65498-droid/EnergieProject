@@ -1,17 +1,17 @@
 {
   ".gitignore": "f10529b220b514ca72c66fd592c80ec5b3dea6a0a49f2658d80617824c5aa5e7",
   "INSTALL.md": "9f27e5c02d117239f944e68cffdc2163586f7ec6434f699aa7396ed624f2b081",
-  "README.md": "65b05566310c441089382a2e64f553d2f58b188f9e619a5057684931bb1cd2a3",
+  "README.md": "130dbb4c2e9523dc9c0c413d61155a3a57bc7b4b2e6a17764f028a16d08776be",
   "repository.yaml": "53bcc3c35f6757f418727b3f72063e676db73638359dfb2124174f2f17bd8be0",
-  "slimmemeterportal_import/CHANGELOG.md": "f5e3a1a80c36d2a389e5d9cff654f9cd2d415259606120f1d9bbb39814e42a1c",
-  "slimmemeterportal_import/DOCS.md": "6bb42407fce873c53b36bd19921ab109080dd7605f0d646b67ecbf02f02ac0ea",
+  "slimmemeterportal_import/CHANGELOG.md": "309373c42b6f667f743ffba2f2e175bae3170eda1ede7d3c971e3fcecd25f820",
+  "slimmemeterportal_import/DOCS.md": "0be46cd2fc786ad0cd4a343adfede5e1d7910caaed558ff1afaa2fe5f9701262",
   "slimmemeterportal_import/Dockerfile": "17356e926353583c53faab846dc83017c106c5340fb1a048e3ef9242677a2efe",
   "slimmemeterportal_import/build.yaml": "8b306792106f48e7b60dc6111f09349796f6baa61dfa1f4003dc4ccd54ae376b",
-  "slimmemeterportal_import/config.yaml": "e8b92fe83f1ededbb5ba650b071b6a87e93f8a52acfaa1f46d02254323582c2a",
-  "slimmemeterportal_import/rootfs/app/main.py": "2bbaa023dda05c6aee7e5fd53045e92dc07d1f24ed0649e01fad2ac7eb3f259a",
+  "slimmemeterportal_import/config.yaml": "9fda67ad613c98d944b69993afb6dd03cf36d3b9ba882e432a0cd9d97408e58f",
+  "slimmemeterportal_import/rootfs/app/main.py": "6413f12a3362ccd32a99aed5cd477b337b74a0e079f05dc1579d76280f3a36a0",
   "slimmemeterportal_import/rootfs/app/run.sh": "712337f18a524782c96279914e3a97a4cd32ce2c5237ab73fe7f64eb1775c5d2",
   "slimmemeterportal_import/run.sh": "a6d1f2bae0d363e383368fad8b70e35d290632d368a70ed9dcf87b62b948c2c4",
   "slimmemeterportal_import/translations/en.yaml": "90a88eb86cd8a6c766b97dd1eaa1a1bbe78b2a6ba761df7003c69bc0103c940d",
   "slimmemeterportal_import/translations/nl.yaml": "25a80e8ca2e571ca23fe27d69b6b6aa0b76fba7baf4c6acac259b937f6cdb921",
-  "tests/test_static.py": "fdc4a765bf0170f1c48cff3ca4d757739aa338fa8da9e3b2c67fc8678f87d0d2"
+  "tests/test_static.py": "c55b34b244c27a4d600a350458f08dceb6d9871893b111d69fbd5e014b89985a"
 }

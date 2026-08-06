@@ -376,3 +376,14 @@ De knop `Verwerk maanddata` bevat vanaf 5.0.2 een maandkeuze.
 - Een historische maand gebruikt uitsluitend de bestanden die tijdens die maand
   al zijn opgebouwd.
 - De geplande productierun blijft bedoeld voor de vorige kalendermaand.
+
+
+## Warning versus fout
+
+Vanaf 5.0.3 geldt:
+
+- `warning` is toegestaan wanneer alleen optionele bronnen ontbreken;
+- niet-geconfigureerde EPEX-bestanden blokkeren de workflow niet;
+- `missing_required` of `empty_required` blokkeert altijd;
+- een geslaagde workflow met optionele ontbrekende bronnen eindigt als
+  `status: warning`.
