@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.6.3
+
+- ReportLab en pypdf worden met pip geïnstalleerd in `/usr/local/bin/python3`.
+- Dit is dezelfde Python-runtime waarmee de officiële generatorwrappers worden gestart.
+- De Docker-build controleert direct of beide modules importeerbaar zijn.
+- Nieuwe runtimecontrole toont moduleversies, Python-pad en importlocaties.
+- Zelftest blokkeert rapportgeneratie wanneer ReportLab of pypdf ontbreekt.
+- Nieuwe knop `Controleer rapportmodules` toegevoegd.
+- Geen wijzigingen aan generatorcode, maanddata, bestandsnamen of mappenstructuur.
+
+
 ## 6.6.2
 
 - `sys` wordt nu als echte top-level import geladen.

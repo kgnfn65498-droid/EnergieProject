@@ -37,7 +37,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.6.2"
+APP_VERSION = "6.6.3"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -328,6 +328,10 @@ def default_state() -> dict[str, Any]:
         "report_service_generators": {},
         "report_service_last_output": None,
         "report_service_last_error": None,
+        "report_runtime_last_checked": None,
+        "report_runtime_last_status": None,
+        "report_runtime_modules": {},
+        "report_runtime_last_error": None,
         "report_page1_last_started": None,
         "report_page1_last_finished": None,
         "report_page1_last_status": None,
@@ -848,6 +852,13 @@ def run_self_test() -> dict[str, Any]:
 
         source_status = workflow_source_status(options)
         add("workflow_sources", "ok", json.dumps(source_status, ensure_ascii=False))
+
+        runtime = check_report_runtime()
+        add(
+            "report_runtime",
+            "ok" if runtime.get("status") == "ok" else "error",
+            json.dumps(runtime, ensure_ascii=False),
+        )
 
         if options.report_trigger_enabled:
             add("report_trigger_config", "ok", options.report_trigger_url)
@@ -1578,6 +1589,46 @@ def install_bundled_report_generators(options: Options) -> dict[str, Any]:
 
 
 
+
+def check_report_runtime() -> dict[str, Any]:
+    checked_at = datetime.now(TZ).isoformat()
+    modules: dict[str, dict[str, Any]] = {}
+    errors: list[str] = []
+
+    for name in ("reportlab", "pypdf"):
+        try:
+            module = __import__(name)
+            modules[name] = {
+                "status": "ok",
+                "version": str(getattr(module, "__version__", "unknown")),
+                "file": str(getattr(module, "__file__", "")),
+            }
+        except Exception as exc:
+            modules[name] = {
+                "status": "error",
+                "error": str(exc),
+            }
+            errors.append(f"{name}: {exc}")
+
+    status = "ok" if not errors else "error"
+    result = {
+        "version": APP_VERSION,
+        "checked_at": checked_at,
+        "status": status,
+        "python": sys.executable,
+        "modules": modules,
+        "errors": errors,
+    }
+    update_state(
+        report_runtime_last_checked=checked_at,
+        report_runtime_last_status=status,
+        report_runtime_modules=modules,
+        report_runtime_last_error=None if not errors else "; ".join(errors),
+    )
+    return result
+
+
+
 def report_service_paths(options: Options) -> dict[str, Path]:
     root = Path("/share") / options.report_service_root
     return {
@@ -1593,6 +1644,7 @@ def initialize_report_service(options: Options) -> dict[str, Any]:
     paths = report_service_paths(options)
     for path in paths.values():
         path.mkdir(parents=True, exist_ok=True)
+    runtime = check_report_runtime()
     install_result = install_bundled_report_generators(options)
     contract = {
         "version": APP_VERSION,
@@ -1604,16 +1656,46 @@ def initialize_report_service(options: Options) -> dict[str, Any]:
     contract_path = paths["root"] / "service_contract.json"
     write_atomic_json(contract_path, contract)
     return {
-        "status": "ok" if install_result.get("status") == "completed" else "error",
+        "status": (
+            "ok"
+            if runtime.get("status") == "ok"
+            and install_result.get("status") == "completed"
+            else "error"
+        ),
         "root": str(paths["root"]),
         "contract": str(contract_path),
+        "runtime": runtime,
         "install": install_result,
     }
 
 
 def discover_report_generators(options: Options) -> dict[str, Any]:
     paths = report_service_paths(options)
-    initialize_report_service(options)
+    initialization = initialize_report_service(options)
+    if initialization.get("runtime", {}).get("status") != "ok":
+        result = {
+            "version": APP_VERSION,
+            "checked_at": datetime.now(TZ).isoformat(),
+            "status": "runtime_error",
+            "root": str(paths["root"]),
+            "generators": {},
+            "role_status": {
+                role: "blocked"
+                for role in REPORT_GENERATORS
+            },
+            "missing": [],
+            "runtime": initialization.get("runtime"),
+        }
+        update_state(
+            report_service_last_checked=result["checked_at"],
+            report_service_last_status="runtime_error",
+            report_service_generators={},
+            report_service_last_error=(
+                initialization.get("runtime", {}).get("errors") or ["Onbekende runtimefout"]
+            )[0],
+        )
+        return result
+
     found: dict[str, dict[str, Any]] = {}
     missing: list[str] = []
     for role, name in REPORT_GENERATORS.items():
@@ -4560,6 +4642,9 @@ a{{color:#0277bd}}
 <form method="post" action="central-validation" style="margin-top:12px">
 <button type="submit">Voer centrale validatie uit</button>
 </form>
+<form method="post" action="check-report-runtime" style="margin-top:12px">
+<button type="submit">Controleer rapportmodules</button>
+</form>
 <form method="post" action="build-report-adapter" style="margin-top:12px">
 <button type="submit">Bouw rapportdata-adapter</button>
 </form>
@@ -4716,6 +4801,18 @@ class Handler(BaseHTTPRequestHandler):
                     + html.escape(json.dumps(result, ensure_ascii=False))
                     + "</p><p><a href='./'>Terug</a></p></html>"
                 ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/check-report-runtime") or path == "/check-report-runtime":
+            result = check_report_runtime()
+            code = HTTPStatus.OK if result.get("status") == "ok" else HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                ("<html><meta charset='utf-8'><p>"
+                 + html.escape(json.dumps(result, ensure_ascii=False))
+                 + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return

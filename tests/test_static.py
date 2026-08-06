@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "6.6.2"
+    assert cfg_version == app_version == "6.6.3"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "6.6.2"' in config
+    assert 'version: "6.6.3"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -943,7 +943,7 @@ def test_v640_exact_official_wrapper_names():
 
 def test_v640_reportlab_runtime_dependency():
     dockerfile = (ADDON / "Dockerfile").read_text(encoding="utf-8")
-    assert "py3-reportlab" in dockerfile
+    assert ("py3-reportlab" in dockerfile or "reportlab>=4,<5" in dockerfile)
 
 
 def test_v650_report_adapter_exists():
@@ -968,7 +968,7 @@ def test_v650_service_runs_adapter_and_merge():
 
 def test_v650_runtime_has_pypdf():
     dockerfile = (ADDON / "Dockerfile").read_text(encoding="utf-8")
-    assert "py3-pypdf" in dockerfile
+    assert ("py3-pypdf" in dockerfile or "pypdf>=5,<7" in dockerfile)
 
 
 def test_v660_report_service_enabled_by_default():
@@ -1013,3 +1013,28 @@ def test_v662_all_main_sys_references_are_covered():
     header = source.split("APP_VERSION", 1)[0]
     assert "\nimport sys\n" in header
     assert "sys.executable" in source
+
+
+def test_v663_installs_report_modules_into_runtime_python():
+    dockerfile = (ADDON / "Dockerfile").read_text(encoding="utf-8")
+    assert "/usr/local/bin/python3 -m pip install" in dockerfile
+    assert '"reportlab>=4,<5"' in dockerfile
+    assert '"pypdf>=5,<7"' in dockerfile
+    assert "import reportlab, pypdf" in dockerfile
+
+def test_v663_runtime_checker_exists():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def check_report_runtime" in source
+    assert 'for name in ("reportlab", "pypdf")' in source
+    assert '"python": sys.executable' in source
+
+def test_v663_selftest_checks_report_runtime():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'add(' in source
+    assert '"report_runtime"' in source
+    assert 'runtime = check_report_runtime()' in source
+
+def test_v663_runtime_button_exists():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"/check-report-runtime"' in source
+    assert "Controleer rapportmodules" in source

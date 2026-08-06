@@ -8,7 +8,9 @@ LABEL \
   io.hass.type="app" \
   io.hass.arch="${BUILD_ARCH}"
 
-RUN apk add --no-cache ca-certificates tzdata py3-reportlab py3-pypdf
+RUN apk add --no-cache ca-certificates tzdata py3-pip \
+    && /usr/local/bin/python3 -m pip install --no-cache-dir --break-system-packages "reportlab>=4,<5" "pypdf>=5,<7" \
+    && /usr/local/bin/python3 -c "import reportlab, pypdf; print('report runtime ok')" 
 
 WORKDIR /app
 COPY rootfs/app/ /app/
