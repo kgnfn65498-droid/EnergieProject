@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "4.3.0"
+    assert cfg_version == app_version == "4.4.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "4.3.0"' in config
+    assert 'version: "4.4.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -392,3 +392,34 @@ def test_discovery_ui_shows_network():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "HomeWizard netwerk" in source
     assert "Scanbereik:" in source
+
+
+def test_homeassistant_api_enabled():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert "homeassistant_api: true" in config
+
+def test_homeassistant_states_uses_supervisor_proxy():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'HOME_ASSISTANT_STATES_URL = "http://supervisor/core/api/states"' in source
+    assert 'os.environ.get("SUPERVISOR_TOKEN"' in source
+    assert '"Authorization": f"Bearer {token}"' in source
+
+def test_homewizard_mapping_uses_serial_and_friendly_name():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def map_discovery_to_home_assistant" in source
+    assert '"serial": serial' in source
+    assert '"home_assistant_friendly_name"' in source
+    assert "friendly_device_name" in source
+
+def test_homewizard_mapping_output_names():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"Heater KANTOOR": "Heater kantoor"' in source
+    assert '"Heater WOONKAMER": "Heater woonkamer"' in source
+    assert '"Heater LOUNGE": "Heater lounge"' in source
+    assert 'return f"{normalized} Skt.csv"' in source
+
+def test_effective_devices_use_mapping():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def effective_homewizard_devices" in source
+    assert "if effective_homewizard_devices(options):" in source
+    assert "for device in effective_homewizard_devices(options):" in source

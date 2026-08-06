@@ -257,3 +257,15 @@ homewizard_discovery_cidr: "192.168.1.0/24"
 Het interne Home Assistant-bereik `172.30.0.0/16` wordt nooit als
 HomeWizard-thuisnetwerk gebruikt. Pas het CIDR alleen aan als het lokale netwerk
 later wijzigt.
+
+
+## Home Assistant-namen als vaste koppeling
+
+Na HomeWizard-detectie leest de app de Home Assistant-entiteiten via de interne
+Core API. De bestaande Home Assistant-naam wordt gebruikt voor de rapportnaam.
+Het HomeWizard-serienummer is de vaste technische identiteit. Het IP-adres mag
+door DHCP wijzigen; een nieuwe detectiescan actualiseert het bereikadres.
+
+De mapping wordt opgeslagen in:
+
+`/data/homewizard_mapping.json`

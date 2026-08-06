@@ -6,6 +6,7 @@ import html
 import io
 import json
 import logging
+import os
 import random
 import hashlib
 import re
@@ -34,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "4.3.0"
+APP_VERSION = "4.4.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -212,6 +213,9 @@ def default_state() -> dict[str, Any]:
         "homewizard_discovery_devices": [],
         "homewizard_discovery_error": None,
         "homewizard_discovery_status": "idle",
+        "homewizard_mapping_last": None,
+        "homewizard_mapping_count": 0,
+        "homewizard_mapping_error": None,
         "homewizard_last_error": None,
         "enphase_last_import": None,
         "enphase_last_error": None,
@@ -986,6 +990,196 @@ def discover_homewizard_device(host: str, timeout: int) -> dict[str, Any] | None
     }
 
 
+
+HOME_ASSISTANT_STATES_URL = "http://supervisor/core/api/states"
+HOMEWIZARD_MAPPING_PATH = CONFIG_ROOT / "homewizard_mapping.json"
+
+
+def home_assistant_states(timeout: int = 20) -> list[dict[str, Any]]:
+    token = os.environ.get("SUPERVISOR_TOKEN", "").strip()
+    if not token:
+        raise RuntimeError("SUPERVISOR_TOKEN ontbreekt; Home Assistant API is niet beschikbaar.")
+    request = urllib.request.Request(
+        HOME_ASSISTANT_STATES_URL,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": f"Energieproject-HomeAssistant/{APP_VERSION}",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Home Assistant-entiteiten konden niet worden gelezen: {exc}") from exc
+    if not isinstance(payload, list):
+        raise RuntimeError("Home Assistant API gaf geen entiteitenlijst terug.")
+    return [item for item in payload if isinstance(item, dict)]
+
+
+def energy_name_candidates(states: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    for entity in states:
+        attributes = entity.get("attributes") or {}
+        if attributes.get("device_class") != "energy":
+            continue
+        friendly_name = str(attributes.get("friendly_name", "")).strip()
+        unit = str(attributes.get("unit_of_measurement", "")).strip().lower()
+        if unit != "kwh":
+            continue
+        try:
+            value = float(entity.get("state"))
+        except (TypeError, ValueError):
+            continue
+        candidates.append({
+            "entity_id": str(entity.get("entity_id", "")),
+            "friendly_name": friendly_name,
+            "value_kwh": value,
+        })
+    return candidates
+
+
+def friendly_device_name(friendly_name: str) -> str:
+    suffixes = (
+        " Energie import",
+        " Energie Import",
+        " energy import",
+        " Energy import",
+    )
+    for suffix in suffixes:
+        if friendly_name.endswith(suffix):
+            return friendly_name[:-len(suffix)].strip()
+    return friendly_name.strip()
+
+
+def output_name_for_home_assistant_name(name: str, role: str) -> str:
+    if role == "p1":
+        return "P1e.csv"
+    if role == "gas":
+        return "P1g.csv"
+    if role == "socket":
+        normalized = {
+            "Heater KANTOOR": "Heater kantoor",
+            "Heater WOONKAMER": "Heater woonkamer",
+            "Heater LOUNGE": "Heater lounge",
+        }.get(name, name)
+        return f"{normalized} Skt.csv"
+    return f"{name}.csv"
+
+
+def map_discovery_to_home_assistant(
+    discovery: dict[str, Any],
+    states: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    states = states if states is not None else home_assistant_states()
+    candidates = energy_name_candidates(states)
+    mappings: list[dict[str, Any]] = []
+    unmatched: list[dict[str, Any]] = []
+    used_entities: set[str] = set()
+
+    for device in discovery.get("devices", []):
+        info = device.get("device_info") or {}
+        sample = device.get("sample_data") or {}
+        serial = str(info.get("serial", "")).strip()
+        role = str(device.get("role", "other"))
+        target = sample.get("total_power_import_kwh")
+        best: dict[str, Any] | None = None
+
+        if role == "p1":
+            preferred = [
+                item for item in candidates
+                if "p1 meter" in item["friendly_name"].lower()
+                and "import" in item["friendly_name"].lower()
+            ]
+            if preferred:
+                best = min(
+                    preferred,
+                    key=lambda item: abs(item["value_kwh"] - float(target or 0)),
+                )
+        elif role == "socket" and target is not None:
+            eligible = [
+                item for item in candidates
+                if item["entity_id"] not in used_entities
+                and "socket" in item["entity_id"]
+                and "energie import" in item["friendly_name"].lower()
+            ]
+            if eligible:
+                candidate = min(
+                    eligible,
+                    key=lambda item: abs(item["value_kwh"] - float(target)),
+                )
+                if abs(candidate["value_kwh"] - float(target)) <= 0.02:
+                    best = candidate
+
+        if best is None:
+            unmatched.append({
+                "serial": serial,
+                "host": device.get("host"),
+                "role": role,
+                "total_power_import_kwh": target,
+            })
+            continue
+
+        used_entities.add(best["entity_id"])
+        name = friendly_device_name(best["friendly_name"])
+        mappings.append({
+            "serial": serial,
+            "label": name,
+            "host": device.get("host"),
+            "role": role,
+            "optional": role == "socket",
+            "output_name": output_name_for_home_assistant_name(name, role),
+            "home_assistant_entity_id": best["entity_id"],
+            "home_assistant_friendly_name": best["friendly_name"],
+            "matched_value_kwh": best["value_kwh"],
+        })
+
+    result = {
+        "version": APP_VERSION,
+        "mapped_at": datetime.now(TZ).isoformat(),
+        "status": "ok" if mappings and not unmatched else ("warning" if mappings else "error"),
+        "mapping_count": len(mappings),
+        "unmatched_count": len(unmatched),
+        "mappings": mappings,
+        "unmatched": unmatched,
+    }
+    ensure_storage_paths()
+    write_atomic_json(HOMEWIZARD_MAPPING_PATH, result)
+    update_state(
+        homewizard_mapping_last=result["mapped_at"],
+        homewizard_mapping_count=len(mappings),
+        homewizard_mapping_error=None if mappings else "Geen apparaten gekoppeld.",
+    )
+    LOGGER.info(
+        "HomeWizard aan Home Assistant gekoppeld: %s gekoppeld, %s niet gekoppeld.",
+        len(mappings),
+        len(unmatched),
+    )
+    return result
+
+
+def load_homewizard_mapping() -> dict[str, Any] | None:
+    if not HOMEWIZARD_MAPPING_PATH.exists():
+        return None
+    try:
+        data = json.loads(HOMEWIZARD_MAPPING_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        LOGGER.error("HomeWizard mapping kon niet worden gelezen: %s", exc)
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def effective_homewizard_devices(options: Options) -> list[dict[str, Any]]:
+    if options.homewizard_devices:
+        return options.homewizard_devices
+    mapping = load_homewizard_mapping() or {}
+    mappings = mapping.get("mappings")
+    return mappings if isinstance(mappings, list) else []
+
+
+
 def discover_homewizard_devices(options: Options) -> dict[str, Any]:
     update_state(homewizard_discovery_status="running", homewizard_discovery_error=None)
     if not options.homewizard_discovery_enabled:
@@ -1034,6 +1228,15 @@ def discover_homewizard_devices(options: Options) -> dict[str, Any]:
         homewizard_discovery_error=None,
         homewizard_discovery_status="completed",
     )
+    try:
+        result["home_assistant_mapping"] = map_discovery_to_home_assistant(result)
+    except Exception as exc:
+        LOGGER.exception("Automatische koppeling met Home Assistant-namen mislukt.")
+        update_state(homewizard_mapping_error=str(exc))
+        result["home_assistant_mapping"] = {
+            "status": "error",
+            "error": str(exc),
+        }
     return result
 
 
@@ -1201,7 +1404,7 @@ def collect_homewizard_snapshot(options: Options) -> dict[str, Any]:
         "warnings": [],
     }
 
-    for device in options.homewizard_devices:
+    for device in effective_homewizard_devices(options):
         label = str(device.get("label", "")).strip()
         host = str(device.get("host", "")).strip()
         role = str(device.get("role", "other"))
@@ -1265,10 +1468,9 @@ def save_homewizard_snapshot(snapshot: dict[str, Any]) -> Path:
 
 def run_homewizard_snapshot() -> dict[str, Any]:
     options = Options.load()
-    if not options.homewizard_enabled:
-        raise RuntimeError("HomeWizard-import is uitgeschakeld.")
-    if not options.homewizard_devices:
-        raise RuntimeError("Geen HomeWizard-apparaten geconfigureerd.")
+    devices = effective_homewizard_devices(options)
+    if not devices:
+        raise RuntimeError("Geen HomeWizard-apparaten geconfigureerd of automatisch gekoppeld.")
     snapshot = collect_homewizard_snapshot(options)
     path = save_homewizard_snapshot(snapshot)
     update_state(
@@ -1286,7 +1488,7 @@ def workflow_source_status(options: Options) -> dict[str, str]:
         status.update({
             "homewizard": (
                 "ready"
-                if options.homewizard_enabled and options.homewizard_devices
+                if effective_homewizard_devices(options)
                 else "not_configured"
             ),
             "enphase": "ready" if options.enphase_enabled else "not_configured",
@@ -1606,7 +1808,7 @@ def scheduler() -> None:
         try:
             options = Options.load()
 
-            if options.homewizard_enabled and options.homewizard_devices:
+            if effective_homewizard_devices(options):
                 now = datetime.now(TZ)
                 due = (
                     last_homewizard_run is None
@@ -1722,6 +1924,7 @@ a{{color:#0277bd}}
 <dt>Laatste HomeWizard snapshot</dt><dd>{esc(state.get("homewizard_last_snapshot") or "Nog geen")}</dd>
 <dt>HomeWizard detectie</dt><dd>{esc((str(state.get("homewizard_discovery_count", 0)) + " apparaat/apparaten") if state.get("homewizard_discovery_last") else state.get("homewizard_discovery_status", "Nog niet uitgevoerd"))}</dd>
 <dt>HomeWizard netwerk</dt><dd>{esc(state.get("homewizard_discovery_cidr") or "Niet bepaald")}</dd>
+<dt>Home Assistant-koppeling</dt><dd>{esc((str(state.get("homewizard_mapping_count", 0)) + " apparaat/apparaten") if state.get("homewizard_mapping_last") else "Nog niet uitgevoerd")}</dd>
 <dt>HomeWizard fout</dt><dd>{esc(state.get("homewizard_last_error") or "Geen")}</dd>
 <dt>Laatste Enphase-import</dt><dd>{esc(state.get("enphase_last_import") or "Nog geen")}</dd>
 <dt>Laatste EPEX elektriciteit</dt><dd>{esc(state.get("epex_electricity_last_import") or "Nog geen")}</dd>

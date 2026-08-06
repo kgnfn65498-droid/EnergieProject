@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.4.0
+
+- HomeWizard-apparaten worden automatisch gekoppeld aan hun bestaande Home Assistant-namen.
+- Koppeling gebruikt actuele cumulatieve kWh-standen en de bestaande Home Assistant `friendly_name`.
+- Het HomeWizard-serienummer is de stabiele identiteit; het IP-adres blijft alleen het actuele bereikadres.
+- DHCP-wijzigingen kunnen via een nieuwe detectiescan worden bijgewerkt zonder apparaatnamen te verliezen.
+- Automatische mapping wordt opgeslagen in `homewizard_mapping.json`.
+- P1, Airco, Mobiel en heaters krijgen automatisch de afgesproken case-sensitive uitvoernamen.
+- HomeWizard-sampling gebruikt automatisch de opgeslagen mapping wanneer geen handmatige apparaatlijst is ingevuld.
+- Home Assistant API-toegang verloopt via de officiële interne Supervisor-proxy en `SUPERVISOR_TOKEN`.
+
+
 ## 4.3.0
 
 - HomeWizard-scan gebruikt standaard het werkelijke thuisnetwerk `192.168.1.0/24`.

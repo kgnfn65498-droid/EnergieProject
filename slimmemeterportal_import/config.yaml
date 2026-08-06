@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "4.3.0"
+version: "4.4.0"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -7,6 +7,7 @@ arch:
   - aarch64
   - amd64
 init: false
+homeassistant_api: true
 startup: services
 boot: auto
 ingress: true
