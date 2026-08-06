@@ -1,5 +1,15 @@
 # Changelog
 
+## 5.3.0
+
+- Maandmap krijgt alleen `completed_info` wanneer er daadwerkelijk informatiepunten zijn.
+- Optionele ontbrekende of lege bestanden worden expliciet vermeld in `infos`.
+- Uitgeschakelde EPEX-bronnen krijgen status `not_configured` in plaats van `error`.
+- Verouderde EPEX-foutvelden worden automatisch opgeschoond in de technische status.
+- Technische status normaliseert oude `completed_info` naar `completed` wanneer geen info-items bestaan.
+- Werkende import- en workflowlogica blijft ongewijzigd.
+
+
 ## 5.2.0
 
 - Workflowstatussen volledig gelijkgetrokken: `completed`, `completed_info`, `completed_warning` en `failed`.

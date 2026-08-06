@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "5.2.0"
+    assert cfg_version == app_version == "5.3.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "5.2.0"' in config
+    assert 'version: "5.3.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -760,3 +760,21 @@ def test_v520_consistent_workflow_statuses():
 def test_v520_epex_default_is_not_configured():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"epex_last_validation_status": "not_configured"' in source
+
+
+def test_v530_month_info_only_when_real_info_exists():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "info_messages: list[str] = []" in source
+    assert "elif info_messages:" in source
+    assert '"infos": info_messages' in source
+
+def test_v530_epex_disabled_is_not_configured():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'results["status"] = "not_configured"' in source
+    assert '"reason": f"{source_name} is uitgeschakeld."' in source
+
+def test_v530_technical_status_normalization_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def normalize_technical_status" in source
+    assert 'normalized["epex_last_validation_status"] = "not_configured"' in source
+    assert 'normalized["month_input_last_status"] = "completed"' in source

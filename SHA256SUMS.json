@@ -1,17 +1,17 @@
 {
   ".gitignore": "f10529b220b514ca72c66fd592c80ec5b3dea6a0a49f2658d80617824c5aa5e7",
   "INSTALL.md": "9f27e5c02d117239f944e68cffdc2163586f7ec6434f699aa7396ed624f2b081",
-  "README.md": "5ede1cb04b75388a6d8fca20617efdecf0c90ceb5ff5db5e7c2d3f2c72cc4478",
+  "README.md": "7591ebca1ddfc23bee2b5ddef9f4470ec8f3582bc7676456764fcb8407834acc",
   "repository.yaml": "53bcc3c35f6757f418727b3f72063e676db73638359dfb2124174f2f17bd8be0",
-  "slimmemeterportal_import/CHANGELOG.md": "8af9b9c067d775e78d66ce3f6c4ee42f77618bf4226aebd8077317e882672e25",
+  "slimmemeterportal_import/CHANGELOG.md": "4085ab12faf5cccb49c3c3469b9583019483389caaa78c3965adb6503276e82a",
   "slimmemeterportal_import/DOCS.md": "1e6e1d9137fed68a29547809709f2290b9b456f553b3ef2e36983022ea3521d3",
   "slimmemeterportal_import/Dockerfile": "17356e926353583c53faab846dc83017c106c5340fb1a048e3ef9242677a2efe",
   "slimmemeterportal_import/build.yaml": "8b306792106f48e7b60dc6111f09349796f6baa61dfa1f4003dc4ccd54ae376b",
-  "slimmemeterportal_import/config.yaml": "8e1cfb11c032bd6171e3e51f2dc0fb11b06cbd3fb7e9eb5062ca76fb2f4a0942",
-  "slimmemeterportal_import/rootfs/app/main.py": "09ee8d3bfec35d08834428bb57a756eaef57f3cf6fe0ceaba54cc085777d11bb",
+  "slimmemeterportal_import/config.yaml": "082d3cc2a65c5034b7dab74f1872800a0853d66fbd88efd314169504baac35e4",
+  "slimmemeterportal_import/rootfs/app/main.py": "33944926b2d479131aae893638ec701bec7d54e46cab917a85c8df07c3735fb1",
   "slimmemeterportal_import/rootfs/app/run.sh": "712337f18a524782c96279914e3a97a4cd32ce2c5237ab73fe7f64eb1775c5d2",
   "slimmemeterportal_import/run.sh": "a6d1f2bae0d363e383368fad8b70e35d290632d368a70ed9dcf87b62b948c2c4",
   "slimmemeterportal_import/translations/en.yaml": "90a88eb86cd8a6c766b97dd1eaa1a1bbe78b2a6ba761df7003c69bc0103c940d",
   "slimmemeterportal_import/translations/nl.yaml": "25a80e8ca2e571ca23fe27d69b6b6aa0b76fba7baf4c6acac259b937f6cdb921",
-  "tests/test_static.py": "84d806950311f93e2e0a294f240518a95c926a563b97c4140fe074a506d420c4"
+  "tests/test_static.py": "f0c90f26ed65674b758ff0271de54450638a7409f89218230dd466a3ea3dbf16"
 }

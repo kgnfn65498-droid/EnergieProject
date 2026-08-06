@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "5.2.0"
+APP_VERSION = "5.3.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -710,6 +710,33 @@ def build_month_summary(
 
 
 
+
+def normalize_technical_status(state: dict[str, Any], options: Options) -> dict[str, Any]:
+    normalized = dict(state)
+
+    if not options.epex_electricity_enabled and not options.epex_gas_enabled:
+        normalized["epex_last_validation_status"] = "not_configured"
+        normalized["epex_electricity_last_error"] = None
+        normalized["epex_gas_last_error"] = None
+
+    month_status = normalized.get("month_input_last_status")
+    if month_status == "completed_info":
+        validation_path = (
+            MONTH_INPUT_ROOT
+            / str(normalized.get("month_input_last_month") or "")
+            / "month_input_validation.json"
+        )
+        try:
+            validation = json.loads(validation_path.read_text(encoding="utf-8"))
+            if not validation.get("infos"):
+                normalized["month_input_last_status"] = "completed"
+        except Exception:
+            pass
+
+    return normalized
+
+
+
 def run_self_test() -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
 
@@ -1169,9 +1196,16 @@ def run_epex_import_and_validate(month_key: str | None = None) -> dict[str, Any]
         if not enabled:
             results["sources"][kind] = {
                 "status": "not_configured",
-                "error": f"{source_name} is uitgeschakeld.",
+                "reason": f"{source_name} is uitgeschakeld.",
             }
-            results["errors"].append(f"{source_name} is uitgeschakeld.")
+            if kind == "electricity":
+                update_state(
+                    epex_electricity_last_error=None,
+                )
+            else:
+                update_state(
+                    epex_gas_last_error=None,
+                )
             continue
         if not url:
             results["sources"][kind] = {
@@ -1245,10 +1279,13 @@ def run_epex_import_and_validate(month_key: str | None = None) -> dict[str, Any]
         for source in results["sources"].values()
         if isinstance(source, dict)
     ]
-    results["status"] = (
-        "error" if results["errors"] or "error" in statuses or "not_configured" in statuses
-        else ("warning" if "warning" in statuses else "ok")
-    )
+    if statuses and all(status == "not_configured" for status in statuses):
+        results["status"] = "not_configured"
+    else:
+        results["status"] = (
+            "error" if results["errors"] or "error" in statuses
+            else ("warning" if "warning" in statuses else "ok")
+        )
     validation_path = OUTPUT_ROOT / "epex_monthdata" / month_key / "EPEX_validation.json"
     validation_path.parent.mkdir(parents=True, exist_ok=True)
     write_atomic_json(validation_path, results)
@@ -2496,10 +2533,23 @@ def build_month_input(month_key: str | None = None) -> dict[str, Any]:
 
     missing_required = sorted(required.intersection(missing))
     empty_required = sorted(required.intersection(empty))
+    optional_missing = sorted(set(missing) - set(missing_required))
+    optional_empty = sorted(set(empty) - set(empty_required))
+    info_messages: list[str] = []
+
+    if optional_missing:
+        info_messages.append(
+            "Optionele bestanden ontbreken: " + ", ".join(optional_missing)
+        )
+    if optional_empty:
+        info_messages.append(
+            "Optionele bestanden zijn leeg: " + ", ".join(optional_empty)
+        )
+
     status = "completed"
     if missing_required or empty_required:
         status = "failed"
-    elif missing or empty:
+    elif info_messages:
         status = "completed_info"
 
     validation = {
@@ -2514,6 +2564,9 @@ def build_month_input(month_key: str | None = None) -> dict[str, Any]:
         "empty_files": sorted(empty),
         "missing_required": missing_required,
         "empty_required": empty_required,
+        "optional_missing": optional_missing,
+        "optional_empty": optional_empty,
+        "infos": info_messages,
     }
     write_atomic_json(target / "month_input_validation.json", validation)
 
