@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "5.5.0"
+APP_VERSION = "6.0.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -296,6 +296,11 @@ def default_state() -> dict[str, Any]:
         "last_central_validation": None,
         "last_report_trigger": None,
         "last_report_trigger_error": None,
+        "report_handoff_last_created": None,
+        "report_handoff_last_month": None,
+        "report_handoff_last_status": None,
+        "report_handoff_last_path": None,
+        "report_handoff_last_error": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -868,12 +873,89 @@ def validate_central_workflow(
     return result
 
 
+
+REPORT_GENERATORS = {
+    "page_1": "Energierapport_Pagina1_Echte_Generator_v7",
+    "page_2": "Energierapport_Pagina2_Generator_v6.0",
+    "pages_3_13": "Energierapport_Pagina3_tm_13_Generator_v1.0",
+}
+
+
+def create_report_handoff(
+    year: int,
+    month: int,
+    month_input_path: str,
+    transfer_path: str,
+    transfer_zip: str | None,
+    central_validation: dict[str, Any],
+) -> dict[str, Any]:
+    month_key = f"{year:04d}_{month:02d}"
+    destination = Path(transfer_path)
+    destination.mkdir(parents=True, exist_ok=True)
+
+    request = {
+        "version": APP_VERSION,
+        "schema": "energie_report_handoff_v1",
+        "created_at": datetime.now(TZ).isoformat(),
+        "status": "ready",
+        "month": month_key,
+        "calendar_month": f"{year:04d}-{month:02d}",
+        "input_folder": month_input_path,
+        "transfer_folder": transfer_path,
+        "transfer_zip": transfer_zip,
+        "central_validation_status": central_validation.get("status"),
+        "central_validation": central_validation,
+        "required_generators": REPORT_GENERATORS,
+        "output_contract": {
+            "folder": f"02_Output/{month_key}",
+            "report_pdf": f"Energierapport_{month_key}.pdf",
+            "recovery_update_zip": f"Recovery_Update_{month_key}.zip",
+        },
+        "instructions": [
+            "Gebruik uitsluitend de officiële rapportgeneratoren.",
+            "Verwerk uitsluitend records uit de doelmaand.",
+            "Voer vóór rapportgeneratie de verplichte KPI- en prognosevalidatie uit.",
+            "Maak één definitief PDF-rapport en één Recovery_Update ZIP.",
+        ],
+    }
+
+    request_path = destination / "report_request.json"
+    write_atomic_json(request_path, request)
+    checksum = sha256_file(request_path)
+
+    manifest = {
+        "version": APP_VERSION,
+        "created_at": datetime.now(TZ).isoformat(),
+        "status": "ready",
+        "month": month_key,
+        "request": str(request_path),
+        "sha256": checksum,
+    }
+    manifest_path = destination / "report_request_manifest.json"
+    write_atomic_json(manifest_path, manifest)
+
+    update_state(
+        report_handoff_last_created=manifest["created_at"],
+        report_handoff_last_month=month_key,
+        report_handoff_last_status="ready",
+        report_handoff_last_path=str(request_path),
+        report_handoff_last_error=None,
+    )
+    return {
+        **manifest,
+        "manifest": str(manifest_path),
+        "request_payload": request,
+    }
+
+
+
 def trigger_report_generation(
     options: Options,
     year: int,
     month: int,
     transfer_bundle: str | None,
     central_validation: dict[str, Any],
+    report_handoff: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not options.report_trigger_enabled:
         return {
@@ -887,6 +969,7 @@ def trigger_report_generation(
         "month": month,
         "transfer_bundle": transfer_bundle,
         "central_validation": central_validation,
+        "report_handoff": report_handoff,
     }
     headers = {
         "Content-Type": "application/json",
@@ -2286,6 +2369,7 @@ def run_import(year: int, month: int) -> None:
                     month,
                     str(transfer_bundle) if transfer_bundle else None,
                     central_validation,
+                    report_handoff=None,
                 )
             except Exception as exc:
                 report_trigger_result = {
@@ -2832,6 +2916,17 @@ def create_transfer_package(
         transfer_manifest,
     )
 
+    year, month = parse_month_key(month_key)
+    report_handoff = create_report_handoff(
+        year,
+        month,
+        str(source),
+        str(destination),
+        str(zip_destination) if zip_source.exists() else None,
+        validation,
+    )
+    transfer_manifest["report_handoff"] = report_handoff
+
     notification = None
     notification_error = None
     if options.transfer_notify_home_assistant:
@@ -3115,6 +3210,24 @@ def run_full_month_workflow(
             lambda: create_transfer_package(month_key, replace_existing=True),
             required=True,
         )
+
+        report_handoff = None
+        if isinstance(transfer_result, dict):
+            report_handoff = transfer_result.get("report_handoff")
+            append_workflow_step(
+                steps,
+                name="Rapportoverdracht voorbereiden",
+                status="ok" if report_handoff else "error",
+                started_at=datetime.now(TZ).isoformat(),
+                finished_at=datetime.now(TZ).isoformat(),
+                result=report_handoff or {
+                    "status": "error",
+                    "error": "report_handoff ontbreekt in overdrachtsresultaat.",
+                },
+            )
+            if not report_handoff:
+                errors.append("Rapportoverdracht voorbereiden: report_handoff ontbreekt.")
+                failed_step = "Rapportoverdracht voorbereiden"
 
         status = "failed" if errors else ("completed_warning" if warnings else "completed")
     except Exception as exc:

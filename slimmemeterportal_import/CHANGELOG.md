@@ -1,5 +1,15 @@
 # Changelog
 
+## 6.0.0
+
+- Nieuwe rapportoverdrachtfase toegevoegd na een geslaagde maandimport.
+- Iedere overdracht bevat nu `report_request.json` en een SHA-256-manifest.
+- Rapportaanvraag bevat doelmaand, bronpaden, centrale validatie en officiële generatornamen.
+- Outputcontract voor definitief rapport en Recovery_Update is vastgelegd.
+- Volledige workflow controleert expliciet of de rapportoverdracht gereed is.
+- Bestaande HTTP-rapporttrigger kan het handoff-object meesturen wanneer die later wordt ingeschakeld.
+
+
 ## 5.5.0
 
 - Uitgeschakelde EPEX-bronnen worden niet meer als verwachte maandbestanden opgenomen.

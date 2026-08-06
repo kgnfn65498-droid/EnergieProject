@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "5.5.0"
+    assert cfg_version == app_version == "6.0.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "5.5.0"' in config
+    assert 'version: "6.0.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -813,3 +813,28 @@ def test_v550_old_epex_info_is_normalized():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "disabled_epex_info = all(" in source
     assert 'normalized["month_input_last_status"] = "completed"' in source
+
+
+def test_v600_report_handoff_builder_exists():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def create_report_handoff" in source
+    assert '"schema": "energie_report_handoff_v1"' in source
+    assert '"report_request.json"' in source
+    assert '"report_request_manifest.json"' in source
+
+def test_v600_official_generators_are_in_handoff():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Energierapport_Pagina1_Echte_Generator_v7" in source
+    assert "Energierapport_Pagina2_Generator_v6.0" in source
+    assert "Energierapport_Pagina3_tm_13_Generator_v1.0" in source
+
+def test_v600_transfer_creates_report_handoff():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "report_handoff = create_report_handoff(" in source
+    assert 'transfer_manifest["report_handoff"] = report_handoff' in source
+    assert 'name="Rapportoverdracht voorbereiden"' in source
+
+def test_v600_state_tracks_report_handoff():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"report_handoff_last_status": None' in source
+    assert 'report_handoff_last_status="ready"' in source
