@@ -32,7 +32,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "3.9.2"
+APP_VERSION = "3.9.3"
 
 LOGGER = logging.getLogger("slimmemeterportal_import")
 STOP = threading.Event()
@@ -1668,7 +1668,8 @@ def stop_handler(signum: int, frame: object) -> None:
 
 def main() -> None:
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", force=True)
+    LOGGER.info("Python-app v%s initialiseert.", APP_VERSION)
     signal.signal(signal.SIGTERM, stop_handler)
     signal.signal(signal.SIGINT, stop_handler)
     update_state(version=APP_VERSION)

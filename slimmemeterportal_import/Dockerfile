@@ -12,8 +12,9 @@ RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 COPY rootfs/app/ /app/
-RUN chmod 0755 /app/run.sh
+COPY run.sh /run.sh
+RUN chmod 0755 /run.sh
 
 ENV PYTHONUNBUFFERED=1 TZ=Europe/Amsterdam
 EXPOSE 8099
-CMD ["/app/run.sh"]
+CMD ["/run.sh"]

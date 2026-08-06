@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.9.3
+
+- Startscript naar de app-hoofdmap verplaatst.
+- Zichtbare launcher- en Python-startlogging toegevoegd.
+- Python ongebufferd gestart zodat fouten direct in Home Assistant verschijnen.
+- Logging bij initialisatie geforceerd geactiveerd.
+
+
 ## 3.9.2
 
 - Blokkerende opstartfout in de maandimport opgelost.

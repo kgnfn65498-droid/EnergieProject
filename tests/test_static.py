@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "3.9.2"
+    assert cfg_version == app_version == "3.9.3"
 
 def test_required_files():
     required = [
@@ -198,3 +198,20 @@ def test_final_state_contains_completed_artifacts():
     assert 'last_integrity_status=integrity.get("status")' in source
     assert "last_summary=month_summary" in source
     assert "last_central_validation=central_validation" in source
+
+
+def test_top_level_launcher_present():
+    launcher = ADDON / "run.sh"
+    assert launcher.is_file()
+    text = launcher.read_text(encoding="utf-8")
+    assert "launcher gestart" in text
+    assert "python3 -u /app/main.py" in text
+
+def test_docker_uses_top_level_launcher():
+    dockerfile = (ADDON / "Dockerfile").read_text(encoding="utf-8")
+    assert "COPY run.sh /run.sh" in dockerfile
+    assert 'CMD ["/run.sh"]' in dockerfile
+
+def test_startup_logging_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Python-app v%s initialiseert." in source
