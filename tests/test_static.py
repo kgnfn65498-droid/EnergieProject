@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "6.4.0"
+    assert cfg_version == app_version == "6.5.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "6.4.0"' in config
+    assert 'version: "6.5.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -944,3 +944,28 @@ def test_v640_exact_official_wrapper_names():
 def test_v640_reportlab_runtime_dependency():
     dockerfile = (ADDON / "Dockerfile").read_text(encoding="utf-8")
     assert "py3-reportlab" in dockerfile
+
+
+def test_v650_report_adapter_exists():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def build_report_adapter_data" in source
+    assert "def cumulative_delta" in source
+    assert '"page_1.json"' in source
+    assert '"page_2.json"' in source
+    assert '"pages_3_13.json"' in source
+
+def test_v650_pdf_merge_exists():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def merge_report_pdfs" in source
+    assert "from pypdf import PdfReader, PdfWriter" in source
+    assert '"merge_result.json"' in source
+
+def test_v650_service_runs_adapter_and_merge():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "adapter = build_report_adapter_data(options, handoff)" in source
+    assert "merge = merge_report_pdfs(handoff, work_folder)" in source
+    assert "create_recovery_update_placeholder" in source
+
+def test_v650_runtime_has_pypdf():
+    dockerfile = (ADDON / "Dockerfile").read_text(encoding="utf-8")
+    assert "py3-pypdf" in dockerfile

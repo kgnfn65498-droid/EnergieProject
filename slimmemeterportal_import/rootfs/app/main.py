@@ -36,7 +36,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.4.0"
+APP_VERSION = "6.5.0"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -337,6 +337,14 @@ def default_state() -> dict[str, Any]:
         "report_generators_install_status": None,
         "report_generators_install_files": [],
         "report_generators_install_error": None,
+        "report_adapter_last_created": None,
+        "report_adapter_last_month": None,
+        "report_adapter_last_status": None,
+        "report_adapter_last_files": [],
+        "report_adapter_last_error": None,
+        "report_merge_last_status": None,
+        "report_merge_last_output": None,
+        "report_merge_last_error": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -1051,6 +1059,311 @@ GENERATOR_BUNDLE_FOLDERS = {
 }
 
 
+
+def read_csv_rows(path: Path) -> list[dict[str, str]]:
+    if not path.is_file():
+        return []
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def numeric_values(rows: list[dict[str, str]], candidates: tuple[str, ...]) -> list[float]:
+    values: list[float] = []
+    for row in rows:
+        lower = {str(k).strip().lower(): v for k, v in row.items()}
+        for candidate in candidates:
+            raw = lower.get(candidate.lower())
+            if raw in (None, ""):
+                continue
+            try:
+                values.append(float(str(raw).replace(",", ".")))
+                break
+            except ValueError:
+                continue
+    return values
+
+
+def cumulative_delta(rows: list[dict[str, str]], candidates: tuple[str, ...]) -> float:
+    values = numeric_values(rows, candidates)
+    if len(values) >= 2:
+        return max(0.0, values[-1] - values[0])
+    if len(values) == 1:
+        return max(0.0, values[0])
+    return 0.0
+
+
+def load_generator_example(role: str) -> dict[str, Any]:
+    folder = BUNDLED_REPORT_GENERATORS / GENERATOR_BUNDLE_FOLDERS[role]
+    if role == "page_1":
+        path = folder / "maanddata_voorbeeld.json"
+    elif role == "page_2":
+        path = folder / "data/juli_2026.json"
+    else:
+        path = folder / "data/juli_2026.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def build_report_adapter_data(
+    options: Options,
+    handoff: dict[str, Any],
+) -> dict[str, Any]:
+    month_key = str(handoff["month"])
+    year, month = int(month_key[:4]), int(month_key[5:7])
+    input_folder = Path(str(handoff["input_folder"]))
+    service_paths = report_service_paths(options)
+    data_folder = service_paths["generators"] / "data" / month_key
+    data_folder.mkdir(parents=True, exist_ok=True)
+
+    p1e_rows = read_csv_rows(input_folder / "P1e.csv")
+    p1g_rows = read_csv_rows(input_folder / "P1g.csv")
+    enphase_rows = read_csv_rows(input_folder / "Enphase.csv")
+
+    import_kwh = cumulative_delta(
+        p1e_rows,
+        (
+            "total_power_import_kwh",
+            "energy_import_kwh",
+            "import_kwh",
+            "meter_reading_import_kwh",
+        ),
+    )
+    export_kwh = cumulative_delta(
+        p1e_rows,
+        (
+            "total_power_export_kwh",
+            "energy_export_kwh",
+            "export_kwh",
+            "meter_reading_export_kwh",
+        ),
+    )
+    gas_m3 = cumulative_delta(
+        p1g_rows,
+        ("total_gas_m3", "gas_m3", "meter_reading_gas_m3"),
+    )
+    production_kwh = cumulative_delta(
+        enphase_rows,
+        (
+            "energy_kwh",
+            "lifetime_energy_kwh",
+            "production_kwh",
+            "value_kwh",
+            "value",
+        ),
+    )
+
+    if production_kwh <= 0:
+        production_kwh = export_kwh
+    direct_solar = max(0.0, production_kwh - export_kwh)
+    house_use = max(0.0, import_kwh + direct_solar)
+    net_kwh = import_kwh - export_kwh
+    self_use_pct = (direct_solar / production_kwh * 100.0) if production_kwh else 0.0
+    self_supply_pct = (direct_solar / house_use * 100.0) if house_use else 0.0
+    days = monthrange(year, month)[1]
+    month_name = datetime(year, month, 1, tzinfo=TZ).strftime("%B %Y")
+    month_upper = month_name.upper()
+
+    page1 = load_generator_example("page_1")
+    page1["rapport"].update({
+        "periode": f"1 t/m {days} {month_name}",
+        "rapportdatum": datetime.now(TZ).strftime("%d-%m-%Y"),
+        "maand": month_upper,
+        "pagina": 1,
+        "paginas": 13,
+    })
+    page1["samenvatting"] = [
+        {"kleur": "groen", "tekst": f"Gemeten netverbruik bedraagt {import_kwh:.1f} kWh."},
+        {"kleur": "groen", "tekst": f"Gemeten teruglevering bedraagt {export_kwh:.1f} kWh."},
+        {"kleur": "groen", "tekst": f"Gemeten gasverbruik bedraagt {gas_m3:.1f} m³."},
+        {"kleur": "oranje", "tekst": "Financiële prognoses blijven voorlopig totdat contractkostendata volledig is gekoppeld."},
+    ]
+    top = page1["kpi_boven"]
+    measured = [
+        ("Verbruik", import_kwh, "kWh"),
+        ("Teruglevering", export_kwh, "kWh"),
+        ("Netto balans", net_kwh, "kWh"),
+        ("Gasverbruik", gas_m3, "m³"),
+        ("Eigen verbruik", self_use_pct, "%"),
+    ]
+    for item, (title, value, unit) in zip(top, measured):
+        item["titel"] = title
+        item["waarde"] = f"{value:.1f}".replace(".", ",")
+        item["eenheid"] = unit
+        item["delta"] = "-"
+    page1["maand"]["verbruik"]["waarde"] = round(import_kwh, 3)
+    page1["maand"]["teruglevering"]["waarde"] = round(export_kwh, 3)
+    page1["maand"]["gas"]["waarde"] = round(gas_m3, 3)
+    page1["maand"]["netto_maanden"] = [0.0] * 12
+    page1["maand"]["netto_maanden"][month - 1] = round(net_kwh, 3)
+    page1["efficientie"].update({
+        "zelfvoorziening": round(self_supply_pct, 1),
+        "eigen_verbruik": round(self_use_pct, 1),
+        "gas": round(gas_m3, 1),
+        "delta_zelf": 0.0,
+        "delta_eigen": 0.0,
+        "delta_gas": 0.0,
+    })
+
+    page2 = load_generator_example("page_2")
+    page2["meta"]["month"] = month_name
+    page2["electricity"].update({
+        "consumption": round(import_kwh, 1),
+        "feed_in": round(export_kwh, 1),
+        "net_feed_in": round(export_kwh - import_kwh, 1),
+    })
+    page2["gas"].update({
+        "month": round(gas_m3, 1),
+        "per_day": round(gas_m3 / days, 2) if days else 0.0,
+    })
+    page2["forecast"].update({
+        "electricity_total": round(import_kwh * 12, 1),
+        "feed_in_total": round(export_kwh * 12, 1),
+        "net": round(net_kwh * 12, 1),
+        "gas_total": round(gas_m3 * 12, 1),
+    })
+
+    pages = load_generator_example("pages_3_13")
+    pages["meta"].update({
+        "month": month_name,
+        "period": f"1 t/m {days} {month_name}",
+        "days": days,
+        "status": "ECHTE MAANDDATA - voorlopige financiële modellering",
+    })
+    pages["dashboard"].update({
+        "house": round(house_use, 1),
+        "solar": round(production_kwh, 1),
+        "self": round(self_use_pct, 1),
+        "export": round(export_kwh, 1),
+        "quality": "Bronvalidatie geslaagd",
+    })
+    pages["electricity"].update({
+        "grid": round(import_kwh, 1),
+        "feedin": round(export_kwh, 1),
+        "net": round(net_kwh, 1),
+        "grid_day": round(import_kwh / days, 2),
+        "feedin_day": round(export_kwh / days, 2),
+        "house": round(house_use, 1),
+    })
+    pages["solar"].update({
+        "production": round(production_kwh, 1),
+        "direct": round(direct_solar, 1),
+        "feedin": round(export_kwh, 1),
+        "self": round(self_use_pct, 1),
+        "coverage": round(self_supply_pct, 1),
+    })
+    pages["gas"].update({
+        "month": round(gas_m3, 1),
+        "per_day": round(gas_m3 / days, 2),
+    })
+
+    outputs = {
+        "page_1": data_folder / "page_1.json",
+        "page_2": data_folder / "page_2.json",
+        "pages_3_13": data_folder / "pages_3_13.json",
+    }
+    payloads = {"page_1": page1, "page_2": page2, "pages_3_13": pages}
+    for role, path in outputs.items():
+        write_atomic_json(path, payloads[role])
+
+    result = {
+        "version": APP_VERSION,
+        "created_at": datetime.now(TZ).isoformat(),
+        "status": "completed",
+        "month": month_key,
+        "input_folder": str(input_folder),
+        "measurements": {
+            "import_kwh": round(import_kwh, 3),
+            "export_kwh": round(export_kwh, 3),
+            "gas_m3": round(gas_m3, 3),
+            "production_kwh": round(production_kwh, 3),
+            "direct_solar_kwh": round(direct_solar, 3),
+            "house_use_kwh": round(house_use, 3),
+            "self_use_pct": round(self_use_pct, 3),
+            "self_supply_pct": round(self_supply_pct, 3),
+        },
+        "files": [str(path) for path in outputs.values()],
+    }
+    write_atomic_json(data_folder / "adapter_result.json", result)
+    update_state(
+        report_adapter_last_created=result["created_at"],
+        report_adapter_last_month=month_key,
+        report_adapter_last_status="completed",
+        report_adapter_last_files=result["files"],
+        report_adapter_last_error=None,
+    )
+    return result
+
+
+def merge_report_pdfs(
+    handoff: dict[str, Any],
+    work_folder: Path,
+) -> dict[str, Any]:
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError as exc:
+        raise RuntimeError("pypdf ontbreekt in de runtime.") from exc
+
+    month_key = str(handoff["month"])
+    sources = [
+        work_folder / f"Energierapport_Pagina1_{month_key}.pdf",
+        work_folder / f"Energierapport_Pagina2_{month_key}.pdf",
+        work_folder / f"Energierapport_Pagina3_tm_13_{month_key}.pdf",
+    ]
+    missing = [str(path) for path in sources if not path.is_file() or path.stat().st_size == 0]
+    if missing:
+        raise RuntimeError("Rapportdelen ontbreken: " + ", ".join(missing))
+
+    final_name = str((handoff.get("output_contract") or {}).get("report_pdf"))
+    final_path = work_folder / final_name
+    writer = PdfWriter()
+    page_count = 0
+    for source in sources:
+        reader = PdfReader(str(source))
+        for page in reader.pages:
+            writer.add_page(page)
+            page_count += 1
+    with final_path.open("wb") as handle:
+        writer.write(handle)
+
+    result = {
+        "status": "completed",
+        "merged_at": datetime.now(TZ).isoformat(),
+        "output": str(final_path),
+        "sources": [str(path) for path in sources],
+        "pages": page_count,
+        "sha256": sha256_file(final_path),
+    }
+    write_atomic_json(work_folder / "merge_result.json", result)
+    update_state(
+        report_merge_last_status="completed",
+        report_merge_last_output=str(final_path),
+        report_merge_last_error=None,
+    )
+    return result
+
+
+def create_recovery_update_placeholder(
+    handoff: dict[str, Any],
+    work_folder: Path,
+) -> dict[str, Any]:
+    contract = handoff.get("output_contract") or {}
+    recovery_path = work_folder / str(contract.get("recovery_update_zip"))
+    manifest = {
+        "version": APP_VERSION,
+        "created_at": datetime.now(TZ).isoformat(),
+        "status": "handoff_only",
+        "month": handoff.get("month"),
+        "note": (
+            "Deze ZIP bevat uitsluitend de rapportservice-handoff. "
+            "De definitieve Recovery_Update met 03_Systeem en 04_Scripts "
+            "wordt door de project-/Recovery Manager-laag opgebouwd."
+        ),
+    }
+    with zipfile.ZipFile(recovery_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("Recovery_Update_manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
+    return {"status": "handoff_only", "path": str(recovery_path)}
+
+
+
 def generator_wrapper_source(role: str, bundle_folder: str) -> str:
     if role == "page_1":
         entrypoint = "generate_energierapport_pagina1.py"
@@ -1358,6 +1671,7 @@ def validate_report_outputs(handoff: dict[str, Any], output_folder: Path) -> dic
 def execute_local_report_service(options: Options, handoff_path: str | Path, handoff: dict[str, Any]) -> dict[str, Any]:
     service = discover_report_generators(options)
     month_key = str(handoff["month"])
+    adapter = build_report_adapter_data(options, handoff)
     if service["status"] != "ready":
         page1_result = execute_page1_generator(options, handoff_path, handoff)
         return {
@@ -1368,6 +1682,7 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
             ),
             "month": month_key,
             "service": service,
+            "adapter": adapter,
             "page_1": page1_result,
             "reason": (
                 "Pagina 1 is uitgevoerd; pagina 2 en pagina 3-13 ontbreken nog."
@@ -1421,6 +1736,9 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
             update_state(report_service_last_status="failed", report_service_last_error=error)
             return {"status": "failed", "month": month_key, "runs": runs, "error": error}
 
+    merge = merge_report_pdfs(handoff, work_folder)
+    recovery = create_recovery_update_placeholder(handoff, work_folder)
+
     contract = handoff.get("output_contract") or {}
     for key in ("report_pdf", "recovery_update_zip"):
         source = work_folder / str(contract.get(key, ""))
@@ -1433,7 +1751,10 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
         "status": status,
         "month": month_key,
         "service": service,
+        "adapter": adapter,
         "runs": runs,
+        "merge": merge,
+        "recovery": recovery,
         "output_folder": str(output_folder),
         "validation": validation,
     }
@@ -4124,6 +4445,9 @@ a{{color:#0277bd}}
 <form method="post" action="central-validation" style="margin-top:12px">
 <button type="submit">Voer centrale validatie uit</button>
 </form>
+<form method="post" action="build-report-adapter" style="margin-top:12px">
+<button type="submit">Bouw rapportdata-adapter</button>
+</form>
 <form method="post" action="install-report-generators" style="margin-top:12px">
 <button type="submit">Installeer officiële rapportgeneratoren</button>
 </form>
@@ -4277,6 +4601,29 @@ class Handler(BaseHTTPRequestHandler):
                     + html.escape(json.dumps(result, ensure_ascii=False))
                     + "</p><p><a href='./'>Terug</a></p></html>"
                 ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/build-report-adapter") or path == "/build-report-adapter":
+            state = load_state()
+            handoff_path = state.get("report_handoff_last_path")
+            if not handoff_path:
+                result = {"status": "error", "error": "Geen rapportaanvraag beschikbaar."}
+                code = HTTPStatus.BAD_REQUEST
+            else:
+                try:
+                    handoff = load_report_handoff(handoff_path)
+                    result = build_report_adapter_data(Options.load(), handoff)
+                    code = HTTPStatus.OK
+                except Exception as exc:
+                    result = {"status": "error", "error": str(exc)}
+                    code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                ("<html><meta charset='utf-8'><p>"
+                 + html.escape(json.dumps(result, ensure_ascii=False))
+                 + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return

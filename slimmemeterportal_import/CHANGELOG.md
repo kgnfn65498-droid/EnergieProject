@@ -1,5 +1,17 @@
 # Changelog
 
+## 6.5.0
+
+- Maanddata-adapter toegevoegd voor pagina 1, pagina 2 en pagina 3-13.
+- Adapter leest P1e, P1g en Enphase uit de gevalideerde `01_Input`-map.
+- Gemeten verbruik, teruglevering, gas, productie en zelfverbruik worden in generatorschema's gezet.
+- De drie officiële generatoren worden automatisch uitgevoerd.
+- PDF-delen worden met pypdf samengevoegd tot `Energierapport_YYYY_MM.pdf`.
+- Uitvoer wordt gekopieerd naar de lokale rapportservice-outputmap.
+- Recovery_Update-handoff ZIP wordt gemaakt; de definitieve projectinhoud blijft voor Recovery Manager.
+- Nieuwe handmatige knop toegevoegd om uitsluitend de data-adapter te testen.
+
+
 ## 6.4.0
 
 - De drie aangeleverde officiële generatorpakketten zijn in de app opgenomen.

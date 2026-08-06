@@ -8,7 +8,7 @@ LABEL \
   io.hass.type="app" \
   io.hass.arch="${BUILD_ARCH}"
 
-RUN apk add --no-cache ca-certificates tzdata py3-reportlab
+RUN apk add --no-cache ca-certificates tzdata py3-reportlab py3-pypdf
 
 WORKDIR /app
 COPY rootfs/app/ /app/
