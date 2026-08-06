@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "5.0.0"
+APP_VERSION = "5.0.1"
 
 CONFIG_ROOT = Path("/data")
 
@@ -2817,7 +2817,7 @@ def run_full_month_workflow(month_key: str | None = None) -> dict[str, Any]:
     try:
         execute_step(
             "SlimmeMeterPortal API-test",
-            test_api_connection,
+            test_api,
             required=True,
         )
 

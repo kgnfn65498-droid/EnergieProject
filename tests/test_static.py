@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "5.0.0"
+    assert cfg_version == app_version == "5.0.1"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "5.0.0"' in config
+    assert 'version: "5.0.1"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -625,3 +625,28 @@ def test_full_workflow_ui_endpoint_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "Verwerk maanddata" in source
     assert '"/run-full-month-workflow"' in source
+
+
+def test_full_workflow_uses_existing_api_test_function():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def test_api()" in source
+    assert "test_api_connection" not in source
+    workflow_start = source.index("def run_full_month_workflow")
+    workflow_end = source.index("def scheduler", workflow_start)
+    workflow = source[workflow_start:workflow_end]
+    assert '"SlimmeMeterPortal API-test"' in workflow
+    assert "            test_api," in workflow
+
+def test_full_workflow_direct_function_references_exist():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    for function_name in [
+        "test_api",
+        "run_import",
+        "discover_homewizard_devices",
+        "run_homewizard_snapshot",
+        "run_homeassistant_energy_snapshot",
+        "run_epex_import_and_validate",
+        "build_month_input",
+        "create_transfer_package",
+    ]:
+        assert f"def {function_name}" in source

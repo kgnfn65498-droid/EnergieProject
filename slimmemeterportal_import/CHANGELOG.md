@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.0.1
+
+- Volledige maandworkflow gebruikt nu de bestaande functie `test_api`.
+- Opstartfout `name 'test_api_connection' is not defined` hersteld.
+- Regressietest toegevoegd die controleert dat alle directe workflowfuncties bestaan.
+
+
 ## 5.0.0
 
 - Productie-orkestratie toegevoegd met één knop `Verwerk maanddata`.
