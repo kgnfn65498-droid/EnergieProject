@@ -1,5 +1,15 @@
 # Changelog
 
+## 5.4.0
+
+- Genormaliseerde technische statussen worden nu ook permanent opgeslagen.
+- `month_input_last_status` wordt na een schone run definitief `completed`.
+- Uitgeschakelde EPEX-bronnen worden tijdens iedere workflow teruggezet naar `not_configured`.
+- Oude EPEX-foutstatussen worden automatisch opgeschoond.
+- Technische status en workflowstatus blijven nu gelijk na herstart.
+- Import- en overdrachtslogica blijven ongewijzigd.
+
+
 ## 5.3.0
 
 - Maandmap krijgt alleen `completed_info` wanneer er daadwerkelijk informatiepunten zijn.

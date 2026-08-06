@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "5.3.0"
+APP_VERSION = "5.4.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -709,6 +709,21 @@ def build_month_summary(
 
 
 
+
+
+
+def persist_normalized_status(options: Options) -> dict[str, Any]:
+    current = load_state()
+    normalized = normalize_technical_status(current, options)
+    changes = {
+        key: value
+        for key, value in normalized.items()
+        if current.get(key) != value
+    }
+    if changes:
+        update_state(**changes)
+        current = {**current, **changes}
+    return current
 
 
 def normalize_technical_status(state: dict[str, Any], options: Options) -> dict[str, Any]:
@@ -3036,6 +3051,11 @@ def run_full_month_workflow(
                     ),
                 )
             else:
+                update_state(
+                    epex_last_validation_status="not_configured",
+                    epex_electricity_last_error=None,
+                    epex_gas_last_error=None,
+                )
                 append_workflow_step(
                     steps,
                     name="EPEX import en validatie",
@@ -3123,6 +3143,7 @@ def run_full_month_workflow(
         full_workflow_last_result=str(result_path),
         full_workflow_last_error=None if status in {"completed", "completed_warning"} else "; ".join(errors),
     )
+    persist_normalized_status(options)
 
     try:
         if options.transfer_notify_home_assistant:
@@ -3405,7 +3426,11 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
         if path.endswith("/status.json") or path == "/status.json":
-            body = json.dumps(load_state(), ensure_ascii=False, indent=2).encode("utf-8")
+            body = json.dumps(
+                persist_normalized_status(Options.load()),
+                ensure_ascii=False,
+                indent=2,
+            ).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
         elif path.endswith("/health") or path == "/health":
             state = load_state()
