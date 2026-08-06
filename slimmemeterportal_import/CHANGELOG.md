@@ -1,5 +1,21 @@
 # Changelog
 
+## 5.0.0
+
+- Productie-orkestratie toegevoegd met één knop `Verwerk maanddata`.
+- Workflow bepaalt standaard automatisch de vorige kalendermaand.
+- SlimmeMeterPortal API-test en maandimport worden als eerste uitgevoerd.
+- HomeWizard-detectie, HomeWizard-snapshot en Home Assistant-energiesnapshot volgen automatisch.
+- EPEX wordt automatisch uitgevoerd wanneer de bronnen zijn geconfigureerd.
+- Maandmap wordt gebouwd en verplicht op status `ok` gecontroleerd.
+- Gevalideerd overdrachtspakket wordt automatisch gemaakt.
+- Workflow stopt standaard direct bij een vereiste fout.
+- Alle stappen, tijden, resultaten, waarschuwingen en fouten komen in één `workflow_result.json`.
+- Home Assistant ontvangt een succes- of foutmelding.
+- De echte NAS-projectmap wordt nog steeds niet automatisch gewijzigd.
+- Losse testknoppen blijven beschikbaar voor diagnose en herstel.
+
+
 ## 4.8.0
 
 - Gevalideerde maandmap kan veilig naar de Home Assistant-share worden overgedragen.

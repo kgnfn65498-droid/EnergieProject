@@ -346,3 +346,23 @@ Daarnaast worden geplaatst:
 De echte NAS-map `Energie/01_Input/YYYY_MM` wordt in deze versie nog niet
 rechtstreeks gewijzigd. Daarmee blijft de bestaande projectstructuur beschermd
 tot de eindworkflow volledig is getest.
+
+
+## Volledige maandworkflow
+
+Klik op `Verwerk maanddata`. De workflow verwerkt standaard de vorige
+kalendermaand en voert achtereenvolgens uit:
+
+1. SlimmeMeterPortal API-test
+2. SlimmeMeterPortal maandimport
+3. HomeWizard-detectie
+4. HomeWizard-snapshot
+5. Home Assistant-energiesnapshot
+6. EPEX, indien geconfigureerd
+7. Maandmap bouwen en valideren
+8. Overdrachtspakket maken
+9. Home Assistant-notificatie
+
+Het eindverslag staat onder:
+
+`/config/output/workflow_results/YYYY_MM/workflow_result.json`

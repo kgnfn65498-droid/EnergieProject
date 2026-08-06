@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "4.8.0"
+version: "5.0.0"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -71,6 +71,10 @@ options:
   transfer_overwrite_existing: false
   transfer_require_valid_month: true
   transfer_notify_home_assistant: true
+  full_workflow_enabled: true
+  full_workflow_use_previous_month: true
+  full_workflow_stop_on_error: true
+  full_workflow_run_epex_when_enabled: true
 schema:
   api_key: password
   run_on_start: bool
@@ -128,3 +132,7 @@ schema:
   transfer_overwrite_existing: bool
   transfer_require_valid_month: bool
   transfer_notify_home_assistant: bool
+  full_workflow_enabled: bool
+  full_workflow_use_previous_month: bool
+  full_workflow_stop_on_error: bool
+  full_workflow_run_epex_when_enabled: bool

@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "4.8.0"
+    assert cfg_version == app_version == "5.0.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "4.8.0"' in config
+    assert 'version: "5.0.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -582,3 +582,46 @@ def test_transfer_ui_endpoint_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "Maak overdrachtspakket" in source
     assert '"/create-transfer-package"' in source
+
+
+def test_full_workflow_configuration_present():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert "full_workflow_enabled" in config
+    assert "full_workflow_use_previous_month" in config
+    assert "full_workflow_stop_on_error" in config
+    assert "full_workflow_run_epex_when_enabled" in config
+
+def test_full_workflow_function_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def run_full_month_workflow" in source
+    assert "workflow_previous_month_key" in source
+    assert "workflow_result.json" in source
+
+def test_full_workflow_contains_all_major_steps():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    for step in [
+        "SlimmeMeterPortal API-test",
+        "SlimmeMeterPortal maandimport",
+        "HomeWizard detectie",
+        "HomeWizard snapshot",
+        "Home Assistant energiesnapshot",
+        "EPEX import en validatie",
+        "Maandmap bouwen",
+        "Overdrachtspakket maken",
+    ]:
+        assert step in source
+
+def test_full_workflow_stops_on_required_error():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "full_workflow_stop_on_error" in source
+    assert "if required and options.full_workflow_stop_on_error" in source
+
+def test_full_workflow_notifications_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Energie maandworkflow gereed" in source
+    assert "Energie maandworkflow mislukt" in source
+
+def test_full_workflow_ui_endpoint_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Verwerk maanddata" in source
+    assert '"/run-full-month-workflow"' in source

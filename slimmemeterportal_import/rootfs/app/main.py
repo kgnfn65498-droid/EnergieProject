@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "4.8.0"
+APP_VERSION = "5.0.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -99,6 +99,10 @@ class Options:
     transfer_overwrite_existing: bool
     transfer_require_valid_month: bool
     transfer_notify_home_assistant: bool
+    full_workflow_enabled: bool
+    full_workflow_use_previous_month: bool
+    full_workflow_stop_on_error: bool
+    full_workflow_run_epex_when_enabled: bool
 
     @classmethod
     def load(cls) -> "Options":
@@ -161,6 +165,10 @@ class Options:
             transfer_overwrite_existing=bool(raw.get("transfer_overwrite_existing", False)),
             transfer_require_valid_month=bool(raw.get("transfer_require_valid_month", True)),
             transfer_notify_home_assistant=bool(raw.get("transfer_notify_home_assistant", True)),
+            full_workflow_enabled=bool(raw.get("full_workflow_enabled", True)),
+            full_workflow_use_previous_month=bool(raw.get("full_workflow_use_previous_month", True)),
+            full_workflow_stop_on_error=bool(raw.get("full_workflow_stop_on_error", True)),
+            full_workflow_run_epex_when_enabled=bool(raw.get("full_workflow_run_epex_when_enabled", True)),
         )
         result.validate()
         return result
@@ -279,6 +287,12 @@ def default_state() -> dict[str, Any]:
         "transfer_last_status": None,
         "transfer_last_path": None,
         "transfer_last_error": None,
+        "full_workflow_last_run": None,
+        "full_workflow_last_month": None,
+        "full_workflow_last_status": None,
+        "full_workflow_last_step": None,
+        "full_workflow_last_result": None,
+        "full_workflow_last_error": None,
         "last_central_validation": None,
         "last_report_trigger": None,
         "last_report_trigger_error": None,
@@ -2691,6 +2705,255 @@ def create_transfer_package(month_key: str | None = None) -> dict[str, Any]:
 
 
 
+
+FULL_WORKFLOW_RESULT_NAME = "workflow_result.json"
+
+
+def workflow_previous_month_key() -> str:
+    today = datetime.now(TZ).date()
+    year, month = previous_month(today)
+    return f"{year:04d}_{month:02d}"
+
+
+def workflow_target_month_key(options: Options) -> str:
+    if options.full_workflow_use_previous_month:
+        return workflow_previous_month_key()
+    if options.target_month:
+        return options.target_month.replace("-", "_")
+    return datetime.now(TZ).strftime("%Y_%m")
+
+
+def append_workflow_step(
+    steps: list[dict[str, Any]],
+    *,
+    name: str,
+    status: str,
+    started_at: str,
+    finished_at: str,
+    result: Any = None,
+    error: str | None = None,
+) -> None:
+    steps.append({
+        "name": name,
+        "status": status,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "result": result,
+        "error": error,
+    })
+
+
+def run_full_month_workflow(month_key: str | None = None) -> dict[str, Any]:
+    options = Options.load()
+    if not options.full_workflow_enabled:
+        raise RuntimeError("Volledige maandworkflow is uitgeschakeld.")
+
+    month_key = month_key or workflow_target_month_key(options)
+    parse_month_key(month_key)
+    year, month = parse_month_key(month_key)
+
+    started_monotonic = time.monotonic()
+    started_at = datetime.now(TZ).isoformat()
+    steps: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    errors: list[str] = []
+    failed_step: str | None = None
+
+    def execute_step(
+        name: str,
+        function: Any,
+        *,
+        required: bool = True,
+    ) -> Any:
+        nonlocal failed_step
+        step_started = datetime.now(TZ).isoformat()
+        update_state(full_workflow_last_step=name)
+        try:
+            result = function()
+            status = "ok"
+            if isinstance(result, dict):
+                result_status = result.get("status")
+                if result_status in {"warning", "skipped", "not_configured"}:
+                    status = result_status
+                elif result_status == "error":
+                    status = "error"
+            step_finished = datetime.now(TZ).isoformat()
+            append_workflow_step(
+                steps,
+                name=name,
+                status=status,
+                started_at=step_started,
+                finished_at=step_finished,
+                result=result,
+            )
+            if status == "warning":
+                warnings.append(f"{name}: waarschuwing")
+            if status in {"skipped", "not_configured"}:
+                warnings.append(f"{name}: {status}")
+            if status == "error":
+                message = f"{name}: stap gaf status error"
+                errors.append(message)
+                failed_step = name
+                if required and options.full_workflow_stop_on_error:
+                    raise RuntimeError(message)
+            return result
+        except Exception as exc:
+            step_finished = datetime.now(TZ).isoformat()
+            append_workflow_step(
+                steps,
+                name=name,
+                status="error",
+                started_at=step_started,
+                finished_at=step_finished,
+                error=str(exc),
+            )
+            failed_step = name
+            errors.append(f"{name}: {exc}")
+            if required and options.full_workflow_stop_on_error:
+                raise
+            warnings.append(f"{name}: overgeslagen na fout")
+            return None
+
+    try:
+        execute_step(
+            "SlimmeMeterPortal API-test",
+            test_api_connection,
+            required=True,
+        )
+
+        execute_step(
+            "SlimmeMeterPortal maandimport",
+            lambda: run_import(year, month),
+            required=True,
+        )
+
+        execute_step(
+            "HomeWizard detectie",
+            lambda: discover_homewizard_devices(options),
+            required=False,
+        )
+
+        execute_step(
+            "HomeWizard snapshot",
+            run_homewizard_snapshot,
+            required=True,
+        )
+
+        execute_step(
+            "Home Assistant energiesnapshot",
+            run_homeassistant_energy_snapshot,
+            required=True,
+        )
+
+        if options.full_workflow_run_epex_when_enabled:
+            if options.epex_electricity_enabled or options.epex_gas_enabled:
+                execute_step(
+                    "EPEX import en validatie",
+                    lambda: run_epex_import_and_validate(month_key),
+                    required=(
+                        options.epex_electricity_enabled
+                        or options.epex_gas_enabled
+                    ),
+                )
+            else:
+                append_workflow_step(
+                    steps,
+                    name="EPEX import en validatie",
+                    status="skipped",
+                    started_at=datetime.now(TZ).isoformat(),
+                    finished_at=datetime.now(TZ).isoformat(),
+                    result={
+                        "status": "skipped",
+                        "reason": "EPEX-bronnen zijn nog niet geconfigureerd.",
+                    },
+                )
+                warnings.append("EPEX is nog niet geconfigureerd.")
+
+        month_result = execute_step(
+            "Maandmap bouwen",
+            lambda: build_month_input(month_key),
+            required=True,
+        )
+
+        if isinstance(month_result, dict) and month_result.get("status") != "ok":
+            raise RuntimeError(
+                f"Maandmapvalidatie is {month_result.get('status')}."
+            )
+
+        transfer_result = execute_step(
+            "Overdrachtspakket maken",
+            lambda: create_transfer_package(month_key),
+            required=True,
+        )
+
+        status = "ok" if not errors else "error"
+    except Exception as exc:
+        if not errors:
+            errors.append(str(exc))
+        status = "error"
+
+    finished_at = datetime.now(TZ).isoformat()
+    duration_seconds = round(time.monotonic() - started_monotonic, 3)
+    result = {
+        "version": APP_VERSION,
+        "workflow": "full_month_workflow",
+        "status": status,
+        "month": month_key,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "duration_seconds": duration_seconds,
+        "steps_completed": sum(
+            1 for step in steps if step.get("status") in {"ok", "warning", "skipped"}
+        ),
+        "steps_total": len(steps),
+        "failed_step": failed_step,
+        "warnings": warnings,
+        "errors": errors,
+        "steps": steps,
+    }
+
+    result_root = OUTPUT_ROOT / "workflow_results" / month_key
+    result_root.mkdir(parents=True, exist_ok=True)
+    result_path = result_root / FULL_WORKFLOW_RESULT_NAME
+    write_atomic_json(result_path, result)
+
+    update_state(
+        full_workflow_last_run=finished_at,
+        full_workflow_last_month=month_key,
+        full_workflow_last_status=status,
+        full_workflow_last_step=failed_step or "Gereed",
+        full_workflow_last_result=str(result_path),
+        full_workflow_last_error=None if status == "ok" else "; ".join(errors),
+    )
+
+    try:
+        if options.transfer_notify_home_assistant:
+            if status == "ok":
+                notify_home_assistant(
+                    "Energie maandworkflow gereed",
+                    (
+                        f"Maand {month_key} is volledig verwerkt. "
+                        f"Resultaat: {result_path}"
+                    ),
+                )
+            else:
+                notify_home_assistant(
+                    "Energie maandworkflow mislukt",
+                    (
+                        f"Maand {month_key} stopte bij "
+                        f"{failed_step or 'onbekende stap'}. "
+                        f"Fout: {'; '.join(errors)}"
+                    ),
+                )
+    except Exception as exc:
+        warnings.append(f"Workflow-notificatie mislukt: {exc}")
+        result["warnings"] = warnings
+        write_atomic_json(result_path, result)
+
+    return result
+
+
+
 def scheduler() -> None:
     startup_handled = False
     last_homewizard_run: datetime | None = None
@@ -2841,6 +3104,8 @@ a{{color:#0277bd}}
 <dt>EPEX-validatie</dt><dd>{esc(state.get("epex_last_validation_status") or "Nog niet uitgevoerd")}</dd>
 <dt>Laatste overdracht</dt><dd>{esc((state.get("transfer_last_month") or "Nog geen") + " — " + (state.get("transfer_last_status") or ""))}</dd>
 <dt>Overdrachtspad</dt><dd>{esc(state.get("transfer_last_path") or "Nog geen")}</dd>
+<dt>Laatste volledige workflow</dt><dd>{esc((state.get("full_workflow_last_month") or "Nog geen") + " — " + (state.get("full_workflow_last_status") or ""))}</dd>
+<dt>Workflow-stap</dt><dd>{esc(state.get("full_workflow_last_step") or "Nog niet uitgevoerd")}</dd>
 <dt>HomeWizard fout</dt><dd>{esc(state.get("homewizard_last_error") or "Geen")}</dd>
 <dt>Laatste Enphase-import</dt><dd>{esc(state.get("enphase_last_import") or "Nog geen")}</dd>
 <dt>Laatste EPEX elektriciteit</dt><dd>{esc(state.get("epex_electricity_last_import") or "Nog geen")}</dd>
@@ -2869,6 +3134,9 @@ a{{color:#0277bd}}
 <form method="post" action="homewizard-discover" style="margin-top:12px">
 <button type="submit">Detecteer HomeWizard-apparaten</button>
 <p style="margin:8px 0 0">Scanbereik: instelling <code>homewizard_discovery_cidr</code>.</p>
+</form>
+<form method="post" action="run-full-month-workflow" style="margin-top:12px">
+<button type="submit">Verwerk maanddata</button>
 </form>
 <form method="post" action="create-transfer-package" style="margin-top:12px">
 <button type="submit">Maak overdrachtspakket</button>
@@ -3108,6 +3376,28 @@ class Handler(BaseHTTPRequestHandler):
                 update_state(
                     homewizard_discovery_error=str(exc),
                     homewizard_discovery_status="error",
+                )
+                result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                (
+                    "<html><meta charset='utf-8'><p>"
+                    + html.escape(json.dumps(result, ensure_ascii=False))
+                    + "</p><p><a href='./'>Terug</a></p></html>"
+                ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/run-full-month-workflow") or path == "/run-full-month-workflow":
+            try:
+                result = run_full_month_workflow()
+                code = HTTPStatus.OK if result.get("status") == "ok" else HTTPStatus.BAD_REQUEST
+            except Exception as exc:
+                update_state(
+                    full_workflow_last_status="error",
+                    full_workflow_last_error=str(exc),
                 )
                 result = {"status": "error", "error": str(exc)}
                 code = HTTPStatus.BAD_REQUEST
