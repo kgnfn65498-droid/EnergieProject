@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "3.9.1"
+    assert cfg_version == app_version == "3.9.2"
 
 def test_required_files():
     required = [
@@ -164,3 +164,37 @@ def test_secret_files_ignored():
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
     assert ".env" in gitignore
     assert ".pytest_cache/" in gitignore
+
+
+def test_usage_path_template_present():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "usage_path_template" in config
+    assert "build_usage_path" in source
+
+def test_run_import_does_not_read_results_before_assignment():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    run_import = next(
+        node for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "run_import"
+    )
+    first_update = next(
+        node for node in ast.walk(run_import)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "update_state"
+    )
+    names = {node.id for node in ast.walk(first_update) if isinstance(node, ast.Name)}
+    forbidden = {
+        "integrity", "month_summary", "transfer_bundle",
+        "central_validation", "report_trigger_result",
+    }
+    assert not (names & forbidden)
+
+def test_final_state_contains_completed_artifacts():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'last_integrity_status=integrity.get("status")' in source
+    assert "last_summary=month_summary" in source
+    assert "last_central_validation=central_validation" in source

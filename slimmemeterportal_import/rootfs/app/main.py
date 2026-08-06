@@ -32,7 +32,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "3.9.1"
+APP_VERSION = "3.9.2"
 
 LOGGER = logging.getLogger("slimmemeterportal_import")
 STOP = threading.Event()
@@ -50,6 +50,7 @@ class Options:
     schedule_hour: int
     request_timeout_seconds: int
     retry_count: int
+    usage_path_template: str
     resume_incomplete_month: bool
     retention_months: int
     verify_after_import: bool
@@ -88,6 +89,10 @@ class Options:
             schedule_hour=int(raw.get("schedule_hour", 3)),
             request_timeout_seconds=int(raw.get("request_timeout_seconds", 30)),
             retry_count=int(raw.get("retry_count", 3)),
+            usage_path_template=str(raw.get(
+                "usage_path_template",
+                "/userapi/v1/connections/{connection_id}/usage/{date}",
+            )).strip(),
             resume_incomplete_month=bool(raw.get("resume_incomplete_month", True)),
             retention_months=int(raw.get("retention_months", 24)),
             verify_after_import=bool(raw.get("verify_after_import", True)),
@@ -127,6 +132,11 @@ class Options:
             raise ValueError("request_timeout_seconds moet 5 t/m 120 zijn.")
         if not 0 <= self.retry_count <= 10:
             raise ValueError("retry_count moet 0 t/m 10 zijn.")
+        required_placeholders = {"{connection_id}", "{date}"}
+        if not all(token in self.usage_path_template for token in required_placeholders):
+            raise ValueError(
+                "usage_path_template moet {connection_id} en {date} bevatten."
+            )
         if not 1 <= self.retention_months <= 120:
             raise ValueError("retention_months moet 1 t/m 120 zijn.")
         if self.workflow_mode not in {"smp_only", "full_month_workflow"}:
@@ -317,6 +327,14 @@ def is_cancel_requested() -> bool:
     return bool(load_state().get("cancel_requested")) or STOP.is_set()
 
 
+
+def build_usage_path(options: Options, connection_id: str, current: date) -> str:
+    return options.usage_path_template.format(
+        connection_id=connection_id,
+        date=current.strftime("%d-%m-%Y"),
+    )
+
+
 def api_get(path: str, options: Options) -> Any:
     request = urllib.request.Request(
         BASE_URL + path,
@@ -345,7 +363,7 @@ def api_get(path: str, options: Options) -> Any:
             delay = min(30.0, 2**attempt + random.random())
             LOGGER.warning("API-poging %d mislukt; nieuwe poging over %.1f s: %s", attempt + 1, delay, last)
             STOP.wait(delay)
-    raise RuntimeError(f"API-aanroep mislukt: {last}")
+    raise RuntimeError(f"API-aanroep mislukt voor {path}: {last}")
 
 
 def test_api() -> dict[str, Any]:
@@ -953,17 +971,6 @@ def run_import(year: int, month: int) -> None:
             progress_message="Aansluitingen ophalen",
             cancel_requested=False,
             workflow_sources=workflow_source_status(options),
-            last_integrity_status=integrity.get("status"),
-            last_integrity_checked_at=integrity.get("checked_at"),
-            last_summary=month_summary,
-            last_transfer_bundle=str(transfer_bundle) if transfer_bundle else None,
-            last_central_validation=central_validation,
-            last_report_trigger=report_trigger_result,
-            last_report_trigger_error=(
-                report_trigger_result.get("error")
-                if isinstance(report_trigger_result, dict)
-                else None
-            ),
         )
 
         connections = api_get("/userapi/v1/connections", options)
@@ -1013,7 +1020,7 @@ def run_import(year: int, month: int) -> None:
                         payload = json.loads(raw_path.read_text(encoding="utf-8"))
                     else:
                         payload = api_get(
-                            f"/userapi/v1/connections/{identifier}/usage/{current.strftime('%d-%m-%Y')}",
+                            build_usage_path(options, identifier, current),
                             options,
                         )
                         write_atomic_json(raw_path, payload)
@@ -1171,6 +1178,17 @@ def run_import(year: int, month: int) -> None:
             progress_total=total_steps,
             progress_message="Gereed",
             cancel_requested=False,
+            last_integrity_status=integrity.get("status"),
+            last_integrity_checked_at=integrity.get("checked_at"),
+            last_summary=month_summary,
+            last_transfer_bundle=str(transfer_bundle) if transfer_bundle else None,
+            last_central_validation=central_validation,
+            last_report_trigger=report_trigger_result,
+            last_report_trigger_error=(
+                report_trigger_result.get("error")
+                if isinstance(report_trigger_result, dict)
+                else None
+            ),
         )
     except Exception as exc:
         LOGGER.exception("Import mislukt.")

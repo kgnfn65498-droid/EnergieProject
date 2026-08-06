@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.9.2
+
+- Blokkerende opstartfout in de maandimport opgelost.
+- Resultaatstatus wordt pas opgeslagen nadat validatie en bundelvorming bestaan.
+- Configureerbaar UserAPI-pad voor dagdata toegevoegd.
+- API-fouten vermelden nu het gebruikte pad, zonder de API-sleutel te loggen.
+- Extra regressietests tegen gebruik van variabelen vóór initialisatie.
+
+
 ## 3.9.1
 
 - GitHub-repository-URL gecorrigeerd.

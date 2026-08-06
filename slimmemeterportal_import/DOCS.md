@@ -188,3 +188,15 @@ De zelftest controleert:
 - rapporttriggerconfiguratie.
 
 `Installatie gereed: Ja` betekent dat geen blokkerende fout is gevonden.
+
+
+## UserAPI-pad
+
+De standaardinstelling is:
+
+```yaml
+usage_path_template: "/userapi/v1/connections/{connection_id}/usage/{date}"
+```
+
+De placeholders `{connection_id}` en `{date}` zijn verplicht. Hierdoor kan een
+gewijzigd officieel endpoint worden ingesteld zonder een nieuwe appversie te bouwen.
