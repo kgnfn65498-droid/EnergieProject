@@ -289,3 +289,23 @@ De maandbestanden worden opgebouwd onder:
 
 Nord Pool en NextEnergy zijn aanvullende bronnen. De bestaande EPEX v6-module
 blijft de officiële maandprijsbron totdat die afzonderlijk in de app is gekoppeld.
+
+
+## Maandmap bouwen
+
+De knop `Bouw maandmap` maakt:
+
+`/config/output/01_Input/YYYY_MM/`
+
+met de beschikbare HomeWizard-, Enphase- en prijsbestanden. Daarbij worden
+dubbele tijdstempels verwijderd, Enphase MWh naar kWh omgerekend en negatieve
+nulprijzen genormaliseerd.
+
+De map bevat daarnaast:
+
+- `month_input_validation.json`
+- `month_input_manifest.json`
+
+en er wordt een ZIP gemaakt als:
+
+`/config/output/01_Input/01_Input_YYYY_MM.zip`

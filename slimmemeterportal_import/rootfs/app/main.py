@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "4.5.0"
+APP_VERSION = "4.6.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -76,6 +76,10 @@ class Options:
     enphase_entity_id: str
     nordpool_entity_id: str
     nextenergy_entity_id: str
+    month_input_enabled: bool
+    month_input_require_homewizard: bool
+    month_input_require_enphase: bool
+    month_input_require_nordpool: bool
     enphase_enabled: bool
     enphase_source_url: str
     enphase_bearer_token: str
@@ -126,6 +130,10 @@ class Options:
             enphase_entity_id=str(raw.get("enphase_entity_id", "sensor.envoy_122335051406_lifetime_energy_production")).strip(),
             nordpool_entity_id=str(raw.get("nordpool_entity_id", "sensor.nordpool_kwh_nl_eur_3_10_021")).strip(),
             nextenergy_entity_id=str(raw.get("nextenergy_entity_id", "sensor.nextenergy_actuele_stroomprijs")).strip(),
+            month_input_enabled=bool(raw.get("month_input_enabled", True)),
+            month_input_require_homewizard=bool(raw.get("month_input_require_homewizard", True)),
+            month_input_require_enphase=bool(raw.get("month_input_require_enphase", True)),
+            month_input_require_nordpool=bool(raw.get("month_input_require_nordpool", True)),
             enphase_enabled=bool(raw.get("enphase_enabled", False)),
             enphase_source_url=str(raw.get("enphase_source_url", "")).strip(),
             enphase_bearer_token=str(raw.get("enphase_bearer_token", "")).strip(),
@@ -231,6 +239,11 @@ def default_state() -> dict[str, Any]:
         "homeassistant_energy_last_snapshot": None,
         "homeassistant_energy_last_error": None,
         "homeassistant_energy_last_files": [],
+        "month_input_last_built": None,
+        "month_input_last_month": None,
+        "month_input_last_status": None,
+        "month_input_last_error": None,
+        "month_input_last_files": [],
         "homewizard_last_error": None,
         "enphase_last_import": None,
         "enphase_last_error": None,
@@ -1945,6 +1958,243 @@ def next_run(options: Options) -> datetime:
     return planned
 
 
+
+MONTH_INPUT_ROOT = OUTPUT_ROOT / "01_Input"
+
+
+def parse_month_key(value: str) -> tuple[int, int]:
+    if not re.fullmatch(r"\d{4}_(0[1-9]|1[0-2])", value):
+        raise ValueError("Maand moet YYYY_MM zijn.")
+    year_text, month_text = value.split("_", 1)
+    return int(year_text), int(month_text)
+
+
+def normalize_number(value: Any) -> Any:
+    if isinstance(value, float) and value == 0:
+        return 0.0
+    return value
+
+
+def csv_rows(path: Path) -> list[dict[str, str]]:
+    if not path.exists() or path.stat().st_size == 0:
+        return []
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def write_deduplicated_csv(
+    source: Path,
+    target: Path,
+    *,
+    timestamp_field: str = "captured_at",
+    transform: Any = None,
+) -> dict[str, Any]:
+    rows = csv_rows(source)
+    seen: set[str] = set()
+    output: list[dict[str, Any]] = []
+    for row in rows:
+        if transform:
+            row = transform(dict(row))
+        key = str(row.get(timestamp_field, "")).strip() or json.dumps(
+            row, ensure_ascii=False, sort_keys=True
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(row)
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if output:
+        fields: list[str] = []
+        for row in output:
+            for field in row:
+                if field not in fields:
+                    fields.append(field)
+        with target.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(output)
+    elif target.exists():
+        target.unlink()
+
+    return {
+        "source": str(source),
+        "target": str(target),
+        "source_rows": len(rows),
+        "written_rows": len(output),
+        "duplicates_removed": len(rows) - len(output),
+    }
+
+
+def transform_enphase_row(row: dict[str, Any]) -> dict[str, Any]:
+    try:
+        value = float(row.get("value", ""))
+    except (TypeError, ValueError):
+        return row
+    unit = str(row.get("unit", "")).strip().lower()
+    if unit == "mwh":
+        row["value"] = f"{value * 1000:.6f}".rstrip("0").rstrip(".")
+        row["unit"] = "kWh"
+    return row
+
+
+def transform_price_row(row: dict[str, Any]) -> dict[str, Any]:
+    try:
+        value = float(row.get("value", ""))
+    except (TypeError, ValueError):
+        return row
+    if value == 0:
+        row["value"] = "0.0"
+    return row
+
+
+def expected_month_input_files() -> list[str]:
+    return [
+        "P1e.csv",
+        "P1g.csv",
+        "Airco Skt.csv",
+        "Mobiel Skt.csv",
+        "Heater kantoor Skt.csv",
+        "Heater woonkamer Skt.csv",
+        "Heater lounge Skt.csv",
+        "Enphase.csv",
+        "Nordpool elektriciteit.csv",
+        "NextEnergy actuele stroomprijs.csv",
+    ]
+
+
+def build_month_input(month_key: str | None = None) -> dict[str, Any]:
+    options = Options.load()
+    if not options.month_input_enabled:
+        raise RuntimeError("Maandmap-opbouw is uitgeschakeld.")
+
+    month_key = month_key or datetime.now(TZ).strftime("%Y_%m")
+    parse_month_key(month_key)
+
+    target = MONTH_INPUT_ROOT / month_key
+    target.mkdir(parents=True, exist_ok=True)
+
+    homewizard_root = OUTPUT_ROOT / "homewizard_monthdata" / month_key
+    ha_root = OUTPUT_ROOT / "homeassistant_energy" / month_key
+
+    source_map: list[tuple[Path, Path, Any]] = []
+    for filename in [
+        "P1e.csv",
+        "P1g.csv",
+        "Airco Skt.csv",
+        "Mobiel Skt.csv",
+        "Heater kantoor Skt.csv",
+        "Heater woonkamer Skt.csv",
+        "Heater lounge Skt.csv",
+    ]:
+        source_map.append((homewizard_root / filename, target / filename, None))
+
+    source_map.extend([
+        (ha_root / "Enphase.csv", target / "Enphase.csv", transform_enphase_row),
+        (
+            ha_root / "Nordpool elektriciteit.csv",
+            target / "Nordpool elektriciteit.csv",
+            transform_price_row,
+        ),
+        (
+            ha_root / "NextEnergy actuele stroomprijs.csv",
+            target / "NextEnergy actuele stroomprijs.csv",
+            transform_price_row,
+        ),
+    ])
+
+    results: list[dict[str, Any]] = []
+    missing: list[str] = []
+    empty: list[str] = []
+
+    for source, destination, transform in source_map:
+        if not source.exists():
+            missing.append(destination.name)
+            continue
+        result = write_deduplicated_csv(
+            source,
+            destination,
+            transform=transform,
+        )
+        results.append(result)
+        if result["written_rows"] == 0:
+            empty.append(destination.name)
+
+    required: set[str] = set()
+    if options.month_input_require_homewizard:
+        required.update([
+            "P1e.csv",
+            "P1g.csv",
+            "Airco Skt.csv",
+            "Mobiel Skt.csv",
+            "Heater kantoor Skt.csv",
+            "Heater woonkamer Skt.csv",
+            "Heater lounge Skt.csv",
+        ])
+    if options.month_input_require_enphase:
+        required.add("Enphase.csv")
+    if options.month_input_require_nordpool:
+        required.add("Nordpool elektriciteit.csv")
+
+    missing_required = sorted(required.intersection(missing))
+    empty_required = sorted(required.intersection(empty))
+    status = "ok"
+    if missing_required or empty_required:
+        status = "error"
+    elif missing or empty:
+        status = "warning"
+
+    validation = {
+        "version": APP_VERSION,
+        "built_at": datetime.now(TZ).isoformat(),
+        "month": month_key,
+        "status": status,
+        "target": str(target),
+        "files": results,
+        "expected_files": expected_month_input_files(),
+        "missing_files": sorted(missing),
+        "empty_files": sorted(empty),
+        "missing_required": missing_required,
+        "empty_required": empty_required,
+    }
+    write_atomic_json(target / "month_input_validation.json", validation)
+
+    manifest = {
+        path.name: {
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "bytes": path.stat().st_size,
+        }
+        for path in sorted(target.iterdir())
+        if path.is_file() and path.name != "month_input_manifest.json"
+    }
+    write_atomic_json(target / "month_input_manifest.json", manifest)
+
+    zip_path = target.parent / f"01_Input_{month_key}.zip"
+    temp_zip = zip_path.with_suffix(".zip.tmp")
+    with zipfile.ZipFile(temp_zip, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(target.iterdir()):
+            if path.is_file():
+                archive.write(path, arcname=str(Path("01_Input") / month_key / path.name))
+    temp_zip.replace(zip_path)
+
+    update_state(
+        month_input_last_built=validation["built_at"],
+        month_input_last_month=month_key,
+        month_input_last_status=status,
+        month_input_last_error=(
+            None if status != "error"
+            else f"Ontbrekend: {', '.join(missing_required)}; leeg: {', '.join(empty_required)}"
+        ),
+        month_input_last_files=[item["target"] for item in results],
+    )
+    return {
+        **validation,
+        "zip": str(zip_path),
+        "manifest_file_count": len(manifest),
+    }
+
+
+
 def scheduler() -> None:
     startup_handled = False
     last_homewizard_run: datetime | None = None
@@ -2091,6 +2341,7 @@ a{{color:#0277bd}}
 <dt>HomeWizard netwerk</dt><dd>{esc(state.get("homewizard_discovery_cidr") or "Niet bepaald")}</dd>
 <dt>Home Assistant-koppeling</dt><dd>{esc((str(state.get("homewizard_mapping_count", 0)) + " apparaat/apparaten") if state.get("homewizard_mapping_last") else "Nog niet uitgevoerd")}</dd>
 <dt>HA energiesnapshot</dt><dd>{esc(state.get("homeassistant_energy_last_snapshot") or "Nog geen")}</dd>
+<dt>Laatste maandmap</dt><dd>{esc((state.get("month_input_last_month") or "Nog geen") + " — " + (state.get("month_input_last_status") or ""))}</dd>
 <dt>HomeWizard fout</dt><dd>{esc(state.get("homewizard_last_error") or "Geen")}</dd>
 <dt>Laatste Enphase-import</dt><dd>{esc(state.get("enphase_last_import") or "Nog geen")}</dd>
 <dt>Laatste EPEX elektriciteit</dt><dd>{esc(state.get("epex_electricity_last_import") or "Nog geen")}</dd>
@@ -2119,6 +2370,9 @@ a{{color:#0277bd}}
 <form method="post" action="homewizard-discover" style="margin-top:12px">
 <button type="submit">Detecteer HomeWizard-apparaten</button>
 <p style="margin:8px 0 0">Scanbereik: instelling <code>homewizard_discovery_cidr</code>.</p>
+</form>
+<form method="post" action="build-month-input" style="margin-top:12px">
+<button type="submit">Bouw maandmap</button>
 </form>
 <form method="post" action="homeassistant-energy-snapshot" style="margin-top:12px">
 <button type="submit">Maak HA energiesnapshot</button>
@@ -2350,6 +2604,24 @@ class Handler(BaseHTTPRequestHandler):
                     homewizard_discovery_error=str(exc),
                     homewizard_discovery_status="error",
                 )
+                result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                (
+                    "<html><meta charset='utf-8'><p>"
+                    + html.escape(json.dumps(result, ensure_ascii=False))
+                    + "</p><p><a href='./'>Terug</a></p></html>"
+                ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/build-month-input") or path == "/build-month-input":
+            try:
+                result = build_month_input()
+                code = HTTPStatus.OK if result.get("status") != "error" else HTTPStatus.BAD_REQUEST
+            except Exception as exc:
                 result = {"status": "error", "error": str(exc)}
                 code = HTTPStatus.BAD_REQUEST
             self.send_body(

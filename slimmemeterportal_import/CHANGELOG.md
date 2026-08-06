@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.6.0
+
+- Eerste volledige maandmap-opbouw toegevoegd onder `/config/output/01_Input/YYYY_MM/`.
+- HomeWizard-, Enphase-, Nord Pool- en NextEnergy-maandbestanden worden samengebracht.
+- Dubbele records worden per tijdstempel verwijderd.
+- Enphase MWh wordt automatisch naar kWh omgerekend.
+- Negatieve nulprijzen worden genormaliseerd naar `0.0`.
+- Verplichte en optionele bronnen worden afzonderlijk gevalideerd.
+- Elke maandmap krijgt `month_input_validation.json` en `month_input_manifest.json`.
+- Automatisch ZIP-pakket `01_Input_YYYY_MM.zip` toegevoegd.
+- Nieuwe knop `Bouw maandmap` in de Web UI.
+- Bestaande bronbestanden worden niet hernoemd of gewijzigd.
+
+
 ## 4.5.0
 
 - Automatische sampling van Home Assistant-energiebronnen toegevoegd.

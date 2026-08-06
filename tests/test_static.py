@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "4.5.0"
+    assert cfg_version == app_version == "4.6.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "4.5.0"' in config
+    assert 'version: "4.6.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -461,3 +461,52 @@ def test_web_ui_has_homeassistant_energy_button():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "Maak HA energiesnapshot" in source
     assert '"/homeassistant-energy-snapshot"' in source
+
+
+def test_month_input_configuration_present():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert "month_input_enabled" in config
+    assert "month_input_require_homewizard" in config
+    assert "month_input_require_enphase" in config
+    assert "month_input_require_nordpool" in config
+
+def test_month_input_builder_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'MONTH_INPUT_ROOT = OUTPUT_ROOT / "01_Input"' in source
+    assert "def build_month_input" in source
+    assert "def write_deduplicated_csv" in source
+    assert "month_input_validation.json" in source
+    assert "month_input_manifest.json" in source
+
+def test_enphase_is_normalized_to_kwh():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def transform_enphase_row" in source
+    assert "value * 1000" in source
+    assert 'row["unit"] = "kWh"' in source
+
+def test_negative_zero_price_is_normalized():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def transform_price_row" in source
+    assert 'row["value"] = "0.0"' in source
+
+def test_expected_month_files_are_declared():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    for filename in [
+        "P1e.csv",
+        "P1g.csv",
+        "Airco Skt.csv",
+        "Mobiel Skt.csv",
+        "Heater kantoor Skt.csv",
+        "Heater woonkamer Skt.csv",
+        "Heater lounge Skt.csv",
+        "Enphase.csv",
+        "Nordpool elektriciteit.csv",
+        "NextEnergy actuele stroomprijs.csv",
+    ]:
+        assert filename in source
+
+def test_month_input_zip_and_ui_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "01_Input_{month_key}.zip" in source
+    assert "Bouw maandmap" in source
+    assert '"/build-month-input"' in source
