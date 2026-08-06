@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "5.1.0"
+    assert cfg_version == app_version == "5.2.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "5.1.0"' in config
+    assert 'version: "5.2.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -686,9 +686,9 @@ def test_transfer_accepts_optional_warning_only():
 
 def test_workflow_can_finish_with_warning():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'status = "error" if errors else ("warning" if warnings else "ok")' in source
-    assert 'result.get("status") in {"ok", "warning"}' in source
-    assert 'if status in {"ok", "warning"}:' in source
+    assert 'status = "failed" if errors else ("completed_warning" if warnings else "completed")' in source
+    assert 'result.get("status") in {"completed", "completed_warning"}' in source
+    assert 'if status in {"completed", "completed_warning"}:' in source
 
 
 def test_full_workflow_refreshes_existing_transfer():
@@ -737,3 +737,26 @@ def test_v510_status_names_are_production_friendly():
     assert '"failed"' in source
     assert '"completed_with_warnings"' not in source
     assert '"completed_with_errors"' not in source
+
+
+def test_v520_month_input_optional_missing_is_info():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'status = "completed"' in source
+    assert 'status = "completed_info"' in source
+    assert 'status = "failed"' in source
+
+def test_v520_workflow_has_separate_infos():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "infos: list[str] = []" in source
+    assert '"infos": infos' in source
+    assert 'infos.append("EPEX is nog niet geconfigureerd.")' in source
+
+def test_v520_consistent_workflow_statuses():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"completed_warning"' in source
+    assert '"completed_info"' in source
+    assert 'status = "failed" if errors else ("completed_warning" if warnings else "completed")' in source
+
+def test_v520_epex_default_is_not_configured():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"epex_last_validation_status": "not_configured"' in source

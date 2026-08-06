@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "5.1.0"
+APP_VERSION = "5.2.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -281,7 +281,7 @@ def default_state() -> dict[str, Any]:
         "epex_gas_last_import": None,
         "epex_gas_last_error": None,
         "epex_last_validation": None,
-        "epex_last_validation_status": None,
+        "epex_last_validation_status": "not_configured",
         "transfer_last_created": None,
         "transfer_last_month": None,
         "transfer_last_status": None,
@@ -1937,7 +1937,7 @@ def collect_homewizard_snapshot(options: Options) -> dict[str, Any]:
                 status = "warning"
             else:
                 result["errors"].append(message)
-                status = "error"
+                status = "failed"
             result["devices"].append({
                 "label": label,
                 "host": host,
@@ -2496,11 +2496,11 @@ def build_month_input(month_key: str | None = None) -> dict[str, Any]:
 
     missing_required = sorted(required.intersection(missing))
     empty_required = sorted(required.intersection(empty))
-    status = "ok"
+    status = "completed"
     if missing_required or empty_required:
-        status = "error"
+        status = "failed"
     elif missing or empty:
-        status = "warning"
+        status = "completed_info"
 
     validation = {
         "version": APP_VERSION,
@@ -2540,7 +2540,7 @@ def build_month_input(month_key: str | None = None) -> dict[str, Any]:
         month_input_last_month=month_key,
         month_input_last_status=status,
         month_input_last_error=(
-            None if status != "error"
+            None if status != "failed"
             else f"Ontbrekend: {', '.join(missing_required)}; leeg: {', '.join(empty_required)}"
         ),
         month_input_last_files=[item["target"] for item in results],
@@ -2644,7 +2644,7 @@ def create_transfer_package(
     missing_required = list(validation.get("missing_required") or [])
     empty_required = list(validation.get("empty_required") or [])
     validation_acceptable = (
-        validation.get("status") == "ok"
+        validation.get("status") in {"completed", "completed_info", "ok"}
         or (
             validation.get("status") == "warning"
             and not missing_required
@@ -2836,6 +2836,7 @@ def run_full_month_workflow(
     started_monotonic = time.monotonic()
     started_at = datetime.now(TZ).isoformat()
     steps: list[dict[str, Any]] = []
+    infos: list[str] = []
     warnings: list[str] = []
     errors: list[str] = []
     failed_step: str | None = None
@@ -2854,10 +2855,14 @@ def run_full_month_workflow(
             status = "ok"
             if isinstance(result, dict):
                 result_status = result.get("status")
-                if result_status in {"warning", "skipped", "not_configured"}:
-                    status = result_status
-                elif result_status == "error":
+                if result_status in {"completed_info", "info", "skipped", "not_configured"}:
+                    status = "info"
+                elif result_status in {"completed_warning", "warning"}:
+                    status = "warning"
+                elif result_status in {"failed", "error"}:
                     status = "error"
+                elif result_status in {"completed", "ok"}:
+                    status = "ok"
             step_finished = datetime.now(TZ).isoformat()
             append_workflow_step(
                 steps,
@@ -2869,8 +2874,8 @@ def run_full_month_workflow(
             )
             if status == "warning":
                 warnings.append(f"{name}: waarschuwing")
-            if status in {"skipped", "not_configured"}:
-                warnings.append(f"{name}: {status}")
+            if status == "info":
+                infos.append(f"{name}: informatie")
             if status == "error":
                 message = f"{name}: stap gaf status error"
                 errors.append(message)
@@ -2981,15 +2986,15 @@ def run_full_month_workflow(
                 append_workflow_step(
                     steps,
                     name="EPEX import en validatie",
-                    status="skipped",
+                    status="info",
                     started_at=datetime.now(TZ).isoformat(),
                     finished_at=datetime.now(TZ).isoformat(),
                     result={
-                        "status": "skipped",
+                        "status": "info",
                         "reason": "EPEX-bronnen zijn nog niet geconfigureerd.",
                     },
                 )
-                warnings.append("EPEX is nog niet geconfigureerd.")
+                infos.append("EPEX is nog niet geconfigureerd.")
 
         month_result = execute_step(
             "Maandmap bouwen",
@@ -3002,7 +3007,7 @@ def run_full_month_workflow(
             missing_required = list(month_result.get("missing_required") or [])
             empty_required = list(month_result.get("empty_required") or [])
             month_acceptable = (
-                month_status == "ok"
+                month_status in {"completed", "completed_info", "ok"}
                 or (
                     month_status == "warning"
                     and not missing_required
@@ -3023,7 +3028,7 @@ def run_full_month_workflow(
             required=True,
         )
 
-        status = "error" if errors else ("warning" if warnings else "ok")
+        status = "failed" if errors else ("completed_warning" if warnings else "completed")
     except Exception as exc:
         if not errors:
             errors.append(str(exc))
@@ -3042,10 +3047,11 @@ def run_full_month_workflow(
         "finished_at": finished_at,
         "duration_seconds": duration_seconds,
         "steps_completed": sum(
-            1 for step in steps if step.get("status") in {"ok", "warning", "skipped"}
+            1 for step in steps if step.get("status") in {"ok", "info", "warning"}
         ),
         "steps_total": len(steps),
         "failed_step": failed_step,
+        "infos": infos,
         "warnings": warnings,
         "errors": errors,
         "steps": steps,
@@ -3062,12 +3068,12 @@ def run_full_month_workflow(
         full_workflow_last_status=status,
         full_workflow_last_step=failed_step or "Gereed",
         full_workflow_last_result=str(result_path),
-        full_workflow_last_error=None if status == "ok" else "; ".join(errors),
+        full_workflow_last_error=None if status in {"completed", "completed_warning"} else "; ".join(errors),
     )
 
     try:
         if options.transfer_notify_home_assistant:
-            if status in {"ok", "warning"}:
+            if status in {"completed", "completed_warning"}:
                 notify_home_assistant(
                     "Energie maandworkflow gereed",
                     (
@@ -3546,7 +3552,7 @@ class Handler(BaseHTTPRequestHandler):
                     month_key,
                     collect_live_snapshots=True,
                 )
-                code = HTTPStatus.OK if result.get("status") in {"ok", "warning"} else HTTPStatus.BAD_REQUEST
+                code = HTTPStatus.OK if result.get("status") in {"completed", "completed_warning"} else HTTPStatus.BAD_REQUEST
             except Exception as exc:
                 update_state(
                     full_workflow_last_status="error",

@@ -1,5 +1,15 @@
 # Changelog
 
+## 5.2.0
+
+- Workflowstatussen volledig gelijkgetrokken: `completed`, `completed_info`, `completed_warning` en `failed`.
+- Ontbrekende optionele EPEX-bestanden zijn voortaan informatie en geen waarschuwing.
+- Maandmap eindigt als `completed_info` wanneer alleen optionele bronnen ontbreken.
+- Volledige workflow eindigt als `completed` zolang alle vereiste bronnen correct zijn.
+- Technische status toont EPEX standaard als `not_configured` in plaats van `error`.
+- Workflowresultaat bevat een apart `infos`-veld.
+
+
 ## 5.1.0
 
 - Bronafhankelijke validatieprofielen toegevoegd.
