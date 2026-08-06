@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "4.4.0"
+    assert cfg_version == app_version == "4.5.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "4.4.0"' in config
+    assert 'version: "4.5.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -423,3 +423,41 @@ def test_effective_devices_use_mapping():
     assert "def effective_homewizard_devices" in source
     assert "if effective_homewizard_devices(options):" in source
     assert "for device in effective_homewizard_devices(options):" in source
+
+
+def test_homeassistant_energy_sampling_config_present():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert "homeassistant_energy_sampling_enabled" in config
+    assert "homeassistant_energy_sample_seconds" in config
+    assert "enphase_entity_id" in config
+    assert "nordpool_entity_id" in config
+    assert "nextenergy_entity_id" in config
+
+def test_homeassistant_energy_entities_are_project_entities():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert "sensor.envoy_122335051406_lifetime_energy_production" in config
+    assert "sensor.nordpool_kwh_nl_eur_3_10_021" in config
+    assert "sensor.nextenergy_actuele_stroomprijs" in config
+
+def test_homeassistant_energy_snapshot_functions_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def collect_homeassistant_energy_snapshot" in source
+    assert "def persist_homeassistant_energy_snapshot" in source
+    assert "def run_homeassistant_energy_snapshot" in source
+
+def test_monthly_output_filenames_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"Enphase.csv"' in source
+    assert '"Nordpool elektriciteit.csv"' in source
+    assert '"NextEnergy actuele stroomprijs.csv"' in source
+
+def test_scheduler_runs_homeassistant_energy_sampling():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "last_homeassistant_energy_run" in source
+    assert "run_homeassistant_energy_snapshot()" in source
+    assert "homeassistant_energy_sample_seconds" in source
+
+def test_web_ui_has_homeassistant_energy_button():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Maak HA energiesnapshot" in source
+    assert '"/homeassistant-energy-snapshot"' in source

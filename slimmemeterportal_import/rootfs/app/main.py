@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "4.4.0"
+APP_VERSION = "4.5.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -71,6 +71,11 @@ class Options:
     homewizard_discovery_timeout_seconds: int
     homewizard_devices: list[dict[str, Any]]
     homewizard_sample_seconds: int
+    homeassistant_energy_sampling_enabled: bool
+    homeassistant_energy_sample_seconds: int
+    enphase_entity_id: str
+    nordpool_entity_id: str
+    nextenergy_entity_id: str
     enphase_enabled: bool
     enphase_source_url: str
     enphase_bearer_token: str
@@ -116,6 +121,11 @@ class Options:
             homewizard_discovery_timeout_seconds=int(raw.get("homewizard_discovery_timeout_seconds", 1)),
             homewizard_devices=list(raw.get("homewizard_devices", [])),
             homewizard_sample_seconds=int(raw.get("homewizard_sample_seconds", 900)),
+            homeassistant_energy_sampling_enabled=bool(raw.get("homeassistant_energy_sampling_enabled", True)),
+            homeassistant_energy_sample_seconds=int(raw.get("homeassistant_energy_sample_seconds", 900)),
+            enphase_entity_id=str(raw.get("enphase_entity_id", "sensor.envoy_122335051406_lifetime_energy_production")).strip(),
+            nordpool_entity_id=str(raw.get("nordpool_entity_id", "sensor.nordpool_kwh_nl_eur_3_10_021")).strip(),
+            nextenergy_entity_id=str(raw.get("nextenergy_entity_id", "sensor.nextenergy_actuele_stroomprijs")).strip(),
             enphase_enabled=bool(raw.get("enphase_enabled", False)),
             enphase_source_url=str(raw.get("enphase_source_url", "")).strip(),
             enphase_bearer_token=str(raw.get("enphase_bearer_token", "")).strip(),
@@ -164,6 +174,8 @@ class Options:
                 raise ValueError("HomeWizard-detectie is beperkt tot één IPv4 /24-netwerk of kleiner.")
         if not 60 <= self.homewizard_sample_seconds <= 3600:
             raise ValueError("homewizard_sample_seconds moet 60 t/m 3600 zijn.")
+        if not 60 <= self.homeassistant_energy_sample_seconds <= 3600:
+            raise ValueError("homeassistant_energy_sample_seconds moet 60 t/m 3600 zijn.")
         if self.enphase_enabled and not self.enphase_source_url:
             raise ValueError("Enphase is ingeschakeld maar enphase_source_url ontbreekt.")
         if self.epex_electricity_enabled and not self.epex_electricity_url:
@@ -216,6 +228,9 @@ def default_state() -> dict[str, Any]:
         "homewizard_mapping_last": None,
         "homewizard_mapping_count": 0,
         "homewizard_mapping_error": None,
+        "homeassistant_energy_last_snapshot": None,
+        "homeassistant_energy_last_error": None,
+        "homeassistant_energy_last_files": [],
         "homewizard_last_error": None,
         "enphase_last_import": None,
         "enphase_last_error": None,
@@ -1019,6 +1034,135 @@ def home_assistant_states(timeout: int = 20) -> list[dict[str, Any]]:
     return [item for item in payload if isinstance(item, dict)]
 
 
+
+HOME_ASSISTANT_ENTITY_URL = "http://supervisor/core/api/states/{entity_id}"
+
+
+def home_assistant_entity(entity_id: str, timeout: int = 20) -> dict[str, Any]:
+    token = os.environ.get("SUPERVISOR_TOKEN", "").strip()
+    if not token:
+        raise RuntimeError("SUPERVISOR_TOKEN ontbreekt; Home Assistant API is niet beschikbaar.")
+    request = urllib.request.Request(
+        HOME_ASSISTANT_ENTITY_URL.format(entity_id=urllib.parse.quote(entity_id, safe="._")),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+            "User-Agent": f"Energieproject-HomeAssistant/{APP_VERSION}",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Home Assistant-entiteit {entity_id} kon niet worden gelezen: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Home Assistant-entiteit {entity_id} gaf geen JSON-object terug.")
+    return payload
+
+
+def normalized_entity_value(entity: dict[str, Any]) -> float:
+    try:
+        return float(entity.get("state"))
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(
+            f"Entiteit {entity.get('entity_id', 'onbekend')} heeft geen numerieke waarde."
+        ) from exc
+
+
+def collect_homeassistant_energy_snapshot(options: Options) -> dict[str, Any]:
+    captured_at = datetime.now(TZ).isoformat()
+    sources = {
+        "enphase": options.enphase_entity_id,
+        "nordpool": options.nordpool_entity_id,
+        "nextenergy": options.nextenergy_entity_id,
+    }
+    result: dict[str, Any] = {
+        "version": APP_VERSION,
+        "captured_at": captured_at,
+        "sources": {},
+        "errors": [],
+    }
+
+    for name, entity_id in sources.items():
+        if not entity_id:
+            continue
+        try:
+            entity = home_assistant_entity(entity_id)
+            attributes = entity.get("attributes") or {}
+            result["sources"][name] = {
+                "entity_id": entity_id,
+                "friendly_name": attributes.get("friendly_name"),
+                "value": normalized_entity_value(entity),
+                "unit": attributes.get("unit_of_measurement"),
+                "device_class": attributes.get("device_class"),
+                "state_class": attributes.get("state_class"),
+                "last_updated": entity.get("last_updated"),
+            }
+        except Exception as exc:
+            result["errors"].append(f"{name}: {exc}")
+
+    result["status"] = "ok" if not result["errors"] else (
+        "warning" if result["sources"] else "error"
+    )
+    return result
+
+
+def persist_homeassistant_energy_snapshot(snapshot: dict[str, Any]) -> list[str]:
+    captured = datetime.fromisoformat(snapshot["captured_at"])
+    month_root = OUTPUT_ROOT / "homeassistant_energy" / f"{captured:%Y_%m}"
+    month_root.mkdir(parents=True, exist_ok=True)
+    written: list[str] = []
+
+    file_map = {
+        "enphase": "Enphase.csv",
+        "nordpool": "Nordpool elektriciteit.csv",
+        "nextenergy": "NextEnergy actuele stroomprijs.csv",
+    }
+
+    for source_name, item in snapshot.get("sources", {}).items():
+        filename = file_map.get(source_name, f"{source_name}.csv")
+        path = month_root / filename
+        append_csv_row(
+            path,
+            [
+                "captured_at",
+                "entity_id",
+                "friendly_name",
+                "value",
+                "unit",
+                "device_class",
+                "state_class",
+                "last_updated",
+            ],
+            {
+                "captured_at": snapshot["captured_at"],
+                **item,
+            },
+        )
+        written.append(str(path))
+
+    raw_path = month_root / f"HomeAssistant_Energie_{captured:%Y-%m-%d_%H-%M-%S}.json"
+    write_atomic_json(raw_path, snapshot)
+    written.append(str(raw_path))
+    return sorted(written)
+
+
+def run_homeassistant_energy_snapshot() -> dict[str, Any]:
+    options = Options.load()
+    if not options.homeassistant_energy_sampling_enabled:
+        raise RuntimeError("Home Assistant-energiesampling is uitgeschakeld.")
+    snapshot = collect_homeassistant_energy_snapshot(options)
+    files = persist_homeassistant_energy_snapshot(snapshot)
+    update_state(
+        homeassistant_energy_last_snapshot=snapshot["captured_at"],
+        homeassistant_energy_last_error=None if snapshot["status"] != "error" else "; ".join(snapshot["errors"]),
+        homeassistant_energy_last_files=files,
+    )
+    return snapshot
+
+
+
 def energy_name_candidates(states: list[dict[str, Any]]) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
     for entity in states:
@@ -1804,6 +1948,7 @@ def next_run(options: Options) -> datetime:
 def scheduler() -> None:
     startup_handled = False
     last_homewizard_run: datetime | None = None
+    last_homeassistant_energy_run: datetime | None = None
     while not STOP.is_set():
         try:
             options = Options.load()
@@ -1826,6 +1971,26 @@ def scheduler() -> None:
                         LOGGER.error("HomeWizard snapshot mislukt: %s", exc)
                         update_state(homewizard_last_error=str(exc))
                     last_homewizard_run = now
+
+            if options.homeassistant_energy_sampling_enabled:
+                now = datetime.now(TZ)
+                due = (
+                    last_homeassistant_energy_run is None
+                    or (now - last_homeassistant_energy_run).total_seconds()
+                    >= options.homeassistant_energy_sample_seconds
+                )
+                if due:
+                    try:
+                        snapshot = run_homeassistant_energy_snapshot()
+                        LOGGER.info(
+                            "Home Assistant energiesnapshot: %s bron(nen), status %s.",
+                            len(snapshot.get("sources", {})),
+                            snapshot.get("status"),
+                        )
+                    except Exception as exc:
+                        LOGGER.error("Home Assistant energiesnapshot mislukt: %s", exc)
+                        update_state(homeassistant_energy_last_error=str(exc))
+                    last_homeassistant_energy_run = now
 
             if options.run_on_start and not startup_handled:
                 startup_handled = True
@@ -1925,6 +2090,7 @@ a{{color:#0277bd}}
 <dt>HomeWizard detectie</dt><dd>{esc((str(state.get("homewizard_discovery_count", 0)) + " apparaat/apparaten") if state.get("homewizard_discovery_last") else state.get("homewizard_discovery_status", "Nog niet uitgevoerd"))}</dd>
 <dt>HomeWizard netwerk</dt><dd>{esc(state.get("homewizard_discovery_cidr") or "Niet bepaald")}</dd>
 <dt>Home Assistant-koppeling</dt><dd>{esc((str(state.get("homewizard_mapping_count", 0)) + " apparaat/apparaten") if state.get("homewizard_mapping_last") else "Nog niet uitgevoerd")}</dd>
+<dt>HA energiesnapshot</dt><dd>{esc(state.get("homeassistant_energy_last_snapshot") or "Nog geen")}</dd>
 <dt>HomeWizard fout</dt><dd>{esc(state.get("homewizard_last_error") or "Geen")}</dd>
 <dt>Laatste Enphase-import</dt><dd>{esc(state.get("enphase_last_import") or "Nog geen")}</dd>
 <dt>Laatste EPEX elektriciteit</dt><dd>{esc(state.get("epex_electricity_last_import") or "Nog geen")}</dd>
@@ -1953,6 +2119,9 @@ a{{color:#0277bd}}
 <form method="post" action="homewizard-discover" style="margin-top:12px">
 <button type="submit">Detecteer HomeWizard-apparaten</button>
 <p style="margin:8px 0 0">Scanbereik: instelling <code>homewizard_discovery_cidr</code>.</p>
+</form>
+<form method="post" action="homeassistant-energy-snapshot" style="margin-top:12px">
+<button type="submit">Maak HA energiesnapshot</button>
 </form>
 <form method="post" action="homewizard-snapshot" style="margin-top:12px">
 <button type="submit">Maak HomeWizard snapshot</button>
@@ -2181,6 +2350,24 @@ class Handler(BaseHTTPRequestHandler):
                     homewizard_discovery_error=str(exc),
                     homewizard_discovery_status="error",
                 )
+                result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                (
+                    "<html><meta charset='utf-8'><p>"
+                    + html.escape(json.dumps(result, ensure_ascii=False))
+                    + "</p><p><a href='./'>Terug</a></p></html>"
+                ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/homeassistant-energy-snapshot") or path == "/homeassistant-energy-snapshot":
+            try:
+                result = run_homeassistant_energy_snapshot()
+                code = HTTPStatus.OK
+            except Exception as exc:
                 result = {"status": "error", "error": str(exc)}
                 code = HTTPStatus.BAD_REQUEST
             self.send_body(

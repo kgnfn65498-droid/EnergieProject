@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.5.0
+
+- Automatische sampling van Home Assistant-energiebronnen toegevoegd.
+- Enphase-opwek wordt uit de bestaande Home Assistant Envoy-entiteit gelezen.
+- Nord Pool-elektriciteitsprijs wordt automatisch per meetmoment opgeslagen.
+- NextEnergy actuele stroomprijs wordt als aanvullende controlebron opgeslagen.
+- Maandbestanden worden case-sensitive opgebouwd als `Enphase.csv`, `Nordpool elektriciteit.csv` en `NextEnergy actuele stroomprijs.csv`.
+- De bestaande EPEX v6-module blijft de officiële maandprijsbron; Nord Pool en NextEnergy zijn aanvullende actuele bronnen.
+- Nieuwe knop `Maak HA energiesnapshot` in de Web UI.
+- Sampling draait standaard iedere 15 minuten.
+
+
 ## 4.4.0
 
 - HomeWizard-apparaten worden automatisch gekoppeld aan hun bestaande Home Assistant-namen.

@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "4.4.0"
+version: "4.5.0"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -42,6 +42,11 @@ options:
   homewizard_discovery_timeout_seconds: 1
   homewizard_devices: []
   homewizard_sample_seconds: 900
+  homeassistant_energy_sampling_enabled: true
+  homeassistant_energy_sample_seconds: 900
+  enphase_entity_id: "sensor.envoy_122335051406_lifetime_energy_production"
+  nordpool_entity_id: "sensor.nordpool_kwh_nl_eur_3_10_021"
+  nextenergy_entity_id: "sensor.nextenergy_actuele_stroomprijs"
   enphase_enabled: false
   enphase_source_url: ""
   enphase_bearer_token: ""
@@ -82,6 +87,11 @@ schema:
       optional: bool
       output_name: str
   homewizard_sample_seconds: "int(60,3600)"
+  homeassistant_energy_sampling_enabled: bool
+  homeassistant_energy_sample_seconds: "int(60,3600)"
+  enphase_entity_id: str
+  nordpool_entity_id: str
+  nextenergy_entity_id: str
   enphase_enabled: bool
   enphase_source_url: str
   enphase_bearer_token: password

@@ -269,3 +269,23 @@ door DHCP wijzigen; een nieuwe detectiescan actualiseert het bereikadres.
 De mapping wordt opgeslagen in:
 
 `/data/homewizard_mapping.json`
+
+
+## Home Assistant-energiebronnen
+
+Versie 4.5.0 leest bestaande Home Assistant-entiteiten:
+
+```yaml
+homeassistant_energy_sampling_enabled: true
+homeassistant_energy_sample_seconds: 900
+enphase_entity_id: "sensor.envoy_122335051406_lifetime_energy_production"
+nordpool_entity_id: "sensor.nordpool_kwh_nl_eur_3_10_021"
+nextenergy_entity_id: "sensor.nextenergy_actuele_stroomprijs"
+```
+
+De maandbestanden worden opgebouwd onder:
+
+`/config/output/homeassistant_energy/YYYY_MM/`
+
+Nord Pool en NextEnergy zijn aanvullende bronnen. De bestaande EPEX v6-module
+blijft de officiële maandprijsbron totdat die afzonderlijk in de app is gekoppeld.
