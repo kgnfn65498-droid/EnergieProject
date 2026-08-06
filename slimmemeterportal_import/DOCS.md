@@ -200,3 +200,34 @@ usage_path_template: "/userapi/v1/connections/{connection_id}/usage/{date}"
 
 De placeholders `{connection_id}` en `{date}` zijn verplicht. Hierdoor kan een
 gewijzigd officieel endpoint worden ingesteld zonder een nieuwe appversie te bouwen.
+
+
+## HomeWizard automatische metingen
+
+De lokale HomeWizard API levert alleen actuele metingen en geen historische reeks.
+Daarom verzamelt versie 4.1.0 vanaf het moment van activeren periodiek een snapshot.
+
+Voorbeeldconfiguratie:
+
+```yaml
+homewizard_enabled: true
+homewizard_sample_seconds: 900
+homewizard_devices:
+  - label: "P1"
+    host: "192.168.2.10"
+    role: "p1"
+    optional: false
+    output_name: "P1e.csv"
+  - label: "Airco"
+    host: "192.168.2.11"
+    role: "socket"
+    optional: false
+    output_name: "Airco Skt.csv"
+```
+
+De bestanden worden per kalendermaand opgebouwd onder:
+
+`/config/output/homewizard_monthdata/YYYY_MM/`
+
+De app hernoemt geen bestaande bestanden. `output_name` wordt exact en
+case-sensitive gebruikt.

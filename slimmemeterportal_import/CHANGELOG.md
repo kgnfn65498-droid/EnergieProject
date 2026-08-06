@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.1.0
+
+- Automatische HomeWizard-sampling voor P1-meter en Energy Sockets.
+- Per apparaat worden zowel `/api`-apparaatgegevens als `/api/v1/data`-metingen vastgelegd.
+- Maandelijkse CSV-reeksen worden vanaf installatie continu opgebouwd.
+- P1-elektriciteit wordt opgeslagen als `P1e.csv`.
+- Gas uit de P1-meter wordt opgeslagen als `P1g.csv`.
+- Energy Sockets worden opgeslagen met het geconfigureerde `output_name` of `<label> Skt.csv`.
+- Ruwe snapshots blijven daarnaast als JSON en JSONL beschikbaar.
+- Status bevat nu apparaatcount en aangemaakte maand-CSV-bestanden.
+- Er worden geen bestaande bestanden hernoemd; uitvoernamen zijn expliciet en case-sensitive.
+
+
 ## 4.0.0
 
 - Productieversie van de SlimmeMeterPortal-maandimport.

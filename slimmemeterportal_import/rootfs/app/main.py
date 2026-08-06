@@ -32,7 +32,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "4.0.0"
+APP_VERSION = "4.1.0"
 
 LOGGER = logging.getLogger("slimmemeterportal_import")
 STOP = threading.Event()
@@ -184,6 +184,8 @@ def default_state() -> dict[str, Any]:
         "last_transfer_bundle": None,
         "workflow_sources": {"slimmemeterportal": "ready"},
         "homewizard_last_snapshot": None,
+        "homewizard_last_csv_files": [],
+        "homewizard_last_device_count": 0,
         "homewizard_last_error": None,
         "enphase_last_import": None,
         "enphase_last_error": None,
@@ -850,8 +852,8 @@ def run_epex_import(kind: str) -> dict[str, Any]:
     return result
 
 
-def homewizard_get(host: str, timeout: int) -> dict[str, Any]:
-    url = f"http://{host}/api/v1/data"
+def homewizard_request(host: str, path: str, timeout: int) -> dict[str, Any]:
+    url = f"http://{host}{path}"
     request = urllib.request.Request(
         url,
         headers={
@@ -864,10 +866,143 @@ def homewizard_get(host: str, timeout: int) -> dict[str, Any]:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, socket.timeout) as exc:
-        raise RuntimeError(f"HomeWizard {host} niet bereikbaar: {exc}") from exc
+        raise RuntimeError(f"HomeWizard {host}{path} niet bereikbaar: {exc}") from exc
     if not isinstance(payload, dict):
-        raise RuntimeError(f"HomeWizard {host} gaf geen JSON-object terug.")
+        raise RuntimeError(f"HomeWizard {host}{path} gaf geen JSON-object terug.")
     return payload
+
+
+def homewizard_get(host: str, timeout: int) -> dict[str, Any]:
+    return homewizard_request(host, "/api/v1/data", timeout)
+
+
+def homewizard_info(host: str, timeout: int) -> dict[str, Any]:
+    return homewizard_request(host, "/api", timeout)
+
+
+
+HOMEWIZARD_CSV_FIELDS = {
+    "p1_electricity": [
+        "captured_at",
+        "label",
+        "host",
+        "total_power_import_kwh",
+        "total_power_import_t1_kwh",
+        "total_power_import_t2_kwh",
+        "total_power_export_kwh",
+        "total_power_export_t1_kwh",
+        "total_power_export_t2_kwh",
+        "active_power_w",
+        "active_power_l1_w",
+        "active_power_l2_w",
+        "active_power_l3_w",
+    ],
+    "p1_gas": [
+        "captured_at",
+        "label",
+        "host",
+        "total_gas_m3",
+        "gas_timestamp",
+    ],
+    "socket": [
+        "captured_at",
+        "label",
+        "host",
+        "total_power_import_kwh",
+        "total_power_export_kwh",
+        "active_power_w",
+        "active_voltage_v",
+        "active_current_a",
+        "active_reactive_power_var",
+        "active_apparent_power_va",
+        "power_factor",
+        "frequency_hz",
+    ],
+}
+
+
+def safe_homewizard_output_name(device: dict[str, Any]) -> str:
+    configured = str(device.get("output_name", "")).strip()
+    if configured:
+        name = Path(configured).name
+        if name != configured or name in {".", ".."}:
+            raise ValueError(f"Ongeldige HomeWizard output_name: {configured}")
+        return name if name.lower().endswith(".csv") else f"{name}.csv"
+
+    role = str(device.get("role", "other"))
+    label = str(device.get("label", "")).strip()
+    if role == "p1":
+        return "P1e.csv"
+    if role == "gas":
+        return "P1g.csv"
+    if role == "socket":
+        return f"{label} Skt.csv"
+    return f"{label}.csv"
+
+
+def append_csv_row(path: Path, fieldnames: list[str], row: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    exists = path.exists() and path.stat().st_size > 0
+    with path.open("a", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
+        if not exists:
+            writer.writeheader()
+        writer.writerow({key: row.get(key, "") for key in fieldnames})
+
+
+def persist_homewizard_month_rows(snapshot: dict[str, Any]) -> list[str]:
+    captured = datetime.fromisoformat(snapshot["captured_at"])
+    month_root = OUTPUT_ROOT / "homewizard_monthdata" / f"{captured:%Y_%m}"
+    written: list[str] = []
+
+    for device in snapshot.get("devices", []):
+        if device.get("status") != "ok":
+            continue
+        data = dict(device.get("data") or {})
+        base_row = {
+            "captured_at": snapshot["captured_at"],
+            "label": device.get("label", ""),
+            "host": device.get("host", ""),
+            **data,
+        }
+        role = str(device.get("role", "other"))
+        output_name = str(device.get("output_name", "")).strip()
+
+        if role == "p1":
+            electricity_name = output_name or "P1e.csv"
+            append_csv_row(
+                month_root / electricity_name,
+                HOMEWIZARD_CSV_FIELDS["p1_electricity"],
+                base_row,
+            )
+            written.append(str(month_root / electricity_name))
+
+            if "total_gas_m3" in data:
+                append_csv_row(
+                    month_root / "P1g.csv",
+                    HOMEWIZARD_CSV_FIELDS["p1_gas"],
+                    base_row,
+                )
+                written.append(str(month_root / "P1g.csv"))
+        elif role == "gas":
+            gas_name = output_name or "P1g.csv"
+            append_csv_row(
+                month_root / gas_name,
+                HOMEWIZARD_CSV_FIELDS["p1_gas"],
+                base_row,
+            )
+            written.append(str(month_root / gas_name))
+        elif role == "socket":
+            socket_name = output_name or f"{device.get('label', '')} Skt.csv"
+            append_csv_row(
+                month_root / socket_name,
+                HOMEWIZARD_CSV_FIELDS["socket"],
+                base_row,
+            )
+            written.append(str(month_root / socket_name))
+
+    return sorted(set(written))
+
 
 
 def collect_homewizard_snapshot(options: Options) -> dict[str, Any]:
@@ -886,13 +1021,18 @@ def collect_homewizard_snapshot(options: Options) -> dict[str, Any]:
         role = str(device.get("role", "other"))
         optional = bool(device.get("optional", False))
         try:
-            payload = homewizard_get(host, min(options.request_timeout_seconds, 30))
+            timeout = min(options.request_timeout_seconds, 30)
+            info = homewizard_info(host, timeout)
+            payload = homewizard_get(host, timeout)
+            output_name = safe_homewizard_output_name(device)
             result["devices"].append({
                 "label": label,
                 "host": host,
                 "role": role,
                 "optional": optional,
+                "output_name": output_name,
                 "status": "ok",
+                "device_info": info,
                 "data": payload,
             })
         except Exception as exc:
@@ -908,6 +1048,7 @@ def collect_homewizard_snapshot(options: Options) -> dict[str, Any]:
                 "host": host,
                 "role": role,
                 "optional": optional,
+                "output_name": str(device.get("output_name", "")).strip(),
                 "status": status,
                 "error": str(exc),
             })
@@ -923,6 +1064,10 @@ def save_homewizard_snapshot(snapshot: dict[str, Any]) -> Path:
     captured = datetime.fromisoformat(snapshot["captured_at"])
     target = OUTPUT_ROOT / "homewizard_snapshots" / f"{captured:%Y_%m}"
     target.mkdir(parents=True, exist_ok=True)
+
+    written_csv = persist_homewizard_month_rows(snapshot)
+    snapshot["month_csv_files"] = written_csv
+
     path = target / f"HomeWizard_{captured:%Y-%m-%d_%H-%M-%S}.json"
     write_atomic_json(path, snapshot)
 
@@ -942,6 +1087,8 @@ def run_homewizard_snapshot() -> dict[str, Any]:
     path = save_homewizard_snapshot(snapshot)
     update_state(
         homewizard_last_snapshot=str(path),
+        homewizard_last_csv_files=snapshot.get("month_csv_files", []),
+        homewizard_last_device_count=len(snapshot.get("devices", [])),
         homewizard_last_error=None if snapshot["status"] != "error" else f"{len(snapshot['errors'])} fout(en)",
     )
     return snapshot

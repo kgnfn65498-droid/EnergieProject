@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "4.0.0"
+version: "4.1.0"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -73,6 +73,7 @@ schema:
       host: str
       role: "list(p1|gas|socket|other)"
       optional: bool
+      output_name: str
   homewizard_sample_seconds: "int(60,3600)"
   enphase_enabled: bool
   enphase_source_url: str

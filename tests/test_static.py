@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "4.0.0"
+    assert cfg_version == app_version == "4.1.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "4.0.0"' in config
+    assert 'version: "4.1.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -278,3 +278,31 @@ def test_startup_runs_selftest_in_background():
     assert "def startup_self_test()" in source
     assert "result = run_self_test()" in source
     assert "threading.Thread(target=startup_self_test, daemon=True).start()" in source
+
+
+def test_homewizard_device_info_and_measurement_endpoints():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'return homewizard_request(host, "/api", timeout)' in source
+    assert 'return homewizard_request(host, "/api/v1/data", timeout)' in source
+
+def test_homewizard_month_csv_writer_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def persist_homewizard_month_rows" in source
+    assert '"P1e.csv"' in source
+    assert '"P1g.csv"' in source
+    assert "HOMEWIZARD_CSV_FIELDS" in source
+
+def test_homewizard_output_name_is_case_sensitive_and_safe():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def safe_homewizard_output_name" in source
+    assert "Path(configured).name" in source
+    assert "name != configured" in source
+
+def test_homewizard_schema_supports_output_name():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    assert "output_name: str" in config
+
+def test_snapshot_records_csv_files():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'snapshot["month_csv_files"] = written_csv' in source
+    assert "homewizard_last_csv_files" in source
