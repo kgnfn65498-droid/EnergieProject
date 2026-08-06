@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "5.4.0"
+APP_VERSION = "5.5.0"
 
 CONFIG_ROOT = Path("/data")
 
@@ -743,7 +743,12 @@ def normalize_technical_status(state: dict[str, Any], options: Options) -> dict[
         )
         try:
             validation = json.loads(validation_path.read_text(encoding="utf-8"))
-            if not validation.get("infos"):
+            infos = list(validation.get("infos") or [])
+            disabled_epex_info = all(
+                ("EPEX stroom.csv" in message or "EPEX gas.csv" in message)
+                for message in infos
+            )
+            if not infos or disabled_epex_info:
                 normalized["month_input_last_status"] = "completed"
         except Exception:
             pass
@@ -2449,8 +2454,8 @@ def transform_price_row(row: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
-def expected_month_input_files() -> list[str]:
-    return [
+def expected_month_input_files(options: Options) -> list[str]:
+    files = [
         "P1e.csv",
         "P1g.csv",
         "Airco Skt.csv",
@@ -2461,9 +2466,12 @@ def expected_month_input_files() -> list[str]:
         "Enphase.csv",
         "Nordpool elektriciteit.csv",
         "NextEnergy actuele stroomprijs.csv",
-        "EPEX stroom.csv",
-        "EPEX gas.csv",
     ]
+    if options.epex_electricity_enabled:
+        files.append("EPEX stroom.csv")
+    if options.epex_gas_enabled:
+        files.append("EPEX gas.csv")
+    return files
 
 
 def build_month_input(month_key: str | None = None) -> dict[str, Any]:
@@ -2493,9 +2501,16 @@ def build_month_input(month_key: str | None = None) -> dict[str, Any]:
     ]:
         source_map.append((homewizard_root / filename, target / filename, None))
 
+    if options.epex_electricity_enabled:
+        source_map.append(
+            (epex_root / "EPEX stroom.csv", target / "EPEX stroom.csv", None)
+        )
+    if options.epex_gas_enabled:
+        source_map.append(
+            (epex_root / "EPEX gas.csv", target / "EPEX gas.csv", None)
+        )
+
     source_map.extend([
-        (epex_root / "EPEX stroom.csv", target / "EPEX stroom.csv", None),
-        (epex_root / "EPEX gas.csv", target / "EPEX gas.csv", None),
         (ha_root / "Enphase.csv", target / "Enphase.csv", transform_enphase_row),
         (
             ha_root / "Nordpool elektriciteit.csv",
@@ -2574,7 +2589,7 @@ def build_month_input(month_key: str | None = None) -> dict[str, Any]:
         "status": status,
         "target": str(target),
         "files": results,
-        "expected_files": expected_month_input_files(),
+        "expected_files": expected_month_input_files(options),
         "missing_files": sorted(missing),
         "empty_files": sorted(empty),
         "missing_required": missing_required,

@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "5.4.0"
+    assert cfg_version == app_version == "5.5.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "5.4.0"' in config
+    assert 'version: "5.5.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -793,4 +793,23 @@ def test_v540_resets_disabled_epex_during_workflow():
 
 def test_v540_keeps_completed_month_status():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'normalized["month_input_last_status"] = "completed"' in source
+
+
+def test_v550_expected_files_are_configuration_aware():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def expected_month_input_files(options: Options)" in source
+    assert 'if options.epex_electricity_enabled:' in source
+    assert 'if options.epex_gas_enabled:' in source
+    assert '"expected_files": expected_month_input_files(options)' in source
+
+def test_v550_disabled_epex_not_added_to_source_map():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'source_map.append(' in source
+    assert '(epex_root / "EPEX stroom.csv", target / "EPEX stroom.csv", None)' in source
+    assert '(epex_root / "EPEX gas.csv", target / "EPEX gas.csv", None)' in source
+
+def test_v550_old_epex_info_is_normalized():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "disabled_epex_info = all(" in source
     assert 'normalized["month_input_last_status"] = "completed"' in source

@@ -1,5 +1,15 @@
 # Changelog
 
+## 5.5.0
+
+- Uitgeschakelde EPEX-bronnen worden niet meer als verwachte maandbestanden opgenomen.
+- `EPEX stroom.csv` en `EPEX gas.csv` worden alleen verwerkt wanneer die bron expliciet is ingeschakeld.
+- Schone maandmap eindigt nu definitief als `completed`.
+- Oude `completed_info`-status door uitgeschakelde EPEX wordt automatisch opgeschoond.
+- Nord Pool en NextEnergy blijven de actieve prijsbronnen.
+- Import-, validatie- en overdrachtslogica blijven verder ongewijzigd.
+
+
 ## 5.4.0
 
 - Genormaliseerde technische statussen worden nu ook permanent opgeslagen.
