@@ -387,3 +387,16 @@ Vanaf 5.0.3 geldt:
 - `missing_required` of `empty_required` blokkeert altijd;
 - een geslaagde workflow met optionele ontbrekende bronnen eindigt als
   `status: warning`.
+
+
+## Opnieuw uitvoeren van dezelfde maand
+
+Vanaf 5.0.4 mag de volledige workflow dezelfde maand opnieuw verwerken. De app:
+
+1. bouwt de nieuwe overdracht in een stagingmap;
+2. controleert alle SHA-256-hashes;
+3. bewaart de bestaande overdracht tijdelijk als backup;
+4. vervangt map en ZIP;
+5. herstelt automatisch de vorige versie wanneer iets mislukt.
+
+De losse knop `Maak overdrachtspakket` blijft bewust niet-overschrijvend.

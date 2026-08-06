@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "5.0.3"
+    assert cfg_version == app_version == "5.0.4"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "5.0.3"' in config
+    assert 'version: "5.0.4"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -571,8 +571,9 @@ def test_transfer_hash_verification_and_rollback_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "def verify_transfer_copy" in source
     assert "hashlib.sha256" in source
-    assert "onvolledige doelmap is verwijderd" in source
-    assert "ZIP-verificatie mislukt; overdracht is teruggedraaid" in source
+    assert "Overdracht verificatie mislukt in staging." in source
+    assert "ZIP-verificatie mislukt in staging." in source
+    assert "backup.replace(destination)" in source
 
 def test_home_assistant_notification_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
@@ -688,3 +689,27 @@ def test_workflow_can_finish_with_warning():
     assert 'status = "error" if errors else ("warning" if warnings else "ok")' in source
     assert 'result.get("status") in {"ok", "warning"}' in source
     assert 'if status in {"ok", "warning"}:' in source
+
+
+def test_full_workflow_refreshes_existing_transfer():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "replace_existing: bool = False" in source
+    assert "create_transfer_package(month_key, replace_existing=True)" in source
+
+def test_transfer_refresh_uses_staging_and_backup():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'staging = destination_root / f".{month_key}.staging"' in source
+    assert 'backup = destination_root / f".{month_key}.backup"' in source
+    assert "shutil.copytree(source, staging)" in source
+    assert "verify_transfer_copy(source, staging)" in source
+    assert "backup.replace(destination)" in source
+
+def test_manual_transfer_remains_non_overwriting():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "allow_replace = bool(" in source
+    assert "replace_existing or options.transfer_overwrite_existing" in source
+    assert "Doelmap bestaat al en overschrijven is uitgeschakeld" in source
+
+def test_transfer_manifest_records_replacement():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"existing_destination_replaced": bool(replace_existing)' in source

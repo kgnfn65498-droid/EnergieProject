@@ -35,7 +35,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "5.0.3"
+APP_VERSION = "5.0.4"
 
 CONFIG_ROOT = Path("/data")
 
@@ -2596,7 +2596,11 @@ def verify_transfer_copy(source: Path, destination: Path) -> dict[str, Any]:
     }
 
 
-def create_transfer_package(month_key: str | None = None) -> dict[str, Any]:
+def create_transfer_package(
+    month_key: str | None = None,
+    *,
+    replace_existing: bool = False,
+) -> dict[str, Any]:
     options = Options.load()
     if not options.transfer_enabled:
         raise RuntimeError("Overdracht is uitgeschakeld.")
@@ -2633,38 +2637,76 @@ def create_transfer_package(month_key: str | None = None) -> dict[str, Any]:
     share_folder = Path(options.transfer_share_folder)
     destination_root = TRANSFER_SHARE_ROOT / share_folder
     destination = destination_root / month_key
+    staging = destination_root / f".{month_key}.staging"
+    backup = destination_root / f".{month_key}.backup"
 
-    if destination.exists():
-        if not options.transfer_overwrite_existing:
-            raise RuntimeError(
-                f"Doelmap bestaat al en overschrijven is uitgeschakeld: {destination}"
-            )
-        shutil.rmtree(destination)
+    allow_replace = bool(
+        replace_existing or options.transfer_overwrite_existing
+    )
 
-    destination_root.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, destination)
-
-    verification = verify_transfer_copy(source, destination)
-    if verification["status"] != "ok":
-        shutil.rmtree(destination, ignore_errors=True)
+    if destination.exists() and not allow_replace:
         raise RuntimeError(
-            "Overdracht verificatie mislukt; onvolledige doelmap is verwijderd."
+            f"Doelmap bestaat al en overschrijven is uitgeschakeld: {destination}"
         )
 
-    zip_source = source.parent / f"01_Input_{month_key}.zip"
-    zip_destination = destination_root / f"01_Input_{month_key}.zip"
-    if zip_source.exists():
-        if zip_destination.exists() and not options.transfer_overwrite_existing:
+    destination_root.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(staging, ignore_errors=True)
+    shutil.rmtree(backup, ignore_errors=True)
+
+    try:
+        shutil.copytree(source, staging)
+        verification = verify_transfer_copy(source, staging)
+        if verification["status"] != "ok":
             raise RuntimeError(
-                f"Doel-ZIP bestaat al en overschrijven is uitgeschakeld: {zip_destination}"
+                "Overdracht verificatie mislukt in staging."
             )
-        shutil.copy2(zip_source, zip_destination)
-        if hashlib.sha256(zip_source.read_bytes()).hexdigest() != hashlib.sha256(
-            zip_destination.read_bytes()
-        ).hexdigest():
-            zip_destination.unlink(missing_ok=True)
+
+        zip_source = source.parent / f"01_Input_{month_key}.zip"
+        zip_destination = destination_root / f"01_Input_{month_key}.zip"
+        zip_staging = destination_root / f".01_Input_{month_key}.zip.staging"
+        zip_backup = destination_root / f".01_Input_{month_key}.zip.backup"
+
+        zip_replaced = False
+        if zip_source.exists():
+            shutil.copy2(zip_source, zip_staging)
+            if hashlib.sha256(zip_source.read_bytes()).hexdigest() != hashlib.sha256(
+                zip_staging.read_bytes()
+            ).hexdigest():
+                raise RuntimeError("ZIP-verificatie mislukt in staging.")
+
+        if destination.exists():
+            destination.replace(backup)
+        staging.replace(destination)
+
+        if zip_source.exists():
+            if zip_destination.exists():
+                if not allow_replace:
+                    raise RuntimeError(
+                        f"Doel-ZIP bestaat al en overschrijven is uitgeschakeld: {zip_destination}"
+                    )
+                zip_destination.replace(zip_backup)
+            zip_staging.replace(zip_destination)
+            zip_replaced = True
+
+        shutil.rmtree(backup, ignore_errors=True)
+        zip_backup.unlink(missing_ok=True)
+
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        if destination.exists() and backup.exists():
             shutil.rmtree(destination, ignore_errors=True)
-            raise RuntimeError("ZIP-verificatie mislukt; overdracht is teruggedraaid.")
+            backup.replace(destination)
+        elif backup.exists() and not destination.exists():
+            backup.replace(destination)
+
+        zip_staging = destination_root / f".01_Input_{month_key}.zip.staging"
+        zip_backup = destination_root / f".01_Input_{month_key}.zip.backup"
+        zip_destination = destination_root / f"01_Input_{month_key}.zip"
+        zip_staging.unlink(missing_ok=True)
+        if zip_backup.exists():
+            zip_destination.unlink(missing_ok=True)
+            zip_backup.replace(zip_destination)
+        raise
 
     transfer_manifest = {
         "version": APP_VERSION,
@@ -2677,6 +2719,7 @@ def create_transfer_package(month_key: str | None = None) -> dict[str, Any]:
         "verification": verification,
         "month_validation_status": validation.get("status"),
         "month_validation_accepted": validation_acceptable,
+        "existing_destination_replaced": bool(replace_existing),
     }
     write_atomic_json(
         destination_root / f"Overdracht_{month_key}.json",
@@ -2711,8 +2754,6 @@ def create_transfer_package(month_key: str | None = None) -> dict[str, Any]:
         "notification": notification,
         "notification_error": notification_error,
     }
-
-
 
 
 FULL_WORKFLOW_RESULT_NAME = "workflow_result.json"
@@ -2955,7 +2996,7 @@ def run_full_month_workflow(
 
         transfer_result = execute_step(
             "Overdrachtspakket maken",
-            lambda: create_transfer_package(month_key),
+            lambda: create_transfer_package(month_key, replace_existing=True),
             required=True,
         )
 

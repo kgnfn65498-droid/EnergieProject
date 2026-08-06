@@ -1,5 +1,16 @@
 # Changelog
 
+## 5.0.4
+
+- Volledige maandworkflow kan dezelfde maand veilig opnieuw uitvoeren.
+- Bestaande overdrachtsmap wordt alleen binnen de volledige workflow gecontroleerd vervangen.
+- Nieuwe overdracht wordt eerst naar een stagingmap gekopieerd en volledig geverifieerd.
+- Bestaande overdracht blijft als tijdelijke backup beschikbaar tot de nieuwe kopie en ZIP zijn gecontroleerd.
+- Bij iedere fout wordt automatisch teruggedraaid naar de vorige geldige overdracht.
+- Losse knop `Maak overdrachtspakket` blijft standaard niet-overschrijvend.
+- Workflowresultaat vermeldt of een bestaande overdracht is vervangen.
+
+
 ## 5.0.3
 
 - Maandvalidatie `warning` wordt geaccepteerd wanneer uitsluitend optionele bestanden ontbreken.
