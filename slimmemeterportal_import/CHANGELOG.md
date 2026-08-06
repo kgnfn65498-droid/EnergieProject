@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.9.1
+
+- Workflow-lock wist actieve starttijd, maand en stap zodra de workflow klaar is.
+- Laatste workflowduur wordt apart opgeslagen.
+- HomeWizard-discovery toont direct de gekoppelde apparaatnamen en bestandsnamen.
+- Discovery-resultaat wordt na Home Assistant-koppeling opnieuw opgeslagen.
+- Rapportgeneratie controleert vooraf alle tien verplichte CSV-bestanden op aanwezigheid en inhoud.
+- Eindsamenvatting blijft `completed` na een geslaagde audit en publicatie.
+- Deze versie is de stabiele afsluiting van fase 6 vóór versie 7.0.
+
+
 ## 6.9.0
 
 - Globale workflow-lock voorkomt dubbele volledige maandworkflows.

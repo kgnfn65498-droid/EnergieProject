@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "6.9.0"
+    assert cfg_version == app_version == "6.9.1"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "6.9.0"' in config
+    assert 'version: "6.9.1"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1121,3 +1121,26 @@ def test_v690_workflow_lock_is_released():
     assert 'set_workflow_lock_state(' in workflow
     assert 'status="idle"' in workflow
     assert "WORKFLOW_LOCK.release()" in workflow
+
+
+def test_v691_idle_lock_clears_active_fields():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "workflow_lock_started_at=None" in source
+    assert "workflow_lock_month=None" in source
+    assert "workflow_lock_step=None" in source
+    assert "workflow_lock_last_duration_seconds=duration_seconds" in source
+
+def test_v691_discovery_uses_mapped_names():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "mapped_by_serial" in source
+    assert 'device["label"] = mapped.get("label"' in source
+    assert 'device["output_name"] = mapped.get(' in source
+    assert "update_state(homewizard_discovery_devices=found)" in source
+
+def test_v691_validates_required_report_inputs():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def validate_report_input_files" in source
+    assert '"P1e.csv"' in source
+    assert '"NextEnergy actuele stroomprijs.csv"' in source
+    assert "Rapportinput is onvolledig" in source
+    assert '"input_validation": input_validation' in source

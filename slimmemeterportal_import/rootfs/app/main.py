@@ -37,7 +37,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "6.9.0"
+APP_VERSION = "6.9.1"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -383,6 +383,7 @@ def default_state() -> dict[str, Any]:
         "workflow_lock_step": None,
         "workflow_lock_message": None,
         "workflow_lock_last_released": None,
+        "workflow_lock_last_duration_seconds": None,
         "workflow_lock_rejected_count": 0,
         "workflow_import_coordination_last": None,
         "last_self_test": None,
@@ -2166,6 +2167,42 @@ def audit_completed_month_workflow(month_key: str) -> dict[str, Any]:
 
 
 
+
+def validate_report_input_files(input_folder: Path) -> dict[str, Any]:
+    expected = {
+        "P1e.csv",
+        "P1g.csv",
+        "Airco Skt.csv",
+        "Mobiel Skt.csv",
+        "Heater kantoor Skt.csv",
+        "Heater woonkamer Skt.csv",
+        "Heater lounge Skt.csv",
+        "Enphase.csv",
+        "Nordpool elektriciteit.csv",
+        "NextEnergy actuele stroomprijs.csv",
+    }
+    found = {
+        path.name
+        for path in input_folder.glob("*.csv")
+        if path.is_file() and path.stat().st_size > 0
+    }
+    missing = sorted(expected - found)
+    result = {
+        "status": "ok" if not missing else "error",
+        "input_folder": str(input_folder),
+        "expected": sorted(expected),
+        "found": sorted(found),
+        "missing": missing,
+    }
+    if missing:
+        raise RuntimeError(
+            "Rapportinput is onvolledig; ontbrekend of leeg: "
+            + ", ".join(missing)
+        )
+    return result
+
+
+
 def run_report_generation_from_handoff(
     options: Options,
     handoff_path: str | Path,
@@ -2174,6 +2211,9 @@ def run_report_generation_from_handoff(
     handoff = load_report_handoff(handoff_path)
     handoff["_request_path"] = str(handoff_path)
     month_key = str(handoff["month"])
+    input_validation = validate_report_input_files(
+        Path(str(handoff["input_folder"]))
+    )
     validation = validate_report_handoff_files(handoff)
 
     update_state(
@@ -2200,6 +2240,7 @@ def run_report_generation_from_handoff(
             "finished_at": datetime.now(TZ).isoformat(),
             "month": month_key,
             "handoff": str(handoff_path),
+        "input_validation": input_validation,
             "validation": validation,
             "service": local_result,
         }
@@ -3203,6 +3244,25 @@ def discover_homewizard_devices(options: Options) -> dict[str, Any]:
     )
     try:
         result["home_assistant_mapping"] = map_discovery_to_home_assistant(result)
+        mapped_by_serial = {
+            str(item.get("serial")): item
+            for item in result["home_assistant_mapping"].get("mappings", [])
+        }
+        for device in found:
+            serial = str((device.get("device_info") or {}).get("serial", ""))
+            mapped = mapped_by_serial.get(serial)
+            if mapped:
+                device["label"] = mapped.get("label", device.get("label"))
+                device["output_name"] = mapped.get(
+                    "output_name",
+                    device.get("output_name"),
+                )
+                device["home_assistant_entity_id"] = mapped.get(
+                    "home_assistant_entity_id"
+                )
+        result["devices"] = found
+        write_atomic_json(CONFIG_ROOT / "homewizard_discovery.json", result)
+        update_state(homewizard_discovery_devices=found)
     except Exception as exc:
         LOGGER.exception("Automatische koppeling met Home Assistant-namen mislukt.")
         update_state(homewizard_mapping_error=str(exc))
@@ -4314,28 +4374,49 @@ def set_workflow_lock_state(
     step: str | None = None,
     message: str | None = None,
 ) -> None:
-    now = datetime.now(TZ).isoformat()
+    now = datetime.now(TZ)
+    state = load_state()
+    started_at = state.get("workflow_lock_started_at")
+    duration_seconds = None
+
+    if status != "running" and started_at:
+        try:
+            duration_seconds = round(
+                (now - datetime.fromisoformat(str(started_at))).total_seconds(),
+                3,
+            )
+        except Exception:
+            duration_seconds = None
+
     with WORKFLOW_LOCK_META:
         WORKFLOW_ACTIVE.clear()
         if status == "running":
             WORKFLOW_ACTIVE.update({
                 "status": status,
-                "started_at": now,
+                "started_at": now.isoformat(),
                 "month": month,
                 "step": step,
                 "message": message,
             })
-    changes = {
-        "workflow_lock_status": status,
-        "workflow_lock_month": month,
-        "workflow_lock_step": step,
-        "workflow_lock_message": message,
-    }
+
     if status == "running":
-        changes["workflow_lock_started_at"] = now
+        update_state(
+            workflow_lock_status="running",
+            workflow_lock_started_at=now.isoformat(),
+            workflow_lock_month=month,
+            workflow_lock_step=step,
+            workflow_lock_message=message,
+        )
     else:
-        changes["workflow_lock_last_released"] = now
-    update_state(**changes)
+        update_state(
+            workflow_lock_status="idle",
+            workflow_lock_started_at=None,
+            workflow_lock_month=None,
+            workflow_lock_step=None,
+            workflow_lock_message=message,
+            workflow_lock_last_released=now.isoformat(),
+            workflow_lock_last_duration_seconds=duration_seconds,
+        )
 
 
 def update_workflow_lock_step(step: str) -> None:
@@ -5060,6 +5141,7 @@ class Handler(BaseHTTPRequestHandler):
                 "started_at": state.get("workflow_lock_started_at"),
                 "message": state.get("workflow_lock_message"),
                 "rejected_count": state.get("workflow_lock_rejected_count"),
+                "last_duration_seconds": state.get("workflow_lock_last_duration_seconds"),
                 "import_coordination": state.get("workflow_import_coordination_last"),
             }, ensure_ascii=False, indent=2).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
