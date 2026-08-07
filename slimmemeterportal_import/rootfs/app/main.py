@@ -43,8 +43,10 @@ AUTOMATIC_COMPLETION_MARKERS_PATH = Path("/config/output/automatic_completed_mon
 AUTOMATIC_RETRY_STATE_PATH = Path("/config/output/automatic_retry_state.json")
 RETRY_DEBUG_LOG_PATH = Path("/config/output/logs/retry_debug.log")
 FINALIZATION_DEBUG_LOG_PATH = Path("/config/output/logs/finalization_debug.log")
+PRODUCTION_CERTIFICATE_PATH = Path("/config/output/production_certificate.json")
+PRODUCTION_CERTIFICATE_HISTORY_PATH = Path("/config/output/production_certificate_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.13.0"
+APP_VERSION = "8.14.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -6298,6 +6300,14 @@ def health_dashboard(options: Options | None = None) -> dict[str, Any]:
     source_values = list((state.get("workflow_sources") or {}).values())
     add("Bronstatus", bool(source_values) and all(str(v).lower() in {"ready", "ok", "completed"} for v in source_values), ", ".join(map(str, source_values)) or "nog onbekend")
 
+    certificate_validation = validate_production_certificate()
+    add("Productiecertificaat", bool(certificate_validation.get("valid")),
+        "geldig" if certificate_validation.get("valid") else str(certificate_validation.get("status") or "ontbreekt"))
+    add("Certificaatintegriteit", certificate_validation.get("integrity") == "ok",
+        str(certificate_validation.get("integrity") or "not_checked"))
+    add("Certificaatversie", str(certificate_validation.get("version") or "") == APP_VERSION,
+        str(certificate_validation.get("version") or "ontbreekt"))
+
     passed = sum(1 for c in checks if c["status"] == "ok")
     score = round((passed / len(checks)) * 100) if checks else 0
     return {
@@ -6729,6 +6739,8 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "retry_debug": retry_debug_snapshot(state),
             "finalization_debug": finalization_debug_tail(limit=20),
             "finalization_debug_log_path": str(FINALIZATION_DEBUG_LOG_PATH),
+            "production_certificate": validate_production_certificate(),
+            "production_certificate_history": read_production_certificate_history(limit=10),
         },
         "history": history,
         "can_resume": bool(
@@ -6744,8 +6756,115 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
 
 
 
+def production_certificate_payload_hash(certificate: dict[str, Any]) -> str:
+    """SHA-256 over de certificaatinhoud zonder het hashveld zelf."""
+    canonical = {
+        key: value
+        for key, value in certificate.items()
+        if key not in {"integrity_sha256", "validated_at"}
+    }
+    raw = json.dumps(
+        canonical,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def read_production_certificate() -> dict[str, Any]:
+    if not PRODUCTION_CERTIFICATE_PATH.is_file():
+        return {}
+    try:
+        value = json.loads(PRODUCTION_CERTIFICATE_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def validate_production_certificate(
+    certificate: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    certificate = certificate if certificate is not None else read_production_certificate()
+    exists = PRODUCTION_CERTIFICATE_PATH.is_file()
+    if not certificate:
+        return {
+            "status": "missing",
+            "valid": False,
+            "exists": exists,
+            "version": None,
+            "accepted_at": None,
+            "reason": "Productiecertificaat ontbreekt.",
+            "path": str(PRODUCTION_CERTIFICATE_PATH),
+            "history_path": str(PRODUCTION_CERTIFICATE_HISTORY_PATH),
+            "integrity": "not_checked",
+            "checks": {},
+            "certificate": None,
+        }
+
+    stored_hash = str(certificate.get("integrity_sha256") or "")
+    calculated_hash = production_certificate_payload_hash(certificate)
+    checks = {
+        "status_accepted": str(certificate.get("status") or "") == "accepted",
+        "version_current": str(certificate.get("version") or "") == APP_VERSION,
+        "scheduler_unchanged": certificate.get("scheduler_state_unchanged") is True,
+        "preflight_ok": str(certificate.get("preflight_status") or "") == "ok",
+        "workflow_ok": str(certificate.get("workflow_status") or "") in {"completed", "completed_warning"},
+        "finalization_ok": str(certificate.get("finalization_status") or "") == "ok",
+        "integrity_ok": bool(stored_hash) and stored_hash == calculated_hash,
+    }
+    valid = all(checks.values())
+    failed = [name for name, ok in checks.items() if not ok]
+    return {
+        "status": "valid" if valid else "invalid",
+        "valid": valid,
+        "exists": exists,
+        "version": certificate.get("version"),
+        "accepted_at": certificate.get("accepted_at"),
+        "month": certificate.get("month"),
+        "reason": None if valid else "Afgekeurd: " + ", ".join(failed),
+        "path": str(PRODUCTION_CERTIFICATE_PATH),
+        "history_path": str(PRODUCTION_CERTIFICATE_HISTORY_PATH),
+        "integrity": "ok" if checks["integrity_ok"] else "error",
+        "integrity_sha256": stored_hash or None,
+        "checks": checks,
+        "certificate": certificate,
+    }
+
+
+def append_production_certificate_history(certificate: dict[str, Any]) -> None:
+    row = {
+        "recorded_at": datetime.now(TZ).isoformat(),
+        "version": certificate.get("version"),
+        "status": certificate.get("status"),
+        "accepted_at": certificate.get("accepted_at"),
+        "month": certificate.get("month"),
+        "integrity_sha256": certificate.get("integrity_sha256"),
+    }
+    PRODUCTION_CERTIFICATE_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with PRODUCTION_CERTIFICATE_HISTORY_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+
+
+def read_production_certificate_history(limit: int = 10) -> list[dict[str, Any]]:
+    if not PRODUCTION_CERTIFICATE_HISTORY_PATH.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in PRODUCTION_CERTIFICATE_HISTORY_PATH.read_text(
+        encoding="utf-8", errors="replace"
+    ).splitlines():
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(item, dict):
+            rows.append(item)
+    return rows[-max(1, min(limit, 100)):][::-1]
+
+
 def write_production_acceptance(test_result: dict[str, Any]) -> dict[str, Any]:
-    """Sla een geslaagde productietest duurzaam op als acceptatie van deze build."""
+    """Schrijf na een geslaagde productietest een persistent certificaat."""
     workflow = test_result.get("workflow") or {}
     preflight = test_result.get("preflight") or {}
     finalization = test_result.get("finalization") or {}
@@ -6758,10 +6877,12 @@ def write_production_acceptance(test_result: dict[str, Any]) -> dict[str, Any]:
         and test_result.get("scheduler_state_changed") is False
     )
     certificate = {
+        "schema": 1,
         "version": APP_VERSION,
         "status": "accepted" if valid else "rejected",
         "accepted_at": datetime.now(TZ).isoformat() if valid else None,
         "month": test_result.get("month"),
+        "test_type": "production",
         "tested_at": test_result.get("tested_at"),
         "test_status": test_result.get("status"),
         "preflight_status": preflight.get("status"),
@@ -6769,55 +6890,39 @@ def write_production_acceptance(test_result: dict[str, Any]) -> dict[str, Any]:
         "finalization_status": finalization.get("status"),
         "scheduler_state_unchanged": test_result.get("scheduler_state_changed") is False,
     }
+    certificate["integrity_sha256"] = production_certificate_payload_hash(certificate)
+
+    PRODUCTION_CERTIFICATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temp = PRODUCTION_CERTIFICATE_PATH.with_suffix(".tmp")
+    temp.write_text(json.dumps(certificate, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp.replace(PRODUCTION_CERTIFICATE_PATH)
+    append_production_certificate_history(certificate)
     update_state(production_acceptance=certificate)
+
+    validation = validate_production_certificate(certificate)
+    if valid and not validation.get("valid"):
+        raise RuntimeError(
+            "Productiecertificaat faalde directe validatie: "
+            + str(validation.get("reason") or "onbekend")
+        )
     return certificate
 
 
 def automatic_production_readiness(state: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Bepaal of deze softwareversie aantoonbaar veilig automatisch mag draaien."""
-    state = state or load_state()
-    certificate = state.get("production_acceptance") or {}
-    certificate_ready = bool(
-        str(certificate.get("version") or "") == APP_VERSION
-        and str(certificate.get("status") or "") == "accepted"
-        and certificate.get("scheduler_state_unchanged") is True
-    )
-    if certificate_ready:
-        return {
-            "version": APP_VERSION,
-            "ready": True,
-            "status": "accepted",
-            "tested_version": certificate.get("version"),
-            "tested_at": certificate.get("tested_at"),
-            "accepted_at": certificate.get("accepted_at"),
-            "month": certificate.get("month"),
-            "reason": None,
-            "certificate": certificate,
-        }
-
-    test = state.get("automatic_month_close_test_last_result") or {}
-    same_version = str(test.get("version") or "") == APP_VERSION
-    workflow = test.get("workflow") or {}
-    preflight = test.get("preflight") or {}
-    finalization = test.get("finalization") or {}
-    ready = bool(
-        same_version
-        and str(test.get("status") or "") in {"completed", "completed_warning"}
-        and str(preflight.get("status") or "") == "ok"
-        and str(workflow.get("status") or "") in {"completed", "completed_warning"}
-        and str(finalization.get("status") or "") == "ok"
-        and test.get("scheduler_state_changed") is False
-    )
+    """Alleen een geldig certificaat van exact deze versie geeft productie vrij."""
+    validation = validate_production_certificate()
+    certificate = validation.get("certificate") or {}
     return {
         "version": APP_VERSION,
-        "ready": ready,
-        "status": "ready" if ready else "test_required",
-        "tested_version": test.get("version"),
-        "tested_at": test.get("tested_at"),
-        "accepted_at": None,
-        "month": test.get("month"),
-        "reason": None if ready else "Voer eerst een geslaagde productietest uit met deze versie.",
+        "ready": bool(validation.get("valid")),
+        "status": "accepted" if validation.get("valid") else "test_required",
+        "tested_version": certificate.get("version"),
+        "tested_at": certificate.get("tested_at"),
+        "accepted_at": certificate.get("accepted_at"),
+        "month": certificate.get("month"),
+        "reason": validation.get("reason"),
         "certificate": certificate or None,
+        "certificate_validation": validation,
     }
 
 
@@ -7676,12 +7781,8 @@ def html_page() -> bytes:
         auto_test_display_status = str(auto_test.get("status") or "Nog niet getest")
         auto_test_display_detail = str(auto_test.get("error") or "")
 
-    auto_test_ok = (
-        auto_test_current_version
-        and str(auto_test.get("status") or "") in {"completed", "completed_warning"}
-        and str((auto_test.get("preflight") or {}).get("status") or "") == "ok"
-        and str((auto_test.get("finalization") or {}).get("status") or "") == "ok"
-    )
+    production = auto_close.get("production_readiness") or automatic_production_readiness(state)
+    auto_test_ok = bool(production.get("ready"))
     auto_ready_status = "ready" if auto_test_ok else (
         "running" if str(auto_test.get("status") or "") == "running" and auto_test_current_version
         else "pending"
@@ -7690,17 +7791,22 @@ def html_page() -> bytes:
         "Productietest loopt" if auto_ready_status == "running"
         else "Productietest vereist"
     )
-    production = auto_close.get("production_readiness") or automatic_production_readiness(state)
     production_status = "ready" if production.get("ready") else "pending"
     production_text = "Productiegeaccepteerd" if production.get("status") == "accepted" else (
         "Productieklaar" if production.get("ready") else "Test vereist voor v" + APP_VERSION
     )
     production_certificate = production.get("certificate") or {}
-    production_certificate_text = (
-        f"v{production_certificate.get('version')} · {format_local_datetime(production_certificate.get('accepted_at'))}"
-        if production_certificate.get("status") == "accepted"
-        else "Nog niet afgegeven"
+    production_certificate_validation = (
+        auto_close.get("production_certificate")
+        or production.get("certificate_validation")
+        or validate_production_certificate()
     )
+    production_certificate_text = (
+        f"v{production_certificate.get('version')} · Afgegeven · {format_local_datetime(production_certificate.get('accepted_at'))}"
+        if production_certificate_validation.get("valid")
+        else "Niet geldig — " + str(production_certificate_validation.get("status") or "ontbreekt")
+    )
+    production_certificate_history = auto_close.get("production_certificate_history") or []
     scheduler_effective = bool(auto_close.get("scheduler_effective"))
     scheduler_text = (
         "Actief" if scheduler_effective
@@ -7729,6 +7835,16 @@ def html_page() -> bytes:
         if scheduler_acceptance_current and scheduler_acceptance.get("simulated_at")
         else ""
     )
+
+    certificate_history_rows = "".join(
+        "<tr>"
+        f"<td>{esc(item.get('version') or '—')}</td>"
+        f"<td>{esc(format_local_datetime(item.get('accepted_at')) if item.get('accepted_at') else '—')}</td>"
+        f"<td><span class='pill {status_class('ok' if item.get('status') == 'accepted' else 'error')}'>{esc(item.get('status') or '—')}</span></td>"
+        f"<td>{esc(item.get('month') or '—')}</td>"
+        "</tr>"
+        for item in production_certificate_history
+    ) or "<tr><td colspan='4'>Nog geen productiecertificaten.</td></tr>"
 
     recovery = auto_close.get("recovery") or {}
     recovery_label = str(recovery.get("label") or "Geen herstelactie nodig")
@@ -7828,7 +7944,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 <div class="metric"><small>Productiecertificaat</small><strong id="production-certificate">{esc(production_certificate_text)}</strong></div>
 </div>
-<p class="hint">v8.13 slaat een geslaagde productietest duurzaam op als productieacceptatie van precies deze softwareversie.</p>
+<p class="hint">v8.14 valideert het productiecertificaat continu en laat de scheduler alleen draaien met een geldig certificaat van exact deze versie.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 </div>
 
@@ -7850,13 +7966,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.13.0 productiegeaccepteerd is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.14.0 gecertificeerd is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
-<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.13.0 die eerst automatisch veilig uit.</p>
+<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.14.0 die eerst automatisch veilig uit.</p>
 <ul class="source-list">
 <li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>
@@ -7873,6 +7989,14 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <tbody id="automatic-history-body">{auto_history_rows}</tbody>
 </table></div>
 <p class="hint">Append-only historie: iedere test, scheduler-test en echte automatische run blijft als afzonderlijk record bewaard.</p>
+</div>
+
+<div class="card"><h2>Productiecertificaten</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Versie</th><th>Afgegeven</th><th>Status</th><th>Testmaand</th></tr></thead>
+<tbody>{certificate_history_rows}</tbody>
+</table></div>
+<p class="hint">Append-only historie van afgegeven productiecertificaten.</p>
 </div>
 
 <div class="card" id="last-error-card" style="display:{'block' if last_run.get('error') else 'none'}"><h2>Laatste workflowfout</h2>
@@ -7917,6 +8041,10 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <tr><th>Workflow_result</th><td>{'FOUND' if retry_debug_workflow.get('exists') else 'NOT FOUND'} · bewijs {'JA' if retry_debug_workflow.get('proves_completed') else 'NEE'} · {esc(retry_debug_workflow.get('decision') or '—')}</td></tr>
 <tr><th>Workflow checks</th><td>{esc(json.dumps(retry_debug_workflow.get('checks') or {}, ensure_ascii=False))}</td></tr>
 <tr><th>Beslissing/evidence</th><td>{esc(retry_debug_decision.get('evidence') or '—')}</td></tr>
+<tr><th>Productiecertificaat</th><td>{'FOUND' if production_certificate_validation.get('exists') else 'NOT FOUND'} · geldig {'JA' if production_certificate_validation.get('valid') else 'NEE'}</td></tr>
+<tr><th>Certificaatversie</th><td>{esc(production_certificate_validation.get('version') or '—')} · verwacht {esc(APP_VERSION)}</td></tr>
+<tr><th>Certificaatintegriteit</th><td>{esc(production_certificate_validation.get('integrity') or 'not_checked')}</td></tr>
+<tr><th>Certificaatpad</th><td>{esc(production_certificate_validation.get('path') or PRODUCTION_CERTIFICATE_PATH)}</td></tr>
 <tr><th>Retry debuglog</th><td>{esc(retry_debug.get('debug_log_path') or RETRY_DEBUG_LOG_PATH)}</td></tr>
 <tr><th>Finalization debuglog</th><td>{esc(auto_close.get('finalization_debug_log_path') or FINALIZATION_DEBUG_LOG_PATH)}</td></tr>
 <tr><th>Laatste finalization-event</th><td>{esc(finalization_debug_last.get('event') or 'Nog geen nieuwe run met v8.10.1')}</td></tr>

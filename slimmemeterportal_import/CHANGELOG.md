@@ -1,5 +1,17 @@
 # Changelog
 
+## 8.14.0
+- Production Lifecycle Manager bovenop v8.13.
+- Persistent productiecertificaat in `/config/output/production_certificate.json`.
+- SHA-256 integriteitscontrole over certificaatinhoud.
+- Runtime-validatie bij readiness/statuscontrole.
+- Scheduler uitsluitend actief met geldig certificaat van exact de actieve versie.
+- Append-only historie in `/config/output/production_certificate_history.jsonl`.
+- Health Dashboard toont certificaatstatus, integriteit en versie.
+- Retry Debug toont validiteit, versie, integriteit en bestandspad.
+- Operationele console toont certificaathistorie.
+- Retry-finalizer, import, rapportgeneratoren en Recovery Update inhoudelijk ongewijzigd.
+
 ## 8.13.0
 - Duurzame productieacceptatie na een volledig geslaagde veilige productietest.
 - Acceptatie geldt uitsluitend voor exact de actieve softwareversie.

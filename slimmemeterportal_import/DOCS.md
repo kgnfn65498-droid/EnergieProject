@@ -558,3 +558,10 @@ Retry Debug en productie-audit gebruiken nu dezelfde voltooiingsregels. Bewezen 
 ## Versie 8.13.0 — productieacceptatie
 
 Een volledig geslaagde veilige productietest schrijft een duurzaam productiecertificaat voor exact de actieve softwareversie. Het certificaat bevat versie, acceptatietijd, testmaand en de statussen van preflight, workflow en finalization. Een certificaat van een oudere versie wordt nooit als acceptatie van een nieuwe versie gebruikt.
+
+
+## Versie 8.14.0 — Production Lifecycle Manager
+
+Na een geslaagde productietest wordt het certificaat atomisch opgeslagen in `/config/output/production_certificate.json`. Een SHA-256 over de canonieke certificaatinhoud detecteert onbedoelde wijziging. De scheduler accepteert uitsluitend een geldig certificaat van exact de actieve softwareversie.
+
+Iedere afgifte wordt append-only geregistreerd in `/config/output/production_certificate_history.jsonl`. Health Dashboard en Retry Debug tonen de actuele certificaatvalidatie.

@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "8.13.0"
+    assert cfg_version == app_version == "8.14.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.13.0"' in config
+    assert 'version: "8.14.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.13.0"' in config
-    assert 'APP_VERSION = "8.13.0"' in main
+    assert 'version: "8.14.0"' in config
+    assert 'APP_VERSION = "8.14.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1648,12 +1648,10 @@ def test_v780_old_product_test_is_not_presented_as_current_error():
 
 
 def test_v780_automatic_readiness_requires_current_successful_full_chain():
-    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert "auto_test_ok = (" in source
-    assert 'str((auto_test.get("preflight") or {}).get("status") or "") == "ok"' in source
-    assert 'str((auto_test.get("finalization") or {}).get("status") or "") == "ok"' in source
-    assert 'id="auto-readiness"' in source
-    assert "Klaar voor automatisch gebruik" in source
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'production = auto_close.get("production_readiness")' in source
+    assert 'auto_test_ok = bool(production.get("ready"))' in source
+    assert "Productietest vereist" in source
 
 
 def test_v780_product_test_error_detail_is_visible():
@@ -1675,11 +1673,11 @@ def test_v790_automatic_test_keeps_scheduler_semantics_separate():
 
 
 def test_v800_production_readiness_requires_same_version_full_chain():
-    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert "def automatic_production_readiness" in source
-    assert 'str(test.get("version") or "") == APP_VERSION' in source
-    assert 'str(preflight.get("status") or "") == "ok"' in source
-    assert 'str(finalization.get("status") or "") == "ok"' in source
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    validation=source[source.index("def validate_production_certificate"):source.index("def append_production_certificate_history")]
+    assert 'str(certificate.get("version") or "") == APP_VERSION' in validation
+    assert 'str(certificate.get("preflight_status") or "") == "ok"' in validation
+    assert 'str(certificate.get("finalization_status") or "") == "ok"' in validation
 
 
 def test_v800_scheduler_enable_is_gated_by_product_test():
@@ -1869,7 +1867,7 @@ def test_v851_acceptance_records_prerequisite_evidence():
 def test_v851_console_explains_automatic_prerequisite():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     assert "voorbereidende productietest automatisch geslaagd" in source
-    assert "voert v8.13.0 die eerst automatisch veilig uit" in source
+    assert "voert v8.14.0 die eerst automatisch veilig uit" in source
 
 
 def test_v860_has_durable_completion_marker_store():
@@ -2188,10 +2186,12 @@ def test_v8130_writes_durable_production_acceptance():
 
 def test_v8130_readiness_accepts_only_exact_version_certificate():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
-    section=source[source.index("def automatic_production_readiness"):source.index("def format_local_datetime")]
-    assert 'str(certificate.get("version") or "") == APP_VERSION' in section
-    assert 'str(certificate.get("status") or "") == "accepted"' in section
-    assert "certificate_ready" in section
+    validation=source[source.index("def validate_production_certificate"):source.index("def append_production_certificate_history")]
+    readiness=source[source.index("def automatic_production_readiness"):source.index("def format_local_datetime")]
+    assert 'str(certificate.get("version") or "") == APP_VERSION' in validation
+    assert 'str(certificate.get("status") or "") == "accepted"' in validation
+    assert 'validation = validate_production_certificate()' in readiness
+
 
 def test_v8130_successful_product_test_persists_certificate():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
@@ -2203,3 +2203,41 @@ def test_v8130_console_shows_production_certificate():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     assert "Productiecertificaat" in source
     assert "Productiegeaccepteerd" in source
+
+def test_v8140_has_persistent_certificate_paths():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'PRODUCTION_CERTIFICATE_PATH = Path("/config/output/production_certificate.json")' in source
+    assert 'PRODUCTION_CERTIFICATE_HISTORY_PATH = Path("/config/output/production_certificate_history.jsonl")' in source
+
+def test_v8140_certificate_is_hashed_and_validated():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def production_certificate_payload_hash" in source
+    assert "def validate_production_certificate" in source
+    assert '"integrity_sha256"' in source
+    assert '"integrity_ok"' in source
+
+def test_v8140_writes_certificate_file_atomically():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def write_production_acceptance"):source.index("def automatic_production_readiness")]
+    assert "PRODUCTION_CERTIFICATE_PATH.with_suffix" in section
+    assert "temp.replace(PRODUCTION_CERTIFICATE_PATH)" in section
+    assert "append_production_certificate_history(certificate)" in section
+
+def test_v8140_readiness_requires_valid_certificate():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def automatic_production_readiness"):source.index("def format_local_datetime")]
+    assert "validation = validate_production_certificate()" in section
+    assert '"ready": bool(validation.get("valid"))' in section
+
+def test_v8140_health_has_certificate_checks():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def health_dashboard"):source.index("def visual_step_counts_from_result")]
+    assert '"Productiecertificaat"' in section
+    assert '"Certificaatintegriteit"' in section
+    assert '"Certificaatversie"' in section
+
+def test_v8140_console_has_certificate_history_and_retry_debug():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "<h2>Productiecertificaten</h2>" in source
+    assert "Certificaatintegriteit" in source
+    assert "Certificaatpad" in source

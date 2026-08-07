@@ -17,7 +17,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 8.13.0
+- SlimmeMeterPortal Import 8.14.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
@@ -129,3 +129,7 @@ Productiefix voor definitieve afsluiting van bewezen afgeronde legacy retries.
 
 ### v8.13.0
 Duurzame productieacceptatie na een geslaagde veilige productietest van exact de actieve versie.
+
+
+### v8.14.0
+Production Lifecycle Manager met persistent gehasht productiecertificaat en runtime-validatie.
