@@ -37,7 +37,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.1.0"
+APP_VERSION = "7.1.1"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -50,6 +50,14 @@ WORKFLOW_LOCK = threading.Lock()
 WORKFLOW_LOCK_META = threading.Lock()
 WORKFLOW_ACTIVE: dict[str, Any] = {}
 STATE_LOCK = threading.RLock()
+
+
+class ImportCancelled(Exception):
+    """Gecontroleerde annulering van een import of maandworkflow."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -289,6 +297,8 @@ def default_state() -> dict[str, Any]:
         "progress_total": 0,
         "progress_message": None,
         "cancel_requested": False,
+        "last_cancel_reason": None,
+        "last_cancelled_at": None,
         "last_integrity_status": None,
         "last_integrity_checked_at": None,
         "last_summary": None,
@@ -578,8 +588,17 @@ def cleanup_retention(retention_months: int) -> None:
         shutil.rmtree(obsolete)
 
 
+def cancellation_reason() -> str | None:
+    state = load_state()
+    if bool(state.get("cancel_requested")):
+        return "user_requested"
+    if STOP.is_set():
+        return "service_shutdown"
+    return None
+
+
 def is_cancel_requested() -> bool:
-    return bool(load_state().get("cancel_requested")) or STOP.is_set()
+    return cancellation_reason() is not None
 
 
 
@@ -3643,8 +3662,9 @@ def run_import(year: int, month: int) -> None:
 
             for day_number in range(1, monthrange(year, month)[1] + 1):
                 current = date(year, month, day_number)
-                if is_cancel_requested():
-                    raise RuntimeError("Import geannuleerd.")
+                reason = cancellation_reason()
+                if reason:
+                    raise ImportCancelled(reason)
                 raw_path = raw / f"{prefix}_{current.isoformat()}.json"
                 try:
                     if options.resume_incomplete_month and raw_path.exists():
@@ -3823,6 +3843,22 @@ def run_import(year: int, month: int) -> None:
                 if isinstance(report_trigger_result, dict)
                 else None
             ),
+        )
+    except ImportCancelled as exc:
+        reason_text = {
+            "user_requested": "Annulering aangevraagd door gebruiker.",
+            "service_shutdown": "Import gestopt omdat de add-on wordt afgesloten.",
+        }.get(exc.reason, f"Import geannuleerd: {exc.reason}")
+        LOGGER.info("Import gecontroleerd geannuleerd: %s", reason_text)
+        update_state(
+            status="cancelled",
+            last_finished=datetime.now(TZ).isoformat(),
+            last_error=None,
+            last_validation_status="cancelled",
+            progress_message=reason_text,
+            cancel_requested=False,
+            last_cancel_reason=exc.reason,
+            last_cancelled_at=datetime.now(TZ).isoformat(),
         )
     except Exception as exc:
         LOGGER.exception("Import mislukt.")
@@ -4564,6 +4600,12 @@ def coordinated_month_import(
         )
 
     run_import(year, month)
+    import_state = load_state()
+    if import_state.get("status") == "cancelled":
+        reason = str(import_state.get("last_cancel_reason") or "unknown")
+        raise ImportCancelled(reason)
+    if import_state.get("status") == "error":
+        raise RuntimeError(str(import_state.get("last_error") or "Maandimport mislukt."))
     result = {
         "status": "completed",
         "mode": "started_by_workflow",
@@ -4715,6 +4757,15 @@ def run_full_month_workflow(
                 if required and options.full_workflow_stop_on_error:
                     raise RuntimeError(message)
             return result
+        except ImportCancelled as exc:
+            step_finished = datetime.now(TZ).isoformat()
+            append_workflow_step(
+                steps, name=name, status="cancelled", started_at=step_started,
+                finished_at=step_finished, error=exc.reason,
+            )
+            failed_step = name
+            append_workflow_log(month_key, "info", "Stap geannuleerd", step=name, reason=exc.reason)
+            raise
         except Exception as exc:
             step_finished = datetime.now(TZ).isoformat()
             already_recorded = bool(
@@ -4901,6 +4952,9 @@ def run_full_month_workflow(
                     failed_step = "Rapportgenerator koppelen"
 
         status = "failed" if errors else ("completed_warning" if warnings else "completed")
+    except ImportCancelled as exc:
+        status = "cancelled"
+        infos.append(f"Workflow gecontroleerd geannuleerd: {exc.reason}")
     except Exception as exc:
         if not errors:
             errors.append(str(exc))
@@ -4941,7 +4995,7 @@ def run_full_month_workflow(
         full_workflow_last_status=status,
         full_workflow_last_step=failed_step or "Gereed",
         full_workflow_last_result=str(result_path),
-        full_workflow_last_error=None if status in {"completed", "completed_warning"} else "; ".join(errors),
+        full_workflow_last_error=None if status in {"completed", "completed_warning", "cancelled"} else "; ".join(errors),
     )
     persist_normalized_status(options)
 
@@ -4954,6 +5008,11 @@ def run_full_month_workflow(
                         f"Maand {month_key} is volledig verwerkt. "
                         f"Resultaat: {result_path}"
                     ),
+                )
+            elif status == "cancelled":
+                notify_home_assistant(
+                    "Energie maandworkflow geannuleerd",
+                    f"Maand {month_key} is gecontroleerd geannuleerd.",
                 )
             else:
                 notify_home_assistant(
@@ -4969,7 +5028,7 @@ def run_full_month_workflow(
         result["warnings"] = warnings
         write_atomic_json(result_path, result)
 
-    append_workflow_log(month_key, "info" if status in {"completed", "completed_warning"} else "error", "Workflow afgerond", status=status, failed_step=failed_step, duration_seconds=duration_seconds)
+    append_workflow_log(month_key, "info" if status in {"completed", "completed_warning", "cancelled"} else "error", "Workflow afgerond", status=status, failed_step=failed_step, duration_seconds=duration_seconds)
     set_workflow_lock_state(
         status="idle",
         month=month_key,
@@ -4977,7 +5036,7 @@ def run_full_month_workflow(
         message=(
             "Volledige maandworkflow is afgerond."
             if status in {"completed", "completed_warning"}
-            else "; ".join(errors)
+            else ("Volledige maandworkflow is gecontroleerd geannuleerd." if status == "cancelled" else "; ".join(errors))
         ),
     )
     WORKFLOW_LOCK.release()
@@ -5621,7 +5680,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path.endswith("/cancel") or path == "/cancel":
             if RUN_LOCK.locked():
-                update_state(cancel_requested=True, progress_message="Annulering aangevraagd")
+                update_state(cancel_requested=True, progress_message="Annulering aangevraagd", last_cancel_reason="user_requested")
                 message = "Annulering aangevraagd."
             else:
                 message = "Er draait geen import."

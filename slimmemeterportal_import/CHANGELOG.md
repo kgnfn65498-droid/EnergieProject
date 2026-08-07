@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.1.1
+- Gecontroleerde annulering is geen foutstatus of Python-traceback meer.
+- Annuleringsreden wordt vastgelegd als `user_requested` of `service_shutdown`.
+- Maandworkflow krijgt status `cancelled` en behoudt de add-on als draaiende service.
+- Workflowlog, operationele status en Home Assistant-melding onderscheiden annulering van een echte fout.
+- Geen wijzigingen aan rapportgeneratoren, Recovery Update-contract of definitieve outputnamen.
+
 ## 7.1.0
 - Centrale knop voor maandverwerking start de volledige workflow op de achtergrond.
 - Hervatten na een mislukte/onvolledige workflow hergebruikt reeds geslaagde stappen.
