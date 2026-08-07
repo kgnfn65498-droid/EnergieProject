@@ -38,7 +38,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.1.3"
+APP_VERSION = "7.1.4"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -4691,7 +4691,7 @@ def workflow_heartbeat(month_key: str, step: str, message: str, **extra: Any) ->
         workflow_lock_message=message,
         workflow_heartbeat_at=now,
     )
-    append_workflow_log(month_key, "info", "Heartbeat", step=step, message=message, **extra)
+    append_workflow_log(month_key, "info", "Heartbeat", step=step, heartbeat_message=message, **extra)
 
 
 def coordinated_month_import(

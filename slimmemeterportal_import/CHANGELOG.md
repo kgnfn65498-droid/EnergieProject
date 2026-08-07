@@ -1,3 +1,10 @@
+## 7.1.4
+
+- Herstelt de heartbeat-logaanroep die `message` zowel positioneel als benoemd doorgaf.
+- `workflow_heartbeat()` schrijft de detailtekst nu als `heartbeat_message`, zonder botsing met het hoofdbericht van `append_workflow_log()`.
+- Nieuwe statische regressietest controleert alle `append_workflow_log()`-aanroepen op dubbele `message`-argumenten.
+- Geen wijzigingen aan workflowlogica, rapportgeneratoren, Recovery Update-contract of definitieve outputnamen.
+
 ## 7.1.3
 
 - Workflowfouten bewaren stapnaam, fouttype, fouttekst, doorlooptijd en volledige Python-traceback.
