@@ -425,3 +425,8 @@ De volledige maandworkflow voert vóór overdracht en rapportage een extra doelm
 ## Versie 7.5.0 — productieharde automatische maandafsluiting
 
 Voor een automatische maandafsluiting voert de app eerst een preflight uit op configuratie, lokale schrijfbaarheid, overdrachtsmap en rapport-runtime. Bij een fout start de workflow niet en volgt een veilige retry. Na een automatische workflow controleert de finalization de pre-report-validatie, rapportgeneratie en de gepubliceerde `Energierapport_YYYY_MM.pdf` en `Recovery_Update_YYYY_MM.zip`.
+
+
+## Versie 7.6.0 — bediening automatische maandafsluiting
+
+De operationele console bevat nu een aparte kaart **Automatische maandafsluiting**. Daar kunnen Aan/Uit, dag, uur en retryperiode worden ingesteld. De knop **Test automatische maandafsluiting nu** voert een gecontroleerde productietest uit op een gekozen maand: preflight, echte maandworkflow en finalization. Deze test zet de schedulermaand niet op reeds verwerkt, zodat de reguliere automatische maandafsluiting later gewoon kan plaatsvinden.

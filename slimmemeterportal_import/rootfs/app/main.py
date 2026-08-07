@@ -35,14 +35,15 @@ import ipaddress
 
 BASE_URL = "https://app.slimmemeterportal.nl"
 OPTIONS_PATH = Path("/data/options.json")
+AUTO_CLOSE_UI_OPTIONS_PATH = Path("/config/automatic_month_close.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.5.0"
+APP_VERSION = "7.6.0"
 
 
-# v7.5.0: automatische maandafsluiting krijgt productie-preflight en
-# expliciete eindcontrole. De 11-fasen workflow blijft inhoudelijk gelijk.
+# v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
+# console instelbaar en veilig testbaar. De bestaande maandworkflow blijft gelijk.
 WORKFLOW_VISUAL_PHASES = [
     ("SlimmeMeterPortal API-test", 4.0, 0.3),
     ("SlimmeMeterPortal maandimport", 10.0, 1.5),
@@ -158,6 +159,24 @@ class Options:
             raw = json.loads(OPTIONS_PATH.read_text(encoding="utf-8"))
         except FileNotFoundError as exc:
             raise RuntimeError(f"Optiebestand ontbreekt: {OPTIONS_PATH}") from exc
+        # v7.6: vier automatische-maandafsluitingsvelden mogen vanuit de
+        # operationele console worden overschreven. De rest van de Home
+        # Assistant add-onconfiguratie blijft uitsluitend uit options.json komen.
+        try:
+            ui_auto = json.loads(AUTO_CLOSE_UI_OPTIONS_PATH.read_text(encoding="utf-8"))
+            if isinstance(ui_auto, dict):
+                for key in (
+                    "automatic_month_close_enabled",
+                    "automatic_month_close_day",
+                    "automatic_month_close_hour",
+                    "automatic_month_close_retry_hours",
+                ):
+                    if key in ui_auto:
+                        raw[key] = ui_auto[key]
+        except FileNotFoundError:
+            pass
+        except Exception as exc:
+            LOGGER.warning("UI-instellingen automatische maandafsluiting genegeerd: %s", exc)
         result = cls(
             api_key=str(raw.get("api_key", "")).strip(),
             run_on_start=bool(raw.get("run_on_start", False)),
@@ -452,6 +471,7 @@ def default_state() -> dict[str, Any]:
         "automatic_month_close_next_retry": None,
         "automatic_month_close_last_preflight": None,
         "automatic_month_close_last_finalization": None,
+        "automatic_month_close_test_last_result": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -5958,6 +5978,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "next_retry": state.get("automatic_month_close_next_retry"),
             "last_preflight": state.get("automatic_month_close_last_preflight"),
             "last_finalization": state.get("automatic_month_close_last_finalization"),
+            "test_last_result": state.get("automatic_month_close_test_last_result"),
         },
         "history": history,
         "can_resume": bool(
@@ -5971,6 +5992,73 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
         },
     }
 
+
+
+def save_automatic_month_close_settings(*, enabled: bool, day: int, hour: int, retry_hours: int) -> dict[str, Any]:
+    """Bewaar uitsluitend de v7.6 UI-instellingen voor automatische maandafsluiting."""
+    if not 1 <= day <= 28:
+        raise ValueError("Dag moet 1 t/m 28 zijn.")
+    if not 0 <= hour <= 23:
+        raise ValueError("Uur moet 0 t/m 23 zijn.")
+    if not 1 <= retry_hours <= 48:
+        raise ValueError("Retry moet 1 t/m 48 uur zijn.")
+    payload = {
+        "version": APP_VERSION,
+        "saved_at": datetime.now(TZ).isoformat(),
+        "automatic_month_close_enabled": bool(enabled),
+        "automatic_month_close_day": int(day),
+        "automatic_month_close_hour": int(hour),
+        "automatic_month_close_retry_hours": int(retry_hours),
+    }
+    AUTO_CLOSE_UI_OPTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = AUTO_CLOSE_UI_OPTIONS_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(AUTO_CLOSE_UI_OPTIONS_PATH)
+    return payload
+
+
+def run_automatic_month_close_test(month_key: str) -> dict[str, Any]:
+    """Voer de automatische keten gecontroleerd uit zonder schedulermaand af te vinken."""
+    month_key = historical_month_allowed(month_key)
+    if WORKFLOW_LOCK.locked():
+        raise RuntimeError("Er draait al een maandworkflow.")
+    options = Options.load()
+    preflight = automatic_month_close_preflight(options, month_key)
+    if preflight.get("status") != "ok":
+        result = {
+            "version": APP_VERSION,
+            "tested_at": datetime.now(TZ).isoformat(),
+            "month": month_key,
+            "status": "blocked",
+            "preflight": preflight,
+            "workflow": None,
+            "finalization": None,
+        }
+        update_state(automatic_month_close_test_last_result=result)
+        return result
+
+    current_key = datetime.now(TZ).strftime("%Y_%m")
+    workflow = run_full_month_workflow(
+        month_key,
+        collect_live_snapshots=(month_key == current_key),
+        trigger="automatic_test",
+    )
+    finalization = automatic_month_close_finalize(options, month_key, workflow)
+    status = str(workflow.get("status") or "error")
+    if status in {"completed", "completed_warning"} and finalization.get("status") != "ok":
+        status = "error"
+    result = {
+        "version": APP_VERSION,
+        "tested_at": datetime.now(TZ).isoformat(),
+        "month": month_key,
+        "status": status,
+        "preflight": preflight,
+        "workflow": workflow,
+        "finalization": finalization,
+        "scheduler_state_changed": False,
+    }
+    update_state(automatic_month_close_test_last_result=result)
+    return result
 
 
 def automatic_month_close_preflight(options: Options, month_key: str) -> dict[str, Any]:
@@ -6269,6 +6357,10 @@ def html_page() -> bytes:
         f"Aan — dag {esc(auto_close.get('day'))} om {esc(auto_close.get('hour'))}:00 · retry na {esc(auto_close.get('retry_hours'))} uur"
         if auto_close.get("enabled") else "Uit"
     )
+    auto_preflight = auto_close.get("last_preflight") or {}
+    auto_finalization = auto_close.get("last_finalization") or {}
+    auto_test = auto_close.get("test_last_result") or {}
+    auto_test_month = str(auto_test.get("month") or datetime.now(TZ).strftime("%Y_%m")).replace("_", "-")
 
     return f"""<!doctype html>
 <html lang="nl"><head><meta charset="utf-8">
@@ -6283,7 +6375,7 @@ main{{max-width:1180px;margin:22px auto;padding:0 18px 40px}} h1{{margin-bottom:
 .metric{{padding:16px;border:1px solid var(--border);border-radius:12px;background:#fff}} .metric small{{display:block;color:var(--muted);margin-bottom:7px}} .metric strong{{font-size:1.08rem;overflow-wrap:anywhere}}
 .pill{{display:inline-block;padding:4px 9px;border-radius:999px;font-weight:700;font-size:.82rem;background:#e8edf0;color:#4b5963}} .pill.ok{{background:#e6f5ec;color:var(--ok)}} .pill.warn{{background:#fff2d8;color:var(--warn)}} .pill.bad{{background:#fde8e5;color:var(--bad)}}
 .progress{{height:12px;background:#e7edf1;border-radius:999px;overflow:hidden;margin:10px 0 5px}} .progress>span{{display:block;height:100%;width:{progress_pct}%;background:var(--blue);transition:width 1.2s ease;position:relative;overflow:hidden}} .progress>span.running::after{{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,#ffffff55,transparent);transform:translateX(-100%);animation:flow 1.6s infinite}} @keyframes flow{{to{{transform:translateX(100%)}}}}
-.controls{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}} .control-group{{border:1px solid var(--border);border-radius:12px;padding:16px}} form{{margin:9px 0}} button{{background:var(--blue);color:#fff;border:0;border-radius:8px;padding:11px 15px;font-weight:700;cursor:pointer}} button.secondary{{background:#546e7a}} button.danger{{background:#c0392b}} input{{padding:10px;border:1px solid #b8c3ca;border-radius:8px;max-width:190px}}
+.controls{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}} .control-group{{border:1px solid var(--border);border-radius:12px;padding:16px}} form{{margin:9px 0}} button{{background:var(--blue);color:#fff;border:0;border-radius:8px;padding:11px 15px;font-weight:700;cursor:pointer}} button.secondary{{background:#546e7a}} button.danger{{background:#c0392b}} input,select{{padding:10px;border:1px solid #b8c3ca;border-radius:8px;max-width:190px}} .inline-fields{{display:flex;gap:8px;flex-wrap:wrap;align-items:center}} .inline-fields label{{font-size:.9rem;color:var(--muted)}}
 .hint{{font-size:.9rem;color:var(--muted);margin:7px 0}} table{{width:100%;border-collapse:collapse}} th,td{{text-align:left;border-bottom:1px solid var(--border);padding:10px 8px;vertical-align:top}} th{{font-size:.82rem;color:var(--muted)}} .table-wrap{{overflow-x:auto}}
 details{{border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin:9px 0}} summary{{cursor:pointer;font-weight:700}} .source-list{{list-style:none;padding:0;margin:0}} .source-list li{{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #eef2f4}}
 a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{background:#101820;color:#e8eef2;border-radius:10px;padding:12px;min-height:110px;max-height:300px;overflow:auto;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}} .score{{font-size:2rem;font-weight:800}} 
@@ -6319,6 +6411,31 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <form method="post" action="verify"><button type="submit">Controleer laatste maand</button></form>
 <form method="post" action="test-api"><button type="submit">Test API-verbinding</button></form>
 <form method="post" action="self-test"><button type="submit" class="secondary">Voer volledige zelftest uit</button></form>
+</div>
+</div></div>
+
+<div class="card"><h2>Automatische maandafsluiting</h2>
+<div class="controls">
+<div class="control-group"><h3>Planning</h3>
+<form method="post" action="save-automatic-month-close">
+<div class="inline-fields">
+<label><input type="checkbox" name="enabled" value="1" {'checked' if auto_close.get('enabled') else ''}> Aan</label>
+<label>Dag <input type="number" name="day" min="1" max="28" value="{esc(auto_close.get('day') or 2)}" required></label>
+<label>Uur <input type="number" name="hour" min="0" max="23" value="{esc(auto_close.get('hour') if auto_close.get('hour') is not None else 4)}" required></label>
+<label>Retry (uur) <input type="number" name="retry_hours" min="1" max="48" value="{esc(auto_close.get('retry_hours') or 6)}" required></label>
+</div>
+<p><button type="submit">Planning opslaan</button></p>
+</form>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Deze vier waarden worden door v7.6 in de operationele console bewaard.</p>
+</div>
+<div class="control-group"><h3>Veilige productietest</h3>
+<form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary">Test automatische maandafsluiting nu</button></form>
+<p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
+<ul class="source-list">
+<li><span>Laatste preflight</span><span class="pill {status_class(auto_preflight.get('status'))}">{esc(auto_preflight.get('status') or 'Nog niet getest')}</span></li>
+<li><span>Laatste finalization</span><span class="pill {status_class(auto_finalization.get('status'))}">{esc(auto_finalization.get('status') or 'Nog niet getest')}</span></li>
+<li><span>Laatste productietest</span><span class="pill {status_class(auto_test.get('status'))}">{esc(auto_test.get('status') or 'Nog niet getest')}</span></li>
+</ul>
 </div>
 </div></div>
 
@@ -6378,7 +6495,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <form method="post" action="run-report-generation"><button type="submit">Genereer compleet maandrapport</button></form>
 </details>
 <p class="links"><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="workflow-lock-status">Workflowstatus</a> · <a href="operation-status">Operationele status</a> · <a href="health-dashboard">Gezondheidsdashboard</a> · <a href="health">Healthcheck</a></p>
-<p class="hint">API-key en planning staan op het tabblad <strong>Configuratie</strong>.</p>
+<p class="hint">API-key en algemene importplanning staan op het tabblad <strong>Configuratie</strong>. De automatische maandafsluiting kan vanaf v7.6 ook hierboven worden ingesteld.</p>
 </div>
 <script>
 function escapeHtml(value){{
@@ -6617,6 +6734,58 @@ class Handler(BaseHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        if path.endswith("/save-automatic-month-close") or path == "/save-automatic-month-close":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
+            try:
+                result = save_automatic_month_close_settings(
+                    enabled=str((form.get("enabled") or [""])[0]).strip() == "1",
+                    day=int((form.get("day") or ["2"])[0]),
+                    hour=int((form.get("hour") or ["4"])[0]),
+                    retry_hours=int((form.get("retry_hours") or ["6"])[0]),
+                )
+                update_state(automatic_month_close_ui_settings_last=result)
+                self.send_redirect("./")
+            except Exception as exc:
+                self.send_body(
+                    HTTPStatus.BAD_REQUEST,
+                    ("<html><meta charset='utf-8'><p>Instellingen niet opgeslagen: "
+                     + html.escape(str(exc))
+                     + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
+            return
+
+        if path.endswith("/test-automatic-month-close") or path == "/test-automatic-month-close":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
+            selected = str((form.get("month") or [""])[0]).strip().replace("-", "_")
+            try:
+                month_key = historical_month_allowed(selected)
+                def worker() -> None:
+                    try:
+                        run_automatic_month_close_test(month_key)
+                    except Exception as exc:
+                        update_state(automatic_month_close_test_last_result={
+                            "version": APP_VERSION,
+                            "tested_at": datetime.now(TZ).isoformat(),
+                            "month": month_key,
+                            "status": "error",
+                            "error": str(exc),
+                            "scheduler_state_changed": False,
+                        })
+                threading.Thread(target=worker, daemon=True).start()
+                self.send_redirect("./")
+            except Exception as exc:
+                self.send_body(
+                    HTTPStatus.BAD_REQUEST,
+                    ("<html><meta charset='utf-8'><p>Automatische productietest kon niet starten: "
+                     + html.escape(str(exc))
+                     + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
+            return
+
         if path.endswith("/start-month-workflow") or path == "/start-month-workflow":
             length = int(self.headers.get("Content-Length", "0") or 0)
             form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))

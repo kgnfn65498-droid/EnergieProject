@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.6.0
+- Bedien automatische maandafsluiting rechtstreeks vanuit de operationele console.
+- Aan/uit, dag, uur en retryperiode zijn instelbaar zonder handmatig configbestand.
+- Veilige knop `Test automatische maandafsluiting nu`.
+- Productietest gebruikt echte preflight, workflow en finalization maar verandert de schedulermaandstatus niet.
+- Preflight-, finalization- en teststatus zichtbaar in de console.
+- Bestaande maandworkflow en officiële rapportgeneratoren ongewijzigd.
+
 ## 7.5.0
 - Productie-preflight vóór automatische maandafsluiting.
 - Controle op lokale opslag, overdrachtsmap en rapport-runtime vóór een onbemande run.
