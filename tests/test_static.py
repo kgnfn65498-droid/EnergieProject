@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "7.3.3"
+    assert cfg_version == app_version == "7.3.4"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "7.3.3"' in config
+    assert 'version: "7.3.4"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1149,8 +1149,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "7.3.3"' in config
-    assert 'APP_VERSION = "7.3.3"' in main
+    assert 'version: "7.3.4"' in config
+    assert 'APP_VERSION = "7.3.4"' in main
 
 
 def test_phase7_configuration_present():
@@ -1496,3 +1496,18 @@ def test_v732_month_validation_reports_checked_historical_paths():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"source_paths_checked"' in source
     assert 'gecontroleerde historische bronnen' in source
+
+
+def test_v734_historical_required_files_are_source_aware():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def required_month_input_files(options: Options, *, historical: bool = False)" in source
+    assert "if not historical and options.month_input_require_homewizard:" in source
+    assert "required = required_month_input_files(options, historical=reuse_existing)" in source
+
+
+def test_v734_historical_report_is_skipped_when_detail_sources_incomplete():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def report_input_readiness(month_key: str, options: Options)" in source
+    assert '"Historisch rapport overgeslagen"' in source
+    assert '"Historische detailbronnen zijn niet volledig beschikbaar."' in source
+    assert 'status="skipped"' in source

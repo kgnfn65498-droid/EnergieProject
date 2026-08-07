@@ -38,7 +38,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.3.3"
+APP_VERSION = "7.3.4"
 
 
 # v7.3.3: historische maandarchief-recovery plus gewogen workflowvisualisatie. De gewichten zijn gebaseerd op de
@@ -4082,6 +4082,57 @@ def expected_month_input_files(options: Options) -> list[str]:
 
 
 
+def required_month_input_files(options: Options, *, historical: bool = False) -> set[str]:
+    """Return files that must exist for the selected workflow mode.
+
+    A historical workflow must not fail because present-day device sources did not
+    exist, were switched off, or were never archived for the requested month. Exact
+    historical files are still reused when available. EPEX remains required only
+    when its historical importer is explicitly enabled.
+    """
+    required: set[str] = set()
+    if not historical and options.month_input_require_homewizard:
+        required.update([
+            "P1e.csv",
+            "P1g.csv",
+            "Airco Skt.csv",
+            "Mobiel Skt.csv",
+            "Heater kantoor Skt.csv",
+            "Heater woonkamer Skt.csv",
+            "Heater lounge Skt.csv",
+        ])
+    if not historical and options.month_input_require_enphase:
+        required.add("Enphase.csv")
+    if not historical and options.month_input_require_nordpool:
+        required.add("Nordpool elektriciteit.csv")
+    if options.epex_electricity_enabled:
+        required.add("EPEX stroom.csv")
+    if options.epex_gas_enabled:
+        required.add("EPEX gas.csv")
+    return required
+
+
+def report_input_readiness(month_key: str, options: Options) -> dict[str, Any]:
+    """Check whether the official report chain has its complete input contract."""
+    folder = MONTH_INPUT_ROOT / month_key
+    expected = expected_month_input_files(options)
+    missing: list[str] = []
+    empty: list[str] = []
+    for filename in expected:
+        path = folder / filename
+        if not path.exists() or not path.is_file():
+            missing.append(filename)
+        elif path.stat().st_size == 0:
+            empty.append(filename)
+    return {
+        "status": "ready" if not missing and not empty else "incomplete",
+        "folder": str(folder),
+        "expected": expected,
+        "missing": sorted(missing),
+        "empty": sorted(empty),
+    }
+
+
 def historical_month_input_candidates(month_key: str, options: "Options") -> dict[str, Any]:
     """Return read-only candidate locations for previously built historical month input.
 
@@ -4301,25 +4352,7 @@ def build_month_input(month_key: str | None = None, *, reuse_existing: bool = Fa
         if result["written_rows"] == 0:
             empty.append(destination.name)
 
-    required: set[str] = set()
-    if options.month_input_require_homewizard:
-        required.update([
-            "P1e.csv",
-            "P1g.csv",
-            "Airco Skt.csv",
-            "Mobiel Skt.csv",
-            "Heater kantoor Skt.csv",
-            "Heater woonkamer Skt.csv",
-            "Heater lounge Skt.csv",
-        ])
-    if options.month_input_require_enphase:
-        required.add("Enphase.csv")
-    if options.month_input_require_nordpool:
-        required.add("Nordpool elektriciteit.csv")
-    if options.epex_electricity_enabled:
-        required.add("EPEX stroom.csv")
-    if options.epex_gas_enabled:
-        required.add("EPEX gas.csv")
+    required = required_month_input_files(options, historical=reuse_existing)
 
     missing_required = sorted(required.intersection(missing))
     empty_required = sorted(required.intersection(empty))
@@ -4358,6 +4391,8 @@ def build_month_input(month_key: str | None = None, *, reuse_existing: bool = Fa
         "optional_empty": optional_empty,
         "infos": info_messages,
         "reuse_existing": reuse_existing,
+        "historical_mode": reuse_existing,
+        "required_files": sorted(required),
         "historical_recovery": historical_recovery,
         "source_paths_checked": historical_recovery.get("checked", []) if reuse_existing else [],
         "reused_existing_files": sorted(
@@ -5368,21 +5403,51 @@ def run_full_month_workflow(
                 errors.append("Rapportoverdracht voorbereiden: report_handoff ontbreekt.")
                 failed_step = "Rapportoverdracht voorbereiden"
             else:
-                report_result = execute_step(
-                    "Rapportgenerator koppelen",
-                    lambda: run_report_generation_from_handoff(
-                        options,
-                        report_handoff["request"],
-                    ),
-                    required=(options.report_service_enabled or options.report_trigger_enabled),
-                )
-                if (
-                    (options.report_service_enabled or options.report_trigger_enabled)
-                    and isinstance(report_result, dict)
-                    and report_result.get("status") != "completed"
-                ):
-                    errors.append("Rapportgenerator koppelen: rapport niet voltooid.")
-                    failed_step = "Rapportgenerator koppelen"
+                readiness = report_input_readiness(month_key, options)
+                historical_mode = not collect_live_snapshots
+                if historical_mode and readiness.get("status") != "ready":
+                    now_iso = datetime.now(TZ).isoformat()
+                    append_workflow_step(
+                        steps,
+                        name="Rapportgenerator koppelen",
+                        status="skipped",
+                        started_at=now_iso,
+                        finished_at=now_iso,
+                        result={
+                            "status": "skipped",
+                            "reason": "Historische detailbronnen zijn niet volledig beschikbaar.",
+                            "report_input": readiness,
+                        },
+                    )
+                    warning = (
+                        "Historische maand verwerkt; rapportgeneratie overgeslagen omdat "
+                        "historische detailbronnen ontbreken: "
+                        + ", ".join(readiness.get("missing") or readiness.get("empty") or [])
+                    )
+                    warnings.append(warning)
+                    append_workflow_log(
+                        month_key,
+                        "warning",
+                        "Historisch rapport overgeslagen",
+                        missing=readiness.get("missing", []),
+                        empty=readiness.get("empty", []),
+                    )
+                else:
+                    report_result = execute_step(
+                        "Rapportgenerator koppelen",
+                        lambda: run_report_generation_from_handoff(
+                            options,
+                            report_handoff["request"],
+                        ),
+                        required=(options.report_service_enabled or options.report_trigger_enabled),
+                    )
+                    if (
+                        (options.report_service_enabled or options.report_trigger_enabled)
+                        and isinstance(report_result, dict)
+                        and report_result.get("status") != "completed"
+                    ):
+                        errors.append("Rapportgenerator koppelen: rapport niet voltooid.")
+                        failed_step = "Rapportgenerator koppelen"
 
         status = "failed" if errors else ("completed_warning" if warnings else "completed")
     except ImportCancelled as exc:
