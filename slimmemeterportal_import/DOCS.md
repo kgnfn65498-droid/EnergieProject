@@ -508,3 +508,10 @@ Een echte automatische maandafsluiting wordt pas als definitief uitgevoerd besch
 De operationele console toont expliciet de status van automatisch herstel. Een mislukte of geblokkeerde automatische maandafsluiting vermeldt of een retry gepland staat en op welk tijdstip. Een definitief geslaagde maand toont dat de duurzame completion-marker aanwezig is.
 
 De scheduler-acceptatietekst is vereenvoudigd naar simulatiemoment, doelmaand, eventuele voorbereidende productietest en bevestiging dat de schedulerinstelling ongewijzigd bleef.
+
+
+## Versie 8.8.0 — consistente retry-state
+
+v8.8 voorkomt dat een oude retry ten onrechte zichtbaar blijft nadat dezelfde productiemaand aantoonbaar definitief is afgerond. Opschoning is bewust conservatief: een geslaagde productietest of scheduler-test mag een echte openstaande productie-retry niet verbergen.
+
+Nieuwe retries bewaren naast het retrytijdstip ook retry-maand, reden en oorsprong. Een succesvolle echte automatische maandafsluiting wist deze velden. Scheduler-acceptatietests nemen de velden op in hun snapshot en herstellen ze na de simulatie.

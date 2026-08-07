@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.8.0
+- Verouderde retry-state wordt alleen opgeschoond wanneer aantoonbaar is dat de betreffende productiemaand definitief is afgerond of de retry uit een test/acceptatiesimulatie afkomstig is.
+- Echte openstaande productie-retries worden nooit gewist door een geslaagde productietest.
+- Nieuwe retry-metadata bewaart maand, reden en oorsprong van iedere toekomstige retry.
+- Een succesvolle echte automatische maandafsluiting wist retry-tijd en retry-metadata expliciet.
+- Scheduler-acceptatietest bewaart en herstelt ook de nieuwe retry-metadata.
+- `Automatisch herstel` toont bij echte retries maand, tijdstip, oorsprong en reden.
+- Schedulerroute, idempotency-beveiliging, rapportgeneratoren en Recovery Update inhoudelijk ongewijzigd.
+
 ## 8.7.0
 - Duidelijkere scheduler-acceptatietekst met simulatiemoment, doelmaand, voorbereidende productietest en ongewijzigde schedulerinstelling.
 - Nieuwe zichtbare status `Automatisch herstel` in de productiestatus.

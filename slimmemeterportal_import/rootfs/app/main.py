@@ -41,7 +41,7 @@ STATE_PATH = Path("/config/state.json")
 AUTOMATIC_RUN_LEDGER_PATH = Path("/config/output/automatic_run_history.jsonl")
 AUTOMATIC_COMPLETION_MARKERS_PATH = Path("/config/output/automatic_completed_months.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.7.0"
+APP_VERSION = "8.8.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -471,6 +471,9 @@ def default_state() -> dict[str, Any]:
         "full_workflow_last_trigger": None,
         "automatic_month_close_last_attempt": None,
         "automatic_month_close_next_retry": None,
+        "automatic_month_close_retry_month": None,
+        "automatic_month_close_retry_reason": None,
+        "automatic_month_close_retry_origin": None,
         "automatic_month_close_last_preflight": None,
         "automatic_month_close_last_finalization": None,
         "automatic_month_close_test_last_result": None,
@@ -5985,11 +5988,45 @@ def workflow_visualization(state: dict[str, Any], log_lines: list[dict[str, Any]
     }
 
 
+def reconcile_automatic_retry_state(state: dict[str, Any]) -> dict[str, Any]:
+    """Ruim alleen aantoonbaar verouderde retry-state op; echte open retries blijven staan."""
+    last_month = str(state.get("automatic_month_close_last_month") or "")
+    last_status = str(state.get("automatic_month_close_last_status") or "")
+    next_retry = state.get("automatic_month_close_next_retry")
+    retry_month = str(state.get("automatic_month_close_retry_month") or last_month or "")
+    retry_origin = str(state.get("automatic_month_close_retry_origin") or "")
+
+    if not next_retry:
+        return state
+
+    completed = bool(retry_month and automatic_month_is_completed(retry_month))
+    state_says_completed = bool(
+        retry_month
+        and retry_month == last_month
+        and last_status in {"completed", "completed_warning"}
+    )
+    test_origin = retry_origin in {"automatic_test", "scheduler_test", "acceptance_test"}
+
+    if completed or state_says_completed or test_origin:
+        update_state(
+            automatic_month_close_next_retry=None,
+            automatic_month_close_retry_month=None,
+            automatic_month_close_retry_reason=None,
+            automatic_month_close_retry_origin=None,
+        )
+        return load_state()
+
+    return state
+
+
 def automatic_recovery_status(state: dict[str, Any], options: Options) -> dict[str, Any]:
     """Leesbare retry- en herstelstatus voor automatische maandafsluiting."""
     last_month = state.get("automatic_month_close_last_month")
     last_status = str(state.get("automatic_month_close_last_status") or "")
     next_retry = state.get("automatic_month_close_next_retry")
+    retry_month = str(state.get("automatic_month_close_retry_month") or last_month or "")
+    retry_reason = str(state.get("automatic_month_close_retry_reason") or "")
+    retry_origin = str(state.get("automatic_month_close_retry_origin") or "")
     completed = bool(last_month and automatic_month_is_completed(str(last_month)))
 
     if completed:
@@ -6001,10 +6038,15 @@ def automatic_recovery_status(state: dict[str, Any], options: Options) -> dict[s
             "retry_required": False,
         }
     if next_retry and last_status in {"blocked", "error", "failed"}:
+        origin_text = "echte automatische maandafsluiting" if retry_origin in {"", "automatic"} else retry_origin
+        reason_text = f" Reden: {retry_reason}." if retry_reason else ""
         return {
             "status": "retry_scheduled",
             "label": "Retry gepland",
-            "detail": f"{last_month or 'Onbekende maand'} wordt opnieuw geprobeerd op {format_local_datetime(next_retry)}.",
+            "detail": (
+                f"{retry_month or last_month or 'Onbekende maand'} wordt opnieuw geprobeerd op "
+                f"{format_local_datetime(next_retry)} ({origin_text}).{reason_text}"
+            ),
             "next_retry": next_retry,
             "retry_required": True,
         }
@@ -6029,6 +6071,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
     """Return one compact operational view without changing workflow state."""
     options = options or Options.load()
     state = persist_normalized_status(options)
+    state = reconcile_automatic_retry_state(state)
     results_root = OUTPUT_ROOT / "workflow_results"
     history: list[dict[str, Any]] = []
     if results_root.exists():
@@ -6501,6 +6544,9 @@ def execute_automatic_month_close(
         automatic_month_close_last_attempt=attempt_at.isoformat(),
         automatic_month_close_last_run=attempt_at.isoformat(),
         automatic_month_close_next_retry=None,
+        automatic_month_close_retry_month=None,
+        automatic_month_close_retry_reason=None,
+        automatic_month_close_retry_origin=None,
     )
     preflight = automatic_month_close_preflight(options, month_key)
     if preflight.get("status") != "ok":
@@ -6510,6 +6556,9 @@ def execute_automatic_month_close(
             automatic_month_close_last_status="blocked",
             automatic_month_close_last_run=datetime.now(TZ).isoformat(),
             automatic_month_close_next_retry=retry_at,
+            automatic_month_close_retry_month=month_key,
+            automatic_month_close_retry_reason="preflight_blocked",
+            automatic_month_close_retry_origin="automatic" if record_as_real_automatic else "scheduler_test",
         )
         result = {"month": month_key, "status": "blocked", "preflight": preflight, "workflow": None, "finalization": None, "retry_at": retry_at}
         if record_as_real_automatic:
@@ -6536,11 +6585,18 @@ def execute_automatic_month_close(
     retry_at = None
     if final_status not in {"completed", "completed_warning"}:
         retry_at = (datetime.now(TZ) + timedelta(hours=options.automatic_month_close_retry_hours)).isoformat()
+    retry_needed = final_status not in {"completed", "completed_warning"}
     update_state(
         automatic_month_close_last_month=month_key,
         automatic_month_close_last_status=final_status,
         automatic_month_close_last_run=datetime.now(TZ).isoformat(),
-        automatic_month_close_next_retry=retry_at,
+        automatic_month_close_next_retry=retry_at if retry_needed else None,
+        automatic_month_close_retry_month=month_key if retry_needed else None,
+        automatic_month_close_retry_reason="workflow_or_finalization_failed" if retry_needed else None,
+        automatic_month_close_retry_origin=(
+            ("automatic" if record_as_real_automatic else "scheduler_test")
+            if retry_needed else None
+        ),
     )
     result = {"month": month_key, "status": final_status, "preflight": preflight, "workflow": workflow, "finalization": finalization, "retry_at": retry_at}
     if record_as_real_automatic:
@@ -6619,6 +6675,9 @@ def automatic_scheduler_acceptance_test() -> dict[str, Any]:
         "automatic_month_close_last_attempt",
         "automatic_month_close_last_run",
         "automatic_month_close_next_retry",
+        "automatic_month_close_retry_month",
+        "automatic_month_close_retry_reason",
+        "automatic_month_close_retry_origin",
     )
     before = load_state()
     scheduler_before = {key: before.get(key) for key in scheduler_keys}
@@ -7088,7 +7147,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.7 bewaart de planning bij upgrades, voorkomt dubbele automatische maandafsluitingen na restart en maakt retries expliciet zichtbaar.</p>
+<p class="hint">v8.8 bewaart alleen echte openstaande productie-retries en ruimt aantoonbaar verouderde retry-state automatisch op.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 </div>
 
@@ -7110,13 +7169,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.7.0 productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.8.0 productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
-<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.7 die eerst automatisch veilig uit.</p>
+<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.8 die eerst automatisch veilig uit.</p>
 <ul class="source-list">
 <li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>
