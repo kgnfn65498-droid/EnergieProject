@@ -17,19 +17,20 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 7.3.1
+- SlimmeMeterPortal Import 7.3.2
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
 
 ## Fase 7
 
-Versie 7.3.1 bouwt rechtstreeks voort op de stabiele v7.2.0-workflow. Deze release wijzigt uitsluitend de workflowvisualisatie: de voortgang wordt gewogen op basis van de gemeten stapduur, reset direct bij een nieuwe run en toont actieve stap, detail en een indicatieve resterende tijd. De importlogica, rapportgeneratoren, Recovery Update-inhoud en definitieve outputnamen blijven ongewijzigd.
+Versie 7.3.2 bouwt voort op de stabiele v7.3.1-workflow. Deze release herstelt historische maandverwerking zonder actuele snapshots als historische data te gebruiken. Bij een historische run worden exact benoemde bestaande maandbestanden hergebruikt uit de lokale `01_Input`-map, het bestaande overdrachtspakket of een bewaarde `01_Input_YYYY_MM.zip`.
 
-### v7.3.1
-- Gewogen voortgang over acht vaste hoofdphasen.
-- Directe 0%-reset bij start, hervatten en historische verwerking.
-- Vloeiende animatie tijdens lange stappen.
-- Actieve stap, subactiviteit en indicatieve resterende tijd zichtbaar.
-- Historische runs gebruiken dezelfde 8-fasen telling als de actuele workflow.
-- Geen wijzigingen aan import-, rapport- of Recovery Update-backend.
+### v7.3.2
+- Herstel historische maanddata uit bestaande, exact benoemde bronnen.
+- Zoek ook in het bestaande overdrachtspakket en `01_Input_YYYY_MM.zip`.
+- Bestaande bestanden worden nooit overschreven of hernoemd.
+- Actuele HomeWizard/HA-snapshots worden nooit als historische data gebruikt.
+- Validatiefouten vermelden voortaan alle gecontroleerde historische bronpaden.
+- Gewogen 8-fasenvoortgang uit v7.3.0 blijft behouden.
+- Geen wijzigingen aan officiële rapportgeneratoren, Recovery Update-contract of vaste outputnamen.

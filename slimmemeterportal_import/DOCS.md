@@ -410,7 +410,7 @@ De losse knop `Maak overdrachtspakket` blijft bewust niet-overschrijvend.
 - `operation-status` toont de actieve workflow, laatste run, automatische afsluitstatus en recente maandresultaten.
 - Definitieve bestanden blijven `Energierapport_YYYY_MM.pdf` en `Recovery_Update_YYYY_MM.zip`.
 
-## Versie 7.3.1 — meldingen en automatische maandafsluiting
+## Versie 7.3.2 — meldingen en automatische maandafsluiting
 
 De volledige maandworkflow heeft eigen Home Assistant-meldingen. Met `workflow_notify_home_assistant` kunnen deze onafhankelijk van de overdrachtsmelding worden in- of uitgeschakeld. Met `workflow_notify_on_start` kan ook de start van een handmatige of automatische workflow worden gemeld. Tijdens de volledige workflow wordt de losse overdrachtsmelding onderdrukt, zodat één workflow niet meerdere tussentijdse "gereed"-meldingen veroorzaakt.
 

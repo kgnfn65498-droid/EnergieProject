@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "7.3.1"
+    assert cfg_version == app_version == "7.3.2"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "7.3.1"' in config
+    assert 'version: "7.3.2"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1149,8 +1149,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "7.3.1"' in config
-    assert 'APP_VERSION = "7.3.1"' in main
+    assert 'version: "7.3.2"' in config
+    assert 'APP_VERSION = "7.3.2"' in main
 
 
 def test_phase7_configuration_present():
@@ -1463,3 +1463,23 @@ def test_v731_background_workflow_accepts_explicit_trigger():
     assert "trigger: str | None = None" in source
     assert 'resolved_trigger = trigger or ("resume" if resume else "manual")' in source
     assert "trigger=resolved_trigger" in source
+
+
+def test_v732_historical_recovery_searches_transfer_folder_and_zip():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def recover_historical_month_input" in source
+    assert 'transfer_root / month_key' in source
+    assert 'transfer_root / f"01_Input_{month_key}.zip"' in source
+    assert 'MONTH_INPUT_ROOT / f"01_Input_{month_key}.zip"' in source
+
+
+def test_v732_historical_recovery_never_overwrites_existing_files():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'if destination.exists() or not source.exists()' in source
+    assert 'if destination.exists() or not member:' in source
+
+
+def test_v732_month_validation_reports_checked_historical_paths():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"source_paths_checked"' in source
+    assert 'gecontroleerde historische bronnen' in source

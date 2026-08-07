@@ -1,36 +1,36 @@
 # Changelog
 
-## 7.3.1
+## 7.3.2
 
-- Historische maandverwerking hergebruikt bestaande 01_Input-bestanden wanneer live snapshots bewust worden overgeslagen.
-- Historische workflow start op de achtergrond en keert direct terug naar de operationele console.
-- API-verbindingstest keert na een geslaagde test direct terug naar de operationele console.
-- Hervatten kan vanaf een mislukte historische workflow de eerder geslaagde stappen hergebruiken.
+- Historische maandverwerking zoekt bestaande maandbestanden in lokale `01_Input`, het overdrachtspakket en `01_Input_YYYY_MM.zip`.
+- Bestanden worden uitsluitend met exact dezelfde case-sensitive naam hergebruikt; niets wordt automatisch hernoemd.
+- Bestaande doelbestanden worden nooit overschreven.
+- Actuele live snapshots worden niet gebruikt om historische maanden kunstmatig aan te vullen.
+- Maandvalidatie rapporteert bij ontbrekende bestanden ook welke historische bronpaden zijn gecontroleerd.
 - Geen wijzigingen aan rapportgeneratoren, Recovery Update-contract of vaste outputnamen.
 
-# 7.3.1
-
-- Gewogen workflowvoortgang op basis van gemeten stapduur.
-- Voortgang reset direct naar 0% bij start/hervatten/historische run.
-- Vloeiende animatie tijdens lange stappen.
-- Actieve stap, detail en geschatte resterende tijd zichtbaar.
-- Acht vaste hoofdphasen voor consistente actieve en historische visualisatie.
-- Geen wijzigingen aan import-, rapport- of Recovery Update-logica.
-
-- Workflowmeldingen zijn losgekoppeld van overdrachtsmeldingen.
-- Optionele Home Assistant-melding bij start van een maandworkflow.
-- Automatische maandafsluiting meldt start, succes, annulering en fouten herkenbaar als automatische run.
-- Automatische maandafsluiting wacht standaard 6 uur na een mislukte poging voordat opnieuw wordt geprobeerd; geen retry-lus meer.
-- Operationele status bevat workflow-trigger en informatie over de volgende automatische retry.
-- Rapportketen, Recovery Update-contract en vaste outputnamen zijn ongewijzigd.
-
 ## 7.3.1
 
-- Live workflowlog wordt rechtstreeks via `operation-status` aangeleverd en iedere 2,5 seconde in de console ververst.
-- Statuspillen en gezondheidschecks verversen nu mee met de actieve workflow.
-- De volledige zelftest toont een leesbare tabel met controles, status en details in plaats van ruwe JSON.
-- JavaScript-syntax wordt opnieuw gecontroleerd op de daadwerkelijk gegenereerde console.
-- Geen wijzigingen aan backend-workflow, rapportgeneratoren, Recovery Update of outputcontract.
+- Historische workflow draait op de achtergrond en keert terug naar de operationele console.
+- API-test keert na succes terug naar de operationele console.
+- Bestaande `01_Input`-bestanden kunnen bij historische runs worden hergebruikt.
+
+## 7.3.0
+
+- Gewogen workflowvoortgang over acht hoofdphasen.
+- Directe 0%-reset bij start, hervatten en historische run.
+- Vloeiende voortgang, actieve stap, subactiviteit en indicatieve resterende tijd.
+
+## 7.2.0
+
+- Workflowmeldingen losgekoppeld van overdrachtsmeldingen.
+- Start-/eindmeldingen en veilige automatische retry na mislukte maandafsluiting.
+
+## 7.1.7
+
+- Live workflowlog via `operation-status`.
+- Statuspillen en gezondheidschecks verversen live.
+- Zelftest toont leesbare tabel in plaats van ruwe JSON.
 
 ## 7.1.6
 

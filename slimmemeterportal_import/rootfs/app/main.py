@@ -38,10 +38,10 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.3.1"
+APP_VERSION = "7.3.2"
 
 
-# v7.3.1: gewogen workflowvisualisatie. De gewichten zijn gebaseerd op de
+# v7.3.2: historische bronrecovery plus gewogen workflowvisualisatie. De gewichten zijn gebaseerd op de
 # gemeten doorlooptijd van de stabiele v7.2-workflow en tellen exact op tot 100.
 WORKFLOW_VISUAL_PHASES = [
     ("SlimmeMeterPortal API-test", 5.0, 0.3),
@@ -4080,6 +4080,82 @@ def expected_month_input_files(options: Options) -> list[str]:
     return files
 
 
+
+
+def historical_month_input_candidates(month_key: str, options: "Options") -> dict[str, Any]:
+    """Return read-only candidate locations for previously built historical month input.
+
+    Historical processing must never manufacture old HomeWizard/HA snapshots from
+    current live data. We therefore only reuse exact, already stored month files.
+    """
+    parse_month_key(month_key)
+    transfer_root = TRANSFER_SHARE_ROOT / Path(options.transfer_share_folder)
+    roots = [
+        MONTH_INPUT_ROOT / month_key,
+        transfer_root / month_key,
+        transfer_root / "01_Input" / month_key,
+    ]
+    zips = [
+        MONTH_INPUT_ROOT / f"01_Input_{month_key}.zip",
+        transfer_root / f"01_Input_{month_key}.zip",
+    ]
+    return {
+        "roots": roots,
+        "zips": zips,
+        "checked": [str(path) for path in [*roots, *zips]],
+    }
+
+
+def recover_historical_month_input(month_key: str, target: Path, options: "Options") -> dict[str, Any]:
+    """Recover exact historical input files from existing folders/archives.
+
+    Files are copied with their existing case-sensitive names. Existing target files
+    are never overwritten. ZIP members are accepted only when their basename exactly
+    matches an expected input filename, preventing path traversal and accidental
+    renaming.
+    """
+    candidates = historical_month_input_candidates(month_key, options)
+    expected = set(expected_month_input_files(options))
+    recovered: list[dict[str, str]] = []
+
+    for source_root in candidates["roots"]:
+        if source_root == target or not source_root.exists() or not source_root.is_dir():
+            continue
+        for filename in sorted(expected):
+            source = source_root / filename
+            destination = target / filename
+            if destination.exists() or not source.exists() or not source.is_file():
+                continue
+            shutil.copy2(source, destination)
+            recovered.append({"file": filename, "source": str(source), "target": str(destination)})
+
+    for archive_path in candidates["zips"]:
+        if not archive_path.exists() or not archive_path.is_file():
+            continue
+        try:
+            with zipfile.ZipFile(archive_path, "r") as archive:
+                members_by_name: dict[str, str] = {}
+                for member in archive.namelist():
+                    path = Path(member)
+                    if path.name in expected and not member.endswith("/"):
+                        members_by_name.setdefault(path.name, member)
+                for filename in sorted(expected):
+                    destination = target / filename
+                    member = members_by_name.get(filename)
+                    if destination.exists() or not member:
+                        continue
+                    data = archive.read(member)
+                    destination.write_bytes(data)
+                    recovered.append({"file": filename, "source": f"{archive_path}!/{member}", "target": str(destination)})
+        except (zipfile.BadZipFile, OSError):
+            continue
+
+    return {
+        "status": "recovered" if recovered else "none",
+        "recovered": recovered,
+        "checked": candidates["checked"],
+    }
+
 def build_month_input(month_key: str | None = None, *, reuse_existing: bool = False) -> dict[str, Any]:
     options = Options.load()
     if not options.month_input_enabled:
@@ -4090,6 +4166,10 @@ def build_month_input(month_key: str | None = None, *, reuse_existing: bool = Fa
 
     target = MONTH_INPUT_ROOT / month_key
     target.mkdir(parents=True, exist_ok=True)
+
+    historical_recovery = {"status": "not_requested", "recovered": [], "checked": []}
+    if reuse_existing:
+        historical_recovery = recover_historical_month_input(month_key, target, options)
 
     homewizard_root = OUTPUT_ROOT / "homewizard_monthdata" / month_key
     ha_root = OUTPUT_ROOT / "homeassistant_energy" / month_key
@@ -4217,6 +4297,8 @@ def build_month_input(month_key: str | None = None, *, reuse_existing: bool = Fa
         "optional_empty": optional_empty,
         "infos": info_messages,
         "reuse_existing": reuse_existing,
+        "historical_recovery": historical_recovery,
+        "source_paths_checked": historical_recovery.get("checked", []) if reuse_existing else [],
         "reused_existing_files": sorted(
             Path(item["target"]).name
             for item in results
@@ -4249,7 +4331,10 @@ def build_month_input(month_key: str | None = None, *, reuse_existing: bool = Fa
         month_input_last_status=status,
         month_input_last_error=(
             None if status != "failed"
-            else f"Ontbrekend: {', '.join(missing_required)}; leeg: {', '.join(empty_required)}"
+            else (
+                f"Ontbrekend: {', '.join(missing_required)}; leeg: {', '.join(empty_required)}; "
+                f"gecontroleerde historische bronnen: {', '.join(historical_recovery.get('checked', [])) if reuse_existing else 'n.v.t.'}"
+            )
         ),
         month_input_last_files=[item["target"] for item in results],
     )
