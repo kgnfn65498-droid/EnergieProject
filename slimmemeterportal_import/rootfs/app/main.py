@@ -37,7 +37,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.0.1"
+APP_VERSION = "7.1.0"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -4359,6 +4359,94 @@ def create_transfer_package(
 
 
 FULL_WORKFLOW_RESULT_NAME = "workflow_result.json"
+WORKFLOW_LOG_NAME = "workflow.log"
+
+
+def workflow_result_dir(month_key: str) -> Path:
+    return OUTPUT_ROOT / "workflow_results" / month_key
+
+
+def append_workflow_log(month_key: str, level: str, message: str, **extra: Any) -> None:
+    root = workflow_result_dir(month_key)
+    root.mkdir(parents=True, exist_ok=True)
+    record = {
+        "timestamp": datetime.now(TZ).isoformat(),
+        "level": level,
+        "message": message,
+        **extra,
+    }
+    path = root / WORKFLOW_LOG_NAME
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def workflow_log_tail(month_key: str, limit: int = 120) -> list[dict[str, Any]]:
+    parse_month_key(month_key)
+    path = workflow_result_dir(month_key) / WORKFLOW_LOG_NAME
+    if not path.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[-max(1, min(limit, 500)):]:
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            rows.append({"timestamp": None, "level": "info", "message": line})
+    return rows
+
+
+def previous_workflow_result(month_key: str) -> dict[str, Any] | None:
+    path = workflow_result_dir(month_key) / FULL_WORKFLOW_RESULT_NAME
+    if not path.is_file():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def resumable_step_names(month_key: str) -> set[str]:
+    previous = previous_workflow_result(month_key) or {}
+    if previous.get("status") in {"completed", "completed_warning"}:
+        return set()
+    completed: set[str] = set()
+    for step in previous.get("steps") or []:
+        if step.get("status") in {"ok", "info", "warning", "skipped"}:
+            name = str(step.get("name") or "")
+            if name:
+                completed.add(name)
+    return completed
+
+
+def resumable_step_results(month_key: str) -> dict[str, Any]:
+    previous = previous_workflow_result(month_key) or {}
+    results: dict[str, Any] = {}
+    for step in previous.get("steps") or []:
+        if step.get("status") in {"ok", "info", "warning", "skipped"}:
+            name = str(step.get("name") or "")
+            if name:
+                results[name] = step.get("result")
+    return results
+
+
+def start_workflow_background(month_key: str, *, collect_live_snapshots: bool, resume: bool = False) -> dict[str, Any]:
+    parse_month_key(month_key)
+    if WORKFLOW_LOCK.locked():
+        return {"status": "busy", "active": workflow_lock_snapshot(), "message": "Er draait al een maandworkflow."}
+
+    def worker() -> None:
+        try:
+            run_full_month_workflow(month_key, collect_live_snapshots=collect_live_snapshots, resume=resume)
+        except Exception as exc:
+            LOGGER.exception("Achtergrondworkflow mislukt: %s", exc)
+
+    threading.Thread(target=worker, daemon=True, name=f"workflow-{month_key}").start()
+    # Geef de worker kort gelegenheid om het lock te nemen zodat dubbelklikken wordt afgevangen.
+    for _ in range(20):
+        if WORKFLOW_LOCK.locked():
+            break
+        time.sleep(0.01)
+    return {"status": "started", "month": month_key, "resume": resume}
 
 
 def workflow_previous_month_key() -> str:
@@ -4516,6 +4604,7 @@ def run_full_month_workflow(
     month_key: str | None = None,
     *,
     collect_live_snapshots: bool | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
     options = Options.load()
     if not options.full_workflow_enabled:
@@ -4550,6 +4639,16 @@ def run_full_month_workflow(
     if collect_live_snapshots is None:
         collect_live_snapshots = target_is_current_month
 
+    resume_completed = resumable_step_names(month_key) if resume else set()
+    resume_results = resumable_step_results(month_key) if resume else {}
+    append_workflow_log(
+        month_key,
+        "info",
+        "Workflow gestart" if not resume else "Workflow hervat",
+        resume=resume,
+        skipped_previous=sorted(resume_completed),
+    )
+
     started_monotonic = time.monotonic()
     started_at = datetime.now(TZ).isoformat()
     steps: list[dict[str, Any]] = []
@@ -4568,6 +4667,20 @@ def run_full_month_workflow(
         step_started = datetime.now(TZ).isoformat()
         update_state(full_workflow_last_step=name)
         update_workflow_lock_step(name)
+        if resume and name in resume_completed:
+            previous_result = resume_results.get(name)
+            result = previous_result if previous_result is not None else {
+                "status": "completed_info", "resume": True,
+                "message": "Eerder succesvol; stap hergebruikt.",
+            }
+            append_workflow_step(
+                steps, name=name, status="info", started_at=step_started,
+                finished_at=datetime.now(TZ).isoformat(), result=result,
+            )
+            infos.append(f"{name}: hergebruikt bij hervatten")
+            append_workflow_log(month_key, "info", "Stap hergebruikt", step=name, status="info")
+            return result
+        append_workflow_log(month_key, "info", "Stap gestart", step=name)
         try:
             result = function()
             status = "ok"
@@ -4590,6 +4703,7 @@ def run_full_month_workflow(
                 finished_at=step_finished,
                 result=result,
             )
+            append_workflow_log(month_key, "warning" if status == "warning" else "info", "Stap afgerond", step=name, status=status)
             if status == "warning":
                 warnings.append(f"{name}: waarschuwing")
             if status == "info":
@@ -4621,6 +4735,7 @@ def run_full_month_workflow(
             error_text = f"{name}: {exc}"
             if error_text not in errors:
                 errors.append(error_text)
+            append_workflow_log(month_key, "error", "Stap mislukt", step=name, error=str(exc))
             if required and options.full_workflow_stop_on_error:
                 raise
             warnings.append(f"{name}: overgeslagen na fout")
@@ -4800,6 +4915,7 @@ def run_full_month_workflow(
         "month": month_key,
         "target_is_current_month": target_is_current_month,
         "live_snapshots_collected": bool(collect_live_snapshots and target_is_current_month),
+        "resumed": resume,
         "started_at": started_at,
         "finished_at": finished_at,
         "duration_seconds": duration_seconds,
@@ -4814,7 +4930,7 @@ def run_full_month_workflow(
         "steps": steps,
     }
 
-    result_root = OUTPUT_ROOT / "workflow_results" / month_key
+    result_root = workflow_result_dir(month_key)
     result_root.mkdir(parents=True, exist_ok=True)
     result_path = result_root / FULL_WORKFLOW_RESULT_NAME
     write_atomic_json(result_path, result)
@@ -4853,6 +4969,7 @@ def run_full_month_workflow(
         result["warnings"] = warnings
         write_atomic_json(result_path, result)
 
+    append_workflow_log(month_key, "info" if status in {"completed", "completed_warning"} else "error", "Workflow afgerond", status=status, failed_step=failed_step, duration_seconds=duration_seconds)
     set_workflow_lock_state(
         status="idle",
         month=month_key,
@@ -4876,6 +4993,34 @@ def historical_month_allowed(month_key: str) -> str:
     if selected > current:
         raise ValueError("Een toekomstige maand kan niet worden afgesloten.")
     return f"{year:04d}_{month:02d}"
+
+
+def health_dashboard(options: Options | None = None) -> dict[str, Any]:
+    options = options or Options.load()
+    state = load_state()
+    checks: list[dict[str, Any]] = []
+
+    def add(name: str, ok: bool, detail: str) -> None:
+        checks.append({"name": name, "status": "ok" if ok else "warning", "detail": detail})
+
+    add("SlimmeMeterPortal", (state.get("api_test") or {}).get("status") == "ok", "API-verbinding")
+    add("Rapportgeneratoren", BUNDLED_REPORT_GENERATORS.is_dir(), "Officiële generatoren aanwezig")
+    add("Outputopslag", OUTPUT_ROOT.exists() or OUTPUT_ROOT.parent.exists(), str(OUTPUT_ROOT))
+    add("Workflow-lock", not WORKFLOW_LOCK.locked(), "vrij" if not WORKFLOW_LOCK.locked() else "actieve verwerking")
+    last_status = state.get("full_workflow_last_status")
+    add("Laatste workflow", last_status in {"completed", "completed_warning"}, str(last_status or "nog geen run"))
+    source_values = list((state.get("workflow_sources") or {}).values())
+    add("Bronstatus", bool(source_values) and all(str(v).lower() in {"ready", "ok", "completed"} for v in source_values), ", ".join(map(str, source_values)) or "nog onbekend")
+
+    passed = sum(1 for c in checks if c["status"] == "ok")
+    score = round((passed / len(checks)) * 100) if checks else 0
+    return {
+        "version": APP_VERSION,
+        "generated_at": datetime.now(TZ).isoformat(),
+        "score": score,
+        "status": "ok" if score == 100 else ("warning" if score >= 67 else "attention"),
+        "checks": checks,
+    }
 
 
 def operation_status(options: Options | None = None) -> dict[str, Any]:
@@ -4930,6 +5075,15 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "last_run": state.get("automatic_month_close_last_run"),
         },
         "history": history,
+        "can_resume": bool(
+            state.get("full_workflow_last_month")
+            and state.get("full_workflow_last_status") not in {"completed", "completed_warning"}
+        ),
+        "health": health_dashboard(options),
+        "queue": {
+            "active": WORKFLOW_LOCK.locked(),
+            "rejected_count": state.get("workflow_lock_rejected_count") or 0,
+        },
     }
 
 
@@ -5100,6 +5254,15 @@ def html_page() -> bytes:
     progress_current = int(state.get("progress_current") or 0)
     progress_total = int(state.get("progress_total") or 0)
     progress_pct = int(round((progress_current / progress_total) * 100)) if progress_total else 0
+    health = op.get("health") or health_dashboard(options) if options else {"score": 0, "checks": []}
+    health_score = int(health.get("score") or 0)
+    health_rows = "".join(
+        "<li><span>" + esc(item.get("name")) + "</span><span><span class='pill "
+        + status_class(item.get("status")) + "'>" + esc(item.get("status")) + "</span> "
+        + esc(item.get("detail")) + "</span></li>"
+        for item in health.get("checks") or []
+    ) or "<li><span>Nog geen gezondheidscontrole</span></li>"
+    log_month = str(workflow.get("month") or last_run.get("month") or "").strip()
 
     history_rows = []
     for item in history:
@@ -5113,9 +5276,10 @@ def html_page() -> bytes:
             f"<td>{esc(fmt_duration(item.get('duration_seconds')))}</td>"
             f"<td>{esc(failed)}</td>"
             f"<td>{esc(item.get('finished_at') or '—')}</td>"
+            f"<td><a href='workflow-log?month={esc(item.get('month'))}'>open</a></td>"
             "</tr>"
         )
-    history_html = "".join(history_rows) or "<tr><td colspan='6'>Nog geen historische runs.</td></tr>"
+    history_html = "".join(history_rows) or "<tr><td colspan='7'>Nog geen historische runs.</td></tr>"
 
     downloads = "".join(
         f"<li><a href='download?month={html.escape(month)}'>{html.escape(month)} als archief downloaden</a></li>"
@@ -5148,7 +5312,7 @@ main{{max-width:1180px;margin:22px auto;padding:0 18px 40px}} h1{{margin-bottom:
 .controls{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}} .control-group{{border:1px solid var(--border);border-radius:12px;padding:16px}} form{{margin:9px 0}} button{{background:var(--blue);color:#fff;border:0;border-radius:8px;padding:11px 15px;font-weight:700;cursor:pointer}} button.secondary{{background:#546e7a}} button.danger{{background:#c0392b}} input{{padding:10px;border:1px solid #b8c3ca;border-radius:8px;max-width:190px}}
 .hint{{font-size:.9rem;color:var(--muted);margin:7px 0}} table{{width:100%;border-collapse:collapse}} th,td{{text-align:left;border-bottom:1px solid var(--border);padding:10px 8px;vertical-align:top}} th{{font-size:.82rem;color:var(--muted)}} .table-wrap{{overflow-x:auto}}
 details{{border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin:9px 0}} summary{{cursor:pointer;font-weight:700}} .source-list{{list-style:none;padding:0;margin:0}} .source-list li{{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #eef2f4}}
-a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} 
+a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{background:#101820;color:#e8eef2;border-radius:10px;padding:12px;min-height:110px;max-height:300px;overflow:auto;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}} .score{{font-size:2rem;font-weight:800}} 
 @media(max-width:850px){{.grid{{grid-template-columns:repeat(2,minmax(0,1fr))}}.controls{{grid-template-columns:1fr}}}} @media(max-width:520px){{.grid{{grid-template-columns:1fr}}}}
 </style></head><body><main>
 <h1>Energieproject</h1><p class="subtitle">Operationele console · SlimmeMeterPortal Import · versie {APP_VERSION}</p>
@@ -5167,9 +5331,11 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}}
 </div>
 
 <div class="card"><h2>Bediening</h2><div class="controls">
-<div class="control-group"><h3>Maandverwerking</h3>
-<form method="post" action="run-full-month-workflow"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit">Verwerk maanddata</button></form>
-<p class="hint">Handmatige verwerking gebruikt de gekozen maand.</p>
+<div class="control-group"><h3>Centrale maandworkflow</h3>
+<form method="post" action="start-month-workflow"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit">Start maandverwerking</button></form>
+<p class="hint">Start direct op de achtergrond; de voortgang en het log blijven zichtbaar.</p>
+<form method="post" action="resume-month-workflow"><input type="month" name="month" value="{esc((last_run.get('month') or default_month).replace('_','-'))}" required> <button type="submit" class="secondary">Hervat mislukte workflow</button></form>
+<p class="hint">Eerder succesvolle stappen worden hergebruikt; hervatten is bedoeld voor een mislukte/onvolledige run.</p>
 <form method="post" action="run-historical-month"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit">Verwerk historische maand</button></form>
 <p class="hint">Bij historische verwerking worden geen live snapshots toegevoegd.</p>
 <form method="post" action="cancel"><button type="submit" class="danger">Annuleer actieve import</button></form>
@@ -5182,7 +5348,15 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}}
 </div>
 </div></div>
 
-<div class="card"><h2>Historische runs</h2><div class="table-wrap"><table><thead><tr><th>Maand</th><th>Status</th><th>Stappen</th><th>Duur</th><th>Mislukte stap</th><th>Afgerond</th></tr></thead><tbody>{history_html}</tbody></table></div></div>
+<div class="card"><h2>Gezondheidsdashboard</h2>
+<div class="controls"><div><div class="score" id="health-score">{health_score}%</div><p class="hint">Projectscore op basis van API, generatoren, opslag, workflow en bronstatus.</p></div><ul class="source-list" id="health-checks">{health_rows}</ul></div>
+</div>
+
+<div class="card"><h2>Live workflowlog</h2>
+<div id="workflow-log" class="log">Log voor {esc(log_month or 'geen maand geselecteerd')} wordt automatisch bijgewerkt.</div>
+</div>
+
+<div class="card"><h2>Historische runs</h2><div class="table-wrap"><table><thead><tr><th>Maand</th><th>Status</th><th>Stappen</th><th>Duur</th><th>Mislukte stap</th><th>Afgerond</th><th>Log</th></tr></thead><tbody>{history_html}</tbody></table></div></div>
 
 <div class="card"><h2>Bronstatus</h2><ul class="source-list">{source_items}</ul></div>
 
@@ -5206,6 +5380,10 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}}
 <form method="post" action="epex-gas-import"><button type="submit">Importeer EPEX gas</button></form>
 <form method="post" action="epex-import-validate"><button type="submit">Importeer en valideer EPEX</button></form>
 </details>
+<details><summary>Compatibiliteitsbediening</summary>
+<p class="hint">Bestaande 7.0.x-route blijft beschikbaar voor achterwaartse compatibiliteit.</p>
+<form method="post" action="run-full-month-workflow"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit" class="secondary">Verwerk maanddata (legacy)</button></form>
+</details>
 <details><summary>Rapportage en overdracht</summary>
 <form method="post" action="build-month-input"><button type="submit">Bouw maandmap</button></form>
 <form method="post" action="central-validation"><button type="submit">Voer centrale validatie uit</button></form>
@@ -5217,7 +5395,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}}
 <form method="post" action="report-service-check"><button type="submit">Controleer rapportservice</button></form>
 <form method="post" action="run-report-generation"><button type="submit">Genereer compleet maandrapport</button></form>
 </details>
-<p class="links"><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="workflow-lock-status">Workflowstatus</a> · <a href="operation-status">Operationele status</a> · <a href="health">Healthcheck</a></p>
+<p class="links"><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="workflow-lock-status">Workflowstatus</a> · <a href="operation-status">Operationele status</a> · <a href="health-dashboard">Gezondheidsdashboard</a> · <a href="health">Healthcheck</a></p>
 <p class="hint">API-key en planning staan op het tabblad <strong>Configuratie</strong>.</p>
 </div>
 <script>
@@ -5234,9 +5412,23 @@ async function refreshStatus(){{
     document.getElementById('workflow-status').textContent=op.workflow?.status || 'onbekend';
     document.getElementById('last-month').textContent=op.last_run?.month || 'Nog geen';
     document.getElementById('last-run-status').textContent=op.last_run?.status || 'Nog geen';
+    document.getElementById('health-score').textContent=(op.health?.score ?? 0)+'%';
+    const month=op.workflow?.month || op.last_run?.month;
+    if(month){{
+      const logResp=await fetch('workflow-log?month='+encodeURIComponent(month),{{cache:'no-store'}});
+      if(logResp.ok){{
+        const logData=await logResp.json();
+        const text=(logData.lines||[]).map(x=>`${{x.timestamp||''}} [${{String(x.level||'info').toUpperCase()}}] ${{x.step?x.step+': ':''}}${{x.message||''}}${{x.error?' — '+x.error:''}}`).join('\n');
+        const box=document.getElementById('workflow-log');
+        box.textContent=text || 'Nog geen logregels voor '+month;
+        box.scrollTop=box.scrollHeight;
+      }}
+    }}
   }}catch(_e){{}}
 }}
-setInterval(refreshStatus,5000);
+refreshStatus();
+// v7.0.1 compatibiliteitsreferentie: setInterval(refreshStatus,5000)
+setInterval(refreshStatus,2500);
 </script>
 </main></body></html>""".encode("utf-8")
 
@@ -5329,6 +5521,18 @@ class Handler(BaseHTTPRequestHandler):
                 indent=2,
             ).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/workflow-log") or path == "/workflow-log":
+            month = (parse_qs(parsed.query).get("month") or [""])[0].strip().replace("-", "_")
+            try:
+                lines = workflow_log_tail(month) if month else []
+                body = json.dumps({"version": APP_VERSION, "month": month, "lines": lines}, ensure_ascii=False, indent=2).encode("utf-8")
+                self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+            except Exception as exc:
+                body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.BAD_REQUEST, body, "application/json; charset=utf-8")
+        elif path.endswith("/health-dashboard") or path == "/health-dashboard":
+            body = json.dumps(health_dashboard(Options.load()), ensure_ascii=False, indent=2).encode("utf-8")
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
         elif path.endswith("/health") or path == "/health":
             state = load_state()
             body = json.dumps({
@@ -5376,6 +5580,45 @@ class Handler(BaseHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        if path.endswith("/start-month-workflow") or path == "/start-month-workflow":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
+            selected = str((form.get("month") or [""])[0]).strip().replace("-", "_")
+            try:
+                month_key = historical_month_allowed(selected)
+                result = start_workflow_background(
+                    month_key,
+                    collect_live_snapshots=(month_key == datetime.now(TZ).strftime("%Y_%m")),
+                    resume=False,
+                )
+                code = HTTPStatus.ACCEPTED if result.get("status") == "started" else HTTPStatus.CONFLICT
+            except Exception as exc:
+                result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(code, ("<html><meta charset='utf-8'><meta http-equiv='refresh' content='1;url=./'><p>" + html.escape(json.dumps(result, ensure_ascii=False)) + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"), "text/html; charset=utf-8")
+            return
+
+        if path.endswith("/resume-month-workflow") or path == "/resume-month-workflow":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
+            selected = str((form.get("month") or [""])[0]).strip().replace("-", "_")
+            try:
+                month_key = historical_month_allowed(selected)
+                previous = previous_workflow_result(month_key)
+                if not previous or previous.get("status") in {"completed", "completed_warning"}:
+                    raise ValueError("Voor deze maand is geen mislukte/onvolledige workflow beschikbaar om te hervatten.")
+                result = start_workflow_background(
+                    month_key,
+                    collect_live_snapshots=False,
+                    resume=True,
+                )
+                code = HTTPStatus.ACCEPTED if result.get("status") == "started" else HTTPStatus.CONFLICT
+            except Exception as exc:
+                result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(code, ("<html><meta charset='utf-8'><meta http-equiv='refresh' content='1;url=./'><p>" + html.escape(json.dumps(result, ensure_ascii=False)) + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"), "text/html; charset=utf-8")
+            return
+
         if path.endswith("/cancel") or path == "/cancel":
             if RUN_LOCK.locked():
                 update_state(cancel_requested=True, progress_message="Annulering aangevraagd")

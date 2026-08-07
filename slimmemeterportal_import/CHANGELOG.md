@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.1.0
+- Centrale knop voor maandverwerking start de volledige workflow op de achtergrond.
+- Hervatten na een mislukte/onvolledige workflow hergebruikt reeds geslaagde stappen.
+- Persistente workflowlog per maand met live weergave in de operationele console.
+- Gezondheidsdashboard met compacte projectscore en technische deelcontroles.
+- Workflow-lock blijft dubbele runs blokkeren; teller van geweigerde starts is zichtbaar via operation-status.
+- Bestaande rapportketen, Recovery Update-contract en definitieve outputnamen ongewijzigd.
+
 ## 7.0.1
 - Nieuwe operationele console boven de bestaande fase-7 workflow.
 - Statuskaarten voor workflow, laatste maand, laatste run en automatische maandafsluiting.

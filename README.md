@@ -17,11 +17,11 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 7.0.1
+- SlimmeMeterPortal Import 7.1.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
 
 ## Fase 7
 
-Versie 7.0.1 bouwt voort op de stabiele 7.0.0-laag en voegt een overzichtelijke operationele console toe: statuskaarten, live voortgang, gegroepeerde bediening, historische runtabel en compacte diagnostiek. De bestaande workflow, rapportgeneratoren en definitieve outputnamen blijven ongewijzigd.
+Versie 7.1.0 bouwt voort op de stabiele 7.0.1-console en voegt een centrale achtergrondworkflow, hervatten na een mislukte run, een live workflowlog en een gezondheidsdashboard toe. De bestaande rapportgeneratoren, Recovery Update-inhoud en definitieve outputnamen blijven ongewijzigd.
