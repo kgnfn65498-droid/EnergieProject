@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.0.0
+- Start van de stabiele productielijn op basis van bewezen v7.9.0.
+- Nieuwe centrale productiestatus in de operationele console.
+- Automatische scheduler kan alleen AAN na een geslaagde productietest van dezelfde softwareversie.
+- Console toont volgende automatische run en laatste definitieve output.
+- Bestaande maandworkflow, rapportgeneratoren en Recovery Update blijven inhoudelijk ongewijzigd.
+
 ## 7.9.0
 - Herstel workflow-triggercontract voor de veilige productietest.
 - `automatic_test` is nu een geldige trigger naast manual, historical, automatic en resume.

@@ -39,7 +39,7 @@ AUTO_CLOSE_UI_OPTIONS_PATH = Path("/config/automatic_month_close.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.9.0"
+APP_VERSION = "8.0.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -5981,6 +5981,8 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "last_preflight": state.get("automatic_month_close_last_preflight"),
             "last_finalization": state.get("automatic_month_close_last_finalization"),
             "test_last_result": state.get("automatic_month_close_test_last_result"),
+            "production_readiness": automatic_production_readiness(state),
+            "next_scheduled_run": next_automatic_month_close_run(options),
         },
         "history": history,
         "can_resume": bool(
@@ -5996,8 +5998,59 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
 
 
 
+def automatic_production_readiness(state: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Bepaal of deze softwareversie aantoonbaar veilig automatisch mag draaien."""
+    state = state or load_state()
+    test = state.get("automatic_month_close_test_last_result") or {}
+    same_version = str(test.get("version") or "") == APP_VERSION
+    workflow = test.get("workflow") or {}
+    preflight = test.get("preflight") or {}
+    finalization = test.get("finalization") or {}
+    ready = bool(
+        same_version
+        and str(test.get("status") or "") in {"completed", "completed_warning"}
+        and str(preflight.get("status") or "") == "ok"
+        and str(workflow.get("status") or "") in {"completed", "completed_warning"}
+        and str(finalization.get("status") or "") == "ok"
+    )
+    return {
+        "version": APP_VERSION,
+        "ready": ready,
+        "status": "ready" if ready else "test_required",
+        "tested_version": test.get("version"),
+        "tested_at": test.get("tested_at"),
+        "month": test.get("month"),
+        "reason": None if ready else "Voer eerst een geslaagde productietest uit met deze versie.",
+    }
+
+
+def next_automatic_month_close_run(options: Options, now: datetime | None = None) -> str | None:
+    """Bereken de eerstvolgende geplande automatische maandafsluiting."""
+    if not options.automatic_month_close_enabled:
+        return None
+    now = now or datetime.now(TZ)
+    candidate = now.replace(
+        day=options.automatic_month_close_day,
+        hour=options.automatic_month_close_hour,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+    if candidate <= now:
+        year = candidate.year + (1 if candidate.month == 12 else 0)
+        month = 1 if candidate.month == 12 else candidate.month + 1
+        candidate = candidate.replace(year=year, month=month, day=options.automatic_month_close_day)
+    return candidate.isoformat()
+
+
 def save_automatic_month_close_settings(*, enabled: bool, day: int, hour: int, retry_hours: int) -> dict[str, Any]:
-    """Bewaar uitsluitend de v7.6 UI-instellingen voor automatische maandafsluiting."""
+    """Bewaar UI-instellingen; inschakelen vereist een actuele productietest."""
+    if enabled and not automatic_production_readiness().get("ready"):
+        raise ValueError(
+            "Automatische maandafsluiting kan pas AAN na een geslaagde productietest van versie "
+            + APP_VERSION
+            + "."
+        )
     if not 1 <= day <= 28:
         raise ValueError("Dag moet 1 t/m 28 zijn.")
     if not 0 <= hour <= 23:
@@ -6396,6 +6449,16 @@ def html_page() -> bytes:
         "Productietest loopt" if auto_ready_status == "running"
         else "Productietest vereist"
     )
+    production = auto_close.get("production_readiness") or automatic_production_readiness(state)
+    production_status = "ready" if production.get("ready") else "pending"
+    production_text = "Productieklaar" if production.get("ready") else "Test vereist voor v" + APP_VERSION
+    next_auto_run = auto_close.get("next_scheduled_run")
+    latest_published = list(state.get("report_output_last_files") or [])
+    latest_output_text = (
+        f"{state.get('report_output_last_month')}: {len(latest_published)} bestand(en)"
+        if state.get("report_output_last_status") == "completed" and latest_published
+        else "Nog geen complete publicatie"
+    )
 
     auto_test_month = str(auto_test.get("month") or datetime.now(TZ).strftime("%Y_%m")).replace("_", "-")
     workflow_active = str(workflow.get("status") or "").lower() in {"running", "importing"}
@@ -6460,6 +6523,16 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 </div></div>
 
+<div class="card"><h2>Productiestatus v{APP_VERSION}</h2>
+<div class="grid">
+<div class="metric"><small>Productiegereedheid</small><strong><span id="production-readiness" class="pill {status_class(production_status)}">{esc(production_text)}</span></strong></div>
+<div class="metric"><small>Scheduler</small><strong id="production-scheduler">{'Aan' if auto_close.get('enabled') else 'Uit'}</strong></div>
+<div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run or 'Niet gepland')}</strong></div>
+<div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
+</div>
+<p class="hint">v8.0 laat de scheduler alleen inschakelen nadat deze versie een volledige productietest succesvol heeft doorlopen.</p>
+</div>
+
 <div class="card"><h2>Automatische maandafsluiting</h2>
 <div class="controls">
 <div class="control-group"><h3>Planning</h3>
@@ -6478,7 +6551,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. De groene schakelaar betekent actief; grijs betekent uitgeschakeld.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Inschakelen wordt door v8.0 geblokkeerd totdat de huidige versie productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
@@ -6610,6 +6683,17 @@ async function refreshStatus(){{
       testDetail.textContent=currentTestVersion?(test.error||''):(test.status?`Laatste test was met versie ${{test.version||'onbekend'}}.`:'');
     }}
     const testOk=currentTestVersion && ['completed','completed_warning'].includes(String(test.status||'')) && test.preflight?.status==='ok' && test.finalization?.status==='ok';
+    const prod=auto.production_readiness||{{}};
+    const prodEl=document.getElementById('production-readiness');
+    if(prodEl){{
+      prodEl.textContent=prod.ready?'Productieklaar':`Test vereist voor v${{op.version||''}}`;
+      prodEl.className=pillClass(prod.ready?'ready':'pending');
+    }}
+    const prodScheduler=document.getElementById('production-scheduler');
+    if(prodScheduler) prodScheduler.textContent=auto.enabled?'Aan':'Uit';
+    const prodNext=document.getElementById('production-next-run');
+    if(prodNext) prodNext.textContent=auto.next_scheduled_run||'Niet gepland';
+
     const ready=document.getElementById('auto-readiness');
     if(ready){{
       const running=currentTestVersion && test.status==='running';

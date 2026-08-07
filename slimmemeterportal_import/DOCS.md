@@ -447,3 +447,10 @@ Een productietest geldt alleen als bewijs voor de softwareversie waarin hij is u
 ## Versie 7.9.0 — productietest-trigger hersteld
 
 De veilige productietest gebruikt de trigger `automatic_test`. Vanaf v7.9.0 accepteert de centrale maandworkflow deze trigger expliciet. Daarmee doorloopt de test dezelfde preflight, maandworkflow en finalization als een echte automatische maandafsluiting, zonder de schedulermaand als reeds verwerkt te registreren.
+
+
+## Versie 8.0.0 — productiebaseline
+
+v8.0.0 markeert de overgang naar de productielijn. De centrale maandworkflow blijft identiek aan de bewezen v7.9.0-keten. Nieuw is een productiegate: automatische maandafsluiting kan alleen worden ingeschakeld wanneer een productietest van exact dezelfde softwareversie succesvol preflight, workflow en finalization heeft afgerond.
+
+De operationele console toont daarnaast één centrale productiestatus, de eerstvolgende geplande automatische run en de laatste definitieve publicatie.
