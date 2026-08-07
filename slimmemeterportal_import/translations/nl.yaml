@@ -96,3 +96,21 @@ configuration:
   require_all_core_sources:
     name: Alle kernbronnen verplicht
     description: Vereis een actuele import voor iedere ingeschakelde kernbron.
+  workflow_notify_home_assistant:
+    name: Workflowmeldingen
+    description: Stuur Home Assistant-meldingen voor de volledige maandworkflow.
+  workflow_notify_on_start:
+    name: Melding bij workflowstart
+    description: Stuur ook een melding zodra een handmatige of automatische maandworkflow start.
+  automatic_month_close_enabled:
+    name: Automatische maandafsluiting
+    description: Verwerk de vorige kalendermaand automatisch op het ingestelde moment.
+  automatic_month_close_day:
+    name: Dag automatische maandafsluiting
+    description: Dag van de maand waarop de vorige kalendermaand automatisch wordt verwerkt.
+  automatic_month_close_hour:
+    name: Uur automatische maandafsluiting
+    description: Uur in Europe/Amsterdam voor de automatische maandafsluiting.
+  automatic_month_close_retry_hours:
+    name: Wachttijd na mislukte automatische run
+    description: Aantal uren voordat een mislukte automatische maandafsluiting opnieuw mag worden geprobeerd.

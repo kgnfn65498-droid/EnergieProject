@@ -96,3 +96,21 @@ configuration:
   require_all_core_sources:
     name: Require all core sources
     description: Require a current import for every enabled core source.
+  workflow_notify_home_assistant:
+    name: Workflow notifications
+    description: Send Home Assistant notifications for the full monthly workflow.
+  workflow_notify_on_start:
+    name: Notify on workflow start
+    description: Also send a notification when a manual or automatic monthly workflow starts.
+  automatic_month_close_enabled:
+    name: Automatic month close
+    description: Automatically process the previous calendar month at the configured time.
+  automatic_month_close_day:
+    name: Automatic month close day
+    description: Day of the month on which the previous calendar month is processed.
+  automatic_month_close_hour:
+    name: Automatic month close hour
+    description: Hour in Europe/Amsterdam for the automatic month close.
+  automatic_month_close_retry_hours:
+    name: Retry delay after failed automatic run
+    description: Hours before a failed automatic month close may be retried.

@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "7.1.7"
+    assert cfg_version == app_version == "7.2.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "7.1.7"' in config
+    assert 'version: "7.2.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -694,7 +694,7 @@ def test_workflow_can_finish_with_warning():
 def test_full_workflow_refreshes_existing_transfer():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "replace_existing: bool = False" in source
-    assert "create_transfer_package(month_key, replace_existing=True)" in source
+    assert "create_transfer_package(month_key, replace_existing=True, send_notification=False)" in source
 
 def test_transfer_refresh_uses_staging_and_backup():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
@@ -1149,8 +1149,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "7.1.7"' in config
-    assert 'APP_VERSION = "7.1.7"' in main
+    assert 'version: "7.2.0"' in config
+    assert 'APP_VERSION = "7.2.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1168,7 +1168,7 @@ def test_phase7_automatic_month_close_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "def automatic_month_close_due" in source
     assert "automatic_month_close_last_month" in source
-    assert "run_full_month_workflow(close_month, collect_live_snapshots=False)" in source
+    assert "run_full_month_workflow(close_month, collect_live_snapshots=False, trigger=\"automatic\")" in source
 
 
 def test_phase7_historical_selection_present():
@@ -1375,3 +1375,33 @@ def test_v717_operation_status_embeds_live_log():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"live_log": workflow_log_tail' in source
     assert 'limit=80' in source
+
+
+def test_v720_notification_config_present():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "workflow_notify_home_assistant" in config
+    assert "workflow_notify_on_start" in config
+    assert "Automatische energie-maandafsluiting gestart" in source
+    assert "Automatische energie-maandafsluiting gereed" in source
+
+
+def test_v720_automatic_retry_guard_present():
+    config = (ADDON / "config.yaml").read_text(encoding="utf-8")
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "automatic_month_close_retry_hours" in config
+    assert "automatic_month_close_last_attempt" in source
+    assert "automatic_month_close_next_retry" in source
+    assert 'trigger="automatic"' in source
+
+
+def test_v720_workflow_records_trigger():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"trigger": trigger' in source
+    assert 'full_workflow_last_trigger=trigger' in source
+
+
+def test_v720_full_workflow_suppresses_transfer_notification():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "send_notification: bool = True" in source
+    assert "replace_existing=True, send_notification=False" in source

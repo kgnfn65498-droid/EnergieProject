@@ -38,7 +38,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.1.7"
+APP_VERSION = "7.2.0"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -121,6 +121,8 @@ class Options:
     transfer_overwrite_existing: bool
     transfer_require_valid_month: bool
     transfer_notify_home_assistant: bool
+    workflow_notify_home_assistant: bool
+    workflow_notify_on_start: bool
     full_workflow_enabled: bool
     full_workflow_use_previous_month: bool
     full_workflow_stop_on_error: bool
@@ -128,6 +130,7 @@ class Options:
     automatic_month_close_enabled: bool
     automatic_month_close_day: int
     automatic_month_close_hour: int
+    automatic_month_close_retry_hours: int
     operation_history_months: int
 
     @classmethod
@@ -198,6 +201,8 @@ class Options:
             transfer_overwrite_existing=bool(raw.get("transfer_overwrite_existing", False)),
             transfer_require_valid_month=bool(raw.get("transfer_require_valid_month", True)),
             transfer_notify_home_assistant=bool(raw.get("transfer_notify_home_assistant", True)),
+            workflow_notify_home_assistant=bool(raw.get("workflow_notify_home_assistant", True)),
+            workflow_notify_on_start=bool(raw.get("workflow_notify_on_start", True)),
             full_workflow_enabled=bool(raw.get("full_workflow_enabled", True)),
             full_workflow_use_previous_month=bool(raw.get("full_workflow_use_previous_month", True)),
             full_workflow_stop_on_error=bool(raw.get("full_workflow_stop_on_error", True)),
@@ -205,6 +210,7 @@ class Options:
             automatic_month_close_enabled=bool(raw.get("automatic_month_close_enabled", False)),
             automatic_month_close_day=int(raw.get("automatic_month_close_day", 2)),
             automatic_month_close_hour=int(raw.get("automatic_month_close_hour", 4)),
+            automatic_month_close_retry_hours=int(raw.get("automatic_month_close_retry_hours", 6)),
             operation_history_months=int(raw.get("operation_history_months", 12)),
         )
         result.validate()
@@ -234,6 +240,8 @@ class Options:
             raise ValueError("automatic_month_close_day moet 1 t/m 28 zijn.")
         if not 0 <= self.automatic_month_close_hour <= 23:
             raise ValueError("automatic_month_close_hour moet 0 t/m 23 zijn.")
+        if not 1 <= self.automatic_month_close_retry_hours <= 48:
+            raise ValueError("automatic_month_close_retry_hours moet 1 t/m 48 zijn.")
         if not 1 <= self.operation_history_months <= 60:
             raise ValueError("operation_history_months moet 1 t/m 60 zijn.")
         if self.workflow_mode not in {"smp_only", "full_month_workflow"}:
@@ -419,6 +427,9 @@ def default_state() -> dict[str, Any]:
         "workflow_lock_last_duration_seconds": None,
         "workflow_lock_rejected_count": 0,
         "workflow_import_coordination_last": None,
+        "full_workflow_last_trigger": None,
+        "automatic_month_close_last_attempt": None,
+        "automatic_month_close_next_retry": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -4285,6 +4296,7 @@ def create_transfer_package(
     month_key: str | None = None,
     *,
     replace_existing: bool = False,
+    send_notification: bool = True,
 ) -> dict[str, Any]:
     options = Options.load()
     if not options.transfer_enabled:
@@ -4424,7 +4436,7 @@ def create_transfer_package(
 
     notification = None
     notification_error = None
-    if options.transfer_notify_home_assistant:
+    if options.transfer_notify_home_assistant and send_notification:
         try:
             notification = notify_home_assistant(
                 "Energie maandimport gereed",
@@ -4569,7 +4581,7 @@ def start_workflow_background(month_key: str, *, collect_live_snapshots: bool, r
 
     def worker() -> None:
         try:
-            run_full_month_workflow(month_key, collect_live_snapshots=collect_live_snapshots, resume=resume)
+            run_full_month_workflow(month_key, collect_live_snapshots=collect_live_snapshots, resume=resume, trigger=("resume" if resume else "manual"))
         except Exception as exc:
             LOGGER.exception("Achtergrondworkflow mislukt: %s", exc)
         finally:
@@ -4825,8 +4837,11 @@ def run_full_month_workflow(
     *,
     collect_live_snapshots: bool | None = None,
     resume: bool = False,
+    trigger: str = "manual",
 ) -> dict[str, Any]:
     options = Options.load()
+    if trigger not in {"manual", "historical", "automatic", "resume"}:
+        raise ValueError("Ongeldige workflow-trigger.")
     if not options.full_workflow_enabled:
         raise RuntimeError("Volledige maandworkflow is uitgeschakeld.")
 
@@ -4859,6 +4874,7 @@ def run_full_month_workflow(
     # zichtbaar blijft in de operationele console.
     update_state(
         full_workflow_last_month=month_key,
+        full_workflow_last_trigger=trigger,
         full_workflow_last_status="running",
         full_workflow_last_step="Initialiseren",
         full_workflow_last_error=None,
@@ -4882,8 +4898,19 @@ def run_full_month_workflow(
         "info",
         "Workflow gestart" if not resume else "Workflow hervat",
         resume=resume,
+        trigger=trigger,
         skipped_previous=sorted(resume_completed),
     )
+
+    if options.workflow_notify_home_assistant and options.workflow_notify_on_start:
+        try:
+            title = "Automatische energie-maandafsluiting gestart" if trigger == "automatic" else "Energie maandworkflow gestart"
+            notify_home_assistant(
+                title,
+                f"Maand {month_key} wordt verwerkt. Trigger: {trigger}.",
+            )
+        except Exception as exc:
+            append_workflow_log(month_key, "warning", "Startnotificatie mislukt", error=str(exc))
 
     started_monotonic = time.monotonic()
     started_at = datetime.now(TZ).isoformat()
@@ -5121,7 +5148,7 @@ def run_full_month_workflow(
 
         transfer_result = execute_step(
             "Overdrachtspakket maken",
-            lambda: create_transfer_package(month_key, replace_existing=True),
+            lambda: create_transfer_package(month_key, replace_existing=True, send_notification=False),
             required=True,
         )
 
@@ -5179,6 +5206,7 @@ def run_full_month_workflow(
     result = {
         "version": APP_VERSION,
         "workflow": "full_month_workflow",
+        "trigger": trigger,
         "status": status,
         "month": month_key,
         "target_is_current_month": target_is_current_month,
@@ -5218,23 +5246,24 @@ def run_full_month_workflow(
     persist_normalized_status(options)
 
     try:
-        if options.transfer_notify_home_assistant:
+        if options.workflow_notify_home_assistant:
             if status in {"completed", "completed_warning"}:
+                title = "Automatische energie-maandafsluiting gereed" if trigger == "automatic" else "Energie maandworkflow gereed"
                 notify_home_assistant(
-                    "Energie maandworkflow gereed",
+                    title,
                     (
-                        f"Maand {month_key} is volledig verwerkt. "
-                        f"Resultaat: {result_path}"
+                        f"Maand {month_key} is volledig verwerkt in {duration_seconds:.1f} s. "
+                        f"Status: {status}. Resultaat: {result_path}"
                     ),
                 )
             elif status == "cancelled":
                 notify_home_assistant(
-                    "Energie maandworkflow geannuleerd",
+                    "Automatische energie-maandafsluiting geannuleerd" if trigger == "automatic" else "Energie maandworkflow geannuleerd",
                     f"Maand {month_key} is gecontroleerd geannuleerd.",
                 )
             else:
                 notify_home_assistant(
-                    "Energie maandworkflow mislukt",
+                    "Automatische energie-maandafsluiting mislukt" if trigger == "automatic" else "Energie maandworkflow mislukt",
                     (
                         f"Maand {month_key} stopte bij "
                         f"{failed_step or 'onbekende stap'}. "
@@ -5332,6 +5361,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
                     result = json.loads(result_path.read_text(encoding="utf-8"))
                     item.update({
                         "status": result.get("status", "unknown"),
+                        "trigger": result.get("trigger", "manual"),
                         "finished_at": result.get("finished_at"),
                         "duration_seconds": result.get("duration_seconds"),
                         "failed_step": result.get("failed_step"),
@@ -5352,6 +5382,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
         },
         "last_run": {
             "month": state.get("full_workflow_last_month"),
+            "trigger": state.get("full_workflow_last_trigger") or "manual",
             "status": state.get("full_workflow_last_status"),
             "step": state.get("full_workflow_last_step"),
             "error": state.get("full_workflow_last_error"),
@@ -5365,9 +5396,12 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "enabled": options.automatic_month_close_enabled,
             "day": options.automatic_month_close_day,
             "hour": options.automatic_month_close_hour,
+            "retry_hours": options.automatic_month_close_retry_hours,
             "last_month": state.get("automatic_month_close_last_month"),
             "last_status": state.get("automatic_month_close_last_status"),
             "last_run": state.get("automatic_month_close_last_run"),
+            "last_attempt": state.get("automatic_month_close_last_attempt"),
+            "next_retry": state.get("automatic_month_close_next_retry"),
         },
         "history": history,
         "can_resume": bool(
@@ -5392,6 +5426,19 @@ def automatic_month_close_due(options: Options, now: datetime) -> str | None:
     state = load_state()
     if state.get("automatic_month_close_last_month") == month_key and state.get("automatic_month_close_last_status") in {"completed", "completed_warning"}:
         return None
+
+    last_attempt = state.get("automatic_month_close_last_attempt")
+    if state.get("automatic_month_close_last_month") == month_key and last_attempt:
+        try:
+            attempted_at = datetime.fromisoformat(str(last_attempt))
+            if attempted_at.tzinfo is None:
+                attempted_at = attempted_at.replace(tzinfo=TZ)
+            retry_at = attempted_at + timedelta(hours=options.automatic_month_close_retry_hours)
+            if now < retry_at:
+                update_state(automatic_month_close_next_retry=retry_at.isoformat())
+                return None
+        except ValueError:
+            pass
     return month_key
 
 
@@ -5449,16 +5496,23 @@ def scheduler() -> None:
 
             close_month = automatic_month_close_due(options, datetime.now(TZ))
             if close_month and not WORKFLOW_LOCK.locked():
+                attempt_at = datetime.now(TZ)
                 update_state(
                     automatic_month_close_last_month=close_month,
                     automatic_month_close_last_status="running",
-                    automatic_month_close_last_run=datetime.now(TZ).isoformat(),
+                    automatic_month_close_last_attempt=attempt_at.isoformat(),
+                    automatic_month_close_last_run=attempt_at.isoformat(),
+                    automatic_month_close_next_retry=None,
                 )
-                result = run_full_month_workflow(close_month, collect_live_snapshots=False)
+                result = run_full_month_workflow(close_month, collect_live_snapshots=False, trigger="automatic")
+                retry_at = None
+                if result.get("status") not in {"completed", "completed_warning"}:
+                    retry_at = (datetime.now(TZ) + timedelta(hours=options.automatic_month_close_retry_hours)).isoformat()
                 update_state(
                     automatic_month_close_last_month=close_month,
                     automatic_month_close_last_status=result.get("status"),
                     automatic_month_close_last_run=datetime.now(TZ).isoformat(),
+                    automatic_month_close_next_retry=retry_at,
                 )
 
             if not options.schedule_enabled:
@@ -5587,7 +5641,7 @@ def html_page() -> bytes:
     ) or "<li><span>Nog geen bronstatus beschikbaar</span></li>"
 
     auto_text = (
-        f"Aan — dag {esc(auto_close.get('day'))} om {esc(auto_close.get('hour'))}:00"
+        f"Aan — dag {esc(auto_close.get('day'))} om {esc(auto_close.get('hour'))}:00 · retry na {esc(auto_close.get('retry_hours'))} uur"
         if auto_close.get("enabled") else "Uit"
     )
 
@@ -6234,7 +6288,7 @@ class Handler(BaseHTTPRequestHandler):
             selected = (form.get("month") or [""])[0].strip().replace("-", "_")
             try:
                 month_key = historical_month_allowed(selected)
-                result = run_full_month_workflow(month_key, collect_live_snapshots=False)
+                result = run_full_month_workflow(month_key, collect_live_snapshots=False, trigger="historical")
                 code = HTTPStatus.OK if result.get("status") in {"completed", "completed_warning"} else HTTPStatus.BAD_REQUEST
             except Exception as exc:
                 result = {"status": "error", "error": str(exc)}
@@ -6260,6 +6314,7 @@ class Handler(BaseHTTPRequestHandler):
                 result = run_full_month_workflow(
                     month_key,
                     collect_live_snapshots=True,
+                    trigger="manual",
                 )
                 code = HTTPStatus.OK if result.get("status") in {"completed", "completed_warning"} else HTTPStatus.BAD_REQUEST
             except Exception as exc:

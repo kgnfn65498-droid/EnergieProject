@@ -1,4 +1,13 @@
-## 7.1.7
+# 7.2.0
+
+- Workflowmeldingen zijn losgekoppeld van overdrachtsmeldingen.
+- Optionele Home Assistant-melding bij start van een maandworkflow.
+- Automatische maandafsluiting meldt start, succes, annulering en fouten herkenbaar als automatische run.
+- Automatische maandafsluiting wacht standaard 6 uur na een mislukte poging voordat opnieuw wordt geprobeerd; geen retry-lus meer.
+- Operationele status bevat workflow-trigger en informatie over de volgende automatische retry.
+- Rapportketen, Recovery Update-contract en vaste outputnamen zijn ongewijzigd.
+
+## 7.2.0
 
 - Live workflowlog wordt rechtstreeks via `operation-status` aangeleverd en iedere 2,5 seconde in de console ververst.
 - Statuspillen en gezondheidschecks verversen nu mee met de actieve workflow.

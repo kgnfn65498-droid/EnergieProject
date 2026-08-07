@@ -409,3 +409,9 @@ De losse knop `Maak overdrachtspakket` blijft bewust niet-overschrijvend.
 - Historische maanden kunnen in de webinterface expliciet worden gekozen. Daarbij worden geen actuele snapshots toegevoegd.
 - `operation-status` toont de actieve workflow, laatste run, automatische afsluitstatus en recente maandresultaten.
 - Definitieve bestanden blijven `Energierapport_YYYY_MM.pdf` en `Recovery_Update_YYYY_MM.zip`.
+
+## Versie 7.2.0 — meldingen en automatische maandafsluiting
+
+De volledige maandworkflow heeft eigen Home Assistant-meldingen. Met `workflow_notify_home_assistant` kunnen deze onafhankelijk van de overdrachtsmelding worden in- of uitgeschakeld. Met `workflow_notify_on_start` kan ook de start van een handmatige of automatische workflow worden gemeld. Tijdens de volledige workflow wordt de losse overdrachtsmelding onderdrukt, zodat één workflow niet meerdere tussentijdse "gereed"-meldingen veroorzaakt.
+
+Voor de automatische maandafsluiting geldt een retry-beveiliging. Na een mislukte automatische run wacht de scheduler standaard `automatic_month_close_retry_hours: 6` voordat dezelfde maand opnieuw wordt geprobeerd. Een geslaagde maand wordt niet opnieuw verwerkt. De operationele status toont de trigger (`manual`, `historical`, `resume` of `automatic`) en, indien van toepassing, het eerstvolgende retrymoment.
