@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.18.1
+
+- Fix startup/Web UI crash in monitoring: use existing `write_atomic_json()` helper instead of undefined `atomic_write_json()`.
+- Monitoring functionality from v8.18.0 remains unchanged.
+- No changes to workflow, scheduler, recovery, certificates or report generation.
+
 ## 8.18.0
 
 - Productiemonitoring toegevoegd voor API, workflow, productiecertificaat, audittrail, recovery, scheduler en bronstatus.

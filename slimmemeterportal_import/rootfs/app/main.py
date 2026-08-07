@@ -52,7 +52,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.18.0"
+APP_VERSION = "8.18.1"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -6387,7 +6387,7 @@ def monitoring_snapshot(options: Options | None = None, *, force: bool = False, 
             "history_path": str(MONITORING_HISTORY_PATH),
         }
         MONITORING_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_json(MONITORING_STATE_PATH, result)
+        write_atomic_json(MONITORING_STATE_PATH, result)
 
         if str(previous.get("fingerprint") or "") != fingerprint:
             record = {"recorded_at": now, **result}
