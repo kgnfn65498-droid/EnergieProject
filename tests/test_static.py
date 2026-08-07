@@ -5,6 +5,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 ADDON = ROOT / "slimmemeterportal_import"
+MAIN = ADDON / "rootfs/app/main.py"
 
 def test_python_syntax():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
@@ -15,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "8.14.0"
+    assert cfg_version == app_version == "8.19.0"
 
 def test_required_files():
     required = [
@@ -254,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.18.0"' in config
+    assert 'version: "8.19.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.18.0"' in config
-    assert 'APP_VERSION = "8.14.0"' in main
+    assert 'version: "8.19.0"' in config
+    assert 'APP_VERSION = "8.19.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1867,7 +1868,7 @@ def test_v851_acceptance_records_prerequisite_evidence():
 def test_v851_console_explains_automatic_prerequisite():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     assert "voorbereidende productietest automatisch geslaagd" in source
-    assert "voert v8.14.0 die eerst automatisch veilig uit" in source
+    assert "voert v{esc(APP_VERSION)} die eerst automatisch veilig uit" in source
 
 
 def test_v860_has_durable_completion_marker_store():
@@ -2245,11 +2246,11 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "8.18.0"' in source
+    assert 'APP_VERSION = "8.19.0"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
-    assert 'action="manage-production-certificate"' in source
+    assert "fetch('manage-production-certificate'" in source
     assert 'href="download-production-certificate"' in source
 
 
@@ -2269,7 +2270,7 @@ def test_v816_audit_trail_contract():
     assert 'def append_audit_event(' in source
     assert 'def validate_audit_trail()' in source
     assert 'previous_hash' in source
-    assert 'Audittrail v8.16' in source
+    assert 'Audittrail v{APP_VERSION}' in source
     assert 'download-audit-trail' in source
     assert 'Auditintegriteit' in source
 

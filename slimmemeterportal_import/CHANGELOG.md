@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.19.0
+
+- Operationele console afgerond met consistente versieaanduidingen voor Recovery, Monitoring en Audittrail.
+- Productiecertificaatkaart wordt tijdens statuspolling live bijgewerkt na certificaatuitgifte of herstel.
+- Productiecertificaathistorie wordt live bijgewerkt zonder volledige paginaverversing.
+- Verouderde v8.15-uitleg bij certificaten vervangen door versie-onafhankelijke tekst.
+- Geen nieuwe subsystemen; workflow, scheduler, recovery, monitoring, audittrail en rapportgeneratie blijven inhoudelijk ongewijzigd.
+
 ## 8.18.1
 
 - Fix startup/Web UI crash in monitoring: use existing `write_atomic_json()` helper instead of undefined `atomic_write_json()`.

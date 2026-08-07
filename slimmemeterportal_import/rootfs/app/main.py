@@ -52,7 +52,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.18.1"
+APP_VERSION = "8.19.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -8416,7 +8416,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 <div class="metric"><small>Productiecertificaat</small><strong id="production-certificate">{esc(production_certificate_text)}</strong></div>
 </div>
-<p class="hint">v8.15 genereert het productiecertificaat automatisch uit een geslaagde productietest van exact deze versie, valideert de integriteit continu en kan het certificaat veilig uit bestaand hard testbewijs herstellen.</p>
+<p class="hint">Het productiecertificaat wordt automatisch gegenereerd uit een geslaagde productietest van exact deze versie, continu op integriteit gecontroleerd en kan veilig uit bestaand hard testbewijs worden hersteld.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 </div>
 
@@ -8475,21 +8475,21 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <p><a href="download-production-certificate">Download huidig productiecertificaat</a></p>
 </div>
 
-<div class="card" id="recovery-v817"><h2>Recovery v8.17</h2>
+<div class="card" id="recovery-v817"><h2>Recovery v{APP_VERSION}</h2>
 <div class="metrics"><div class="metric"><small>Status</small><strong><span id="recovery-controller-status" class="pill {status_class(recovery_controller_status)}">{esc(recovery_controller_status)}</span></strong></div><div class="metric"><small>Herstelacties</small><strong id="recovery-controller-count">{esc(recovery_controller_count)}</strong></div><div class="metric"><small>Laatste controle</small><strong id="recovery-controller-checked">{esc(recovery_controller_checked)}</strong></div></div>
 <p id="recovery-controller-detail" class="hint">{esc(recovery_controller_detail)}</p>
 <p><button id="run-recovery-controller-button" type="button" class="secondary">Controleer recovery nu</button></p>
 <p class="hint">Controleert en reconcilieert uitsluitend duurzame status uit bestaand hard bewijs. Start nooit zelfstandig een maandworkflow en wijzigt geen ongeldige auditketen.</p>
 </div>
 
-<div class="card" id="monitoring-v818"><h2>Monitoring v8.18</h2>
+<div class="card" id="monitoring-v818"><h2>Monitoring v{APP_VERSION}</h2>
 <div class="metrics"><div class="metric"><small>Status</small><strong><span id="monitoring-status" class="pill {status_class(monitoring_status)}">{esc(monitoring_status)}</span></strong></div><div class="metric"><small>Actieve waarschuwingen</small><strong id="monitoring-alert-count">{esc(monitoring_count)}</strong></div><div class="metric"><small>Laatste controle</small><strong id="monitoring-checked">{esc(monitoring_checked)}</strong></div></div>
 <ul class="source-list" id="monitoring-checks">{monitoring_rows}</ul>
 <p><button id="run-monitoring-button" type="button" class="secondary">Controleer monitoring nu</button> <a href="download-monitoring-history">Download monitoringhistorie</a></p>
 <p class="hint">Bewaakt API, workflow, productiecertificaat, audittrail, recovery, scheduler en bronstatus. Alleen statuswijzigingen worden append-only opgeslagen; monitoring start zelf geen workflow.</p>
 </div>
 
-<div class="card"><h2>Audittrail</h2>
+<div class="card"><h2>Audittrail v{APP_VERSION}</h2>
 <div class="metrics"><div class="metric"><small>Integriteit</small><strong id="audit-integrity">{esc(audit_validation.get('status') or 'empty')}</strong></div><div class="metric"><small>Records</small><strong id="audit-record-count">{esc(audit_validation.get('records', 0))}</strong></div></div>
 <div class="table-wrap"><table><thead><tr><th>Moment</th><th>Type</th><th>Actie</th><th>Status</th><th>Maand</th></tr></thead><tbody id="audit-trail-body">{audit_rows}</tbody></table></div>
 <p class="hint">Append-only, hash-gekoppelde audittrail van workflows, productietests, schedulerwijzigingen, scheduler-acceptatietests en productiecertificaten.</p>
@@ -8653,6 +8653,16 @@ async function refreshStatus(){{
     if(prodScheduler) prodScheduler.textContent=auto.scheduler_effective?'Actief':(auto.enabled?`Wacht op v${{op.version||''}}-test`:'Uit');
     const prodNext=document.getElementById('production-next-run');
     if(prodNext) prodNext.textContent=formatLocalDateTime(auto.next_scheduled_run);
+    const certValidation=auto.production_certificate||{{}};
+    const cert=certValidation.certificate||{{}};
+    const prodCert=document.getElementById('production-certificate');
+    if(prodCert){{
+      prodCert.textContent=certValidation.valid?`v${{cert.version||op.version||''}} · Afgegeven · ${{formatLocalDateTime(cert.accepted_at)}}`:`Niet geldig — ${{certValidation.status||'ontbreekt'}}`;
+    }}
+    const certHistoryBody=document.getElementById('production-certificate-history-body');
+    if(certHistoryBody && Array.isArray(auto.production_certificate_history)){{
+      certHistoryBody.innerHTML=auto.production_certificate_history.length?auto.production_certificate_history.map(item=>`<tr><td>${{escapeHtml(item.version||'—')}}</td><td>${{escapeHtml(item.accepted_at?formatLocalDateTime(item.accepted_at):'—')}}</td><td><span class="${{pillClass(item.status)}}">${{escapeHtml(item.status||'—')}}</span></td><td>${{escapeHtml(item.month||'—')}}</td></tr>`).join(''):`<tr><td colspan="4">Nog geen productiecertificaten.</td></tr>`;
+    }}
 
     const autoHistory=document.getElementById('automatic-history-body');
     if(autoHistory && Array.isArray(auto.history)){{
