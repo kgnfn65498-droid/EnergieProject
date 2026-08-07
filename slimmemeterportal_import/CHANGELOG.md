@@ -1,12 +1,13 @@
 # Changelog
 
-## 7.3.2
+## 7.3.3
 
-- Historische maandverwerking zoekt bestaande maandbestanden in lokale `01_Input`, het overdrachtspakket en `01_Input_YYYY_MM.zip`.
-- Bestanden worden uitsluitend met exact dezelfde case-sensitive naam hergebruikt; niets wordt automatisch hernoemd.
+- Historische recovery doorzoekt nu ook recursief de echte maandboom achter `YYYY_MM als archief downloaden` (`/config/output/YYYY_MM`).
+- Reeds bewaarde ZIP-archieven met de maandcode in de bestandsnaam worden automatisch als extra read-only bron ontdekt.
+- Herstelde bestanden worden uitsluitend bij exact case-sensitive overeenkomende bestandsnaam overgenomen; niets wordt hernoemd.
 - Bestaande doelbestanden worden nooit overschreven.
+- Elke succesvolle historische bronrecovery wordt met bestandsnaam, bron en doel in het workflowlog vastgelegd.
 - Actuele live snapshots worden niet gebruikt om historische maanden kunstmatig aan te vullen.
-- Maandvalidatie rapporteert bij ontbrekende bestanden ook welke historische bronpaden zijn gecontroleerd.
 - Geen wijzigingen aan rapportgeneratoren, Recovery Update-contract of vaste outputnamen.
 
 ## 7.3.1

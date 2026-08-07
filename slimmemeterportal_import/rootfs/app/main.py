@@ -38,10 +38,10 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.3.2"
+APP_VERSION = "7.3.3"
 
 
-# v7.3.2: historische bronrecovery plus gewogen workflowvisualisatie. De gewichten zijn gebaseerd op de
+# v7.3.3: historische maandarchief-recovery plus gewogen workflowvisualisatie. De gewichten zijn gebaseerd op de
 # gemeten doorlooptijd van de stabiele v7.2-workflow en tellen exact op tot 100.
 WORKFLOW_VISUAL_PHASES = [
     ("SlimmeMeterPortal API-test", 5.0, 0.3),
@@ -4090,15 +4090,36 @@ def historical_month_input_candidates(month_key: str, options: "Options") -> dic
     """
     parse_month_key(month_key)
     transfer_root = TRANSFER_SHARE_ROOT / Path(options.transfer_share_folder)
+    # De console-link “YYYY_MM als archief downloaden” bewaart geen fysieke ZIP:
+    # zip_month() bouwt die download dynamisch uit OUTPUT_ROOT / month_key.
+    # Daarom is die maandmap zelf een primaire historische bron.
     roots = [
         MONTH_INPUT_ROOT / month_key,
+        OUTPUT_ROOT / month_key,
         transfer_root / month_key,
         transfer_root / "01_Input" / month_key,
+        transfer_root / "02_Output" / month_key,
     ]
     zips = [
         MONTH_INPUT_ROOT / f"01_Input_{month_key}.zip",
         transfer_root / f"01_Input_{month_key}.zip",
     ]
+
+    # Neem daarnaast reeds bewaarde maandarchieven mee. Alleen ZIP-bestanden
+    # met de exacte maandcode in de naam worden bekeken; Recovery Updates en
+    # andere maanden worden daarmee niet als historische invoer gebruikt.
+    discovered_zips: list[Path] = []
+    for search_root in (OUTPUT_ROOT, transfer_root):
+        if not search_root.exists() or not search_root.is_dir():
+            continue
+        try:
+            for candidate in search_root.rglob(f"*{month_key}*.zip"):
+                if candidate.is_file() and candidate not in zips:
+                    discovered_zips.append(candidate)
+        except OSError:
+            continue
+    zips.extend(sorted(set(discovered_zips), key=lambda path: str(path)))
+
     return {
         "roots": roots,
         "zips": zips,
@@ -4122,12 +4143,40 @@ def recover_historical_month_input(month_key: str, target: Path, options: "Optio
         if source_root == target or not source_root.exists() or not source_root.is_dir():
             continue
         for filename in sorted(expected):
-            source = source_root / filename
             destination = target / filename
-            if destination.exists() or not source.exists() or not source.is_file():
+            if destination.exists():
+                continue
+
+            # Zoek recursief: de downloadbare maand-archive bevat precies de
+            # boom onder OUTPUT_ROOT/YYYY_MM en historische bronbestanden kunnen
+            # daarin in submappen staan. De basename moet case-sensitive exact
+            # overeenkomen; er wordt dus nooit automatisch hernoemd.
+            source = None
+            try:
+                matches = sorted(
+                    (path for path in source_root.rglob(filename) if path.is_file()),
+                    key=lambda path: (len(path.parts), str(path)),
+                )
+            except OSError:
+                matches = []
+            if matches:
+                source = matches[0]
+            if source is None:
                 continue
             shutil.copy2(source, destination)
-            recovered.append({"file": filename, "source": str(source), "target": str(destination)})
+            item = {"file": filename, "source": str(source), "target": str(destination)}
+            recovered.append(item)
+            try:
+                append_workflow_log(
+                    month_key,
+                    "info",
+                    "Historisch bronbestand hersteld",
+                    file=filename,
+                    source=str(source),
+                    target=str(destination),
+                )
+            except Exception:
+                pass
 
     for archive_path in candidates["zips"]:
         if not archive_path.exists() or not archive_path.is_file():
@@ -4146,7 +4195,19 @@ def recover_historical_month_input(month_key: str, target: Path, options: "Optio
                         continue
                     data = archive.read(member)
                     destination.write_bytes(data)
-                    recovered.append({"file": filename, "source": f"{archive_path}!/{member}", "target": str(destination)})
+                    item = {"file": filename, "source": f"{archive_path}!/{member}", "target": str(destination)}
+                    recovered.append(item)
+                    try:
+                        append_workflow_log(
+                            month_key,
+                            "info",
+                            "Historisch bronbestand hersteld",
+                            file=filename,
+                            source=item["source"],
+                            target=str(destination),
+                        )
+                    except Exception:
+                        pass
         except (zipfile.BadZipFile, OSError):
             continue
 

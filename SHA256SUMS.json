@@ -1,5 +1,5 @@
 {
-  "version": "7.3.2",
+  "version": "7.3.3",
   "files": {
     ".gitignore": {
       "sha256": "f10529b220b514ca72c66fd592c80ec5b3dea6a0a49f2658d80617824c5aa5e7",
@@ -14,19 +14,19 @@
       "bytes": 1551
     },
     "README.md": {
-      "sha256": "52696f718508b98793b367b0848871f423c138e2f6ba7d63c61d85883256de21",
-      "bytes": 1547
+      "sha256": "7102c23927c58e3274fbc9b077e436f2d6aed672dc2badd0f0242f5f5af1fa0f",
+      "bytes": 1600
     },
     "repository.yaml": {
       "sha256": "53bcc3c35f6757f418727b3f72063e676db73638359dfb2124174f2f17bd8be0",
       "bytes": 125
     },
     "slimmemeterportal_import/CHANGELOG.md": {
-      "sha256": "c2a721373827861d11b56e5f26457a984a2e91e3ee1bc62f5bbc9f3092f5b913",
-      "bytes": 5804
+      "sha256": "3c84955463e274d25e19e959895e999d2010104b1e08a08fa5c4cf4ceb293423",
+      "bytes": 5946
     },
     "slimmemeterportal_import/DOCS.md": {
-      "sha256": "4ec0e83f9f50488516488bf1c44d7a3dab64822ad807b8e29810ca0526e7a596",
+      "sha256": "4bc287c25bca2dfb393d190dd67ee21ea80e07ced6ad41006f8e36a1da0a829a",
       "bytes": 12167
     },
     "slimmemeterportal_import/Dockerfile": {
@@ -38,12 +38,12 @@
       "bytes": 152
     },
     "slimmemeterportal_import/config.yaml": {
-      "sha256": "6bee2e41ea3cd23f080cb0dfef147a934bc02543705f494ba515746c7f8bad63",
+      "sha256": "b004f6f9e6db3e3309cabb90a5e12978c44c2a2322491d849463e1228ccadb7a",
       "bytes": 5430
     },
     "slimmemeterportal_import/rootfs/app/main.py": {
-      "sha256": "c88593de54bf4b9593ec7769f3bdf84cb3d3b53e713b177caf2fec97705c7053",
-      "bytes": 274667
+      "sha256": "f615776108536dd0efd71060fabacd189391d6f161a43d5b6041cfac20f8313a",
+      "bytes": 277210
     },
     "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md": {
       "sha256": "d24232c247a27a6346ccb154c17bbc6bd60821a1c1c700ecb0a745cae68997d4",
@@ -258,8 +258,8 @@
       "bytes": 4518
     },
     "tests/test_static.py": {
-      "sha256": "464062b1162560cd3e4dc47508e637d00593e372359adea638e6fccf607bf6ee",
-      "bytes": 64837
+      "sha256": "b0aff4e6f78e264da1c882c211bcdaaf5b8cff70e5df2442a17c3345a0a64d2b",
+      "bytes": 65385
     }
   }
 }
