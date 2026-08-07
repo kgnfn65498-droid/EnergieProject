@@ -543,3 +543,8 @@ De console bevat onder `Diagnostiek en beheer` een opengeklapt `Retry Debug v8.1
 v8.10.1 verandert de productiecode niet functioneel, maar volgt de volledige laatste fase van een workflow in `/config/output/logs/finalization_debug.log`. De trace begint vóór het schrijven van `workflow_result.json` en eindigt na retry-state, completion-marker, append-only automatische historie en workflow-lock afsluiting.
 
 Bij het workflowresultaat worden zowel het bestaande `steps_completed`-veld als een diagnoseaantal inclusief `skipped` gelogd, plus de status van iedere afzonderlijke workflowstap. Daarmee kan exact worden vastgesteld waarom `all_steps_completed` voor een historisch resultaat false is.
+
+
+## Versie 8.11.0 — legacy voltooiingsfix
+
+Bij oudere workflowresultaten kon `steps_completed` lager zijn dan `steps_total` wanneer een geldige stap eindigde als `skipped`. v8.11.0 herberekent bij retry-evidence de voltooiing uit de opgeslagen individuele stappen. `ok`, `info`, `warning` en `skipped` gelden daarbij als afgerond. Nieuwe resultaten schrijven bovendien expliciet `all_steps_completed`.

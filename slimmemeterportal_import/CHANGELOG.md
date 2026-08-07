@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.11.0
+- Fix voor foutieve `all_steps_completed`-beoordeling van legacy workflowresultaten.
+- `ok`, `info`, `warning` en `skipped` zijn nu alle vier geldige terminale stapstatussen.
+- Nieuwe workflowresultaten schrijven expliciet `all_steps_completed`.
+- Retry-evidence herberekent voltooiing uit de opgeslagen individuele stappen wanneer die beschikbaar zijn.
+- Oude `steps_completed`-tellers blijven fallback voor resultaten zonder stappenlijst.
+- Scheduler, importlogica, rapportgeneratoren en Recovery Update-contract inhoudelijk ongewijzigd.
+- Finalization Debug blijft beschikbaar.
+
 ## 8.10.1
 - Gerichte finalisatie-diagnose bovenop v8.10.0.
 - Retry-, scheduler- en productielogica inhoudelijk ongewijzigd.

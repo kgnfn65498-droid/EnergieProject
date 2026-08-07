@@ -17,7 +17,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 8.10.1
+- SlimmeMeterPortal Import 8.11.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
@@ -118,3 +118,7 @@ Diagnoseversie voor legacy retry: volledige bron- en beslistrace zonder function
 
 ### v8.10.1
 Finalisatie-diagnose: volledige trace van workflow_result tot completion-marker, automatische historie en workflow-lock.
+
+
+### v8.11.0
+Legacy voltooiingsfix voor retry-evidence en consistente terminale stapstatussen.

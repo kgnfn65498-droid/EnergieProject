@@ -44,7 +44,7 @@ AUTOMATIC_RETRY_STATE_PATH = Path("/config/output/automatic_retry_state.json")
 RETRY_DEBUG_LOG_PATH = Path("/config/output/logs/retry_debug.log")
 FINALIZATION_DEBUG_LOG_PATH = Path("/config/output/logs/finalization_debug.log")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.10.1"
+APP_VERSION = "8.11.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -4937,12 +4937,27 @@ def workflow_history_debug(month_key: str) -> dict[str, Any]:
 
     completed = int(item.get("steps_completed") or 0)
     total = int(item.get("steps_total") or 0)
+    persisted_steps = item.get("steps") if isinstance(item.get("steps"), list) else []
+    accepted_terminal_statuses = {"ok", "info", "warning", "skipped"}
+    if persisted_steps:
+        recomputed_completed = sum(
+            1 for step in persisted_steps
+            if isinstance(step, dict) and step.get("status") in accepted_terminal_statuses
+        )
+        recomputed_total = len(persisted_steps)
+        all_steps_completed = (
+            recomputed_total > 0 and recomputed_completed == recomputed_total
+        )
+    else:
+        recomputed_completed = completed
+        recomputed_total = total
+        all_steps_completed = total > 0 and completed >= total
     checks = {
         "status_ok": str(item.get("status") or "") in {"completed", "completed_warning"},
         "trigger_automatic": str(item.get("trigger") or "") == "automatic",
         "no_failed_step": not item.get("failed_step"),
         "no_errors": not list(item.get("errors") or []),
-        "all_steps_completed": total > 0 and completed >= total,
+        "all_steps_completed": all_steps_completed,
     }
     detail.update({
         "readable": True,
@@ -4952,6 +4967,9 @@ def workflow_history_debug(month_key: str) -> dict[str, Any]:
         "error_count": len(list(item.get("errors") or [])),
         "steps_completed": completed,
         "steps_total": total,
+        "recomputed_steps_completed": recomputed_completed,
+        "recomputed_steps_total": recomputed_total,
+        "completion_source": "steps" if persisted_steps else "stored_counters",
         "checks": checks,
         "proves_completed": all(checks.values()),
     })
@@ -6106,9 +6124,13 @@ def run_full_month_workflow(
         "finished_at": finished_at,
         "duration_seconds": duration_seconds,
         "steps_completed": sum(
-            1 for step in steps if step.get("status") in {"ok", "info", "warning"}
+            1 for step in steps if step.get("status") in {"ok", "info", "warning", "skipped"}
         ),
         "steps_total": len(steps),
+        "all_steps_completed": all(
+            step.get("status") in {"ok", "info", "warning", "skipped"}
+            for step in steps
+        ),
         "failed_step": failed_step,
         "infos": infos,
         "warnings": warnings,
