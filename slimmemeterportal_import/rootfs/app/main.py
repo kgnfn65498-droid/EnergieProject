@@ -37,7 +37,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.1.1"
+APP_VERSION = "7.1.2"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -111,6 +111,8 @@ class Options:
     report_service_timeout_seconds: int
     report_service_retention_months: int
     workflow_import_wait_seconds: int
+    workflow_step_timeout_seconds: int
+    workflow_heartbeat_seconds: int
     require_all_core_sources: bool
     epex_require_full_calendar_month: bool
     transfer_enabled: bool
@@ -186,6 +188,8 @@ class Options:
             report_service_timeout_seconds=int(raw.get("report_service_timeout_seconds", 900)),
             report_service_retention_months=int(raw.get("report_service_retention_months", 3)),
             workflow_import_wait_seconds=int(raw.get("workflow_import_wait_seconds", 120)),
+            workflow_step_timeout_seconds=int(raw.get("workflow_step_timeout_seconds", 900)),
+            workflow_heartbeat_seconds=int(raw.get("workflow_heartbeat_seconds", 5)),
             require_all_core_sources=bool(raw.get("require_all_core_sources", True)),
             epex_require_full_calendar_month=bool(raw.get("epex_require_full_calendar_month", True)),
             transfer_enabled=bool(raw.get("transfer_enabled", True)),
@@ -270,6 +274,10 @@ class Options:
             raise ValueError("report_service_retention_months moet 1 t/m 24 zijn.")
         if not 0 <= self.workflow_import_wait_seconds <= 900:
             raise ValueError("workflow_import_wait_seconds moet 0 t/m 900 zijn.")
+        if not 60 <= self.workflow_step_timeout_seconds <= 3600:
+            raise ValueError("workflow_step_timeout_seconds moet 60 t/m 3600 zijn.")
+        if not 2 <= self.workflow_heartbeat_seconds <= 60:
+            raise ValueError("workflow_heartbeat_seconds moet 2 t/m 60 zijn.")
         for device in self.homewizard_devices:
             if not isinstance(device, dict):
                 raise ValueError("Iedere HomeWizard-configuratie moet een object zijn.")
@@ -591,6 +599,9 @@ def cleanup_retention(retention_months: int) -> None:
 def cancellation_reason() -> str | None:
     state = load_state()
     if bool(state.get("cancel_requested")):
+        explicit_reason = str(state.get("workflow_cancel_reason") or "").strip()
+        if explicit_reason:
+            return explicit_reason
         return "user_requested"
     if STOP.is_set():
         return "service_shutdown"
@@ -3620,6 +3631,7 @@ def run_import(year: int, month: int) -> None:
             progress_total=0,
             progress_message="Aansluitingen ophalen",
             cancel_requested=False,
+            workflow_cancel_reason=None,
             workflow_sources=workflow_source_status(options),
         )
 
@@ -3627,9 +3639,30 @@ def run_import(year: int, month: int) -> None:
         if not isinstance(connections, list) or not connections:
             raise RuntimeError("Geen aansluitingen ontvangen.")
         write_atomic_json(target / "connections.json", connections)
-        total_steps = len(connections) * monthrange(year, month)[1]
+        calendar_days = monthrange(year, month)[1]
+        today = datetime.now(TZ).date()
+        if year == today.year and month == today.month:
+            last_day_to_fetch = today.day
+        else:
+            last_day_to_fetch = calendar_days
+        total_steps = len(connections) * last_day_to_fetch
         completed_steps = 0
-        update_state(progress_total=total_steps, progress_current=0, progress_message="Dagdata ophalen")
+        import_started_monotonic = time.monotonic()
+        workflow_month_key = f"{year:04d}_{month:02d}"
+        update_state(
+            progress_total=total_steps,
+            progress_current=0,
+            progress_message=(
+                f"Dagdata ophalen t/m {last_day_to_fetch:02d}-{month:02d}-{year:04d}"
+                if last_day_to_fetch < calendar_days
+                else "Dagdata ophalen"
+            ),
+        )
+        if last_day_to_fetch < calendar_days and WORKFLOW_LOCK.locked():
+            append_workflow_log(
+                workflow_month_key, "info", "Huidige maand begrensd tot vandaag",
+                last_day=last_day_to_fetch, calendar_days=calendar_days,
+            )
 
         report: dict[str, Any] = {
             "version": APP_VERSION,
@@ -3660,12 +3693,27 @@ def run_import(year: int, month: int) -> None:
             all_rows: list[dict[str, Any]] = []
             day_status: list[dict[str, Any]] = []
 
-            for day_number in range(1, monthrange(year, month)[1] + 1):
+            for day_number in range(1, last_day_to_fetch + 1):
                 current = date(year, month, day_number)
                 reason = cancellation_reason()
                 if reason:
                     raise ImportCancelled(reason)
+                elapsed = time.monotonic() - import_started_monotonic
+                if elapsed > options.workflow_step_timeout_seconds:
+                    raise RuntimeError(
+                        "SlimmeMeterPortal maandimport overschreed de workflow-timeout van "
+                        f"{options.workflow_step_timeout_seconds} seconden."
+                    )
                 raw_path = raw / f"{prefix}_{current.isoformat()}.json"
+                if WORKFLOW_LOCK.locked():
+                    workflow_heartbeat(
+                        workflow_month_key,
+                        "SlimmeMeterPortal maandimport",
+                        f"{kind}: {current.isoformat()} ophalen",
+                        connection_id=identifier,
+                        progress_current=completed_steps,
+                        progress_total=total_steps,
+                    )
                 try:
                     if options.resume_incomplete_month and raw_path.exists():
                         payload = json.loads(raw_path.read_text(encoding="utf-8"))
@@ -3711,6 +3759,13 @@ def run_import(year: int, month: int) -> None:
                         progress_total=total_steps,
                         progress_message=f"{kind}: {current.isoformat()}",
                     )
+                    if WORKFLOW_LOCK.locked():
+                        append_workflow_log(
+                            workflow_month_key, "info", "Dag afgerond",
+                            step="SlimmeMeterPortal maandimport",
+                            connection_type=kind, date=current.isoformat(),
+                            progress_current=completed_steps, progress_total=total_steps,
+                        )
 
             csv_path = target / f"{prefix}_{year:04d}_{month:02d}.csv"
             jsonl_path = target / f"{prefix}_{year:04d}_{month:02d}.jsonl"
@@ -3832,6 +3887,7 @@ def run_import(year: int, month: int) -> None:
             progress_total=total_steps,
             progress_message="Gereed",
             cancel_requested=False,
+            workflow_cancel_reason=None,
             last_integrity_status=integrity.get("status"),
             last_integrity_checked_at=integrity.get("checked_at"),
             last_summary=month_summary,
@@ -3848,6 +3904,7 @@ def run_import(year: int, month: int) -> None:
         reason_text = {
             "user_requested": "Annulering aangevraagd door gebruiker.",
             "service_shutdown": "Import gestopt omdat de add-on wordt afgesloten.",
+            "workflow_timeout": "Import gestopt omdat de maximale workflowlooptijd is overschreden.",
         }.get(exc.reason, f"Import geannuleerd: {exc.reason}")
         LOGGER.info("Import gecontroleerd geannuleerd: %s", reason_text)
         update_state(
@@ -4475,6 +4532,23 @@ def start_workflow_background(month_key: str, *, collect_live_snapshots: bool, r
             run_full_month_workflow(month_key, collect_live_snapshots=collect_live_snapshots, resume=resume)
         except Exception as exc:
             LOGGER.exception("Achtergrondworkflow mislukt: %s", exc)
+        finally:
+            # Failsafe: een onverwachte fout na de normale workflow-afhandeling
+            # mag nooit een permanente workflow-lock achterlaten.
+            if WORKFLOW_LOCK.locked():
+                try:
+                    append_workflow_log(month_key, "error", "Failsafe heeft achtergebleven workflow-lock vrijgegeven")
+                    set_workflow_lock_state(
+                        status="idle",
+                        month=month_key,
+                        step="Failsafe",
+                        message="Workflow is onverwacht gestopt; lock is veilig vrijgegeven.",
+                    )
+                finally:
+                    try:
+                        WORKFLOW_LOCK.release()
+                    except RuntimeError:
+                        pass
 
     threading.Thread(target=worker, daemon=True, name=f"workflow-{month_key}").start()
     # Geef de worker kort gelegenheid om het lock te nemen zodat dubbelklikken wordt afgevangen.
@@ -4564,6 +4638,22 @@ def update_workflow_lock_step(step: str) -> None:
     update_state(workflow_lock_step=step)
 
 
+def workflow_heartbeat(month_key: str, step: str, message: str, **extra: Any) -> None:
+    """Werk UI en workflowlog bij zonder de starttijd van de lock te resetten."""
+    now = datetime.now(TZ).isoformat()
+    with WORKFLOW_LOCK_META:
+        if WORKFLOW_ACTIVE:
+            WORKFLOW_ACTIVE["step"] = step
+            WORKFLOW_ACTIVE["message"] = message
+            WORKFLOW_ACTIVE["heartbeat_at"] = now
+    update_state(
+        workflow_lock_step=step,
+        workflow_lock_message=message,
+        workflow_heartbeat_at=now,
+    )
+    append_workflow_log(month_key, "info", "Heartbeat", step=step, message=message, **extra)
+
+
 def coordinated_month_import(
     year: int,
     month: int,
@@ -4599,10 +4689,58 @@ def coordinated_month_import(
             f"{options.workflow_import_wait_seconds} seconden."
         )
 
-    run_import(year, month)
+    heartbeat_stop = threading.Event()
+    import_started = time.monotonic()
+
+    def import_heartbeat_worker() -> None:
+        timeout_requested = False
+        while not heartbeat_stop.wait(options.workflow_heartbeat_seconds):
+            state = load_state()
+            elapsed = round(time.monotonic() - import_started, 1)
+            message = str(state.get("progress_message") or "SlimmeMeterPortal maandimport actief")
+            workflow_heartbeat(
+                f"{year:04d}_{month:02d}",
+                "SlimmeMeterPortal maandimport",
+                message,
+                elapsed_seconds=elapsed,
+                progress_current=int(state.get("progress_current") or 0),
+                progress_total=int(state.get("progress_total") or 0),
+            )
+            if elapsed >= options.workflow_step_timeout_seconds and not timeout_requested:
+                timeout_requested = True
+                update_state(
+                    cancel_requested=True,
+                    workflow_cancel_reason="workflow_timeout",
+                )
+                append_workflow_log(
+                    f"{year:04d}_{month:02d}",
+                    "error",
+                    "Workflow-timeout bereikt; import wordt gecontroleerd gestopt",
+                    step="SlimmeMeterPortal maandimport",
+                    timeout_seconds=options.workflow_step_timeout_seconds,
+                    elapsed_seconds=elapsed,
+                )
+
+    heartbeat_thread = threading.Thread(
+        target=import_heartbeat_worker,
+        daemon=True,
+        name=f"smp-heartbeat-{year:04d}-{month:02d}",
+    )
+    heartbeat_thread.start()
+    try:
+        run_import(year, month)
+    finally:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=max(1, options.workflow_heartbeat_seconds + 1))
+
     import_state = load_state()
     if import_state.get("status") == "cancelled":
         reason = str(import_state.get("last_cancel_reason") or "unknown")
+        if reason == "workflow_timeout":
+            raise RuntimeError(
+                "SlimmeMeterPortal maandimport overschreed de workflow-timeout van "
+                f"{options.workflow_step_timeout_seconds} seconden."
+            )
         raise ImportCancelled(reason)
     if import_state.get("status") == "error":
         raise RuntimeError(str(import_state.get("last_error") or "Maandimport mislukt."))
@@ -4722,9 +4860,19 @@ def run_full_month_workflow(
             infos.append(f"{name}: hergebruikt bij hervatten")
             append_workflow_log(month_key, "info", "Stap hergebruikt", step=name, status="info")
             return result
-        append_workflow_log(month_key, "info", "Stap gestart", step=name)
+        append_workflow_log(
+            month_key, "info", "Stap gestart", step=name,
+            timeout_seconds=options.workflow_step_timeout_seconds,
+        )
+        step_started_monotonic = time.monotonic()
         try:
             result = function()
+            step_duration = round(time.monotonic() - step_started_monotonic, 3)
+            if step_duration > options.workflow_step_timeout_seconds:
+                raise RuntimeError(
+                    f"{name} overschreed de workflow-timeout van "
+                    f"{options.workflow_step_timeout_seconds} seconden."
+                )
             status = "ok"
             if isinstance(result, dict):
                 result_status = result.get("status")
@@ -4745,7 +4893,10 @@ def run_full_month_workflow(
                 finished_at=step_finished,
                 result=result,
             )
-            append_workflow_log(month_key, "warning" if status == "warning" else "info", "Stap afgerond", step=name, status=status)
+            append_workflow_log(
+                month_key, "warning" if status == "warning" else "info",
+                "Stap afgerond", step=name, status=status, duration_seconds=step_duration,
+            )
             if status == "warning":
                 warnings.append(f"{name}: waarschuwing")
             if status == "info":
@@ -5039,7 +5190,11 @@ def run_full_month_workflow(
             else ("Volledige maandworkflow is gecontroleerd geannuleerd." if status == "cancelled" else "; ".join(errors))
         ),
     )
-    WORKFLOW_LOCK.release()
+    if WORKFLOW_LOCK.locked():
+        try:
+            WORKFLOW_LOCK.release()
+        except RuntimeError:
+            pass
     return result
 
 

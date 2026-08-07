@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.1.2
+- Huidige kalendermaand vraagt nooit meer toekomstige dagen op bij SlimmeMeterPortal; verwerking stopt bij vandaag.
+- Workflowstappen krijgen een bewaakte maximale looptijd; standaard 900 seconden.
+- SlimmeMeterPortal maandimport schrijft per dag een heartbeat en voortgang naar het live workflowlog.
+- Achtergrondworkflow heeft een failsafe die een achtergebleven workflow-lock altijd vrijgeeft.
+- Staplog bevat voortaan looptijd en ingestelde timeout.
+- Geen wijzigingen aan rapportgeneratoren, Recovery Update-contract of definitieve outputnamen.
+
 ## 7.1.1
 - Gecontroleerde annulering is geen foutstatus of Python-traceback meer.
 - Annuleringsreden wordt vastgelegd als `user_requested` of `service_shutdown`.
