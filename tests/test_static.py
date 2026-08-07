@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "8.12.0"
+    assert cfg_version == app_version == "8.13.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.12.0"' in config
+    assert 'version: "8.13.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.12.0"' in config
-    assert 'APP_VERSION = "8.12.0"' in main
+    assert 'version: "8.13.0"' in config
+    assert 'APP_VERSION = "8.13.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1869,7 +1869,7 @@ def test_v851_acceptance_records_prerequisite_evidence():
 def test_v851_console_explains_automatic_prerequisite():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     assert "voorbereidende productietest automatisch geslaagd" in source
-    assert "voert v8.10.1 die eerst automatisch veilig uit" in source
+    assert "voert v8.13.0 die eerst automatisch veilig uit" in source
 
 
 def test_v860_has_durable_completion_marker_store():
@@ -2174,3 +2174,32 @@ def test_v8120_reconcile_finalizes_proven_retry():
     section=source[source.index("def reconcile_automatic_retry_state"):source.index("def automatic_recovery_status")]
     assert "workflow_proof = workflow_history_proves_completed(month)" in section
     assert "finalize_proven_retry_state(" in section
+
+
+def test_v8130_default_state_has_production_acceptance():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"production_acceptance": None' in source
+
+def test_v8130_writes_durable_production_acceptance():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def write_production_acceptance"):source.index("def automatic_production_readiness")]
+    assert '"status": "accepted" if valid else "rejected"' in section
+    assert "update_state(production_acceptance=certificate)" in section
+
+def test_v8130_readiness_accepts_only_exact_version_certificate():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def automatic_production_readiness"):source.index("def format_local_datetime")]
+    assert 'str(certificate.get("version") or "") == APP_VERSION' in section
+    assert 'str(certificate.get("status") or "") == "accepted"' in section
+    assert "certificate_ready" in section
+
+def test_v8130_successful_product_test_persists_certificate():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def run_automatic_month_close_test"):source.index("def automatic_month_close_preflight")]
+    assert 'result["production_acceptance"] = write_production_acceptance(result)' in section
+    assert 'result.get("scheduler_state_changed") is False' in section
+
+def test_v8130_console_shows_production_certificate():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Productiecertificaat" in source
+    assert "Productiegeaccepteerd" in source

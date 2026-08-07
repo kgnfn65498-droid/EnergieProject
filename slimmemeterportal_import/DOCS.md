@@ -553,3 +553,8 @@ Bij oudere workflowresultaten kon `steps_completed` lager zijn dan `steps_total`
 ## Versie 8.12.0 — legacy retry finalizer
 
 Retry Debug en productie-audit gebruiken nu dezelfde voltooiingsregels. Bewezen afgeronde OPEN/RUNNING retries worden centraal naar COMPLETED gezet en oude retryvelden worden gewist.
+
+
+## Versie 8.13.0 — productieacceptatie
+
+Een volledig geslaagde veilige productietest schrijft een duurzaam productiecertificaat voor exact de actieve softwareversie. Het certificaat bevat versie, acceptatietijd, testmaand en de statussen van preflight, workflow en finalization. Een certificaat van een oudere versie wordt nooit als acceptatie van een nieuwe versie gebruikt.

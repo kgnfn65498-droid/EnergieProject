@@ -44,7 +44,7 @@ AUTOMATIC_RETRY_STATE_PATH = Path("/config/output/automatic_retry_state.json")
 RETRY_DEBUG_LOG_PATH = Path("/config/output/logs/retry_debug.log")
 FINALIZATION_DEBUG_LOG_PATH = Path("/config/output/logs/finalization_debug.log")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.12.0"
+APP_VERSION = "8.13.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -481,6 +481,7 @@ def default_state() -> dict[str, Any]:
         "automatic_month_close_last_finalization": None,
         "automatic_month_close_test_last_result": None,
         "automatic_scheduler_acceptance_last_result": None,
+        "production_acceptance": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -6743,9 +6744,57 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
 
 
 
+def write_production_acceptance(test_result: dict[str, Any]) -> dict[str, Any]:
+    """Sla een geslaagde productietest duurzaam op als acceptatie van deze build."""
+    workflow = test_result.get("workflow") or {}
+    preflight = test_result.get("preflight") or {}
+    finalization = test_result.get("finalization") or {}
+    valid = bool(
+        str(test_result.get("version") or "") == APP_VERSION
+        and str(test_result.get("status") or "") in {"completed", "completed_warning"}
+        and str(preflight.get("status") or "") == "ok"
+        and str(workflow.get("status") or "") in {"completed", "completed_warning"}
+        and str(finalization.get("status") or "") == "ok"
+        and test_result.get("scheduler_state_changed") is False
+    )
+    certificate = {
+        "version": APP_VERSION,
+        "status": "accepted" if valid else "rejected",
+        "accepted_at": datetime.now(TZ).isoformat() if valid else None,
+        "month": test_result.get("month"),
+        "tested_at": test_result.get("tested_at"),
+        "test_status": test_result.get("status"),
+        "preflight_status": preflight.get("status"),
+        "workflow_status": workflow.get("status"),
+        "finalization_status": finalization.get("status"),
+        "scheduler_state_unchanged": test_result.get("scheduler_state_changed") is False,
+    }
+    update_state(production_acceptance=certificate)
+    return certificate
+
+
 def automatic_production_readiness(state: dict[str, Any] | None = None) -> dict[str, Any]:
     """Bepaal of deze softwareversie aantoonbaar veilig automatisch mag draaien."""
     state = state or load_state()
+    certificate = state.get("production_acceptance") or {}
+    certificate_ready = bool(
+        str(certificate.get("version") or "") == APP_VERSION
+        and str(certificate.get("status") or "") == "accepted"
+        and certificate.get("scheduler_state_unchanged") is True
+    )
+    if certificate_ready:
+        return {
+            "version": APP_VERSION,
+            "ready": True,
+            "status": "accepted",
+            "tested_version": certificate.get("version"),
+            "tested_at": certificate.get("tested_at"),
+            "accepted_at": certificate.get("accepted_at"),
+            "month": certificate.get("month"),
+            "reason": None,
+            "certificate": certificate,
+        }
+
     test = state.get("automatic_month_close_test_last_result") or {}
     same_version = str(test.get("version") or "") == APP_VERSION
     workflow = test.get("workflow") or {}
@@ -6757,6 +6806,7 @@ def automatic_production_readiness(state: dict[str, Any] | None = None) -> dict[
         and str(preflight.get("status") or "") == "ok"
         and str(workflow.get("status") or "") in {"completed", "completed_warning"}
         and str(finalization.get("status") or "") == "ok"
+        and test.get("scheduler_state_changed") is False
     )
     return {
         "version": APP_VERSION,
@@ -6764,8 +6814,10 @@ def automatic_production_readiness(state: dict[str, Any] | None = None) -> dict[
         "status": "ready" if ready else "test_required",
         "tested_version": test.get("version"),
         "tested_at": test.get("tested_at"),
+        "accepted_at": None,
         "month": test.get("month"),
         "reason": None if ready else "Voer eerst een geslaagde productietest uit met deze versie.",
+        "certificate": certificate or None,
     }
 
 
@@ -6937,6 +6989,15 @@ def run_automatic_month_close_test(month_key: str) -> dict[str, Any]:
         result["scheduler_state_changed"] = False
 
     update_state(automatic_month_close_test_last_result=result)
+    if (
+        str(result.get("status") or "") in {"completed", "completed_warning"}
+        and str((result.get("preflight") or {}).get("status") or "") == "ok"
+        and str((result.get("workflow") or {}).get("status") or "") in {"completed", "completed_warning"}
+        and str((result.get("finalization") or {}).get("status") or "") == "ok"
+        and result.get("scheduler_state_changed") is False
+    ):
+        result["production_acceptance"] = write_production_acceptance(result)
+        update_state(automatic_month_close_test_last_result=result)
     append_automatic_run_history({
         "type": "Test", "month": month_key, "status": result.get("status"),
         "finalization_status": (result.get("finalization") or {}).get("status"),
@@ -7631,7 +7692,15 @@ def html_page() -> bytes:
     )
     production = auto_close.get("production_readiness") or automatic_production_readiness(state)
     production_status = "ready" if production.get("ready") else "pending"
-    production_text = "Productieklaar" if production.get("ready") else "Test vereist voor v" + APP_VERSION
+    production_text = "Productiegeaccepteerd" if production.get("status") == "accepted" else (
+        "Productieklaar" if production.get("ready") else "Test vereist voor v" + APP_VERSION
+    )
+    production_certificate = production.get("certificate") or {}
+    production_certificate_text = (
+        f"v{production_certificate.get('version')} · {format_local_datetime(production_certificate.get('accepted_at'))}"
+        if production_certificate.get("status") == "accepted"
+        else "Nog niet afgegeven"
+    )
     scheduler_effective = bool(auto_close.get("scheduler_effective"))
     scheduler_text = (
         "Actief" if scheduler_effective
@@ -7757,8 +7826,9 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Scheduler</small><strong id="production-scheduler">{esc(scheduler_text)}</strong></div>
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
+<div class="metric"><small>Productiecertificaat</small><strong id="production-certificate">{esc(production_certificate_text)}</strong></div>
 </div>
-<p class="hint">v8.12 gebruikt één voltooiingsdefinitie voor Retry Debug en productie-audit en sluit bewezen afgeronde legacy retries definitief af.</p>
+<p class="hint">v8.13 slaat een geslaagde productietest duurzaam op als productieacceptatie van precies deze softwareversie.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 </div>
 
@@ -7780,13 +7850,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.10.1 productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.13.0 productiegeaccepteerd is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
-<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.10.1 die eerst automatisch veilig uit.</p>
+<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.13.0 die eerst automatisch veilig uit.</p>
 <ul class="source-list">
 <li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>

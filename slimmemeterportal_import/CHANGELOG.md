@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.13.0
+- Duurzame productieacceptatie na een volledig geslaagde veilige productietest.
+- Acceptatie geldt uitsluitend voor exact de actieve softwareversie.
+- Vereist preflight ok, workflow completed/completed_warning, finalization ok en ongewijzigde schedulerplanning.
+- Productiestatus toont `Productiegeaccepteerd` en het productiecertificaat met versie en acceptatietijd.
+- Scheduler wordt pas effectief wanneer de actuele versie aantoonbaar gereed is.
+- Retry-finalizer, import, rapportgeneratoren en Recovery Update inhoudelijk ongewijzigd.
+
 ## 8.12.0
 - Productiefix voor blijvende `2026_07 legacy_retry`.
 - Productie-audit en Retry Debug gebruiken dezelfde voltooiingssemantiek.
