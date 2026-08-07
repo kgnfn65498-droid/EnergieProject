@@ -1,3 +1,10 @@
+## 7.1.6
+
+- Herstelt de JavaScript-syntax van de operationele console: newline-escapes in traceback- en logweergave worden nu correct als `\n` aan de browser geleverd.
+- Daardoor werkt de 2,5-seconden polling van status, voortgang en live workflowlog weer daadwerkelijk.
+- Live workflowlog scrolt na verversen automatisch naar de nieuwste regel.
+- Geen wijzigingen aan backend-workflow, rapportgeneratoren, Recovery Update of outputcontract.
+
 ## 7.1.5
 
 - Wis oude workflowfoutdiagnostiek direct bij de start van een nieuwe run.

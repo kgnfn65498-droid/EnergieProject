@@ -38,7 +38,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.1.5"
+APP_VERSION = "7.1.6"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -5730,9 +5730,9 @@ async function refreshStatus(){{
         const logData=await logResp.json();
         const text=(logData.lines||[]).map(x=>{{
           let line=`${{x.timestamp||''}} [${{String(x.level||'info').toUpperCase()}}] ${{x.step?x.step+': ':''}}${{x.message||''}}${{x.error?' — '+x.error:''}}`;
-          if(x.traceback) line+='\n'+x.traceback;
+          if(x.traceback) line+='\\n'+x.traceback;
           return line;
-        }}).join('\n');
+        }}).join('\\n');
         const box=document.getElementById('workflow-log');
         box.textContent=text || 'Nog geen logregels voor '+month;
         box.scrollTop=box.scrollHeight;
