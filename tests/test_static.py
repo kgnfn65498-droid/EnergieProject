@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "7.3.5"
+    assert cfg_version == app_version == "7.3.6"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "7.3.5"' in config
+    assert 'version: "7.3.6"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -757,6 +757,12 @@ def test_v520_consistent_workflow_statuses():
     assert '"completed_info"' in source
     assert 'status = "failed" if errors else ("completed_warning" if warnings else "completed")' in source
 
+
+def test_v736_historical_snapshot_skip_is_informational_not_warning():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'infos.append(\n                "Historische maand: live snapshots bewust niet aan doelmaand toegevoegd."' in source
+    assert 'warnings.append(\n                "Historische maand: live snapshots niet aan doelmaand toegevoegd."' not in source
+
 def test_v520_epex_default_is_not_configured():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"epex_last_validation_status": "not_configured"' in source
@@ -1149,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "7.3.5"' in config
-    assert 'APP_VERSION = "7.3.5"' in main
+    assert 'version: "7.3.6"' in config
+    assert 'APP_VERSION = "7.3.6"' in main
 
 
 def test_phase7_configuration_present():

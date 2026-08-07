@@ -1,6 +1,12 @@
 # Changelog
 
-## 7.3.5
+## 7.3.6
+
+- Classificeert het bewust overslaan van live snapshots bij historische maanden als informatie in plaats van waarschuwing.
+- Een foutloze historische run eindigt daardoor als `completed`; echte warnings blijven `completed_warning`.
+- Geen wijzigingen aan import, rapportgeneratoren, Recovery Update of outputcontract.
+
+## 7.3.6
 
 - Classificeert een gecontroleerde historische rapport-skip als informatie in plaats van waarschuwing.
 - Een geslaagde historische import zonder volledige detailbronnen eindigt nu als `completed`.

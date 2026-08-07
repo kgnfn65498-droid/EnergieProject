@@ -38,7 +38,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.3.5"
+APP_VERSION = "7.3.6"
 
 
 # v7.3.3: historische maandarchief-recovery plus gewogen workflowvisualisatie. De gewichten zijn gebaseerd op de
@@ -5317,8 +5317,8 @@ def run_full_month_workflow(
                     ),
                 },
             )
-            warnings.append(
-                "Historische maand: live snapshots niet aan doelmaand toegevoegd."
+            infos.append(
+                "Historische maand: live snapshots bewust niet aan doelmaand toegevoegd."
             )
 
         if options.full_workflow_run_epex_when_enabled:
