@@ -1,4 +1,11 @@
-# 7.2.0
+# 7.3.0
+
+- Gewogen workflowvoortgang op basis van gemeten stapduur.
+- Voortgang reset direct naar 0% bij start/hervatten/historische run.
+- Vloeiende animatie tijdens lange stappen.
+- Actieve stap, detail en geschatte resterende tijd zichtbaar.
+- Acht vaste hoofdphasen voor consistente actieve en historische visualisatie.
+- Geen wijzigingen aan import-, rapport- of Recovery Update-logica.
 
 - Workflowmeldingen zijn losgekoppeld van overdrachtsmeldingen.
 - Optionele Home Assistant-melding bij start van een maandworkflow.
@@ -7,7 +14,7 @@
 - Operationele status bevat workflow-trigger en informatie over de volgende automatische retry.
 - Rapportketen, Recovery Update-contract en vaste outputnamen zijn ongewijzigd.
 
-## 7.2.0
+## 7.3.0
 
 - Live workflowlog wordt rechtstreeks via `operation-status` aangeleverd en iedere 2,5 seconde in de console ververst.
 - Statuspillen en gezondheidschecks verversen nu mee met de actieve workflow.

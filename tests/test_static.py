@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "7.2.0"
+    assert cfg_version == app_version == "7.3.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "7.2.0"' in config
+    assert 'version: "7.3.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1149,8 +1149,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "7.2.0"' in config
-    assert 'APP_VERSION = "7.2.0"' in main
+    assert 'version: "7.3.0"' in config
+    assert 'APP_VERSION = "7.3.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1358,7 +1358,7 @@ def test_v717_generated_console_javascript_has_escaped_newlines():
 
 def test_v717_console_polling_contract_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert '"live_log": workflow_log_tail' in source
+    assert '"live_log": live_log' in source
     assert 'Array.isArray(op.live_log)' in source
     assert "setInterval(refreshStatus,2500)" in source
     assert "box.scrollTop=box.scrollHeight" in source
@@ -1373,7 +1373,7 @@ def test_v717_self_test_is_human_readable_html():
 
 def test_v717_operation_status_embeds_live_log():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert '"live_log": workflow_log_tail' in source
+    assert '"live_log": live_log' in source
     assert 'limit=80' in source
 
 
@@ -1405,3 +1405,31 @@ def test_v720_full_workflow_suppresses_transfer_notification():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "send_notification: bool = True" in source
     assert "replace_existing=True, send_notification=False" in source
+
+
+def test_v730_weighted_visual_progress_contract_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'WORKFLOW_VISUAL_PHASES' in source
+    assert 'def workflow_visualization' in source
+    assert '"visual_progress": visual' in source
+    assert 'WORKFLOW_VISUAL_TOTAL_STEPS = len(WORKFLOW_VISUAL_PHASES)' in source
+
+
+def test_v730_progress_resets_locally_on_submit():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "bar.style.width='0%'" in source
+    assert "textContent='Stap 0 van 8'" in source
+    assert "textContent='Workflow starten'" in source
+
+
+def test_v730_history_uses_visual_step_count():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'def visual_step_counts_from_result' in source
+    assert '"steps_total": visual_step_counts_from_result(result)[1]' in source
+
+
+def test_v730_progress_ui_has_eta_and_flow_animation():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'id="workflow-eta"' in source
+    assert '@keyframes flow' in source
+    assert "bar.className=vp.running?'running':''" in source

@@ -38,7 +38,23 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.2.0"
+APP_VERSION = "7.3.0"
+
+
+# v7.3.0: gewogen workflowvisualisatie. De gewichten zijn gebaseerd op de
+# gemeten doorlooptijd van de stabiele v7.2-workflow en tellen exact op tot 100.
+WORKFLOW_VISUAL_PHASES = [
+    ("SlimmeMeterPortal API-test", 5.0, 0.3),
+    ("SlimmeMeterPortal maandimport", 10.0, 1.5),
+    ("HomeWizard detectie", 40.0, 8.2),
+    ("HomeWizard snapshot", 5.0, 0.5),
+    ("Home Assistant energiesnapshot", 3.0, 0.3),
+    ("Maandmap bouwen", 3.0, 0.3),
+    ("Overdrachtspakket maken", 4.0, 0.3),
+    ("Rapportgenerator koppelen", 30.0, 6.2),
+]
+WORKFLOW_VISUAL_TOTAL_STEPS = len(WORKFLOW_VISUAL_PHASES)
+
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -5342,6 +5358,110 @@ def health_dashboard(options: Options | None = None) -> dict[str, Any]:
     }
 
 
+
+def visual_step_counts_from_result(result: dict[str, Any]) -> tuple[int, int]:
+    """Normalize persisted workflow history to the eight v7.3 visual phases."""
+    phase_names = {name for name, _weight, _seconds in WORKFLOW_VISUAL_PHASES}
+    completed = 0
+    seen: set[str] = set()
+    for step in result.get("steps") or []:
+        name = str(step.get("name") or "")
+        if name in phase_names and name not in seen and step.get("status") in {"ok", "info", "warning", "skipped"}:
+            seen.add(name)
+            completed += 1
+    # Report handoff is intentionally not a separate visual phase.
+    return completed, WORKFLOW_VISUAL_TOTAL_STEPS
+
+
+def workflow_visualization(state: dict[str, Any], log_lines: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build a stable, weighted UX progress model without changing workflow execution."""
+    status = str(state.get("workflow_lock_status") or "idle").lower()
+    last_status = str(state.get("full_workflow_last_status") or "").lower()
+    phase_names = [name for name, _weight, _seconds in WORKFLOW_VISUAL_PHASES]
+    weights = {name: weight for name, weight, _seconds in WORKFLOW_VISUAL_PHASES}
+    expected = {name: seconds for name, _weight, seconds in WORKFLOW_VISUAL_PHASES}
+
+    # Alleen de regels van de meest recente run gebruiken.
+    start_index = 0
+    for idx, line in enumerate(log_lines):
+        if line.get("message") in {"Workflow gestart", "Workflow hervat"}:
+            start_index = idx
+    recent = log_lines[start_index:]
+
+    completed: set[str] = set()
+    active_step = str(state.get("workflow_lock_step") or "")
+    active_started_at: datetime | None = None
+    detail = str(state.get("progress_message") or "")
+    for line in recent:
+        step = str(line.get("step") or "")
+        if line.get("message") == "Stap afgerond" and step in weights:
+            completed.add(step)
+        if line.get("message") == "Stap gestart" and step in weights:
+            active_step = step
+            try:
+                active_started_at = datetime.fromisoformat(str(line.get("timestamp")))
+            except (TypeError, ValueError):
+                active_started_at = None
+        if line.get("message") == "Heartbeat" and step == active_step:
+            detail = str(line.get("heartbeat_message") or detail)
+
+    if status != "running":
+        if last_status in {"completed", "completed_warning"}:
+            return {
+                "percent": 100.0, "step_index": WORKFLOW_VISUAL_TOTAL_STEPS,
+                "steps_total": WORKFLOW_VISUAL_TOTAL_STEPS, "step": "Gereed",
+                "detail": "Workflow voltooid", "elapsed_seconds": state.get("workflow_lock_last_duration_seconds"),
+                "eta_seconds": 0, "running": False,
+            }
+        return {
+            "percent": 0.0, "step_index": 0, "steps_total": WORKFLOW_VISUAL_TOTAL_STEPS,
+            "step": "Geen actieve workflow", "detail": "Klaar om te starten",
+            "elapsed_seconds": None, "eta_seconds": None, "running": False,
+        }
+
+    completed_weight = sum(weights[name] for name in completed)
+    if active_step not in weights:
+        # Initialiseren: toon bewust 0% in plaats van de vorige run.
+        return {
+            "percent": 0.0, "step_index": 0, "steps_total": WORKFLOW_VISUAL_TOTAL_STEPS,
+            "step": active_step or "Initialiseren", "detail": detail or "Workflow gestart",
+            "elapsed_seconds": 0, "eta_seconds": round(sum(x[2] for x in WORKFLOW_VISUAL_PHASES), 1),
+            "running": True,
+        }
+
+    phase_index = phase_names.index(active_step)
+    phase_weight = weights[active_step]
+    phase_fraction = 0.08
+    elapsed_phase = 0.0
+    if active_step == "SlimmeMeterPortal maandimport":
+        cur = int(state.get("progress_current") or 0)
+        total = int(state.get("progress_total") or 0)
+        if total > 0:
+            phase_fraction = min(0.95, max(0.08, cur / total))
+    elif active_started_at is not None:
+        now = datetime.now(TZ)
+        if active_started_at.tzinfo is None:
+            active_started_at = active_started_at.replace(tzinfo=TZ)
+        elapsed_phase = max(0.0, (now - active_started_at).total_seconds())
+        phase_fraction = min(0.92, max(0.08, elapsed_phase / max(expected[active_step], 0.1)))
+
+    percent = min(99.0, completed_weight + phase_weight * phase_fraction)
+    remaining = max(0.0, expected[active_step] - elapsed_phase)
+    for name in phase_names[phase_index + 1:]:
+        if name not in completed:
+            remaining += expected[name]
+    return {
+        "percent": round(percent, 1),
+        "step_index": phase_index + 1,
+        "steps_total": WORKFLOW_VISUAL_TOTAL_STEPS,
+        "step": active_step,
+        "detail": detail or active_step,
+        "elapsed_seconds": round(elapsed_phase, 1),
+        "eta_seconds": round(remaining, 1),
+        "running": True,
+    }
+
+
 def operation_status(options: Options | None = None) -> dict[str, Any]:
     """Return one compact operational view without changing workflow state."""
     options = options or Options.load()
@@ -5365,12 +5485,17 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
                         "finished_at": result.get("finished_at"),
                         "duration_seconds": result.get("duration_seconds"),
                         "failed_step": result.get("failed_step"),
-                        "steps_completed": result.get("steps_completed"),
-                        "steps_total": result.get("steps_total"),
+                        "steps_completed": visual_step_counts_from_result(result)[0],
+                        "steps_total": visual_step_counts_from_result(result)[1],
                     })
                 except (OSError, json.JSONDecodeError) as exc:
                     item.update({"status": "unreadable", "error": str(exc)})
             history.append(item)
+    live_log = workflow_log_tail(
+        str(state.get("workflow_lock_month") or state.get("full_workflow_last_month") or ""),
+        limit=80,
+    )
+    visual = workflow_visualization(state, live_log)
     return {
         "version": APP_VERSION,
         "generated_at": datetime.now(TZ).isoformat(),
@@ -5391,7 +5516,8 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "error_at": state.get("full_workflow_last_error_at"),
             "traceback": state.get("full_workflow_last_traceback"),
         },
-        "live_log": workflow_log_tail(str(state.get("workflow_lock_month") or state.get("full_workflow_last_month") or ""), limit=80),
+        "live_log": live_log,
+        "visual_progress": visual,
         "automatic_month_close": {
             "enabled": options.automatic_month_close_enabled,
             "day": options.automatic_month_close_day,
@@ -5600,9 +5726,10 @@ def html_page() -> bytes:
     last_run = op.get("last_run") or {}
     auto_close = op.get("automatic_month_close") or {}
     history = op.get("history") or []
-    progress_current = int(state.get("progress_current") or 0)
-    progress_total = int(state.get("progress_total") or 0)
-    progress_pct = int(round((progress_current / progress_total) * 100)) if progress_total else 0
+    visual_progress = op.get("visual_progress") or {}
+    progress_current = int(visual_progress.get("step_index") or 0)
+    progress_total = int(visual_progress.get("steps_total") or WORKFLOW_VISUAL_TOTAL_STEPS)
+    progress_pct = float(visual_progress.get("percent") or 0)
     health = op.get("health") or health_dashboard(options) if options else {"score": 0, "checks": []}
     health_score = int(health.get("score") or 0)
     health_rows = "".join(
@@ -5657,7 +5784,7 @@ main{{max-width:1180px;margin:22px auto;padding:0 18px 40px}} h1{{margin-bottom:
 .card{{background:var(--card);border-radius:14px;padding:20px;margin:14px 0;box-shadow:0 2px 12px #00000010;border:1px solid #edf1f3}}
 .metric{{padding:16px;border:1px solid var(--border);border-radius:12px;background:#fff}} .metric small{{display:block;color:var(--muted);margin-bottom:7px}} .metric strong{{font-size:1.08rem;overflow-wrap:anywhere}}
 .pill{{display:inline-block;padding:4px 9px;border-radius:999px;font-weight:700;font-size:.82rem;background:#e8edf0;color:#4b5963}} .pill.ok{{background:#e6f5ec;color:var(--ok)}} .pill.warn{{background:#fff2d8;color:var(--warn)}} .pill.bad{{background:#fde8e5;color:var(--bad)}}
-.progress{{height:12px;background:#e7edf1;border-radius:999px;overflow:hidden;margin:10px 0 5px}} .progress>span{{display:block;height:100%;width:{progress_pct}%;background:var(--blue);transition:width .3s}}
+.progress{{height:12px;background:#e7edf1;border-radius:999px;overflow:hidden;margin:10px 0 5px}} .progress>span{{display:block;height:100%;width:{progress_pct}%;background:var(--blue);transition:width 1.2s ease;position:relative;overflow:hidden}} .progress>span.running::after{{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,#ffffff55,transparent);transform:translateX(-100%);animation:flow 1.6s infinite}} @keyframes flow{{to{{transform:translateX(100%)}}}}
 .controls{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}} .control-group{{border:1px solid var(--border);border-radius:12px;padding:16px}} form{{margin:9px 0}} button{{background:var(--blue);color:#fff;border:0;border-radius:8px;padding:11px 15px;font-weight:700;cursor:pointer}} button.secondary{{background:#546e7a}} button.danger{{background:#c0392b}} input{{padding:10px;border:1px solid #b8c3ca;border-radius:8px;max-width:190px}}
 .hint{{font-size:.9rem;color:var(--muted);margin:7px 0}} table{{width:100%;border-collapse:collapse}} th,td{{text-align:left;border-bottom:1px solid var(--border);padding:10px 8px;vertical-align:top}} th{{font-size:.82rem;color:var(--muted)}} .table-wrap{{overflow-x:auto}}
 details{{border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin:9px 0}} summary{{cursor:pointer;font-weight:700}} .source-list{{list-style:none;padding:0;margin:0}} .source-list li{{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #eef2f4}}
@@ -5674,9 +5801,9 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 
 <div class="card"><h2>Actuele voortgang</h2>
-<div><strong id="progress-message">{esc(state.get('progress_message') or workflow.get('message') or 'Geen actieve verwerking.')}</strong></div>
-<div class="progress"><span id="progress-bar"></span></div>
-<div class="hint"><span id="progress-count">{progress_current} / {progress_total}</span> · stap: <span id="workflow-step">{esc(workflow.get('step') or '—')}</span></div>
+<div><strong id="progress-message">{esc(visual_progress.get('step') or 'Geen actieve workflow')}</strong></div>
+<div class="progress"><span id="progress-bar" class="{'running' if visual_progress.get('running') else ''}"></span></div>
+<div class="hint"><span id="progress-count">Stap {progress_current} van {progress_total}</span> · <span id="workflow-detail">{esc(visual_progress.get('detail') or 'Klaar om te starten')}</span> · <span id="workflow-eta">{('nog ongeveer ' + str(int(round(float(visual_progress.get('eta_seconds') or 0)))) + ' s') if visual_progress.get('running') else ''}</span></div>
 </div>
 
 <div class="card"><h2>Bediening</h2><div class="controls">
@@ -5764,11 +5891,16 @@ async function refreshStatus(){{
     const [statusResp, opResp] = await Promise.all([fetch('status.json',{{cache:'no-store'}}),fetch('operation-status',{{cache:'no-store'}})]);
     if(!statusResp.ok || !opResp.ok) return;
     const st=await statusResp.json(), op=await opResp.json();
-    const current=Number(st.progress_current||0), total=Number(st.progress_total||0), pct=total?Math.round(current/total*100):0;
-    document.getElementById('progress-bar').style.width=pct+'%';
-    document.getElementById('progress-count').textContent=current+' / '+total;
-    document.getElementById('progress-message').textContent=st.progress_message || op.workflow?.message || 'Geen actieve verwerking.';
-    document.getElementById('workflow-step').textContent=op.workflow?.step || '—';
+    const vp=op.visual_progress||{{}};
+    const pct=Number(vp.percent||0);
+    const bar=document.getElementById('progress-bar');
+    bar.style.width=pct+'%';
+    bar.className=vp.running?'running':'';
+    document.getElementById('progress-count').textContent='Stap '+Number(vp.step_index||0)+' van '+Number(vp.steps_total||8);
+    document.getElementById('progress-message').textContent=vp.step || 'Geen actieve workflow';
+    document.getElementById('workflow-detail').textContent=vp.detail || 'Klaar om te starten';
+    const eta=Number(vp.eta_seconds);
+    document.getElementById('workflow-eta').textContent=vp.running && Number.isFinite(eta)?'nog ongeveer '+Math.max(0,Math.round(eta))+' s':'';
     const workflowStatus=document.getElementById('workflow-status');
     const lastRunStatus=document.getElementById('last-run-status');
     const pillClass=(value)=>{{
@@ -5811,6 +5943,13 @@ async function refreshStatus(){{
     }}
   }}catch(_e){{}}
 }}
+document.querySelectorAll('form[action="start-month-workflow"],form[action="resume-month-workflow"],form[action="run-historical-month"]').forEach(form=>form.addEventListener('submit',()=>{{
+  const bar=document.getElementById('progress-bar'); bar.style.width='0%'; bar.className='running';
+  document.getElementById('progress-count').textContent='Stap 0 van 8';
+  document.getElementById('progress-message').textContent='Workflow starten';
+  document.getElementById('workflow-detail').textContent='Initialiseren…';
+  document.getElementById('workflow-eta').textContent='';
+}}));
 refreshStatus();
 // v7.0.1 compatibiliteitsreferentie: setInterval(refreshStatus,5000)
 setInterval(refreshStatus,2500);

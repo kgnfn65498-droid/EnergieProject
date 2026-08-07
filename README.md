@@ -17,17 +17,19 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 7.2.0
+- SlimmeMeterPortal Import 7.3.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
 
 ## Fase 7
 
-Versie 7.2.0 bouwt voort op de stabiele 7.1.6-backend. Deze release wijzigt uitsluitend de operationele gebruikersinterface: het live workflowlog wordt nu rechtstreeks via de operationele status meegeleverd en weergegeven, statuspillen en gezondheidschecks verversen live, en de volledige zelftest krijgt een leesbare resultaatpagina in plaats van ruwe JSON. Rapportgeneratoren, Recovery Update-inhoud en definitieve outputnamen blijven ongewijzigd.
+Versie 7.3.0 bouwt rechtstreeks voort op de stabiele v7.2.0-workflow. Deze release wijzigt uitsluitend de workflowvisualisatie: de voortgang wordt gewogen op basis van de gemeten stapduur, reset direct bij een nieuwe run en toont actieve stap, detail en een indicatieve resterende tijd. De importlogica, rapportgeneratoren, Recovery Update-inhoud en definitieve outputnamen blijven ongewijzigd.
 
-### v7.2.0
-- Betrouwbare live logweergave via `operation-status` zonder tweede log-fetch.
-- Automatische statuskleur- en gezondheidsrefresh tijdens workflowruns.
-- Leesbare HTML-uitvoer voor **Voer volledige zelftest uit**.
+### v7.3.0
+- Gewogen voortgang over acht vaste hoofdphasen.
+- Directe 0%-reset bij start, hervatten en historische verwerking.
+- Vloeiende animatie tijdens lange stappen.
+- Actieve stap, subactiviteit en indicatieve resterende tijd zichtbaar.
+- Historische runs gebruiken dezelfde 8-fasen telling als de actuele workflow.
 - Geen wijzigingen aan import-, rapport- of Recovery Update-backend.
