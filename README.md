@@ -1,6 +1,6 @@
-# EnergieProject v8.18.0
+# EnergieProject v9.0.0
 
-Deze release bouwt voort op v8.17.0 en voegt productiemonitoring toe zonder de bestaande maandworkflow te wijzigen.
+Deze release is de eerste stabiele hoofdrelease van het Energieproject-productieplatform en bouwt rechtstreeks voort op de volledig geteste v8.19.1-basis.
 
 # Energie Home Assistant Apps
 
@@ -21,7 +21,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 8.14.0
+- SlimmeMeterPortal Import 9.0.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 

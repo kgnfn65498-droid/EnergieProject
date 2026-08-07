@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.0.0
+- Eerste hoofdrelease van het Energieproject-productieplatform, gebaseerd op de volledig geteste v8.19.1-keten.
+- Actieve applicatieversie, Home Assistant app-metadata, productiecertificering, Recovery, Monitoring, Audittrail en Retry Debug zijn naar 9.0.0 overgezet.
+- De gecertificeerde kernworkflow blijft inhoudelijk ongewijzigd: scheduler, retry-state, workflow-lock, maandverwerking en officiële rapportgeneratoren zijn niet gerefactord.
+- v9 markeert de overgang van bouwfase naar stabiel productieplatform; verdere uitbreidingen moeten bovenop deze basis plaatsvinden.
+
 ## 8.19.1
 - Retry Debug gebruikt live dezelfde productiecertificaatvalidatie als Productiestatus en Gezondheidsdashboard.
 - Productiecertificaathistorie krijgt de ontbrekende live-update hook, zodat een nieuw certificaat zonder paginaverversing zichtbaar wordt.
