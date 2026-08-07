@@ -1,5 +1,15 @@
 # Changelog
 
+## 8.17.0
+
+- Recovery-controller toegevoegd voor veilige automatische reconciliatie uit bestaand hard bewijs.
+- Achtergebleven persistente workflow-lockstatus na herstart wordt veilig genormaliseerd wanneer geen echte lock actief is.
+- Retry-state wordt automatisch gereconcilieerd op basis van append-only historie, workflow_result en completion-marker.
+- Productiecertificaat kan tijdens recovery uitsluitend worden hersteld uit een geslaagde productietest van exact dezelfde versie.
+- Recovery-resultaat en historie worden duurzaam opgeslagen en in de audittrail vastgelegd.
+- Certificaatbeheer gebruikt nu fetch binnen de Home Assistant-ingresspagina; de zwarte/lege redirectpagina vervalt.
+- Geen automatische maandworkflow tijdens recovery en geen automatische wijziging van een ongeldige auditketen.
+
 ## 8.16.1
 
 - Correctie: audittrailweergave wordt nu live bijgewerkt via de bestaande operationele statuspoll.

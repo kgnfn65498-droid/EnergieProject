@@ -47,8 +47,10 @@ PRODUCTION_CERTIFICATE_PATH = Path("/config/output/production_certificate.json")
 PRODUCTION_CERTIFICATE_HISTORY_PATH = Path("/config/output/production_certificate_history.jsonl")
 PRODUCTION_CERTIFICATE_MANAGEMENT_PATH = Path("/config/output/production_certificate_management.json")
 AUDIT_TRAIL_PATH = Path("/config/output/audit_trail.jsonl")
+RECOVERY_STATE_PATH = Path("/config/output/recovery_state.json")
+RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.16.1"
+APP_VERSION = "8.17.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -6519,6 +6521,129 @@ def reconcile_automatic_retry_state(state: dict[str, Any]) -> tuple[dict[str, An
     return state, retry
 
 
+def append_recovery_history(result: dict[str, Any]) -> None:
+    RECOVERY_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with RECOVERY_HISTORY_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(result, ensure_ascii=False, default=str) + "\n")
+
+
+def run_recovery_controller(*, trigger: str = "manual") -> dict[str, Any]:
+    """Conservatieve v8.17-herstelcontrole op duurzame productiestatus.
+
+    Herstelt alleen afleidbare status uit bestaand hard bewijs. Er wordt nooit
+    automatisch een maandworkflow gestart en een ongeldige auditketen wordt
+    nooit overschreven.
+    """
+    checked_at = datetime.now(TZ).isoformat()
+    repairs: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    state = load_state()
+
+    # Een procesherstart kan een persistente 'running'-status achterlaten terwijl
+    # de in-memory lock per definitie vrij is. Alleen die administratieve status
+    # mag veilig worden genormaliseerd.
+    if str(state.get("workflow_lock_status") or "").lower() == "running" and not WORKFLOW_LOCK.locked():
+        previous = {
+            "month": state.get("workflow_lock_month"),
+            "step": state.get("workflow_lock_step"),
+            "started_at": state.get("workflow_lock_started_at"),
+        }
+        update_state(
+            workflow_lock_status="idle",
+            workflow_lock_started_at=None,
+            workflow_lock_month=None,
+            workflow_lock_step=None,
+            workflow_lock_message="Recovery v8.17 normaliseerde achtergebleven workflowstatus na herstart.",
+            workflow_lock_last_released=checked_at,
+        )
+        repairs.append({"type": "workflow_lock_state", "action": "normalized", "before": previous})
+        state = load_state()
+
+    # Retry-state wordt uitsluitend gesloten als de bestaande append-only historie,
+    # workflow_result of completion-marker hard bewijs levert.
+    retry_before = read_automatic_retry_state()
+    retry_before_state = str(retry_before.get("state") or "")
+    state, retry_after = reconcile_automatic_retry_state(state)
+    retry_after_state = str(retry_after.get("state") or "")
+    if retry_before_state != retry_after_state:
+        repairs.append({
+            "type": "automatic_retry",
+            "action": "reconciled",
+            "before": retry_before_state,
+            "after": retry_after_state,
+            "month": retry_after.get("month") or retry_before.get("month"),
+            "evidence": retry_after.get("evidence"),
+        })
+
+    # Productiecertificaat mag alleen uit een geslaagde productietest van exact
+    # deze versie worden hersteld.
+    certificate_before = validate_production_certificate()
+    certificate_after = certificate_before
+    if not certificate_before.get("valid"):
+        try:
+            managed = manage_production_certificate(allow_repair=True)
+            certificate_after = validate_production_certificate()
+            if managed.get("repaired") and certificate_after.get("valid"):
+                repairs.append({
+                    "type": "production_certificate",
+                    "action": "repaired",
+                    "certificate_id": managed.get("certificate_id"),
+                    "source_test_month": managed.get("source_test_month"),
+                })
+        except Exception as exc:
+            warnings.append("Productiecertificaat niet automatisch hersteld: " + str(exc))
+
+    audit = validate_audit_trail()
+    if not audit.get("valid"):
+        warnings.append("Audittrail-integriteit vereist handmatige controle; recovery wijzigt de audittrail niet.")
+
+    status = "ok" if not warnings else "attention"
+    result = {
+        "version": APP_VERSION,
+        "checked_at": checked_at,
+        "trigger": trigger,
+        "status": status,
+        "repairs": repairs,
+        "repair_count": len(repairs),
+        "warnings": warnings,
+        "retry_state": retry_after,
+        "certificate": certificate_after,
+        "audit": audit,
+        "workflow_lock_active": WORKFLOW_LOCK.locked(),
+    }
+    write_atomic_json(RECOVERY_STATE_PATH, result)
+    append_recovery_history(result)
+    update_state(recovery_last_result=result)
+    if audit.get("valid"):
+        try:
+            append_audit_event(
+                "recovery_controller",
+                action="repaired" if repairs else "validated",
+                status=status,
+                details={"trigger": trigger, "repair_count": len(repairs), "repairs": repairs, "warnings": warnings},
+            )
+        except Exception as exc:
+            LOGGER.warning("Recovery-auditrecord kon niet worden toegevoegd: %s", exc)
+    return result
+
+
+def read_recovery_status() -> dict[str, Any]:
+    state = load_state()
+    result = state.get("recovery_last_result") or {}
+    if not isinstance(result, dict):
+        result = {}
+    return {
+        "status": result.get("status") or "not_checked",
+        "checked_at": result.get("checked_at"),
+        "trigger": result.get("trigger"),
+        "repair_count": int(result.get("repair_count") or 0),
+        "repairs": result.get("repairs") or [],
+        "warnings": result.get("warnings") or [],
+        "state_path": str(RECOVERY_STATE_PATH),
+        "history_path": str(RECOVERY_HISTORY_PATH),
+    }
+
+
 def automatic_recovery_status(
     state: dict[str, Any],
     options: Options,
@@ -6757,6 +6882,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "production_certificate_management": state.get("production_certificate_management") or {},
         },
         "audit_trail": {"validation": validate_audit_trail(), "events": read_audit_trail(limit=12), "path": str(AUDIT_TRAIL_PATH)},
+        "recovery_controller": read_recovery_status(),
         "history": history,
         "can_resume": bool(
             state.get("full_workflow_last_month")
@@ -8057,6 +8183,17 @@ def html_page() -> bytes:
         + "<td>" + esc(item.get("month") or "—") + "</td></tr>"
         for item in (audit_trail.get("events") or [])
     ) or "<tr><td colspan='5'>Nog geen auditrecords.</td></tr>"
+    recovery_controller = op.get("recovery_controller") or {}
+    recovery_controller_status = str(recovery_controller.get("status") or "not_checked")
+    recovery_controller_count = int(recovery_controller.get("repair_count") or 0)
+    recovery_controller_checked = format_local_datetime(recovery_controller.get("checked_at"))
+    recovery_controller_detail = (
+        f"{recovery_controller_count} herstelactie(s) uitgevoerd"
+        if recovery_controller_count
+        else ("Controle zonder herstelacties" if recovery_controller.get("checked_at") else "Nog niet gecontroleerd")
+    )
+    if recovery_controller.get("warnings"):
+        recovery_controller_detail += " · " + "; ".join(str(x) for x in recovery_controller.get("warnings") or [])
     retry_debug_ledger = retry_debug.get("append_history") or {}
     retry_debug_workflow = retry_debug.get("workflow_history") or {}
     retry_debug_decision = retry_debug.get("current_decision") or {}
@@ -8201,10 +8338,17 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <tbody>{certificate_history_rows}</tbody>
 </table></div>
 <p class="hint">Append-only historie van afgegeven productiecertificaten.</p>
-<form method="post" action="manage-production-certificate"><button type="submit" class="secondary">Controleer / herstel productiecertificaat</button></form>
+<p><button id="manage-production-certificate-button" type="button" class="secondary">Controleer / herstel productiecertificaat</button></p>
 <p><span id="production-certificate-management-status" class="pill {status_class(production_certificate_management_status)}">{esc(production_certificate_management_text)}</span></p>
 <p class="hint">Herstel is alleen toegestaan uit een aantoonbaar geslaagde productietest van exact v{esc(APP_VERSION)}; er wordt nooit een certificaat zonder testbewijs aangemaakt.</p>
 <p><a href="download-production-certificate">Download huidig productiecertificaat</a></p>
+</div>
+
+<div class="card" id="recovery-v817"><h2>Recovery v8.17</h2>
+<div class="metrics"><div class="metric"><small>Status</small><strong><span id="recovery-controller-status" class="pill {status_class(recovery_controller_status)}">{esc(recovery_controller_status)}</span></strong></div><div class="metric"><small>Herstelacties</small><strong id="recovery-controller-count">{esc(recovery_controller_count)}</strong></div><div class="metric"><small>Laatste controle</small><strong id="recovery-controller-checked">{esc(recovery_controller_checked)}</strong></div></div>
+<p id="recovery-controller-detail" class="hint">{esc(recovery_controller_detail)}</p>
+<p><button id="run-recovery-controller-button" type="button" class="secondary">Controleer recovery nu</button></p>
+<p class="hint">Controleert en reconcilieert uitsluitend duurzame status uit bestaand hard bewijs. Start nooit zelfstandig een maandworkflow en wijzigt geen ongeldige auditketen.</p>
 </div>
 
 <div class="card"><h2>Audittrail v8.16</h2>
@@ -8415,6 +8559,20 @@ async function refreshStatus(){{
       auditBody.innerHTML=audit.events.length?audit.events.map(item=>`<tr><td>${{escapeHtml(item.recorded_at?formatLocalDateTime(item.recorded_at):'—')}}</td><td>${{escapeHtml(item.event_type||'—')}}</td><td>${{escapeHtml(item.action||'—')}}</td><td><span class="${{pillClass(item.status)}}">${{escapeHtml(item.status||'—')}}</span></td><td>${{escapeHtml(item.month||'—')}}</td></tr>`).join(''):`<tr><td colspan="5">Nog geen auditrecords.</td></tr>`;
     }}
 
+    const recoveryController=op.recovery_controller||{{}};
+    const recoveryControllerStatus=document.getElementById('recovery-controller-status');
+    const recoveryControllerCount=document.getElementById('recovery-controller-count');
+    const recoveryControllerChecked=document.getElementById('recovery-controller-checked');
+    const recoveryControllerDetail=document.getElementById('recovery-controller-detail');
+    if(recoveryControllerStatus){{recoveryControllerStatus.textContent=recoveryController.status||'not_checked'; recoveryControllerStatus.className=pillClass(recoveryController.status||'neutral');}}
+    if(recoveryControllerCount) recoveryControllerCount.textContent=String(recoveryController.repair_count??0);
+    if(recoveryControllerChecked) recoveryControllerChecked.textContent=formatLocalDateTime(recoveryController.checked_at);
+    if(recoveryControllerDetail){{
+      const warns=Array.isArray(recoveryController.warnings)?recoveryController.warnings:[];
+      const count=Number(recoveryController.repair_count||0);
+      recoveryControllerDetail.textContent=(count?`${{count}} herstelactie(s) uitgevoerd`:(recoveryController.checked_at?'Controle zonder herstelacties':'Nog niet gecontroleerd'))+(warns.length?' · '+warns.join('; '):'');
+    }}
+
     const certMgmt=auto.production_certificate_management||{{}};
     const certMgmtEl=document.getElementById('production-certificate-management-status');
     if(certMgmtEl && Object.keys(certMgmt).length){{
@@ -8444,6 +8602,31 @@ async function refreshStatus(){{
       document.getElementById('live-log-download').href='download-workflow-log?month='+encodeURIComponent(month);
     }}
   }}catch(_e){{}}
+}}
+const certMgmtButton=document.getElementById('manage-production-certificate-button');
+if(certMgmtButton){{
+  certMgmtButton.addEventListener('click', async()=>{{
+    certMgmtButton.disabled=true;
+    try{{
+      const response=await fetch('manage-production-certificate',{{method:'POST',headers:{{'X-Requested-With':'fetch','Accept':'application/json'}}}});
+      const result=await response.json();
+      if(!response.ok) throw new Error(result.error||'Certificaatcontrole mislukt');
+      await refreshStatus();
+      const target=document.getElementById('production-certificates'); if(target) target.scrollIntoView({{block:'start'}});
+    }}catch(err){{alert(String(err.message||err));}}finally{{certMgmtButton.disabled=false;}}
+  }});
+}}
+const recoveryButton=document.getElementById('run-recovery-controller-button');
+if(recoveryButton){{
+  recoveryButton.addEventListener('click', async()=>{{
+    recoveryButton.disabled=true;
+    try{{
+      const response=await fetch('run-recovery-controller',{{method:'POST',headers:{{'X-Requested-With':'fetch','Accept':'application/json'}}}});
+      const result=await response.json();
+      if(!response.ok) throw new Error(result.error||'Recoverycontrole mislukt');
+      await refreshStatus();
+    }}catch(err){{alert(String(err.message||err));}}finally{{recoveryButton.disabled=false;}}
+  }});
 }}
 const autoSwitch=document.getElementById('auto-close-enabled');
 if(autoSwitch){{
@@ -8966,6 +9149,16 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
+        if path.endswith("/run-recovery-controller") or path == "/run-recovery-controller":
+            try:
+                result = run_recovery_controller(trigger="manual")
+                code = HTTPStatus.OK if result.get("status") in {"ok", "attention"} else HTTPStatus.BAD_REQUEST
+            except Exception as exc:
+                result = {"status": "error", "error": str(exc), "version": APP_VERSION}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(code, json.dumps(result, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+            return
+
         if path.endswith("/manage-production-certificate") or path == "/manage-production-certificate":
             try:
                 result = manage_production_certificate(allow_repair=True)
@@ -8975,20 +9168,11 @@ class Handler(BaseHTTPRequestHandler):
                     month=str(result.get("source_test_month") or "") or None,
                     details={"repaired": result.get("repaired"), "certificate_id": result.get("certificate_id")},
                 )
-                if result.get("valid"):
-                    self.send_redirect("./#production-certificates")
-                    return
-                code = HTTPStatus.BAD_REQUEST
+                code = HTTPStatus.OK if result.get("valid") else HTTPStatus.BAD_REQUEST
             except Exception as exc:
                 result = {"status": "error", "error": str(exc), "version": APP_VERSION}
                 code = HTTPStatus.BAD_REQUEST
-            self.send_body(
-                code,
-                ("<html><meta charset='utf-8'><p>"
-                 + html.escape(json.dumps(result, ensure_ascii=False))
-                 + "</p><p><a href='./#production-certificates'>Terug</a></p></html>").encode("utf-8"),
-                "text/html; charset=utf-8",
-            )
+            self.send_body(code, json.dumps(result, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
             return
 
         if path.endswith("/self-test") or path == "/self-test":
@@ -9375,6 +9559,8 @@ def main() -> None:
     def startup_self_test() -> None:
         try:
             time.sleep(1)
+            recovery_result = run_recovery_controller(trigger="startup")
+            LOGGER.info("Recovery v8.17 startupcontrole: %s; herstelacties=%s", recovery_result.get("status"), recovery_result.get("repair_count"))
             result = run_self_test()
             LOGGER.info(
                 "Automatische zelftest afgerond: %s; installatie_gereed=%s",
