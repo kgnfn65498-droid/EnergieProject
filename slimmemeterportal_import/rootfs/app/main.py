@@ -48,7 +48,7 @@ PRODUCTION_CERTIFICATE_HISTORY_PATH = Path("/config/output/production_certificat
 PRODUCTION_CERTIFICATE_MANAGEMENT_PATH = Path("/config/output/production_certificate_management.json")
 AUDIT_TRAIL_PATH = Path("/config/output/audit_trail.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.16.0"
+APP_VERSION = "8.16.1"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -6754,6 +6754,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "finalization_debug_log_path": str(FINALIZATION_DEBUG_LOG_PATH),
             "production_certificate": validate_production_certificate(),
             "production_certificate_history": read_production_certificate_history(limit=10),
+            "production_certificate_management": state.get("production_certificate_management") or {},
         },
         "audit_trail": {"validation": validate_audit_trail(), "events": read_audit_trail(limit=12), "path": str(AUDIT_TRAIL_PATH)},
         "history": history,
@@ -7989,6 +7990,17 @@ def html_page() -> bytes:
         else "Niet geldig — " + str(production_certificate_validation.get("status") or "ontbreekt")
     )
     production_certificate_history = auto_close.get("production_certificate_history") or []
+    production_certificate_management = auto_close.get("production_certificate_management") or state.get("production_certificate_management") or {}
+    production_certificate_management_text = (
+        "Nog niet handmatig gecontroleerd"
+        if not production_certificate_management
+        else (
+            ("Certificaat hersteld — geldig" if production_certificate_management.get("repaired") else "Certificaat gecontroleerd — geldig")
+            if production_certificate_management.get("valid")
+            else "Certificaatcontrole vereist aandacht"
+        )
+    )
+    production_certificate_management_status = "ok" if production_certificate_management.get("valid") else ("neutral" if not production_certificate_management else "warning")
     scheduler_effective = bool(auto_close.get("scheduler_effective"))
     scheduler_text = (
         "Actief" if scheduler_effective
@@ -8158,13 +8170,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.16.0 gecertificeerd is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v{esc(APP_VERSION)} gecertificeerd is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
-<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.16.0 die eerst automatisch veilig uit.</p>
+<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v{esc(APP_VERSION)} die eerst automatisch veilig uit.</p>
 <ul class="source-list">
 <li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>
@@ -8183,20 +8195,21 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <p class="hint">Append-only historie: iedere test, scheduler-test en echte automatische run blijft als afzonderlijk record bewaard.</p>
 </div>
 
-<div class="card"><h2>Productiecertificaten</h2>
+<div class="card" id="production-certificates"><h2>Productiecertificaten</h2>
 <div class="table-wrap"><table>
 <thead><tr><th>Versie</th><th>Afgegeven</th><th>Status</th><th>Testmaand</th></tr></thead>
 <tbody>{certificate_history_rows}</tbody>
 </table></div>
 <p class="hint">Append-only historie van afgegeven productiecertificaten.</p>
 <form method="post" action="manage-production-certificate"><button type="submit" class="secondary">Controleer / herstel productiecertificaat</button></form>
-<p class="hint">Herstel is alleen toegestaan uit een aantoonbaar geslaagde productietest van exact v8.16.0; er wordt nooit een certificaat zonder testbewijs aangemaakt.</p>
+<p><span id="production-certificate-management-status" class="pill {status_class(production_certificate_management_status)}">{esc(production_certificate_management_text)}</span></p>
+<p class="hint">Herstel is alleen toegestaan uit een aantoonbaar geslaagde productietest van exact v{esc(APP_VERSION)}; er wordt nooit een certificaat zonder testbewijs aangemaakt.</p>
 <p><a href="download-production-certificate">Download huidig productiecertificaat</a></p>
 </div>
 
 <div class="card"><h2>Audittrail v8.16</h2>
-<div class="metrics"><div class="metric"><small>Integriteit</small><strong>{esc(audit_validation.get('status') or 'empty')}</strong></div><div class="metric"><small>Records</small><strong>{esc(audit_validation.get('records', 0))}</strong></div></div>
-<div class="table-wrap"><table><thead><tr><th>Moment</th><th>Type</th><th>Actie</th><th>Status</th><th>Maand</th></tr></thead><tbody>{audit_rows}</tbody></table></div>
+<div class="metrics"><div class="metric"><small>Integriteit</small><strong id="audit-integrity">{esc(audit_validation.get('status') or 'empty')}</strong></div><div class="metric"><small>Records</small><strong id="audit-record-count">{esc(audit_validation.get('records', 0))}</strong></div></div>
+<div class="table-wrap"><table><thead><tr><th>Moment</th><th>Type</th><th>Actie</th><th>Status</th><th>Maand</th></tr></thead><tbody id="audit-trail-body">{audit_rows}</tbody></table></div>
 <p class="hint">Append-only, hash-gekoppelde audittrail van workflows, productietests, schedulerwijzigingen, scheduler-acceptatietests en productiecertificaten.</p>
 <p><a href="download-audit-trail">Download audittrail</a></p>
 </div>
@@ -8389,6 +8402,25 @@ async function refreshStatus(){{
     const healthChecks=document.getElementById('health-checks');
     if(healthChecks && Array.isArray(op.health?.checks)){{
       healthChecks.innerHTML=op.health.checks.map(x=>`<li><span>${{escapeHtml(x.name||'')}}</span><span><span class="${{pillClass(x.status)}}">${{escapeHtml(x.status||'')}}</span> ${{escapeHtml(x.detail||'')}}</span></li>`).join('');
+    }}
+
+    const audit=op.audit_trail||{{}};
+    const auditValidation=audit.validation||{{}};
+    const auditIntegrity=document.getElementById('audit-integrity');
+    const auditCount=document.getElementById('audit-record-count');
+    const auditBody=document.getElementById('audit-trail-body');
+    if(auditIntegrity) auditIntegrity.textContent=auditValidation.status||'empty';
+    if(auditCount) auditCount.textContent=String(auditValidation.records??0);
+    if(auditBody && Array.isArray(audit.events)){{
+      auditBody.innerHTML=audit.events.length?audit.events.map(item=>`<tr><td>${{escapeHtml(item.recorded_at?formatLocalDateTime(item.recorded_at):'—')}}</td><td>${{escapeHtml(item.event_type||'—')}}</td><td>${{escapeHtml(item.action||'—')}}</td><td><span class="${{pillClass(item.status)}}">${{escapeHtml(item.status||'—')}}</span></td><td>${{escapeHtml(item.month||'—')}}</td></tr>`).join(''):`<tr><td colspan="5">Nog geen auditrecords.</td></tr>`;
+    }}
+
+    const certMgmt=auto.production_certificate_management||{{}};
+    const certMgmtEl=document.getElementById('production-certificate-management-status');
+    if(certMgmtEl && Object.keys(certMgmt).length){{
+      const valid=Boolean(certMgmt.valid);
+      certMgmtEl.textContent=valid?(certMgmt.repaired?'Certificaat hersteld — geldig':'Certificaat gecontroleerd — geldig'):'Certificaatcontrole vereist aandacht';
+      certMgmtEl.className=pillClass(valid?'ok':'warning');
     }}
     const errCard=document.getElementById('last-error-card');
     if(op.last_run?.error){{
@@ -8943,7 +8975,10 @@ class Handler(BaseHTTPRequestHandler):
                     month=str(result.get("source_test_month") or "") or None,
                     details={"repaired": result.get("repaired"), "certificate_id": result.get("certificate_id")},
                 )
-                code = HTTPStatus.OK if result.get("valid") else HTTPStatus.BAD_REQUEST
+                if result.get("valid"):
+                    self.send_redirect("./#production-certificates")
+                    return
+                code = HTTPStatus.BAD_REQUEST
             except Exception as exc:
                 result = {"status": "error", "error": str(exc), "version": APP_VERSION}
                 code = HTTPStatus.BAD_REQUEST
@@ -8951,7 +8986,7 @@ class Handler(BaseHTTPRequestHandler):
                 code,
                 ("<html><meta charset='utf-8'><p>"
                  + html.escape(json.dumps(result, ensure_ascii=False))
-                 + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
+                 + "</p><p><a href='./#production-certificates'>Terug</a></p></html>").encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return

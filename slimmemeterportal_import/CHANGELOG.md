@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.16.1
+
+- Correctie: audittrailweergave wordt nu live bijgewerkt via de bestaande operationele statuspoll.
+- Correctie: productiecertificaatbeheer keert na geldige controle/herstel direct terug naar de console in plaats van ruwe JSON te tonen.
+- Console toont de laatste certificaatbeheerstatus expliciet.
+- Geen wijziging aan audit-hashketen, workflow-, scheduler-, retry- of rapportlogica.
+
 ## 8.16.0
 
 - Nieuwe append-only audittrail in `/config/output/audit_trail.jsonl`.
