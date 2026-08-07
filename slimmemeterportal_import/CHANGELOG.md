@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.4.0
+- Automatische Enphase-bronimport wanneer deze expliciet is ingeschakeld voor de actuele doelmaand.
+- Nieuwe doelmaandgebonden eindvalidatie vóór overdracht en rapportage.
+- Actuele rapportage wordt geblokkeerd als vereiste rapportinput onvolledig is.
+- Historische runs blijven bronbeschikbaarheid-gestuurd en gebruiken geen actuele live-data als historie.
+- Laatste pre-report-validatie wordt opgeslagen in status en workflowresultaten.
+
 ## 7.3.6
 
 - Classificeert het bewust overslaan van live snapshots bij historische maanden als informatie in plaats van waarschuwing.

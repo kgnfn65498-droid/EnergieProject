@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "7.3.6"
+    assert cfg_version == app_version == "7.4.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "7.3.6"' in config
+    assert 'version: "7.4.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "7.3.6"' in config
-    assert 'APP_VERSION = "7.3.6"' in main
+    assert 'version: "7.4.0"' in config
+    assert 'APP_VERSION = "7.4.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1424,7 +1424,7 @@ def test_v730_weighted_visual_progress_contract_present():
 def test_v730_progress_resets_locally_on_submit():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "bar.style.width='0%'" in source
-    assert "textContent='Stap 0 van 8'" in source
+    assert "textContent='Stap 0 van 11'" in source
     assert "textContent='Workflow starten'" in source
 
 
@@ -1524,3 +1524,26 @@ def test_historical_report_skip_is_info_not_warning():
     assert 'infos.append(info)' in main
     assert '"Historisch rapport informatief overgeslagen"' in main
     assert 'warnings.append(warning)' not in main[main.index('if historical_mode and readiness.get("status") != "ready"'):main.index('else:', main.index('if historical_mode and readiness.get("status") != "ready"'))]
+
+
+def test_v740_has_pre_report_final_validation():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def validate_pre_report_workflow(" in source
+    assert '"Eindvalidatie vóór rapportage"' in source
+    assert '"pre_report_validation.json"' in source
+    assert 'last_pre_report_validation=result' in source
+
+
+def test_v740_auto_coordinates_enphase_only_for_live_target_month():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"Enphase bronimport"' in source
+    assert "if collect_live_snapshots and target_is_current_month:" in source
+    assert "Historische Enphase live-import bewust niet uitgevoerd." in source
+
+
+def test_v740_historical_preflight_does_not_require_live_detail_sources():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "if historical_mode:" in source
+    assert "Historische live-broncontrole genegeerd:" in source
+    assert "Historische rapportinput is niet volledig" in source
+    assert '("Eindvalidatie vóór rapportage", 3.0, 0.3)' in source

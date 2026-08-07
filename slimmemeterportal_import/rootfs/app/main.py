@@ -38,19 +38,22 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.3.6"
+APP_VERSION = "7.4.0"
 
 
-# v7.3.3: historische maandarchief-recovery plus gewogen workflowvisualisatie. De gewichten zijn gebaseerd op de
-# gemeten doorlooptijd van de stabiele v7.2-workflow en tellen exact op tot 100.
+# v7.4.0: broncoördinatie en pre-report-eindvalidatie zijn als eigen visuele
+# fasen opgenomen. De gewichten tellen exact op tot 100.
 WORKFLOW_VISUAL_PHASES = [
-    ("SlimmeMeterPortal API-test", 5.0, 0.3),
+    ("SlimmeMeterPortal API-test", 4.0, 0.3),
     ("SlimmeMeterPortal maandimport", 10.0, 1.5),
-    ("HomeWizard detectie", 40.0, 8.2),
-    ("HomeWizard snapshot", 5.0, 0.5),
+    ("HomeWizard detectie", 36.0, 8.2),
+    ("HomeWizard snapshot", 4.0, 0.5),
     ("Home Assistant energiesnapshot", 3.0, 0.3),
+    ("Enphase bronimport", 2.0, 0.3),
+    ("EPEX import en validatie", 2.0, 0.3),
     ("Maandmap bouwen", 3.0, 0.3),
-    ("Overdrachtspakket maken", 4.0, 0.3),
+    ("Eindvalidatie vóór rapportage", 3.0, 0.3),
+    ("Overdrachtspakket maken", 3.0, 0.3),
     ("Rapportgenerator koppelen", 30.0, 6.2),
 ]
 WORKFLOW_VISUAL_TOTAL_STEPS = len(WORKFLOW_VISUAL_PHASES)
@@ -378,6 +381,7 @@ def default_state() -> dict[str, Any]:
         "full_workflow_last_result": None,
         "full_workflow_last_error": None,
         "last_central_validation": None,
+        "last_pre_report_validation": None,
         "last_report_trigger": None,
         "last_report_trigger_error": None,
         "report_handoff_last_created": None,
@@ -967,6 +971,14 @@ def run_self_test() -> dict[str, Any]:
         else:
             add("report_trigger_config", "ok", "Bewust uitgeschakeld.")
 
+        previous_pre_report = load_state().get("last_pre_report_validation")
+        if previous_pre_report:
+            add(
+                "pre_report_validation",
+                "ok" if previous_pre_report.get("status") == "ok" else previous_pre_report.get("status", "warning"),
+                json.dumps(previous_pre_report, ensure_ascii=False),
+            )
+
     overall = (
         "error"
         if any(item["status"] == "error" for item in checks)
@@ -1034,6 +1046,109 @@ def validate_central_workflow(
         "requirements": requirements,
         "month_summary": month_summary,
     }
+    return result
+
+
+
+def validate_pre_report_workflow(
+    options: Options,
+    month_key: str,
+    *,
+    historical_mode: bool,
+) -> dict[str, Any]:
+    """Laatste, maandgebonden controle direct vóór overdracht/rapportage.
+
+    Deze validatie gebruikt uitsluitend de doelmaand. Historische runs eisen geen
+    actuele live-bronnen; beschikbare historische detailbronnen worden wel
+    gerapporteerd via ``report_input``.
+    """
+    parse_month_key(month_key)
+    month_iso = month_key.replace("_", "-")
+    state = load_state()
+    errors: list[str] = []
+    warnings: list[str] = []
+    infos: list[str] = []
+
+    summary = state.get("last_summary") or {}
+    if str(summary.get("target_month") or "") != month_iso:
+        errors.append(
+            "SlimmeMeterPortal maandsamenvatting hoort niet bij de doelmaand "
+            f"({summary.get('target_month')!r} != {month_iso!r})."
+        )
+    totals = summary.get("totals") or {}
+    if int(totals.get("error_count") or 0) > 0:
+        errors.append("SlimmeMeterPortal maandsamenvatting bevat fouten.")
+    if int(totals.get("warning_count") or 0) > 0:
+        warnings.append("SlimmeMeterPortal maandsamenvatting bevat waarschuwingen.")
+
+    if state.get("last_integrity_status") not in {"ok", "skipped"}:
+        errors.append(
+            "Integriteitscontrole van de doelmaand is niet geslaagd: "
+            f"{state.get('last_integrity_status')}."
+        )
+
+    if state.get("month_input_last_month") != month_key:
+        errors.append("01_Input maandmap is niet voor de actuele doelmaand opgebouwd.")
+    month_status = state.get("month_input_last_status")
+    if month_status not in {"completed", "completed_info", "ok"}:
+        errors.append(f"01_Input maandmap heeft ongeldige status: {month_status}.")
+
+    if options.full_workflow_run_epex_when_enabled and (
+        options.epex_electricity_enabled or options.epex_gas_enabled
+    ):
+        epex_status = state.get("epex_last_validation_status")
+        if epex_status not in {"ok", "completed"}:
+            errors.append(f"EPEX-validatie is niet gereed: {epex_status}.")
+
+    report_input = report_input_readiness(month_key, options)
+    if report_input.get("status") != "ready":
+        missing = list(report_input.get("missing") or [])
+        empty = list(report_input.get("empty") or [])
+        detail = ", ".join(missing + empty) or "onbekende detailbron"
+        if historical_mode:
+            infos.append(
+                "Historische rapportinput is niet volledig; rapportage mag "
+                f"informatief worden overgeslagen ({detail})."
+            )
+        elif options.report_service_enabled or options.report_trigger_enabled:
+            errors.append(f"Rapportinput voor doelmaand is niet compleet: {detail}.")
+
+    central = validate_central_workflow(options, state, summary)
+    if historical_mode:
+        # Centrale live-bronvereisten zijn voor historische runs niet leidend;
+        # SMP-maanddata en de historische 01_Input-beschikbaarheid zijn leidend.
+        live_source_errors = [
+            item for item in central.get("errors", [])
+            if item.startswith("Geactiveerde bron niet gereed:")
+            or item.endswith("snapshot ontbreekt.")
+            or item.endswith("-import ontbreekt.")
+            or item.endswith("gasimport ontbreekt.")
+            or item.endswith("elektriciteitsimport ontbreekt.")
+        ]
+        if live_source_errors:
+            infos.extend(f"Historische live-broncontrole genegeerd: {item}" for item in live_source_errors)
+        central_errors = [item for item in central.get("errors", []) if item not in live_source_errors]
+    else:
+        central_errors = list(central.get("errors", []) or [])
+    errors.extend(item for item in central_errors if item not in errors)
+    warnings.extend(item for item in (central.get("warnings", []) or []) if item not in warnings)
+
+    result = {
+        "version": APP_VERSION,
+        "checked_at": datetime.now(TZ).isoformat(),
+        "month": month_key,
+        "historical_mode": historical_mode,
+        "status": "error" if errors else ("warning" if warnings else "ok"),
+        "errors": errors,
+        "warnings": warnings,
+        "infos": infos,
+        "report_input": report_input,
+        "central_validation": central,
+    }
+    update_state(last_pre_report_validation=result)
+    validation_dir = workflow_result_dir(month_key)
+    validation_dir.mkdir(parents=True, exist_ok=True)
+    write_atomic_json(validation_dir / "pre_report_validation.json", result)
     return result
 
 
@@ -5321,6 +5436,41 @@ def run_full_month_workflow(
                 "Historische maand: live snapshots bewust niet aan doelmaand toegevoegd."
             )
 
+        if options.enphase_enabled:
+            if collect_live_snapshots and target_is_current_month:
+                execute_step(
+                    "Enphase bronimport",
+                    run_enphase_import,
+                    required=True,
+                )
+            else:
+                now_iso = datetime.now(TZ).isoformat()
+                append_workflow_step(
+                    steps,
+                    name="Enphase bronimport",
+                    status="info",
+                    started_at=now_iso,
+                    finished_at=now_iso,
+                    result={
+                        "status": "info",
+                        "reason": "Historische run gebruikt uitsluitend reeds beschikbare Enphase-maanddata.",
+                    },
+                )
+                infos.append("Historische Enphase live-import bewust niet uitgevoerd.")
+                append_workflow_log(month_key, "info", "Stap afgerond", step="Enphase bronimport", status="info", duration_seconds=0.0)
+        else:
+            now_iso = datetime.now(TZ).isoformat()
+            append_workflow_step(
+                steps,
+                name="Enphase bronimport",
+                status="info",
+                started_at=now_iso,
+                finished_at=now_iso,
+                result={"status": "info", "reason": "Enphase externe bron is niet geconfigureerd."},
+            )
+            infos.append("Enphase externe bron is niet geconfigureerd.")
+            append_workflow_log(month_key, "info", "Stap afgerond", step="Enphase bronimport", status="info", duration_seconds=0.0)
+
         if options.full_workflow_run_epex_when_enabled:
             if options.epex_electricity_enabled or options.epex_gas_enabled:
                 execute_step(
@@ -5349,6 +5499,19 @@ def run_full_month_workflow(
                     },
                 )
                 infos.append("EPEX is nog niet geconfigureerd.")
+                append_workflow_log(month_key, "info", "Stap afgerond", step="EPEX import en validatie", status="info", duration_seconds=0.0)
+        else:
+            now_iso = datetime.now(TZ).isoformat()
+            append_workflow_step(
+                steps,
+                name="EPEX import en validatie",
+                status="info",
+                started_at=now_iso,
+                finished_at=now_iso,
+                result={"status": "info", "reason": "EPEX workflowcoördinatie is uitgeschakeld."},
+            )
+            infos.append("EPEX workflowcoördinatie is uitgeschakeld.")
+            append_workflow_log(month_key, "info", "Stap afgerond", step="EPEX import en validatie", status="info", duration_seconds=0.0)
 
         month_result = execute_step(
             "Maandmap bouwen",
@@ -5378,6 +5541,22 @@ def run_full_month_workflow(
                     f"(missing_required={missing_required}, "
                     f"empty_required={empty_required})."
                 )
+
+        pre_report_validation = execute_step(
+            "Eindvalidatie vóór rapportage",
+            lambda: validate_pre_report_workflow(
+                options,
+                month_key,
+                historical_mode=(not collect_live_snapshots),
+            ),
+            required=True,
+        )
+        if isinstance(pre_report_validation, dict) and pre_report_validation.get("status") == "error":
+            failed_step = "Eindvalidatie vóór rapportage"
+            raise RuntimeError(
+                "Eindvalidatie vóór rapportage bevat fouten: "
+                + "; ".join(pre_report_validation.get("errors") or [])
+            )
 
         transfer_result = execute_step(
             "Overdrachtspakket maken",
@@ -5607,7 +5786,7 @@ def health_dashboard(options: Options | None = None) -> dict[str, Any]:
 
 
 def visual_step_counts_from_result(result: dict[str, Any]) -> tuple[int, int]:
-    """Normalize persisted workflow history to the eight v7.3 visual phases."""
+    """Normaliseer workflowhistorie naar de v7.4 visuele fasen."""
     phase_names = {name for name, _weight, _seconds in WORKFLOW_VISUAL_PHASES}
     completed = 0
     seen: set[str] = set()
@@ -6192,7 +6371,7 @@ async function refreshStatus(){{
 }}
 document.querySelectorAll('form[action="start-month-workflow"],form[action="resume-month-workflow"],form[action="run-historical-month"]').forEach(form=>form.addEventListener('submit',()=>{{
   const bar=document.getElementById('progress-bar'); bar.style.width='0%'; bar.className='running';
-  document.getElementById('progress-count').textContent='Stap 0 van 8';
+  document.getElementById('progress-count').textContent='Stap 0 van 11';
   document.getElementById('progress-message').textContent='Workflow starten';
   document.getElementById('workflow-detail').textContent='Initialiseren…';
   document.getElementById('workflow-eta').textContent='';

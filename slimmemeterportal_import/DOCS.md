@@ -415,3 +415,8 @@ De losse knop `Maak overdrachtspakket` blijft bewust niet-overschrijvend.
 De volledige maandworkflow heeft eigen Home Assistant-meldingen. Met `workflow_notify_home_assistant` kunnen deze onafhankelijk van de overdrachtsmelding worden in- of uitgeschakeld. Met `workflow_notify_on_start` kan ook de start van een handmatige of automatische workflow worden gemeld. Tijdens de volledige workflow wordt de losse overdrachtsmelding onderdrukt, zodat één workflow niet meerdere tussentijdse "gereed"-meldingen veroorzaakt.
 
 Voor de automatische maandafsluiting geldt een retry-beveiliging. Na een mislukte automatische run wacht de scheduler standaard `automatic_month_close_retry_hours: 6` voordat dezelfde maand opnieuw wordt geprobeerd. Een geslaagde maand wordt niet opnieuw verwerkt. De operationele status toont de trigger (`manual`, `historical`, `resume` of `automatic`) en, indien van toepassing, het eerstvolgende retrymoment.
+
+
+## Versie 7.4.0 — broncoördinatie en eindvalidatie
+
+De volledige maandworkflow voert vóór overdracht en rapportage een extra doelmaandgebonden eindvalidatie uit. Voor actuele maanden wordt een expliciet ingeschakelde externe Enphase-bron automatisch geïmporteerd. EPEX blijft automatisch meelopen wanneer geconfigureerd. Historische workflows halen geen actuele Enphase/HomeWizard-data op om oude maanden aan te vullen; zij blijven bronbeschikbaarheid-gestuurd. De eindvalidatie wordt opgeslagen als `workflow_results/YYYY_MM/pre_report_validation.json` en als `last_pre_report_validation` in de operationele status.

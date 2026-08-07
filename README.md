@@ -17,7 +17,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 7.3.6
+- SlimmeMeterPortal Import 7.4.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
@@ -39,3 +39,8 @@ Historische verwerking eindigt nu groen wanneer alleen rapportgeneratie bewust w
 - Validatiefouten vermelden voortaan alle gecontroleerde historische bronpaden.
 - Gewogen 8-fasenvoortgang uit v7.3.0 blijft behouden.
 - Geen wijzigingen aan officiële rapportgeneratoren, Recovery Update-contract of vaste outputnamen.
+
+
+### v7.4.0
+
+Workflow-broncoördinatie en eindvalidatie. Voor een actuele doelmaand wordt een geconfigureerde Enphase-bron automatisch meegenomen. Direct na het bouwen van `01_Input/YYYY_MM` voert de workflow een doelmaandgebonden eindvalidatie uit vóór overdracht en rapportage. Een actueel rapport wordt alleen gestart wanneer de rapportinput compleet is. Historische runs blijven bronbeschikbaarheid-gestuurd en halen geen actuele Enphase-data op om historische maanden te vullen.
