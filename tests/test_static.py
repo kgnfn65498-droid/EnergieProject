@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.15.0"' in config
+    assert 'version: "8.16.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,7 +1155,7 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.15.0"' in config
+    assert 'version: "8.16.0"' in config
     assert 'APP_VERSION = "8.14.0"' in main
 
 
@@ -2245,7 +2245,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "8.15.0"' in source
+    assert 'APP_VERSION = "8.16.0"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2261,3 +2261,15 @@ def test_v815_certificate_repair_requires_current_version_test():
     assert 'str(source_test.get("version") or "") == APP_VERSION' in block
     assert 'source_test.get("scheduler_state_changed") is False' in block
     assert 'str((source_test.get("finalization") or {}).get("status") or "") == "ok"' in block
+
+
+def test_v816_audit_trail_contract():
+    source = MAIN.read_text(encoding="utf-8")
+    assert 'AUDIT_TRAIL_PATH = Path("/config/output/audit_trail.jsonl")' in source
+    assert 'def append_audit_event(' in source
+    assert 'def validate_audit_trail()' in source
+    assert 'previous_hash' in source
+    assert 'Audittrail v8.16' in source
+    assert 'download-audit-trail' in source
+    assert 'Auditintegriteit' in source
+

@@ -46,8 +46,9 @@ FINALIZATION_DEBUG_LOG_PATH = Path("/config/output/logs/finalization_debug.log")
 PRODUCTION_CERTIFICATE_PATH = Path("/config/output/production_certificate.json")
 PRODUCTION_CERTIFICATE_HISTORY_PATH = Path("/config/output/production_certificate_history.jsonl")
 PRODUCTION_CERTIFICATE_MANAGEMENT_PATH = Path("/config/output/production_certificate_management.json")
+AUDIT_TRAIL_PATH = Path("/config/output/audit_trail.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.15.0"
+APP_VERSION = "8.16.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -79,6 +80,7 @@ WORKFLOW_LOCK = threading.Lock()
 WORKFLOW_LOCK_META = threading.Lock()
 WORKFLOW_ACTIVE: dict[str, Any] = {}
 STATE_LOCK = threading.RLock()
+AUDIT_LOCK = threading.Lock()
 
 
 class ImportCancelled(Exception):
@@ -460,6 +462,9 @@ def default_state() -> dict[str, Any]:
         "workflow_audit_last_status": None,
         "workflow_audit_last_result": None,
         "workflow_audit_last_error": None,
+        "audit_trail_last_event": None,
+        "audit_trail_last_checked": None,
+        "audit_trail_last_status": None,
         "report_retention_last_run": None,
         "report_retention_last_status": None,
         "report_retention_removed": [],
@@ -6261,6 +6266,10 @@ def run_full_month_workflow(
         steps_completed=result.get("steps_completed"),
         steps_total=result.get("steps_total"),
     )
+    append_audit_event(
+        "month_workflow", action="completed", status=str(result.get("status") or "unknown"), month=month_key,
+        details={"trigger": trigger, "steps_completed": result.get("steps_completed"), "steps_total": result.get("steps_total"), "failed_step": result.get("failed_step"), "duration_seconds": result.get("duration_seconds")},
+    )
     return result
 
 
@@ -6308,6 +6317,9 @@ def health_dashboard(options: Options | None = None) -> dict[str, Any]:
         str(certificate_validation.get("integrity") or "not_checked"))
     add("Certificaatversie", str(certificate_validation.get("version") or "") == APP_VERSION,
         str(certificate_validation.get("version") or "ontbreekt"))
+    audit_validation = validate_audit_trail()
+    add("Audittrail", bool(audit_validation.get("valid")), f"{audit_validation.get('records', 0)} record(s)")
+    add("Auditintegriteit", bool(audit_validation.get("valid")), str(audit_validation.get("status") or "unknown"))
 
     passed = sum(1 for c in checks if c["status"] == "ok")
     score = round((passed / len(checks)) * 100) if checks else 0
@@ -6743,6 +6755,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "production_certificate": validate_production_certificate(),
             "production_certificate_history": read_production_certificate_history(limit=10),
         },
+        "audit_trail": {"validation": validate_audit_trail(), "events": read_audit_trail(limit=12), "path": str(AUDIT_TRAIL_PATH)},
         "history": history,
         "can_resume": bool(
             state.get("full_workflow_last_month")
@@ -6755,6 +6768,97 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
         },
     }
 
+
+
+def audit_event_payload_hash(event: dict[str, Any]) -> str:
+    """SHA-256 over één auditrecord zonder het eigen hashveld."""
+    canonical = {key: value for key, value in event.items() if key != "integrity_sha256"}
+    raw = json.dumps(canonical, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def validate_audit_trail() -> dict[str, Any]:
+    """Valideer hashes en de volledige hashketen van de append-only audittrail."""
+    if not AUDIT_TRAIL_PATH.is_file():
+        return {"status": "empty", "valid": True, "records": 0, "last_event_id": None, "last_hash": None, "checked_at": datetime.now(TZ).isoformat(), "path": str(AUDIT_TRAIL_PATH), "errors": []}
+    errors: list[str] = []
+    previous_hash: str | None = None
+    records = 0
+    last_event_id: str | None = None
+    last_hash: str | None = None
+    for line_number, line in enumerate(AUDIT_TRAIL_PATH.read_text(encoding="utf-8", errors="replace").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            errors.append(f"regel {line_number}: onleesbaar ({exc})")
+            continue
+        if not isinstance(event, dict):
+            errors.append(f"regel {line_number}: geen object")
+            continue
+        records += 1
+        stored = str(event.get("integrity_sha256") or "")
+        calculated = audit_event_payload_hash(event)
+        if not stored or stored != calculated:
+            errors.append(f"regel {line_number}: hash ongeldig")
+        if event.get("previous_hash") != previous_hash:
+            errors.append(f"regel {line_number}: hashketen onderbroken")
+        previous_hash = stored or calculated
+        last_hash = stored or None
+        last_event_id = str(event.get("event_id") or "") or None
+    return {"status": "ok" if not errors else "invalid", "valid": not errors, "records": records, "last_event_id": last_event_id, "last_hash": last_hash, "checked_at": datetime.now(TZ).isoformat(), "path": str(AUDIT_TRAIL_PATH), "errors": errors}
+
+
+def read_audit_trail(limit: int = 50) -> list[dict[str, Any]]:
+    if not AUDIT_TRAIL_PATH.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line_number, line in enumerate(AUDIT_TRAIL_PATH.read_text(encoding="utf-8", errors="replace").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError as exc:
+            rows.append({"line": line_number, "status": "unreadable", "integrity": "error", "error": str(exc)})
+            continue
+        if isinstance(item, dict):
+            item = dict(item)
+            item["line"] = line_number
+            rows.append(item)
+    return rows[-max(1, min(int(limit), 500)):][::-1]
+
+
+def append_audit_event(event_type: str, *, status: str = "ok", month: str | None = None, action: str | None = None, details: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Voeg een hash-gekoppeld record toe; schrijven stopt als bestaande integriteit niet klopt."""
+    AUDIT_TRAIL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with AUDIT_LOCK:
+        before = validate_audit_trail()
+        if not before.get("valid"):
+            raise RuntimeError("Audittrail-integriteit is ongeldig; nieuw auditrecord geblokkeerd: " + "; ".join(before.get("errors") or []))
+        now = datetime.now(TZ)
+        event = {
+            "schema": 1,
+            "event_id": f"{APP_VERSION}-{now.strftime('%Y%m%dT%H%M%S%f%z')}",
+            "recorded_at": now.isoformat(),
+            "version": APP_VERSION,
+            "event_type": str(event_type),
+            "action": action,
+            "status": str(status),
+            "month": month,
+            "details": details or {},
+            "previous_hash": before.get("last_hash"),
+        }
+        event["integrity_sha256"] = audit_event_payload_hash(event)
+        with AUDIT_TRAIL_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        after = validate_audit_trail()
+        if not after.get("valid"):
+            raise RuntimeError("Audittrail faalde directe integriteitscontrole na schrijven.")
+        update_state(audit_trail_last_event=event, audit_trail_last_checked=after.get("checked_at"), audit_trail_last_status=after.get("status"))
+        return event
 
 
 def production_certificate_payload_hash(certificate: dict[str, Any]) -> str:
@@ -6907,6 +7011,11 @@ def write_production_acceptance(test_result: dict[str, Any]) -> dict[str, Any]:
     temp.write_text(json.dumps(certificate, ensure_ascii=False, indent=2), encoding="utf-8")
     temp.replace(PRODUCTION_CERTIFICATE_PATH)
     append_production_certificate_history(certificate)
+    append_audit_event(
+        "production_certificate", action="issued" if valid else "rejected", status="ok" if valid else "rejected",
+        month=str(test_result.get("month") or "") or None,
+        details={"certificate_id": certificate.get("certificate_id"), "test_status": test_result.get("status"), "issued_by": certificate.get("issued_by")},
+    )
     update_state(production_acceptance=certificate)
 
     validation = validate_production_certificate(certificate)
@@ -7025,6 +7134,13 @@ def set_automatic_month_close_enabled(enabled: bool) -> dict[str, Any]:
 
 def save_automatic_month_close_settings(*, enabled: bool, day: int, hour: int, retry_hours: int) -> dict[str, Any]:
     """Bewaar UI-instellingen; inschakelen vereist een actuele productietest."""
+    previous_options = Options.load()
+    previous_settings = {
+        "enabled": bool(previous_options.automatic_month_close_enabled),
+        "day": int(previous_options.automatic_month_close_day),
+        "hour": int(previous_options.automatic_month_close_hour),
+        "retry_hours": int(previous_options.automatic_month_close_retry_hours),
+    }
     if enabled and not automatic_production_readiness().get("ready"):
         raise ValueError(
             "Automatische maandafsluiting kan pas AAN na een geslaagde productietest van versie "
@@ -7049,6 +7165,9 @@ def save_automatic_month_close_settings(*, enabled: bool, day: int, hour: int, r
     tmp = AUTO_CLOSE_UI_OPTIONS_PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(AUTO_CLOSE_UI_OPTIONS_PATH)
+    current_settings = {"enabled": bool(enabled), "day": int(day), "hour": int(hour), "retry_hours": int(retry_hours)}
+    if current_settings != previous_settings:
+        append_audit_event("scheduler_settings", action="changed", status="ok", details={"before": previous_settings, "after": current_settings})
     return payload
 
 
@@ -7101,6 +7220,7 @@ def run_automatic_month_close_test(month_key: str) -> dict[str, Any]:
             "scheduler_enabled_before": None, "scheduler_enabled_after": None,
             "scheduler_enabled_unchanged": True,
         })
+        append_audit_event("production_test", action="completed", status=str(result.get("status") or "blocked"), month=month_key, details={"preflight": (result.get("preflight") or {}).get("status"), "error": result.get("error")})
         return result
 
     current_key = datetime.now(TZ).strftime("%Y_%m")
@@ -7164,6 +7284,10 @@ def run_automatic_month_close_test(month_key: str) -> dict[str, Any]:
         "scheduler_enabled_before": None, "scheduler_enabled_after": None,
         "scheduler_enabled_unchanged": True,
     })
+    append_audit_event(
+        "production_test", action="completed", status=str(result.get("status") or "unknown"), month=month_key,
+        details={"preflight": (result.get("preflight") or {}).get("status"), "workflow": (result.get("workflow") or {}).get("status"), "finalization": (result.get("finalization") or {}).get("status"), "scheduler_state_changed": result.get("scheduler_state_changed")},
+    )
     return result
 
 
@@ -7596,6 +7720,11 @@ def automatic_scheduler_acceptance_test() -> dict[str, Any]:
             (result.get("prerequisite_product_test") or {}).get("status")
         ),
     })
+    append_audit_event(
+        "scheduler_acceptance_test", action="completed", status=str(result.get("status") or "unknown"),
+        month=str(result.get("month") or "") or None,
+        details={"scheduler_enabled_unchanged": result.get("scheduler_enabled_unchanged"), "scheduler_config_unchanged": result.get("scheduler_config_unchanged"), "scheduler_bookkeeping_restored": result.get("scheduler_bookkeeping_restored"), "prerequisite_product_test_ran": result.get("prerequisite_product_test_ran")},
+    )
     return result
 
 
@@ -7906,6 +8035,16 @@ def html_page() -> bytes:
     retry_debug = auto_close.get("retry_debug") or {}
     retry_debug_state = retry_debug.get("retry_state_loaded") or {}
     retry_debug_marker = retry_debug.get("completion_marker") or {}
+    audit_trail = op.get("audit_trail") or {}
+    audit_validation = audit_trail.get("validation") or {}
+    audit_rows = "".join(
+        "<tr><td>" + esc(format_local_datetime(item.get("recorded_at"))) + "</td>"
+        + "<td>" + esc(item.get("event_type") or "—") + "</td>"
+        + "<td>" + esc(item.get("action") or "—") + "</td>"
+        + "<td><span class='pill " + status_class(item.get("status")) + "'>" + esc(item.get("status") or "—") + "</span></td>"
+        + "<td>" + esc(item.get("month") or "—") + "</td></tr>"
+        for item in (audit_trail.get("events") or [])
+    ) or "<tr><td colspan='5'>Nog geen auditrecords.</td></tr>"
     retry_debug_ledger = retry_debug.get("append_history") or {}
     retry_debug_workflow = retry_debug.get("workflow_history") or {}
     retry_debug_decision = retry_debug.get("current_decision") or {}
@@ -8019,13 +8158,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.15.0 gecertificeerd is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.16.0 gecertificeerd is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
-<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.15.0 die eerst automatisch veilig uit.</p>
+<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.16.0 die eerst automatisch veilig uit.</p>
 <ul class="source-list">
 <li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>
@@ -8051,8 +8190,15 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </table></div>
 <p class="hint">Append-only historie van afgegeven productiecertificaten.</p>
 <form method="post" action="manage-production-certificate"><button type="submit" class="secondary">Controleer / herstel productiecertificaat</button></form>
-<p class="hint">Herstel is alleen toegestaan uit een aantoonbaar geslaagde productietest van exact v8.15.0; er wordt nooit een certificaat zonder testbewijs aangemaakt.</p>
+<p class="hint">Herstel is alleen toegestaan uit een aantoonbaar geslaagde productietest van exact v8.16.0; er wordt nooit een certificaat zonder testbewijs aangemaakt.</p>
 <p><a href="download-production-certificate">Download huidig productiecertificaat</a></p>
+</div>
+
+<div class="card"><h2>Audittrail v8.16</h2>
+<div class="metrics"><div class="metric"><small>Integriteit</small><strong>{esc(audit_validation.get('status') or 'empty')}</strong></div><div class="metric"><small>Records</small><strong>{esc(audit_validation.get('records', 0))}</strong></div></div>
+<div class="table-wrap"><table><thead><tr><th>Moment</th><th>Type</th><th>Actie</th><th>Status</th><th>Maand</th></tr></thead><tbody>{audit_rows}</tbody></table></div>
+<p class="hint">Append-only, hash-gekoppelde audittrail van workflows, productietests, schedulerwijzigingen, scheduler-acceptatietests en productiecertificaten.</p>
+<p><a href="download-audit-trail">Download audittrail</a></p>
 </div>
 
 <div class="card" id="last-error-card" style="display:{'block' if last_run.get('error') else 'none'}"><h2>Laatste workflowfout</h2>
@@ -8445,6 +8591,12 @@ class Handler(BaseHTTPRequestHandler):
                 "installation_ready": state.get("installation_ready"),
             }).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/download-audit-trail") or path == "/download-audit-trail":
+            if not AUDIT_TRAIL_PATH.is_file():
+                self.send_body(HTTPStatus.NOT_FOUND, b"Audittrail ontbreekt", "text/plain")
+            else:
+                self.send_body(HTTPStatus.OK, AUDIT_TRAIL_PATH.read_bytes(), "application/x-ndjson", 'attachment; filename="audit_trail.jsonl"')
+
         elif path.endswith("/download-production-certificate") or path == "/download-production-certificate":
             validation = validate_production_certificate()
             if not validation.get("exists"):
@@ -8785,6 +8937,12 @@ class Handler(BaseHTTPRequestHandler):
         if path.endswith("/manage-production-certificate") or path == "/manage-production-certificate":
             try:
                 result = manage_production_certificate(allow_repair=True)
+                append_audit_event(
+                    "production_certificate_management", action=str(result.get("action") or "validated"),
+                    status="ok" if result.get("valid") else "attention",
+                    month=str(result.get("source_test_month") or "") or None,
+                    details={"repaired": result.get("repaired"), "certificate_id": result.get("certificate_id")},
+                )
                 code = HTTPStatus.OK if result.get("valid") else HTTPStatus.BAD_REQUEST
             except Exception as exc:
                 result = {"status": "error", "error": str(exc), "version": APP_VERSION}

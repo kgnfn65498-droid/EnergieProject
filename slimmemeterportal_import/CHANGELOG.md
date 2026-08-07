@@ -1,5 +1,16 @@
 # Changelog
 
+## 8.16.0
+
+- Nieuwe append-only audittrail in `/config/output/audit_trail.jsonl`.
+- Elk auditrecord bevat een eigen SHA-256 en `previous_hash`; samen vormen de records een controleerbare hashketen.
+- Auditregistratie toegevoegd voor maandworkflow-afronding, veilige productietests, schedulerinstellingen, scheduler-acceptatietests en productiecertificaatuitgifte/-beheer.
+- Gezondheidsdashboard controleert de audittrail en de integriteit van de volledige keten.
+- Operationele console toont recente auditrecords en biedt download van de volledige JSONL-audittrail.
+- Schrijven van nieuwe auditrecords wordt geblokkeerd wanneer de bestaande hashketen beschadigd is.
+- Bestaande workflow-, scheduler-, retry- en certificaatlogica blijft functioneel ongewijzigd.
+- Geen wijzigingen aan rapportgeneratoren, definitieve outputnamen of Recovery Update-contract.
+
 ## 8.15.0
 
 - Productiecertificaat wordt automatisch uitgegeven na een geslaagde veilige productietest van exact dezelfde softwareversie.
