@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.9.0
+- Herstel workflow-triggercontract voor de veilige productietest.
+- `automatic_test` is nu een geldige trigger naast manual, historical, automatic en resume.
+- Productietest gebruikt dezelfde volledige maandworkflow als de automatische scheduler.
+- Schedulerstatus blijft tijdens de productietest onaangeroerd.
+- Geen wijziging aan rapportgeneratoren, Recovery Update of historische verwerking.
+
 ## 7.8.0
 - Productieteststatus is versiegebonden; oude foutstatussen worden `Opnieuw testen`.
 - Nieuwe productietest wordt direct als `running` zichtbaar vóór de achtergrondthread start.

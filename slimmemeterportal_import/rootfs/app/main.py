@@ -39,7 +39,7 @@ AUTO_CLOSE_UI_OPTIONS_PATH = Path("/config/automatic_month_close.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.8.0"
+APP_VERSION = "7.9.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -5207,7 +5207,9 @@ def run_full_month_workflow(
     trigger: str = "manual",
 ) -> dict[str, Any]:
     options = Options.load()
-    if trigger not in {"manual", "historical", "automatic", "resume"}:
+    if trigger not in {"manual", "historical", "automatic", "automatic_test", "resume"}:
+    # v7.9: automatic_test gebruikt exact dezelfde workflow als automatic,
+    # maar mag de schedulerstaat niet als afgehandeld markeren.
         raise ValueError("Ongeldige workflow-trigger.")
     if not options.full_workflow_enabled:
         raise RuntimeError("Volledige maandworkflow is uitgeschakeld.")
@@ -5271,7 +5273,7 @@ def run_full_month_workflow(
 
     if options.workflow_notify_home_assistant and options.workflow_notify_on_start:
         try:
-            title = "Automatische energie-maandafsluiting gestart" if trigger == "automatic" else "Energie maandworkflow gestart"
+            title = "Automatische energie-maandafsluiting gestart" if trigger in {"automatic", "automatic_test"} else "Energie maandworkflow gestart"
             notify_home_assistant(
                 title,
                 f"Maand {month_key} wordt verwerkt. Trigger: {trigger}.",

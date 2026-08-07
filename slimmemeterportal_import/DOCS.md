@@ -442,3 +442,8 @@ De operationele console toont de automatische maandafsluiting nu met een duideli
 Een productietest geldt alleen als bewijs voor de softwareversie waarin hij is uitgevoerd. Na een upgrade blijft het oude resultaat in `state.json` voor auditdoeleinden behouden, maar de console toont `Opnieuw testen` in plaats van een oude rode fout. Een nieuwe test staat onmiddellijk op `running`.
 
 `Automatische gereedheid` wordt pas groen wanneer een actuele productietest van dezelfde versie succesvol door preflight, maandworkflow en finalization is gegaan.
+
+
+## Versie 7.9.0 — productietest-trigger hersteld
+
+De veilige productietest gebruikt de trigger `automatic_test`. Vanaf v7.9.0 accepteert de centrale maandworkflow deze trigger expliciet. Daarmee doorloopt de test dezelfde preflight, maandworkflow en finalization als een echte automatische maandafsluiting, zonder de schedulermaand als reeds verwerkt te registreren.
