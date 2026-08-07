@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "8.11.0"
+    assert cfg_version == app_version == "8.12.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.11.0"' in config
+    assert 'version: "8.12.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.11.0"' in config
-    assert 'APP_VERSION = "8.11.0"' in main
+    assert 'version: "8.12.0"' in config
+    assert 'APP_VERSION = "8.12.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1947,7 +1947,7 @@ def test_v880_reconciles_only_stale_retry_state():
     section=source[source.index("def reconcile_automatic_retry_state"):source.index("def automatic_recovery_status")]
     assert "automatic_history_proves_completed(month)" in section
     assert "automatic_month_is_completed(month)" in section
-    assert "automatic_month_close_next_retry=None" in section
+    assert "finalize_proven_retry_state(" in section or "automatic_month_close_next_retry=None" in section
 
 def test_v880_successful_run_clears_retry_metadata():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
@@ -1987,8 +1987,7 @@ def test_v890_legacy_retry_closes_on_audit_proof():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     section=source[source.index("def migrate_legacy_retry_state"):source.index("def read_automatic_completion_markers")]
     assert "ledger_proof = automatic_history_proves_completed(last_month)" in section
-    assert 'state="COMPLETED"' in section
-    assert "automatic_month_close_next_retry=None" in section
+    assert "finalize_proven_retry_state(" in section or 'state="COMPLETED"' in section
 
 def test_v890_real_automatic_drives_retry_machine():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
@@ -2034,7 +2033,7 @@ def test_v891_existing_v890_open_retry_is_rechecked():
     assert 'retry_state in {"OPEN", "RUNNING"}' in section
     assert "workflow_proof = workflow_history_proves_completed(month)" in section
     assert "ledger_proof or workflow_proof or marker" in section
-    assert 'state="COMPLETED"' in section
+    assert "finalize_proven_retry_state(" in section or 'state="COMPLETED"' in section
 
 
 def test_v891_workflow_proof_does_not_accept_manual_or_incomplete_runs():
@@ -2154,3 +2153,24 @@ def test_v8110_finalization_debug_retained():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     assert 'FINALIZATION_DEBUG_LOG_PATH' in source
     assert 'workflow_result_pre_write' in source
+
+
+def test_v8120_proof_uses_same_terminal_statuses_as_debug():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def workflow_history_proves_completed"):source.index("def migrate_legacy_retry_state")]
+    assert 'accepted_terminal_statuses = {"ok", "info", "warning", "skipped"}' in section
+    assert 'explicit_flag = item.get("all_steps_completed")' in section
+
+def test_v8120_has_retry_finalizer():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def finalize_proven_retry_state"):source.index("def reconcile_automatic_retry_state")]
+    assert 'state="COMPLETED"' in section
+    assert "automatic_month_close_next_retry=None" in section
+    assert "automatic_month_close_retry_month=None" in section
+    assert "automatic_month_close_retry_reason=None" in section
+
+def test_v8120_reconcile_finalizes_proven_retry():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def reconcile_automatic_retry_state"):source.index("def automatic_recovery_status")]
+    assert "workflow_proof = workflow_history_proves_completed(month)" in section
+    assert "finalize_proven_retry_state(" in section

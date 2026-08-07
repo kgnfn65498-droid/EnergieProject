@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.12.0
+- Productiefix voor blijvende `2026_07 legacy_retry`.
+- Productie-audit en Retry Debug gebruiken dezelfde voltooiingssemantiek.
+- `ok`, `info`, `warning` en `skipped` gelden als afgeronde terminale statussen.
+- Centrale retry-finalizer zet bewezen afgeronde retry naar `COMPLETED`.
+- Oude retryvelden worden gewist.
+- Scheduler, import, rapportgeneratoren en Recovery Update inhoudelijk ongewijzigd.
+
 ## 8.11.0
 - Fix voor foutieve `all_steps_completed`-beoordeling van legacy workflowresultaten.
 - `ok`, `info`, `warning` en `skipped` zijn nu alle vier geldige terminale stapstatussen.

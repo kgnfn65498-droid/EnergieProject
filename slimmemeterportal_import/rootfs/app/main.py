@@ -44,7 +44,7 @@ AUTOMATIC_RETRY_STATE_PATH = Path("/config/output/automatic_retry_state.json")
 RETRY_DEBUG_LOG_PATH = Path("/config/output/logs/retry_debug.log")
 FINALIZATION_DEBUG_LOG_PATH = Path("/config/output/logs/finalization_debug.log")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.11.0"
+APP_VERSION = "8.12.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -5105,12 +5105,7 @@ def automatic_history_proves_completed(month_key: str) -> dict[str, Any] | None:
 
 
 def workflow_history_proves_completed(month_key: str) -> dict[str, Any] | None:
-    """Backwards-compatible bewijs voor oudere automatische runs.
-
-    Oudere versies hadden nog geen append-only ledger/finalization-marker. Voor
-    die maanden geldt een volledig afgeronde workflow met trigger=automatic,
-    zonder failed_step/errors en met alle stappen voltooid als hard auditbewijs.
-    """
+    """Hard auditbewijs met dezelfde semantiek als Retry Debug."""
     path = OUTPUT_ROOT / "workflow_results" / month_key / "workflow_result.json"
     if not path.is_file():
         return None
@@ -5125,9 +5120,22 @@ def workflow_history_proves_completed(month_key: str) -> dict[str, Any] | None:
     trigger_ok = str(item.get("trigger") or "") == "automatic"
     failed_step_ok = not item.get("failed_step")
     errors_ok = not list(item.get("errors") or [])
-    completed = int(item.get("steps_completed") or 0)
-    total = int(item.get("steps_total") or 0)
-    steps_ok = total > 0 and completed >= total
+
+    accepted_terminal_statuses = {"ok", "info", "warning", "skipped"}
+    persisted_steps = item.get("steps") if isinstance(item.get("steps"), list) else []
+    explicit_flag = item.get("all_steps_completed")
+
+    if isinstance(explicit_flag, bool):
+        steps_ok = explicit_flag
+    elif persisted_steps:
+        steps_ok = all(
+            isinstance(step, dict) and step.get("status") in accepted_terminal_statuses
+            for step in persisted_steps
+        )
+    else:
+        completed = int(item.get("steps_completed") or 0)
+        total = int(item.get("steps_total") or 0)
+        steps_ok = total > 0 and completed >= total
 
     if status_ok and trigger_ok and failed_step_ok and errors_ok and steps_ok:
         return item
@@ -5186,21 +5194,12 @@ def migrate_legacy_retry_state(state: dict[str, Any]) -> tuple[dict[str, Any], d
             evidence = "Historisch workflow_result bewijst een volledig geslaagde automatische run."
         else:
             evidence = "Duurzame completion-marker of completed-state aanwezig."
-        retry = write_automatic_retry_state(
-            state="COMPLETED",
+        return finalize_proven_retry_state(
+            state,
+            {"state": "OPEN", "month": last_month, "reason": reason, "origin": origin, "next_retry": str(next_retry)},
             month=last_month,
-            reason=reason,
-            origin=origin,
-            next_retry=None,
             evidence=evidence,
         )
-        update_state(
-            automatic_month_close_next_retry=None,
-            automatic_month_close_retry_month=None,
-            automatic_month_close_retry_reason=None,
-            automatic_month_close_retry_origin=None,
-        )
-        return load_state(), retry
 
     retry = write_automatic_retry_state(
         state="OPEN",
@@ -6413,6 +6412,38 @@ def workflow_visualization(state: dict[str, Any], log_lines: list[dict[str, Any]
     }
 
 
+def finalize_proven_retry_state(
+    state: dict[str, Any],
+    retry: dict[str, Any],
+    *,
+    month: str,
+    evidence: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Sluit een aantoonbaar afgeronde productie-retry definitief af."""
+    closed = write_automatic_retry_state(
+        state="COMPLETED",
+        month=month,
+        reason=None,
+        origin=str(retry.get("origin") or "automatic"),
+        next_retry=None,
+        evidence=evidence,
+    )
+    update_state(
+        automatic_month_close_next_retry=None,
+        automatic_month_close_retry_month=None,
+        automatic_month_close_retry_reason=None,
+        automatic_month_close_retry_origin=None,
+    )
+    refreshed = load_state()
+    append_retry_debug(
+        "retry_finalized",
+        month=month,
+        resulting_state=closed.get("state"),
+        evidence=evidence,
+    )
+    return refreshed, closed
+
+
 def reconcile_automatic_retry_state(state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     state, retry = migrate_legacy_retry_state(state)
     retry_state = str(retry.get("state") or "")
@@ -6444,21 +6475,9 @@ def reconcile_automatic_retry_state(state: dict[str, Any]) -> tuple[dict[str, An
                 evidence = "Historisch workflow_result bewijst een volledig geslaagde automatische run."
             else:
                 evidence = "Duurzame completion-marker aangetroffen."
-            retry = write_automatic_retry_state(
-                state="COMPLETED",
-                month=month,
-                reason=str(retry.get("reason") or ""),
-                origin=str(retry.get("origin") or "automatic"),
-                next_retry=None,
-                evidence=evidence,
+            state, retry = finalize_proven_retry_state(
+                state, retry, month=month, evidence=evidence
             )
-            update_state(
-                automatic_month_close_next_retry=None,
-                automatic_month_close_retry_month=None,
-                automatic_month_close_retry_reason=None,
-                automatic_month_close_retry_origin=None,
-            )
-            state = load_state()
             append_retry_debug(
                 "reconcile_closed",
                 month=month,
@@ -7739,7 +7758,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.10.1 traceert aanvullend de volledige workflow-finalisatie: workflow_result, finalization, completion-marker, automatische historie, retry-state en workflow-lock.</p>
+<p class="hint">v8.12 gebruikt één voltooiingsdefinitie voor Retry Debug en productie-audit en sluit bewezen afgeronde legacy retries definitief af.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 </div>
 

@@ -548,3 +548,8 @@ Bij het workflowresultaat worden zowel het bestaande `steps_completed`-veld als 
 ## Versie 8.11.0 — legacy voltooiingsfix
 
 Bij oudere workflowresultaten kon `steps_completed` lager zijn dan `steps_total` wanneer een geldige stap eindigde als `skipped`. v8.11.0 herberekent bij retry-evidence de voltooiing uit de opgeslagen individuele stappen. `ok`, `info`, `warning` en `skipped` gelden daarbij als afgerond. Nieuwe resultaten schrijven bovendien expliciet `all_steps_completed`.
+
+
+## Versie 8.12.0 — legacy retry finalizer
+
+Retry Debug en productie-audit gebruiken nu dezelfde voltooiingsregels. Bewezen afgeronde OPEN/RUNNING retries worden centraal naar COMPLETED gezet en oude retryvelden worden gewist.
