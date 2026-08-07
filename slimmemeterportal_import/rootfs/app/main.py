@@ -38,11 +38,11 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.4.0"
+APP_VERSION = "7.5.0"
 
 
-# v7.4.0: broncoördinatie en pre-report-eindvalidatie zijn als eigen visuele
-# fasen opgenomen. De gewichten tellen exact op tot 100.
+# v7.5.0: automatische maandafsluiting krijgt productie-preflight en
+# expliciete eindcontrole. De 11-fasen workflow blijft inhoudelijk gelijk.
 WORKFLOW_VISUAL_PHASES = [
     ("SlimmeMeterPortal API-test", 4.0, 0.3),
     ("SlimmeMeterPortal maandimport", 10.0, 1.5),
@@ -450,6 +450,8 @@ def default_state() -> dict[str, Any]:
         "full_workflow_last_trigger": None,
         "automatic_month_close_last_attempt": None,
         "automatic_month_close_next_retry": None,
+        "automatic_month_close_last_preflight": None,
+        "automatic_month_close_last_finalization": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -5954,6 +5956,8 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "last_run": state.get("automatic_month_close_last_run"),
             "last_attempt": state.get("automatic_month_close_last_attempt"),
             "next_retry": state.get("automatic_month_close_next_retry"),
+            "last_preflight": state.get("automatic_month_close_last_preflight"),
+            "last_finalization": state.get("automatic_month_close_last_finalization"),
         },
         "history": history,
         "can_resume": bool(
@@ -5967,6 +5971,64 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
         },
     }
 
+
+
+def automatic_month_close_preflight(options: Options, month_key: str) -> dict[str, Any]:
+    """Controleer of een onbemande maandafsluiting veilig kan starten."""
+    errors: list[str] = []
+    checks: list[dict[str, Any]] = []
+    def add(name: str, status: str, detail: str = "") -> None:
+        checks.append({"name": name, "status": status, "detail": detail})
+        if status == "error": errors.append(f"{name}: {detail}")
+    add("config", "ok", "Configuratie geldig.")
+    try:
+        OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+        probe = OUTPUT_ROOT / ".automatic_close_write_test"
+        probe.write_text("ok", encoding="utf-8"); probe.unlink(missing_ok=True)
+        add("storage", "ok", str(OUTPUT_ROOT))
+    except Exception as exc: add("storage", "error", str(exc))
+    if options.transfer_enabled:
+        try:
+            transfer_root = TRANSFER_SHARE_ROOT / Path(options.transfer_share_folder)
+            transfer_root.mkdir(parents=True, exist_ok=True)
+            probe = transfer_root / ".automatic_close_write_test"
+            probe.write_text("ok", encoding="utf-8"); probe.unlink(missing_ok=True)
+            add("transfer_storage", "ok", str(transfer_root))
+        except Exception as exc: add("transfer_storage", "error", str(exc))
+    else: add("transfer_storage", "ok", "Overdracht bewust uitgeschakeld.")
+    if options.report_service_enabled:
+        runtime = check_report_runtime()
+        add("report_runtime", "ok" if runtime.get("status") == "ok" else "error", json.dumps(runtime, ensure_ascii=False))
+    else: add("report_runtime", "ok", "Rapportservice bewust uitgeschakeld.")
+    result={"version":APP_VERSION,"checked_at":datetime.now(TZ).isoformat(),"month":month_key,"status":"ok" if not errors else "error","checks":checks,"errors":errors}
+    update_state(automatic_month_close_last_preflight=result)
+    return result
+
+
+def automatic_month_close_finalize(options: Options, month_key: str, workflow_result: dict[str, Any]) -> dict[str, Any]:
+    """Controleer of de volledige automatische productieketen gereed is."""
+    errors: list[str] = []; checks: list[dict[str, Any]] = []; state=load_state()
+    def add(name: str, status: str, detail: Any = "") -> None:
+        checks.append({"name":name,"status":status,"detail":detail})
+        if status == "error": errors.append(f"{name}: {detail}")
+    ws=str(workflow_result.get("status") or "")
+    add("workflow", "ok" if ws in {"completed","completed_warning"} else "error", ws or "onbekend")
+    pre=state.get("last_pre_report_validation") or {}
+    pre_ok=str(pre.get("month") or "")==month_key and pre.get("status")=="ok"
+    add("pre_report_validation","ok" if pre_ok else "error",pre.get("status") or "ontbreekt")
+    if options.report_service_enabled:
+        gen_ok=state.get("report_generation_last_month")==month_key and state.get("report_generation_last_status")=="completed"
+        add("report_generation","ok" if gen_ok else "error",state.get("report_generation_last_status") or "ontbreekt")
+        published=list(state.get("report_output_last_files") or [])
+        expected={f"Energierapport_{month_key}.pdf",f"Recovery_Update_{month_key}.zip"}
+        names={Path(x).name for x in published}; files_exist=all(Path(x).is_file() for x in published)
+        pub_ok=state.get("report_output_last_month")==month_key and state.get("report_output_last_status")=="completed" and expected.issubset(names) and files_exist
+        add("publication","ok" if pub_ok else "error",{"status":state.get("report_output_last_status"),"files":published,"expected":sorted(expected)})
+    else:
+        add("report_generation","ok","Rapportservice bewust uitgeschakeld."); add("publication","ok","Rapportservice bewust uitgeschakeld.")
+    result={"version":APP_VERSION,"checked_at":datetime.now(TZ).isoformat(),"month":month_key,"status":"ok" if not errors else "error","checks":checks,"errors":errors}
+    update_state(automatic_month_close_last_finalization=result)
+    return result
 
 def automatic_month_close_due(options: Options, now: datetime) -> str | None:
     if not options.automatic_month_close_enabled:
@@ -6051,21 +6113,31 @@ def scheduler() -> None:
                 attempt_at = datetime.now(TZ)
                 update_state(
                     automatic_month_close_last_month=close_month,
-                    automatic_month_close_last_status="running",
+                    automatic_month_close_last_status="preflight",
                     automatic_month_close_last_attempt=attempt_at.isoformat(),
                     automatic_month_close_last_run=attempt_at.isoformat(),
                     automatic_month_close_next_retry=None,
                 )
-                result = run_full_month_workflow(close_month, collect_live_snapshots=False, trigger="automatic")
-                retry_at = None
-                if result.get("status") not in {"completed", "completed_warning"}:
+                preflight = automatic_month_close_preflight(options, close_month)
+                if preflight.get("status") != "ok":
                     retry_at = (datetime.now(TZ) + timedelta(hours=options.automatic_month_close_retry_hours)).isoformat()
-                update_state(
-                    automatic_month_close_last_month=close_month,
-                    automatic_month_close_last_status=result.get("status"),
-                    automatic_month_close_last_run=datetime.now(TZ).isoformat(),
-                    automatic_month_close_next_retry=retry_at,
-                )
+                    update_state(automatic_month_close_last_month=close_month,automatic_month_close_last_status="blocked",automatic_month_close_last_run=datetime.now(TZ).isoformat(),automatic_month_close_next_retry=retry_at)
+                    if options.workflow_notify_home_assistant:
+                        try:
+                            notify_home_assistant("Automatische energie-maandafsluiting geblokkeerd",f"Maand {close_month} kon niet starten. Nieuwe poging na {options.automatic_month_close_retry_hours} uur.")
+                        except Exception as exc:
+                            LOGGER.warning("Preflight-notificatie mislukt: %s", exc)
+                else:
+                    update_state(automatic_month_close_last_status="running")
+                    result = run_full_month_workflow(close_month, collect_live_snapshots=False, trigger="automatic")
+                    finalization = automatic_month_close_finalize(options, close_month, result)
+                    final_status = str(result.get("status") or "error")
+                    if final_status in {"completed", "completed_warning"} and finalization.get("status") != "ok":
+                        final_status = "error"
+                    retry_at = None
+                    if final_status not in {"completed", "completed_warning"}:
+                        retry_at = (datetime.now(TZ) + timedelta(hours=options.automatic_month_close_retry_hours)).isoformat()
+                    update_state(automatic_month_close_last_month=close_month,automatic_month_close_last_status=final_status,automatic_month_close_last_run=datetime.now(TZ).isoformat(),automatic_month_close_next_retry=retry_at)
 
             if not options.schedule_enabled:
                 update_state(next_scheduled_run=None)

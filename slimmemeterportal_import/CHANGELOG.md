@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.5.0
+- Productie-preflight vóór automatische maandafsluiting.
+- Controle op lokale opslag, overdrachtsmap en rapport-runtime vóór een onbemande run.
+- Geblokkeerde preflight start geen workflow en gebruikt de veilige retryperiode.
+- Eindcontrole verifieert workflow, pre-report-validatie, rapportgeneratie, PDF en Recovery Update.
+- Automatische maand wordt pas voltooid gemarkeerd als de volledige keten gereed is.
+
 ## 7.4.0
 - Automatische Enphase-bronimport wanneer deze expliciet is ingeschakeld voor de actuele doelmaand.
 - Nieuwe doelmaandgebonden eindvalidatie vóór overdracht en rapportage.

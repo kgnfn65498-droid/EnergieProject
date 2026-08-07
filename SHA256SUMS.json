@@ -1,19 +1,19 @@
 {
-  "version": "7.4.0",
+  "version": "7.5.0",
   "algorithm": "sha256",
   "file_count": 65,
   "files": {
     ".gitignore": "f10529b220b514ca72c66fd592c80ec5b3dea6a0a49f2658d80617824c5aa5e7",
     "INSTALL.md": "5b85100598e0a62703c9d11eed9e8755d4bf2e255a4205d4bd3c702b7bc8cb55",
     "NEXT_CHAT_V7.md": "d491bda9db8dda7ca9059e155b3b479639684bfc6cccb0b915b7a4d55e2b459f",
-    "README.md": "1cce7965bdc18beac8a9ebdbd68c43f38bdcda554311d083ab0042f4ef97099d",
+    "README.md": "d6497fbbf3a28b81c5a36ab73d92d48683382ebc839997c365056f95699e1f81",
     "repository.yaml": "53bcc3c35f6757f418727b3f72063e676db73638359dfb2124174f2f17bd8be0",
-    "slimmemeterportal_import/CHANGELOG.md": "79e7828ff800001281313c5cd8dffac1e9e69ac4e510a837545ba2e7773efbe6",
-    "slimmemeterportal_import/DOCS.md": "b0338ca43f3bcdc296eb2c2b371f8c641b49b21733924f9c668f554864de69f7",
+    "slimmemeterportal_import/CHANGELOG.md": "56060a8628bbf45c6d996273ffbec1bb9a90ae581f7777ca0ba716c8d48d79ba",
+    "slimmemeterportal_import/DOCS.md": "a7aae303990e26444745257bd79b893477c0703d436c4b2e0f5b58606a9b4e23",
     "slimmemeterportal_import/Dockerfile": "040010a8ef8987d888e3f84d2f7e625303fdc0cd53b069017e889edb197c717c",
     "slimmemeterportal_import/build.yaml": "8b306792106f48e7b60dc6111f09349796f6baa61dfa1f4003dc4ccd54ae376b",
-    "slimmemeterportal_import/config.yaml": "f984f7415a4b276e2bb9d056fc5c4887466f2f511f35c70434b161e6dc86111e",
-    "slimmemeterportal_import/rootfs/app/main.py": "9ddb8f1df5b61c96a3e2c31f78bdfbfac629c20e9c6c4a5f2f63288212c45a73",
+    "slimmemeterportal_import/config.yaml": "cba5a118fec380a168e4c89fc7f47f31a895a36d63cb3caaf6f586d2824f5931",
+    "slimmemeterportal_import/rootfs/app/main.py": "bd818747dc42ad681e05901086957bbccadc26d4e5d55533a43c78a4b66040fd",
     "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md": "d24232c247a27a6346ccb154c17bbc6bd60821a1c1c700ecb0a745cae68997d4",
     "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/CHANGELOG_v6.md": "7b97d96fce023dc1c6f06e19abfdd1e59852836e3ed5e9c31661a6cd2ed0170d",
     "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/CHANGELOG_v7.md": "a015e64f53e640359348eec607c5d6a1f325b5cf398e8cb972aee326872ec01f",
@@ -67,6 +67,6 @@
     "slimmemeterportal_import/run.sh": "a6d1f2bae0d363e383368fad8b70e35d290632d368a70ed9dcf87b62b948c2c4",
     "slimmemeterportal_import/translations/en.yaml": "5521e16aaf3bbec2a057a2eb7e9a1d44f19251e377bf40faff1d9a75333a41ca",
     "slimmemeterportal_import/translations/nl.yaml": "7822916ba94372beed3d6228e80c2ff169dba87f1779adc0e97136b5f5d010d3",
-    "tests/test_static.py": "317c4e8ed09b4d64939f272b21c7316f716cfdd33785b4ab642c336247fd8f62"
+    "tests/test_static.py": "ac2c736c8a907ad1a6273accb3e841e713300fb745fba7e3ae95b52bb02e7335"
   }
 }

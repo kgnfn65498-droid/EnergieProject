@@ -420,3 +420,8 @@ Voor de automatische maandafsluiting geldt een retry-beveiliging. Na een mislukt
 ## Versie 7.4.0 — broncoördinatie en eindvalidatie
 
 De volledige maandworkflow voert vóór overdracht en rapportage een extra doelmaandgebonden eindvalidatie uit. Voor actuele maanden wordt een expliciet ingeschakelde externe Enphase-bron automatisch geïmporteerd. EPEX blijft automatisch meelopen wanneer geconfigureerd. Historische workflows halen geen actuele Enphase/HomeWizard-data op om oude maanden aan te vullen; zij blijven bronbeschikbaarheid-gestuurd. De eindvalidatie wordt opgeslagen als `workflow_results/YYYY_MM/pre_report_validation.json` en als `last_pre_report_validation` in de operationele status.
+
+
+## Versie 7.5.0 — productieharde automatische maandafsluiting
+
+Voor een automatische maandafsluiting voert de app eerst een preflight uit op configuratie, lokale schrijfbaarheid, overdrachtsmap en rapport-runtime. Bij een fout start de workflow niet en volgt een veilige retry. Na een automatische workflow controleert de finalization de pre-report-validatie, rapportgeneratie en de gepubliceerde `Energierapport_YYYY_MM.pdf` en `Recovery_Update_YYYY_MM.zip`.
