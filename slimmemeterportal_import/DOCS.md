@@ -565,3 +565,7 @@ Een volledig geslaagde veilige productietest schrijft een duurzaam productiecert
 Na een geslaagde productietest wordt het certificaat atomisch opgeslagen in `/config/output/production_certificate.json`. Een SHA-256 over de canonieke certificaatinhoud detecteert onbedoelde wijziging. De scheduler accepteert uitsluitend een geldig certificaat van exact de actieve softwareversie.
 
 Iedere afgifte wordt append-only geregistreerd in `/config/output/production_certificate_history.jsonl`. Health Dashboard en Retry Debug tonen de actuele certificaatvalidatie.
+
+
+## Testpakket v9.5
+De operationele console bevat **Download testpakket**. Deze download bundelt de status- en bewijsbestanden die nodig zijn voor releasecontrole, zonder API-key of `options.json`. Certificaten, Recovery, Audittrail en uitgebreide logs staan standaard ingeklapt; Monitoring toont alleen de samenvatting direct.

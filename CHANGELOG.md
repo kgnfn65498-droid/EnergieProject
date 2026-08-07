@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.5.0
+- Operationele console vereenvoudigd zonder wijziging van de gecertificeerde productiekern `9.4-core1`.
+- Archief productiecertificaten, Recovery, Audittrail en Live workflowlog zijn standaard ingeklapt; Retry Debug is niet langer standaard geopend.
+- Monitoring houdt de compacte samenvatting zichtbaar en plaatst detailregels en bediening in een inklapbaar blok.
+- Nieuwe knop **Download testpakket** maakt één ZIP met test_summary, operationele status, health, certificaatvalidatie, monitoring, recovery, auditvalidatie en de beschikbare duurzame bewijs-/debugbestanden.
+- Het testpakket bevat geen API-key en geen `options.json`.
+- Omdat workflow/scheduler/retry/certificeringskern niet zijn gewijzigd, blijft een geldig certificaat voor `9.4-core1` bruikbaar en is voor v9.5.0 geen nieuwe volledige automatische maandafsluitingstest vereist.
+
 ## 9.4.0
 - Productiecertificering is losgekoppeld van iedere afzonderlijke UI-/diagnostiekrelease en gekoppeld aan een expliciete **productiekern-revisie** (`9.4-core1`).
 - Een productietest certificeert vanaf v9.4 de inhoudelijke kern: maandworkflow, scheduler, retry/finalization en certificeringscontract.

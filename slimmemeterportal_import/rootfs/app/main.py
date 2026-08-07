@@ -52,8 +52,8 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "9.4.0"
-# v9.4: certificering volgt de productiekern in plaats van iedere UI/releaseversie.
+APP_VERSION = "9.5.0"
+# v9.5: UI/testpakket-release; de gecertificeerde productiekern blijft ongewijzigd.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
 
@@ -8159,6 +8159,97 @@ def zip_month(month_key: str) -> bytes:
     return buffer.getvalue()
 
 
+def build_test_package() -> bytes:
+    """Bouw één diagnosepakket voor goed-/afkeuring zonder geheimen uit options.json."""
+    options = Options.load()
+    state = persist_normalized_status(options)
+    op = operation_status(options)
+    health = health_dashboard(options)
+    certificate = validate_production_certificate()
+    monitoring = op.get("monitoring") or monitoring_snapshot(options)
+    recovery = op.get("recovery_controller") or read_recovery_status()
+    audit = op.get("audit_trail") or {"validation": validate_audit_trail(), "events": read_audit_trail(limit=12), "path": str(AUDIT_TRAIL_PATH)}
+
+    month_key = str(
+        (op.get("workflow") or {}).get("month")
+        or (op.get("last_run") or {}).get("month")
+        or state.get("workflow_last_month")
+        or state.get("last_month")
+        or ""
+    ).strip().replace("-", "_")
+
+    summary = {
+        "schema": 1,
+        "release_version": APP_VERSION,
+        "production_core_revision": PRODUCTION_CORE_REVISION,
+        "generated_at": datetime.now(TZ).isoformat(),
+        "test_month": month_key or None,
+        "production_ready": bool(automatic_production_readiness(state).get("ready")),
+        "production_certificate_valid": bool(certificate.get("valid")),
+        "certificate_release": certificate.get("version"),
+        "certificate_core_revision": certificate.get("production_core_revision"),
+        "health_score": health.get("score"),
+        "monitoring_status": monitoring.get("status"),
+        "monitoring_errors": monitoring.get("active_errors", 0),
+        "monitoring_pending": monitoring.get("pending_points", monitoring.get("attention_points", 0)),
+        "recovery_status": recovery.get("status"),
+        "recovery_actions": recovery.get("repair_actions", recovery.get("repaired_count", 0)),
+        "audit_integrity": (audit.get("validation") or {}).get("status"),
+        "audit_records": (audit.get("validation") or {}).get("records", 0),
+        "scheduler_enabled": bool((op.get("automatic_month_close") or {}).get("enabled")),
+        "scheduler_effective": bool((op.get("automatic_month_close") or {}).get("scheduler_effective")),
+        "source_status": state.get("workflow_sources") or {},
+        "note": "v9.5.0 wijzigt alleen UI/diagnostiek; productiekern 9.4-core1 is ongewijzigd.",
+    }
+
+    generated = {
+        "test_summary.json": summary,
+        "operation_status.json": op,
+        "health_dashboard.json": health,
+        "production_certificate_validation.json": certificate,
+        "monitoring_snapshot.json": monitoring,
+        "recovery_snapshot.json": recovery,
+        "audit_validation.json": audit.get("validation") or {},
+    }
+
+    files = [
+        (PRODUCTION_CERTIFICATE_PATH, "evidence/production_certificate.json"),
+        (PRODUCTION_CERTIFICATE_HISTORY_PATH, "evidence/production_certificate_history.jsonl"),
+        (PRODUCTION_CERTIFICATE_MANAGEMENT_PATH, "evidence/production_certificate_management.json"),
+        (RECOVERY_STATE_PATH, "evidence/recovery_state.json"),
+        (RECOVERY_HISTORY_PATH, "evidence/recovery_history.jsonl"),
+        (MONITORING_STATE_PATH, "evidence/monitoring_state.json"),
+        (MONITORING_HISTORY_PATH, "evidence/monitoring_history.jsonl"),
+        (AUDIT_TRAIL_PATH, "evidence/audit_trail.jsonl"),
+        (AUTOMATIC_RUN_LEDGER_PATH, "evidence/automatic_run_history.jsonl"),
+        (AUTOMATIC_COMPLETION_MARKERS_PATH, "evidence/automatic_completed_months.json"),
+        (AUTOMATIC_RETRY_STATE_PATH, "evidence/automatic_retry_state.json"),
+        (RETRY_DEBUG_LOG_PATH, "logs/retry_debug.log"),
+        (FINALIZATION_DEBUG_LOG_PATH, "logs/finalization_debug.log"),
+    ]
+    if month_key:
+        files.extend([
+            (workflow_result_dir(month_key) / FULL_WORKFLOW_RESULT_NAME, f"workflow/{month_key}/workflow_result.json"),
+            (workflow_log_file(month_key), f"workflow/{month_key}/workflow.log"),
+        ])
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, payload in generated.items():
+            archive.writestr(name, json.dumps(payload, ensure_ascii=False, indent=2, default=str))
+        manifest = []
+        for src, arcname in files:
+            try:
+                if src.is_file():
+                    data = src.read_bytes()
+                    archive.writestr(arcname, data)
+                    manifest.append({"path": arcname, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+            except OSError as exc:
+                manifest.append({"path": arcname, "error": str(exc)})
+        archive.writestr("MANIFEST.json", json.dumps({"generated_at": summary["generated_at"], "files": manifest}, ensure_ascii=False, indent=2))
+    return buffer.getvalue()
+
+
 def html_page() -> bytes:
     state = load_state()
     try:
@@ -8435,7 +8526,7 @@ main{{max-width:1180px;margin:22px auto;padding:0 18px 40px}} h1{{margin-bottom:
 .switch-row{{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;margin:2px 0 14px;border:1px solid var(--border);border-radius:12px;background:#f8fafb}} .switch-title{{font-weight:800;color:var(--text)}} .switch-wrap{{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}} .switch-wrap input{{position:absolute;opacity:0;pointer-events:none}} .switch-slider{{position:relative;width:54px;height:30px;border-radius:999px;background:#aab5bb;transition:.2s}} .switch-slider::after{{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;border-radius:50%;background:white;box-shadow:0 1px 4px #0004;transition:.2s}} .switch-wrap input:checked + .switch-slider{{background:var(--ok)}} .switch-wrap input:checked + .switch-slider::after{{transform:translateX(24px)}} .switch-state{{min-width:31px;font-weight:800;color:#65747d}} .switch-wrap input:checked ~ .switch-state{{color:var(--ok)}} .resume-unavailable{{padding:10px 12px;border-radius:9px;background:#f3f6f7;color:#66757e;margin:9px 0}} .planning-fields{{display:grid;grid-template-columns:repeat(3,minmax(110px,1fr));gap:10px}} .planning-fields label{{display:flex;flex-direction:column;gap:5px;font-size:.88rem;color:var(--muted)}} .planning-fields input{{width:100%;max-width:none}} .auto-status{{display:flex;align-items:center;gap:8px;flex-wrap:wrap}} .auto-status small{{color:var(--muted);font-weight:500}} .test-detail{{display:block;margin-top:4px;color:var(--muted);font-size:.78rem;max-width:360px;overflow-wrap:anywhere}}
 .hint{{font-size:.9rem;color:var(--muted);margin:7px 0}} table{{width:100%;border-collapse:collapse}} th,td{{text-align:left;border-bottom:1px solid var(--border);padding:10px 8px;vertical-align:top}} th{{font-size:.82rem;color:var(--muted)}} .table-wrap{{overflow-x:auto}}
 details{{border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin:9px 0}} summary{{cursor:pointer;font-weight:700}} .source-list{{list-style:none;padding:0;margin:0}} .source-list li{{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #eef2f4}}
-a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{background:#101820;color:#e8eef2;border-radius:10px;padding:12px;min-height:110px;max-height:300px;overflow:auto;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}} .score{{font-size:2rem;font-weight:800}} 
+a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#fff;text-decoration:none;border-radius:8px;padding:11px 15px;font-weight:700}} .compact-details{{border:0;padding:0;margin:0}} .compact-details>summary{{font-size:1.18rem;padding:2px 0 10px}} .links{{line-height:2}} code{{font-size:.9em}} .log{{background:#101820;color:#e8eef2;border-radius:10px;padding:12px;min-height:110px;max-height:300px;overflow:auto;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}} .score{{font-size:2rem;font-weight:800}} 
 @media(max-width:850px){{.grid{{grid-template-columns:repeat(2,minmax(0,1fr))}}.controls{{grid-template-columns:1fr}}}} @media(max-width:620px){{.planning-fields{{grid-template-columns:1fr}}}} @media(max-width:520px){{.grid{{grid-template-columns:1fr}}}}
 </style></head><body><main>
 <h1>Energieproject</h1><p class="subtitle">Operationele console · SlimmeMeterPortal Import · versie {APP_VERSION}</p>
@@ -8480,6 +8571,8 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p class="hint">Het productiecertificaat wordt automatisch gegenereerd uit een geslaagde productietest van exact deze versie, continu op integriteit gecontroleerd en kan veilig uit bestaand hard testbewijs worden hersteld.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
+<p><a class="button-link" href="download-test-package">Download testpakket</a></p>
+<p class="hint">Eén ZIP met de status- en bewijsbestanden die nodig zijn om deze release goed of af te keuren. Bevat geen API-key of options.json.</p>
 </div>
 
 <div class="card"><h2>Automatische maandafsluiting</h2>
@@ -8525,7 +8618,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <p class="hint">Append-only historie: iedere test, scheduler-test en echte automatische run blijft als afzonderlijk record bewaard.</p>
 </div>
 
-<div class="card" id="production-certificates"><h2>Archief productiecertificaten</h2>
+<div class="card" id="production-certificates"><details class="compact-details"><summary>Archief productiecertificaten</summary>
 <div class="table-wrap"><table>
 <thead><tr><th>Release</th><th>Productiekern</th><th>Afgegeven</th><th>Status</th><th>Testmaand</th></tr></thead>
 <tbody id="production-certificate-history-body">{certificate_history_rows}</tbody>
@@ -8535,28 +8628,29 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <p><span id="production-certificate-management-status" class="pill {status_class(production_certificate_management_status)}">{esc(production_certificate_management_text)}</span></p>
 <p class="hint">Herstel is alleen toegestaan uit aantoonbaar geslaagd testbewijs van de actuele productiekern {esc(PRODUCTION_CORE_REVISION)}; er wordt nooit een certificaat zonder testbewijs aangemaakt.</p>
 <p><a href="download-production-certificate">Download huidig productiecertificaat</a></p>
-</div>
+</details></div>
 
-<div class="card" id="recovery-v817"><h2>Recovery v{APP_VERSION}</h2>
+<div class="card" id="recovery-v817"><details class="compact-details"><summary>Recovery v{APP_VERSION}</summary>
 <div class="metrics"><div class="metric"><small>Status</small><strong><span id="recovery-controller-status" class="pill {status_class(recovery_controller_status)}">{esc(recovery_controller_status)}</span></strong></div><div class="metric"><small>Herstelacties</small><strong id="recovery-controller-count">{esc(recovery_controller_count)}</strong></div><div class="metric"><small>Laatste controle</small><strong id="recovery-controller-checked">{esc(recovery_controller_checked)}</strong></div></div>
 <p id="recovery-controller-detail" class="hint">{esc(recovery_controller_detail)}</p>
 <p><button id="run-recovery-controller-button" type="button" class="secondary">Controleer recovery nu</button></p>
 <p class="hint">Controleert en reconcilieert uitsluitend duurzame status uit bestaand hard bewijs. Start nooit zelfstandig een maandworkflow en wijzigt geen ongeldige auditketen.</p>
-</div>
+</details></div>
 
 <div class="card" id="monitoring-v818"><h2>Monitoring v{APP_VERSION}</h2>
 <div class="metrics"><div class="metric"><small>Status</small><strong><span id="monitoring-status" class="pill {status_class(monitoring_status)}">{esc(monitoring_status)}</span></strong></div><div class="metric"><small>Fouten</small><strong id="monitoring-error-count">{esc(monitoring_errors)}</strong></div><div class="metric"><small>Wachtstatussen</small><strong id="monitoring-attention-count">{esc(monitoring_pending)}</strong></div><div class="metric"><small>Laatste controle</small><strong id="monitoring-checked">{esc(monitoring_checked)}</strong></div></div>
+<details><summary>Monitoringdetails</summary>
 <ul class="source-list" id="monitoring-checks">{monitoring_rows}</ul>
 <p><button id="run-monitoring-button" type="button" class="secondary">Controleer monitoring nu</button> <a href="download-monitoring-history">Download monitoringhistorie</a></p>
 <p class="hint">Bewaakt API, workflow, productiecertificaat, audittrail, recovery, scheduler en bronstatus. Alleen statuswijzigingen worden append-only opgeslagen; monitoring start zelf geen workflow.</p>
-</div>
+</details></div>
 
-<div class="card"><h2>Audittrail v{APP_VERSION}</h2>
+<div class="card"><details class="compact-details"><summary>Audittrail v{APP_VERSION}</summary>
 <div class="metrics"><div class="metric"><small>Integriteit</small><strong id="audit-integrity">{esc(audit_validation.get('status') or 'empty')}</strong></div><div class="metric"><small>Records</small><strong id="audit-record-count">{esc(audit_validation.get('records', 0))}</strong></div></div>
 <div class="table-wrap"><table><thead><tr><th>Moment</th><th>Type</th><th>Actie</th><th>Status</th><th>Maand</th></tr></thead><tbody id="audit-trail-body">{audit_rows}</tbody></table></div>
 <p class="hint">Append-only, hash-gekoppelde audittrail van workflows, productietests, schedulerwijzigingen, scheduler-acceptatietests en productiecertificaten.</p>
 <p><a href="download-audit-trail">Download audittrail</a></p>
-</div>
+</details></div>
 
 <div class="card" id="last-error-card" style="display:{'block' if last_run.get('error') else 'none'}"><h2>Laatste workflowfout</h2>
 <div><strong id="last-error-step">{esc(last_run.get('error_step') or last_run.get('step') or '—')}</strong></div>
@@ -8569,10 +8663,10 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="controls"><div><div class="score" id="health-score">{health_score}%</div><p class="hint">Systeemgezondheid: normale wachtstatussen tijdens versiecertificering zijn geen fout; echte storingen wegen zwaar.</p></div><ul class="source-list" id="health-checks">{health_rows}</ul></div>
 </div>
 
-<div class="card"><h2>Live workflowlog</h2>
+<div class="card"><details class="compact-details"><summary>Live workflowlog</summary>
 <div id="workflow-log" class="log">Log voor {esc(log_month or 'geen maand geselecteerd')} wordt automatisch bijgewerkt.</div>
 <p><a id="live-log-download" href="download-workflow-log?month={esc(log_month or '')}">Download workflowlog</a></p>
-</div>
+</details></div>
 
 <div class="card"><h2>Historische runs</h2><div class="table-wrap"><table><thead><tr><th>Maand</th><th>Status</th><th>Stappen</th><th>Duur</th><th>Mislukte stap</th><th>Afgerond</th><th>Log</th></tr></thead><tbody>{history_html}</tbody></table></div></div>
 
@@ -8587,7 +8681,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Integriteit</small><strong>{esc(state.get('last_integrity_status') or 'Nog niet gecontroleerd')}</strong></div>
 <div class="metric"><small>Zelftest</small><strong>{esc((state.get('last_self_test') or {}).get('status', 'Nog niet uitgevoerd'))}</strong></div>
 </div>
-<details open><summary>Retry Debug v{APP_VERSION}</summary>
+<details><summary>Retry Debug v{APP_VERSION}</summary>
 <div class="table-wrap"><table>
 <tbody>
 <tr><th>Retry-maand</th><td>{esc(retry_debug.get('month_checked') or '—')}</td></tr>
@@ -9049,6 +9143,16 @@ class Handler(BaseHTTPRequestHandler):
                 "installation_ready": state.get("installation_ready"),
             }).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/download-test-package") or path == "/download-test-package":
+            try:
+                body = build_test_package()
+                self.send_body(
+                    HTTPStatus.OK, body, "application/zip",
+                    f'attachment; filename="Energieproject_testpakket_v{APP_VERSION}.zip"',
+                )
+            except Exception as exc:
+                LOGGER.exception("Testpakket kon niet worden gebouwd.")
+                self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc).encode("utf-8", errors="replace"), "text/plain; charset=utf-8")
         elif path.endswith("/download-monitoring-history") or path == "/download-monitoring-history":
             if not MONITORING_HISTORY_PATH.is_file():
                 self.send_body(HTTPStatus.NOT_FOUND, b"Monitoringhistorie niet gevonden", "text/plain; charset=utf-8")
