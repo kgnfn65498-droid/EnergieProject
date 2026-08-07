@@ -42,7 +42,7 @@ AUTOMATIC_RUN_LEDGER_PATH = Path("/config/output/automatic_run_history.jsonl")
 AUTOMATIC_COMPLETION_MARKERS_PATH = Path("/config/output/automatic_completed_months.json")
 AUTOMATIC_RETRY_STATE_PATH = Path("/config/output/automatic_retry_state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.9.0"
+APP_VERSION = "8.9.1"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -4912,6 +4912,36 @@ def automatic_history_proves_completed(month_key: str) -> dict[str, Any] | None:
     return None
 
 
+def workflow_history_proves_completed(month_key: str) -> dict[str, Any] | None:
+    """Backwards-compatible bewijs voor oudere automatische runs.
+
+    Oudere versies hadden nog geen append-only ledger/finalization-marker. Voor
+    die maanden geldt een volledig afgeronde workflow met trigger=automatic,
+    zonder failed_step/errors en met alle stappen voltooid als hard auditbewijs.
+    """
+    path = OUTPUT_ROOT / "workflow_results" / month_key / "workflow_result.json"
+    if not path.is_file():
+        return None
+    try:
+        item = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(item, dict):
+        return None
+
+    status_ok = str(item.get("status") or "") in {"completed", "completed_warning"}
+    trigger_ok = str(item.get("trigger") or "") == "automatic"
+    failed_step_ok = not item.get("failed_step")
+    errors_ok = not list(item.get("errors") or [])
+    completed = int(item.get("steps_completed") or 0)
+    total = int(item.get("steps_total") or 0)
+    steps_ok = total > 0 and completed >= total
+
+    if status_ok and trigger_ok and failed_step_ok and errors_ok and steps_ok:
+        return item
+    return None
+
+
 def migrate_legacy_retry_state(state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     retry = read_automatic_retry_state()
     if retry:
@@ -4931,19 +4961,22 @@ def migrate_legacy_retry_state(state: dict[str, Any]) -> tuple[dict[str, Any], d
         return state, retry
 
     ledger_proof = automatic_history_proves_completed(last_month)
+    workflow_proof = workflow_history_proves_completed(last_month)
     completion_marker = automatic_month_is_completed(last_month)
-    if ledger_proof or completion_marker or last_status in {"completed", "completed_warning"}:
+    if ledger_proof or workflow_proof or completion_marker or last_status in {"completed", "completed_warning"}:
+        if ledger_proof:
+            evidence = "Append-only historie bevat een geslaagde echte Automatisch-run."
+        elif workflow_proof:
+            evidence = "Historisch workflow_result bewijst een volledig geslaagde automatische run."
+        else:
+            evidence = "Duurzame completion-marker of completed-state aanwezig."
         retry = write_automatic_retry_state(
             state="COMPLETED",
             month=last_month,
             reason=reason,
             origin=origin,
             next_retry=None,
-            evidence=(
-                "Append-only historie bevat een geslaagde echte Automatisch-run."
-                if ledger_proof
-                else "Duurzame completion-marker of completed-state aanwezig."
-            ),
+            evidence=evidence,
         )
         update_state(
             automatic_month_close_next_retry=None,
@@ -6111,20 +6144,23 @@ def reconcile_automatic_retry_state(state: dict[str, Any]) -> tuple[dict[str, An
     month = str(retry.get("month") or "")
 
     if retry_state in {"OPEN", "RUNNING"} and month:
-        proof = automatic_history_proves_completed(month)
+        ledger_proof = automatic_history_proves_completed(month)
+        workflow_proof = workflow_history_proves_completed(month)
         marker = automatic_month_is_completed(month)
-        if proof or marker:
+        if ledger_proof or workflow_proof or marker:
+            if ledger_proof:
+                evidence = "Geslaagde echte Automatisch-run aangetroffen in append-only historie."
+            elif workflow_proof:
+                evidence = "Historisch workflow_result bewijst een volledig geslaagde automatische run."
+            else:
+                evidence = "Duurzame completion-marker aangetroffen."
             retry = write_automatic_retry_state(
                 state="COMPLETED",
                 month=month,
                 reason=str(retry.get("reason") or ""),
                 origin=str(retry.get("origin") or "automatic"),
                 next_retry=None,
-                evidence=(
-                    "Geslaagde echte Automatisch-run aangetroffen in append-only historie."
-                    if proof
-                    else "Duurzame completion-marker aangetroffen."
-                ),
+                evidence=evidence,
             )
             update_state(
                 automatic_month_close_next_retry=None,
@@ -7318,7 +7354,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.9 gebruikt een expliciete retry-state-machine en sluit oude retries alleen af op basis van aantoonbaar productie-auditbewijs.</p>
+<p class="hint">v8.9.1 controleert completion-marker, append-only historie én historische workflowresultaten voordat een oude productie-retry open blijft.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 </div>
 
@@ -7340,13 +7376,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.9.0 productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.9.1 productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
-<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.9 die eerst automatisch veilig uit.</p>
+<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.9.1 die eerst automatisch veilig uit.</p>
 <ul class="source-list">
 <li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>

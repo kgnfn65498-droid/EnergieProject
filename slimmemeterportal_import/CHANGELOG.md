@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.9.1
+- Gerichte bugfix voor legacy retry-migratie uit v8.9.0.
+- Naast completion-marker en append-only historie wordt nu ook `workflow_results/<maand>/workflow_result.json` als backwards-compatible auditbron gecontroleerd.
+- Een historisch workflowresultaat geldt alleen als bewijs bij trigger `automatic`, status `completed`/`completed_warning`, geen failed_step, geen errors en alle workflowstappen voltooid.
+- Een door v8.9.0 reeds als `OPEN` opgeslagen retry wordt opnieuw beoordeeld; een bestaande retry-state file blokkeert de bugfix dus niet.
+- Daarmee kan een aantoonbaar afgeronde oudere automatische maand zoals 2026_07 alsnog veilig naar `COMPLETED` migreren.
+- Echte onvolledige/mislukte productie-retries blijven OPEN.
+- Schedulerroute, rapportgeneratoren, Recovery Update en dubbelstartbeveiliging inhoudelijk ongewijzigd.
+
 ## 8.9.0
 - Expliciete persistente retry-state-machine met `OPEN`, `RUNNING`, `COMPLETED`, `CANCELLED` en `EXPIRED`.
 - Legacy retryvelden worden gemigreerd naar `automatic_retry_state.json`.

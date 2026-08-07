@@ -522,3 +522,10 @@ Nieuwe retries bewaren naast het retrytijdstip ook retry-maand, reden en oorspro
 v8.9 gebruikt `/config/output/automatic_retry_state.json` met de toestanden OPEN, RUNNING, COMPLETED, CANCELLED en EXPIRED. Bij migratie van oudere versies wordt een legacy retry alleen afgesloten als er hard bewijs bestaat: een duurzame completion-marker of een append-only historie-item van type `Automatisch` voor dezelfde maand met status `completed`/`completed_warning` en eindcontrole `ok`.
 
 Daarmee kan een aantoonbaar verouderde retry zoals de oude juli-retry veilig verdwijnen, terwijl een werkelijk mislukte productie-run open blijft. Scheduler-acceptatietests wijzigen deze productie-state-machine niet.
+
+
+## Versie 8.9.1 — backwards-compatible retrybewijs
+
+v8.9.1 repareert de migratie van oudere productie-retries. Oudere automatische runs kunnen dateren van vóór de append-only ledger en completion-marker. Daarom controleert de retry-state-machine nu drie bronnen: completion-marker, append-only automatische historie en het historische `workflow_result.json`.
+
+Een workflowresultaat wordt alleen als hard bewijs gebruikt wanneer het een echte automatische trigger betreft, de status completed/completed_warning is, geen failed_step of errors aanwezig zijn en alle workflowstappen zijn voltooid. Ook een bestaande OPEN-state die door v8.9.0 is aangemaakt wordt opnieuw tegen deze drie bronnen gecontroleerd.
