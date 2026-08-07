@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.1.0
+- Scheduler-runtimegate: na upgrade wordt een bewaarde AAN-stand pas uitvoerbaar na een geslaagde productietest van v8.1 zelf.
+- Productiestatus onderscheidt ingestelde planning van werkelijk actieve scheduler.
+- Datum/tijd van de volgende automatische run wordt leesbaar weergegeven.
+- Nieuwe compacte historie van productietests en echte automatische maandafsluitingen.
+- Centrale maandworkflow, rapportgeneratoren en Recovery Update inhoudelijk ongewijzigd.
+
 ## 8.0.0
 - Start van de stabiele productielijn op basis van bewezen v7.9.0.
 - Nieuwe centrale productiestatus in de operationele console.

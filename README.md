@@ -17,7 +17,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 8.0.0
+- SlimmeMeterPortal Import 8.1.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
@@ -66,3 +66,7 @@ Fix voor de veilige productietest: `automatic_test` is nu een geldige centrale w
 
 ### v8.0.0
 Productiebaseline met versiegebonden scheduler-gate en centrale productiestatus.
+
+
+### v8.1.0
+Upgradeveilige scheduler-gate, leesbare planning en automatische maandhistorie.

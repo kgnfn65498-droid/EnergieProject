@@ -39,7 +39,7 @@ AUTO_CLOSE_UI_OPTIONS_PATH = Path("/config/automatic_month_close.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.0.0"
+APP_VERSION = "8.1.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -5946,6 +5946,17 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
         limit=80,
     )
     visual = workflow_visualization(state, live_log)
+    automatic_history = [
+        {
+            "month": item.get("month"),
+            "trigger": item.get("trigger"),
+            "status": item.get("status"),
+            "finished_at": item.get("finished_at"),
+            "duration_seconds": item.get("duration_seconds"),
+        }
+        for item in history
+        if item.get("trigger") in {"automatic", "automatic_test"}
+    ][:6]
     return {
         "version": APP_VERSION,
         "generated_at": datetime.now(TZ).isoformat(),
@@ -5982,7 +5993,16 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "last_finalization": state.get("automatic_month_close_last_finalization"),
             "test_last_result": state.get("automatic_month_close_test_last_result"),
             "production_readiness": automatic_production_readiness(state),
-            "next_scheduled_run": next_automatic_month_close_run(options),
+            "scheduler_effective": bool(
+                options.automatic_month_close_enabled
+                and automatic_production_readiness(state).get("ready")
+            ),
+            "next_scheduled_run": (
+                next_automatic_month_close_run(options)
+                if automatic_production_readiness(state).get("ready")
+                else None
+            ),
+            "history": automatic_history,
         },
         "history": history,
         "can_resume": bool(
@@ -6022,6 +6042,20 @@ def automatic_production_readiness(state: dict[str, Any] | None = None) -> dict[
         "month": test.get("month"),
         "reason": None if ready else "Voer eerst een geslaagde productietest uit met deze versie.",
     }
+
+
+def format_local_datetime(value: Any) -> str:
+    """Toon een ISO-datum compact in lokale Nederlandse productieweergave."""
+    if not value:
+        return "Niet gepland"
+    try:
+        dt = datetime.fromisoformat(str(value))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=TZ)
+        dt = dt.astimezone(TZ)
+        return dt.strftime("%d-%m-%Y %H:%M")
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def next_automatic_month_close_run(options: Options, now: datetime | None = None) -> str | None:
@@ -6182,6 +6216,10 @@ def automatic_month_close_finalize(options: Options, month_key: str, workflow_re
 
 def automatic_month_close_due(options: Options, now: datetime) -> str | None:
     if not options.automatic_month_close_enabled:
+        return None
+    # v8.1: een bewaarde AAN-stand na een upgrade is pas uitvoerbaar nadat
+    # exact deze softwareversie opnieuw de volledige productietest heeft gehaald.
+    if not automatic_production_readiness().get("ready"):
         return None
     if now.day < options.automatic_month_close_day or now.hour < options.automatic_month_close_hour:
         return None
@@ -6452,7 +6490,13 @@ def html_page() -> bytes:
     production = auto_close.get("production_readiness") or automatic_production_readiness(state)
     production_status = "ready" if production.get("ready") else "pending"
     production_text = "Productieklaar" if production.get("ready") else "Test vereist voor v" + APP_VERSION
+    scheduler_effective = bool(auto_close.get("scheduler_effective"))
+    scheduler_text = (
+        "Actief" if scheduler_effective
+        else ("Wacht op v" + APP_VERSION + "-test" if auto_close.get("enabled") else "Uit")
+    )
     next_auto_run = auto_close.get("next_scheduled_run")
+    next_auto_run_text = format_local_datetime(next_auto_run)
     latest_published = list(state.get("report_output_last_files") or [])
     latest_output_text = (
         f"{state.get('report_output_last_month')}: {len(latest_published)} bestand(en)"
@@ -6464,6 +6508,17 @@ def html_page() -> bytes:
     workflow_active = str(workflow.get("status") or "").lower() in {"running", "importing"}
     resume_available = str(last_run.get("status") or "").lower() in {"error", "failed"}
     disabled_attr = " disabled" if workflow_active else ""
+    auto_history_rows = "".join(
+        "<tr>"
+        f"<td>{esc(item.get('month') or '—')}</td>"
+        f"<td>{'Test' if item.get('trigger') == 'automatic_test' else 'Automatisch'}</td>"
+        f"<td><span class='pill {status_class(item.get('status'))}'>{esc(item.get('status') or '—')}</span></td>"
+        f"<td>{esc(format_local_datetime(item.get('finished_at')) if item.get('finished_at') else '—')}</td>"
+        f"<td>{esc(f'{float(item.get('duration_seconds')):.1f} s' if item.get('duration_seconds') is not None else '—')}</td>"
+        "</tr>"
+        for item in (auto_close.get("history") or [])
+    ) or "<tr><td colspan='5'>Nog geen automatische runs geregistreerd.</td></tr>"
+
     resume_html = (
         f"""<form method="post" action="resume-month-workflow"><input type="month" name="month" value="{esc((last_run.get('month') or default_month).replace('_','-'))}" required> <button type="submit" class="secondary workflow-action">Hervat mislukte workflow</button></form>
 <p class="hint">Eerder succesvolle stappen worden hergebruikt; hervatten is alleen beschikbaar na een mislukte workflow.</p>"""
@@ -6526,11 +6581,11 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="card"><h2>Productiestatus v{APP_VERSION}</h2>
 <div class="grid">
 <div class="metric"><small>Productiegereedheid</small><strong><span id="production-readiness" class="pill {status_class(production_status)}">{esc(production_text)}</span></strong></div>
-<div class="metric"><small>Scheduler</small><strong id="production-scheduler">{'Aan' if auto_close.get('enabled') else 'Uit'}</strong></div>
-<div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run or 'Niet gepland')}</strong></div>
+<div class="metric"><small>Scheduler</small><strong id="production-scheduler">{esc(scheduler_text)}</strong></div>
+<div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.0 laat de scheduler alleen inschakelen nadat deze versie een volledige productietest succesvol heeft doorlopen.</p>
+<p class="hint">v8.1 bewaart de planning bij upgrades, maar voert de scheduler pas uit nadat deze versie zelf een volledige productietest heeft doorlopen.</p>
 </div>
 
 <div class="card"><h2>Automatische maandafsluiting</h2>
@@ -6564,6 +6619,14 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </ul>
 </div>
 </div></div>
+
+<div class="card"><h2>Automatische maandhistorie</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Maand</th><th>Type</th><th>Status</th><th>Afgerond</th><th>Duur</th></tr></thead>
+<tbody id="automatic-history-body">{auto_history_rows}</tbody>
+</table></div>
+<p class="hint">Toont maximaal de laatste zes productietests en echte automatische maandafsluitingen.</p>
+</div>
 
 <div class="card" id="last-error-card" style="display:{'block' if last_run.get('error') else 'none'}"><h2>Laatste workflowfout</h2>
 <div><strong id="last-error-step">{esc(last_run.get('error_step') or last_run.get('step') or '—')}</strong></div>
@@ -6626,6 +6689,12 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <script>
 function escapeHtml(value){{
   return String(value??'').replace(/[&<>"']/g, ch=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}}[ch]));
+}}
+function formatLocalDateTime(value){{
+  if(!value) return 'Niet gepland';
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime())) return String(value);
+  return new Intl.DateTimeFormat('nl-NL',{{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}}).format(d).replace(',','');
 }}
 async function refreshStatus(){{
   try{{
@@ -6690,9 +6759,14 @@ async function refreshStatus(){{
       prodEl.className=pillClass(prod.ready?'ready':'pending');
     }}
     const prodScheduler=document.getElementById('production-scheduler');
-    if(prodScheduler) prodScheduler.textContent=auto.enabled?'Aan':'Uit';
+    if(prodScheduler) prodScheduler.textContent=auto.scheduler_effective?'Actief':(auto.enabled?`Wacht op v${{op.version||''}}-test`:'Uit');
     const prodNext=document.getElementById('production-next-run');
-    if(prodNext) prodNext.textContent=auto.next_scheduled_run||'Niet gepland';
+    if(prodNext) prodNext.textContent=formatLocalDateTime(auto.next_scheduled_run);
+
+    const autoHistory=document.getElementById('automatic-history-body');
+    if(autoHistory && Array.isArray(auto.history)){{
+      autoHistory.innerHTML=auto.history.length?auto.history.map(item=>`<tr><td>${{escapeHtml(item.month||'—')}}</td><td>${{item.trigger==='automatic_test'?'Test':'Automatisch'}}</td><td><span class="${{pillClass(item.status)}}">${{escapeHtml(item.status||'—')}}</span></td><td>${{escapeHtml(item.finished_at?formatLocalDateTime(item.finished_at):'—')}}</td><td>${{item.duration_seconds==null?'—':Number(item.duration_seconds).toFixed(1)+' s'}}</td></tr>`).join(''):`<tr><td colspan="5">Nog geen automatische runs geregistreerd.</td></tr>`;
+    }}
 
     const ready=document.getElementById('auto-readiness');
     if(ready){{

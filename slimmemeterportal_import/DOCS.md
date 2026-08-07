@@ -454,3 +454,10 @@ De veilige productietest gebruikt de trigger `automatic_test`. Vanaf v7.9.0 acce
 v8.0.0 markeert de overgang naar de productielijn. De centrale maandworkflow blijft identiek aan de bewezen v7.9.0-keten. Nieuw is een productiegate: automatische maandafsluiting kan alleen worden ingeschakeld wanneer een productietest van exact dezelfde softwareversie succesvol preflight, workflow en finalization heeft afgerond.
 
 De operationele console toont daarnaast één centrale productiestatus, de eerstvolgende geplande automatische run en de laatste definitieve publicatie.
+
+
+## Versie 8.1.0 — productieobservatie en upgradebeveiliging
+
+De automatische planning blijft bij een software-upgrade bewaard, maar de scheduler voert niets uit totdat de nieuwe versie zelf een geslaagde productietest heeft voltooid. De console onderscheidt daarom `AAN maar wacht op test` van werkelijk `Actief`.
+
+De volgende automatische run wordt in lokale leesbare notatie getoond. Daarnaast toont de operationele console maximaal zes recente productietests en echte automatische maandafsluitingen, inclusief status, eindtijd en duur.
