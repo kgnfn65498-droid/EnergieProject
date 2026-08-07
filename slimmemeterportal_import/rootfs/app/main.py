@@ -52,8 +52,8 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "9.7.0"
-# v9.6: diagnosepakket-release; de gecertificeerde productiekern blijft ongewijzigd.
+APP_VERSION = "9.8.0"
+# v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
 
@@ -8202,7 +8202,7 @@ def build_test_package() -> bytes:
     failed_criteria = [name for name, ok in criteria.items() if not ok]
     verdict = "GO" if not failed_criteria else "NO-GO"
     assessment = {
-        "schema": 1,
+        "schema": 3,
         "release_version": APP_VERSION,
         "production_core_revision": PRODUCTION_CORE_REVISION,
         "generated_at": datetime.now(TZ).isoformat(),
@@ -8211,18 +8211,21 @@ def build_test_package() -> bytes:
         "failed_criteria": failed_criteria,
         "manual_review_required": False if verdict == "GO" else True,
         "scope": "technische releasecriteria uit diagnosepakket; geen vervanging voor inhoudelijke rapportbeoordeling",
+        "core_certificate_origin_release": certificate.get("version"),
+        "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
     }
 
     summary = {
-        "schema": 2,
+        "schema": 3,
         "release_version": APP_VERSION,
         "production_core_revision": PRODUCTION_CORE_REVISION,
         "generated_at": assessment["generated_at"],
         "test_month": month_key or None,
         "production_ready": production_ready,
         "production_certificate_valid": certificate_valid,
-        "certificate_release": certificate.get("version"),
+        "certificate_origin_release": certificate.get("version"),
         "certificate_core_revision": certificate.get("production_core_revision"),
+        "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "health_score": health_score,
         "monitoring_status": monitoring.get("status"),
         "monitoring_errors": monitoring_errors,
@@ -8236,7 +8239,7 @@ def build_test_package() -> bytes:
         "source_status": state.get("workflow_sources") or {},
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
-        "note": "v9.7.0 verbetert alleen diagnose-/releasebeoordeling; productiekern 9.4-core1 is ongewijzigd.",
+        "note": "v9.8.0 verduidelijkt het hergebruik van het geldige kerncertificaat; productiekern 9.4-core1 is ongewijzigd.",
     }
 
     generated = {
@@ -8299,8 +8302,10 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
-        f"Productiecertificaat afgegeven onder release: {summary.get('certificate_release') or '—'}",
-        f"Productiecertificaat kern: {summary.get('certificate_core_revision') or '—'}",
+        f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
+        f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
+        f"Kern oorspronkelijk gecertificeerd in: {summary.get('certificate_origin_release') or '—'}",
+        f"Kerncertificaat hergebruikt voor deze release: {'JA' if summary.get('core_certificate_reused') else 'NEE'}",
         f"Gegenereerd: {summary['generated_at']}",
         f"Testmaand: {summary.get('test_month') or '—'}",
         f"Productieklaar: {'JA' if summary.get('production_ready') else 'NEE'}",
@@ -8659,7 +8664,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <p class="hint">Het productiecertificaat wordt automatisch gegenereerd uit een geslaagde productietest van exact deze versie, continu op integriteit gecontroleerd en kan veilig uit bestaand hard testbewijs worden hersteld.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 <p><a class="button-link" href="download-diagnostic-package">Download diagnosepakket</a></p>
-<p class="hint">Bevat vanaf v9.7 ook <strong>beoordeling.json</strong> met automatische technische GO/NO-GO en de afzonderlijke criteria.</p>
+<p class="hint">Bevat <strong>beoordeling.json</strong> met automatische technische GO/NO-GO en toont expliciet of het geldige kerncertificaat uit een eerdere release wordt hergebruikt.</p>
 <p class="hint">Eén ZIP met samenvatting, SHA-256-controle en de status- en bewijsbestanden die nodig zijn om deze release goed of af te keuren. Bevat geen API-key of options.json.</p>
 </div>
 

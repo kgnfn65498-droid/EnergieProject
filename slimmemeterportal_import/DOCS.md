@@ -569,3 +569,8 @@ Iedere afgifte wordt append-only geregistreerd in `/config/output/production_cer
 
 ## Testpakket v9.5
 De operationele console bevat **Download diagnosepakket**. Deze download bundelt de status- en bewijsbestanden die nodig zijn voor releasecontrole, zonder API-key of `options.json`. Het pakket bevat bovendien `samenvatting.txt` met de belangrijkste keuringsstatussen en `SHA256SUMS.txt` voor integriteitscontrole van alle opgenomen bestanden. Certificaten, Recovery, Audittrail en uitgebreide logs staan standaard ingeklapt; Monitoring toont alleen de samenvatting direct.
+
+
+## Diagnosepakket vanaf v9.8
+
+`samenvatting.txt` maakt expliciet onderscheid tussen de actieve softwareversie en de release waarin de ongewijzigde productiekern oorspronkelijk is gecertificeerd. Zo is zichtbaar wanneer hetzelfde geldige kerncertificaat veilig wordt hergebruikt.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.8.0
+- Diagnosepakket maakt het hergebruik van een geldig kerncertificaat expliciet en begrijpelijk.
+- `samenvatting.txt` toont nu softwareversie, gebruikte productiekern, geldigheid van het kerncertificaat, oorspronkelijke certificeringsrelease en of het certificaat voor deze release wordt hergebruikt.
+- `test_summary.json` schema 3 en `beoordeling.json` schema 2 bevatten `core_certificate_reused` en `core_certificate_origin_release`.
+- Productiekern blijft `9.4-core1`; workflow, scheduler, retry/finalization, Recovery, Audittrail, Monitoring en rapportgeneratoren zijn inhoudelijk ongewijzigd.
+- Geen nieuwe automatische maandafsluitingstest nodig zolang het bestaande `9.4-core1`-certificaat geldig is.
+
 ## 9.7.0
 - Diagnosepakket bevat nu `beoordeling.json` met een expliciete automatische technische **GO/NO-GO** en de afzonderlijke releasecriteria.
 - `samenvatting.txt` begint met dezelfde technische beoordeling en gebruikt ondubbelzinnige labels voor softwareversie, gecertificeerde productiekern en de release waaronder het certificaat is afgegeven.
