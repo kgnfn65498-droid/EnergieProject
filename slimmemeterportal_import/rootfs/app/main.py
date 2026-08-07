@@ -52,7 +52,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "9.6.0"
+APP_VERSION = "9.7.0"
 # v9.6: diagnosepakket-release; de gecertificeerde productiekern blijft ongewijzigd.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -8178,31 +8178,69 @@ def build_test_package() -> bytes:
         or ""
     ).strip().replace("-", "_")
 
-    summary = {
+    production_ready = bool(automatic_production_readiness(state).get("ready"))
+    certificate_valid = bool(certificate.get("valid"))
+    certificate_core = str(certificate.get("production_core_revision") or "")
+    health_score = int(health.get("score") or 0)
+    monitoring_errors = int(monitoring.get("active_errors", 0) or 0)
+    monitoring_pending = int(monitoring.get("pending_points", monitoring.get("attention_points", 0)) or 0)
+    recovery_status = str(recovery.get("status") or "unknown")
+    audit_integrity = str((audit.get("validation") or {}).get("status") or "unknown")
+    scheduler_enabled = bool((op.get("automatic_month_close") or {}).get("enabled"))
+    scheduler_effective = bool((op.get("automatic_month_close") or {}).get("scheduler_effective"))
+
+    criteria = {
+        "production_ready": production_ready,
+        "certificate_valid": certificate_valid,
+        "certificate_core_matches": certificate_core == PRODUCTION_CORE_REVISION,
+        "health_score_100": health_score == 100,
+        "monitoring_no_errors": monitoring_errors == 0,
+        "recovery_ok": recovery_status == "ok",
+        "audit_integrity_ok": audit_integrity == "ok",
+        "scheduler_effective": scheduler_effective,
+    }
+    failed_criteria = [name for name, ok in criteria.items() if not ok]
+    verdict = "GO" if not failed_criteria else "NO-GO"
+    assessment = {
         "schema": 1,
         "release_version": APP_VERSION,
         "production_core_revision": PRODUCTION_CORE_REVISION,
         "generated_at": datetime.now(TZ).isoformat(),
+        "verdict": verdict,
+        "criteria": criteria,
+        "failed_criteria": failed_criteria,
+        "manual_review_required": False if verdict == "GO" else True,
+        "scope": "technische releasecriteria uit diagnosepakket; geen vervanging voor inhoudelijke rapportbeoordeling",
+    }
+
+    summary = {
+        "schema": 2,
+        "release_version": APP_VERSION,
+        "production_core_revision": PRODUCTION_CORE_REVISION,
+        "generated_at": assessment["generated_at"],
         "test_month": month_key or None,
-        "production_ready": bool(automatic_production_readiness(state).get("ready")),
-        "production_certificate_valid": bool(certificate.get("valid")),
+        "production_ready": production_ready,
+        "production_certificate_valid": certificate_valid,
         "certificate_release": certificate.get("version"),
         "certificate_core_revision": certificate.get("production_core_revision"),
-        "health_score": health.get("score"),
+        "health_score": health_score,
         "monitoring_status": monitoring.get("status"),
-        "monitoring_errors": monitoring.get("active_errors", 0),
-        "monitoring_pending": monitoring.get("pending_points", monitoring.get("attention_points", 0)),
-        "recovery_status": recovery.get("status"),
+        "monitoring_errors": monitoring_errors,
+        "monitoring_pending": monitoring_pending,
+        "recovery_status": recovery_status,
         "recovery_actions": recovery.get("repair_actions", recovery.get("repaired_count", 0)),
-        "audit_integrity": (audit.get("validation") or {}).get("status"),
+        "audit_integrity": audit_integrity,
         "audit_records": (audit.get("validation") or {}).get("records", 0),
-        "scheduler_enabled": bool((op.get("automatic_month_close") or {}).get("enabled")),
-        "scheduler_effective": bool((op.get("automatic_month_close") or {}).get("scheduler_effective")),
+        "scheduler_enabled": scheduler_enabled,
+        "scheduler_effective": scheduler_effective,
         "source_status": state.get("workflow_sources") or {},
-        "note": "v9.6.0 wijzigt alleen diagnose-/supportfunctionaliteit; productiekern 9.4-core1 is ongewijzigd.",
+        "automatic_verdict": verdict,
+        "failed_criteria": failed_criteria,
+        "note": "v9.7.0 verbetert alleen diagnose-/releasebeoordeling; productiekern 9.4-core1 is ongewijzigd.",
     }
 
     generated = {
+        "beoordeling.json": assessment,
         "test_summary.json": summary,
         "operation_status.json": op,
         "health_dashboard.json": health,
@@ -8258,19 +8296,26 @@ def build_test_package() -> bytes:
     summary_lines = [
         "Energieproject diagnosepakket",
         "============================",
-        f"Release: {APP_VERSION}",
-        f"Productiekern: {PRODUCTION_CORE_REVISION}",
+        f"Automatische technische beoordeling: {verdict}",
+        f"Softwareversie: {APP_VERSION}",
+        f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
+        f"Productiecertificaat afgegeven onder release: {summary.get('certificate_release') or '—'}",
+        f"Productiecertificaat kern: {summary.get('certificate_core_revision') or '—'}",
         f"Gegenereerd: {summary['generated_at']}",
         f"Testmaand: {summary.get('test_month') or '—'}",
         f"Productieklaar: {'JA' if summary.get('production_ready') else 'NEE'}",
         f"Healthscore: {summary.get('health_score')}",
         f"Productiecertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
-        f"Certificaatrelease: {summary.get('certificate_release') or '—'}",
-        f"Certificaatkern: {summary.get('certificate_core_revision') or '—'}",
         f"Monitoring: {summary.get('monitoring_status') or '—'}; fouten={summary.get('monitoring_errors', 0)}; wachtstatussen={summary.get('monitoring_pending', 0)}",
         f"Recovery: {summary.get('recovery_status') or '—'}; herstelacties={summary.get('recovery_actions', 0)}",
         f"Audittrail: {summary.get('audit_integrity') or '—'}; records={summary.get('audit_records', 0)}",
         f"Scheduler actief: {'JA' if summary.get('scheduler_effective') else 'NEE'}",
+        f"Niet geslaagde technische criteria: {', '.join(failed_criteria) if failed_criteria else 'geen'}",
+        "",
+        "Beoordeling",
+        "-----------",
+        "Zie beoordeling.json voor de machineleesbare GO/NO-GO en alle afzonderlijke criteria.",
+        "De beoordeling geldt voor de technische releasecriteria van dit diagnosepakket.",
         "",
         "SHA-256 controle",
         "---------------",
@@ -8614,6 +8659,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <p class="hint">Het productiecertificaat wordt automatisch gegenereerd uit een geslaagde productietest van exact deze versie, continu op integriteit gecontroleerd en kan veilig uit bestaand hard testbewijs worden hersteld.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 <p><a class="button-link" href="download-diagnostic-package">Download diagnosepakket</a></p>
+<p class="hint">Bevat vanaf v9.7 ook <strong>beoordeling.json</strong> met automatische technische GO/NO-GO en de afzonderlijke criteria.</p>
 <p class="hint">Eén ZIP met samenvatting, SHA-256-controle en de status- en bewijsbestanden die nodig zijn om deze release goed of af te keuren. Bevat geen API-key of options.json.</p>
 </div>
 

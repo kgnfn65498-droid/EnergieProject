@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.7.0
+- Diagnosepakket bevat nu `beoordeling.json` met een expliciete automatische technische **GO/NO-GO** en de afzonderlijke releasecriteria.
+- `samenvatting.txt` begint met dezelfde technische beoordeling en gebruikt ondubbelzinnige labels voor softwareversie, gecertificeerde productiekern en de release waaronder het certificaat is afgegeven.
+- Diagnose-schema verhoogd naar 2; niet geslaagde criteria worden expliciet vermeld in plaats van uit losse statusvelden afgeleid te moeten worden.
+- Productiekern blijft `9.4-core1`; maandworkflow, scheduler, retry/finalization, Recovery, Audittrail, Monitoring en rapportgeneratoren zijn inhoudelijk niet gewijzigd. Een nieuwe automatische maandafsluitingstest is daarom niet nodig.
+
 ## 9.6.0
 - **Download testpakket** hernoemd naar **Download diagnosepakket**; de oude download-URL blijft als compatibiliteitsalias werken.
 - Diagnosepakket bevat nu `samenvatting.txt` met release, productiekern, testmaand, productiegereedheid, healthscore, certificaatstatus, monitoring, Recovery, Audittrail en schedulerstatus.

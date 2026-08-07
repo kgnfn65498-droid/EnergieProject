@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "9.6.0"
+    assert cfg_version == app_version == "9.7.0"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "9.6.0"' in config
+    assert 'version: "9.7.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "9.6.0"' in config
-    assert 'APP_VERSION = "9.6.0"' in main
+    assert 'version: "9.7.0"' in config
+    assert 'APP_VERSION = "9.7.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "9.6.0"' in source
+    assert 'APP_VERSION = "9.7.0"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2367,3 +2367,21 @@ def test_v960_diagnostic_package_present():
 def test_v960_core_revision_unchanged():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
+
+def test_v970_diagnostic_package_has_machine_readable_verdict():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    block = source[source.index("def build_test_package"):source.index("def html_page")]
+    assert '"beoordeling.json": assessment' in block
+    assert 'verdict = "GO" if not failed_criteria else "NO-GO"' in block
+    assert '"health_score_100": health_score == 100' in block
+    assert '"certificate_core_matches": certificate_core == PRODUCTION_CORE_REVISION' in block
+    assert '"scheduler_effective": scheduler_effective' in block
+    assert 'Automatische technische beoordeling: {verdict}' in block
+
+
+def test_v970_diagnostic_summary_labels_are_unambiguous():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'Softwareversie: {APP_VERSION}' in source
+    assert 'Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}' in source
+    assert 'Productiecertificaat afgegeven onder release:' in source
+    assert 'Bevat vanaf v9.7 ook <strong>beoordeling.json</strong>' in source
