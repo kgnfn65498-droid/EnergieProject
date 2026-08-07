@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "8.10.0"
+    assert cfg_version == app_version == "8.10.1"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.10.0"' in config
+    assert 'version: "8.10.1"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.10.0"' in config
-    assert 'APP_VERSION = "8.10.0"' in main
+    assert 'version: "8.10.1"' in config
+    assert 'APP_VERSION = "8.10.1"' in main
 
 
 def test_phase7_configuration_present():
@@ -1869,7 +1869,7 @@ def test_v851_acceptance_records_prerequisite_evidence():
 def test_v851_console_explains_automatic_prerequisite():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     assert "voorbereidende productietest automatisch geslaagd" in source
-    assert "voert v8.10 die eerst automatisch veilig uit" in source
+    assert "voert v8.10.1 die eerst automatisch veilig uit" in source
 
 
 def test_v860_has_durable_completion_marker_store():
@@ -2085,3 +2085,55 @@ def test_v8100_console_contains_retry_debug_block():
     assert "Append history" in source
     assert "Workflow_result" in source
     assert "Workflow checks" in source
+
+
+def test_v8101_has_finalization_debug_log():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'FINALIZATION_DEBUG_LOG_PATH = Path("/config/output/logs/finalization_debug.log")' in source
+    assert "def append_finalization_debug" in source
+    assert "def finalization_debug_tail" in source
+
+
+def test_v8101_traces_workflow_result_before_and_after_write():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"workflow_result_pre_write"' in source
+    assert '"workflow_result_post_write"' in source
+    assert "steps_accepted_including_skipped" in source
+    assert "step_statuses=[" in source
+
+
+def test_v8101_traces_entire_production_finalize_chain():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    for event in [
+        "automatic_executor_workflow_start",
+        "automatic_executor_workflow_returned",
+        "automatic_executor_finalization_returned",
+        "production_finalize_enter",
+        "retry_state_written",
+        "completion_marker_write_start",
+        "completion_marker_write_done",
+        "automatic_history_write_start",
+        "automatic_history_write_done",
+        "production_finalize_done",
+        "automatic_executor_return",
+    ]:
+        assert f'"{event}"' in source
+
+
+def test_v8101_traces_workflow_lock_close():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    for event in [
+        "workflow_close_enter",
+        "workflow_log_final_written",
+        "workflow_lock_state_set_idle",
+        "workflow_lock_released",
+        "workflow_return",
+    ]:
+        assert f'"{event}"' in source
+
+
+def test_v8101_console_exposes_finalization_trace():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Finalization debuglog" in source
+    assert "Laatste finalization-event" in source
+    assert "Finalization events" in source

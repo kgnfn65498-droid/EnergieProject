@@ -536,3 +536,10 @@ Een workflowresultaat wordt alleen als hard bewijs gebruikt wanneer het een echt
 v8.10 verandert bewust geen retrybeslissingen. De versie instrumenteert de bestaande v8.9.1-code zodat zichtbaar wordt waarom een legacy retry OPEN blijft.
 
 De console bevat onder `Diagnostiek en beheer` een opengeklapt `Retry Debug v8.10`-blok. Daarin staan de geladen retry-state, legacy state, completion-marker, append-only records, het exacte historische workflow_result en de vijf afzonderlijke acceptatiechecks. Het append-only log staat in `/config/output/logs/retry_debug.log`.
+
+
+## Versie 8.10.1 — finalisatie-trace
+
+v8.10.1 verandert de productiecode niet functioneel, maar volgt de volledige laatste fase van een workflow in `/config/output/logs/finalization_debug.log`. De trace begint vóór het schrijven van `workflow_result.json` en eindigt na retry-state, completion-marker, append-only automatische historie en workflow-lock afsluiting.
+
+Bij het workflowresultaat worden zowel het bestaande `steps_completed`-veld als een diagnoseaantal inclusief `skipped` gelogd, plus de status van iedere afzonderlijke workflowstap. Daarmee kan exact worden vastgesteld waarom `all_steps_completed` voor een historisch resultaat false is.

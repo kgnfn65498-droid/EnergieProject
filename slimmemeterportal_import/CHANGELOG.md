@@ -1,5 +1,16 @@
 # Changelog
 
+## 8.10.1
+- Gerichte finalisatie-diagnose bovenop v8.10.0.
+- Retry-, scheduler- en productielogica inhoudelijk ongewijzigd.
+- Nieuw append-only `/config/output/logs/finalization_debug.log`.
+- Traceert `workflow_result` vóór en na atomisch schrijven, inclusief alle individuele stapstatussen.
+- Logt zowel huidig `steps_completed` als het aantal geaccepteerde stappen inclusief `skipped`.
+- Traceert workflow-lock afsluiting.
+- Traceert automatische executor, finalization, retry-state, completion-marker en append-only automatische historie.
+- Retry Debug toont het laatste finalization-event en de recente eventketen.
+- Rapportgeneratoren en Recovery Update inhoudelijk ongewijzigd.
+
 ## 8.10.0
 - Zuivere diagnoseversie voor de persistente `2026_07 legacy_retry`.
 - Retry-, scheduler- en migratiebeslislogica inhoudelijk ongewijzigd ten opzichte van v8.9.1.

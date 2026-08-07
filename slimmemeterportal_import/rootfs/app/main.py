@@ -42,8 +42,9 @@ AUTOMATIC_RUN_LEDGER_PATH = Path("/config/output/automatic_run_history.jsonl")
 AUTOMATIC_COMPLETION_MARKERS_PATH = Path("/config/output/automatic_completed_months.json")
 AUTOMATIC_RETRY_STATE_PATH = Path("/config/output/automatic_retry_state.json")
 RETRY_DEBUG_LOG_PATH = Path("/config/output/logs/retry_debug.log")
+FINALIZATION_DEBUG_LOG_PATH = Path("/config/output/logs/finalization_debug.log")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.10.0"
+APP_VERSION = "8.10.1"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -4854,6 +4855,38 @@ def read_automatic_run_history(limit: int = 20) -> list[dict[str, Any]]:
 RETRY_DEBUG_LAST_SIGNATURE: str | None = None
 
 
+def append_finalization_debug(event: str, **data: Any) -> None:
+    """Append-only trace van de laatste workflow/finalization-fase."""
+    record = {
+        "timestamp": datetime.now(TZ).isoformat(),
+        "version": APP_VERSION,
+        "event": event,
+        **data,
+    }
+    try:
+        FINALIZATION_DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with FINALIZATION_DEBUG_LOG_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+    except OSError:
+        LOGGER.exception("Finalization debuglog kon niet worden geschreven.")
+
+
+def finalization_debug_tail(limit: int = 30) -> list[dict[str, Any]]:
+    if not FINALIZATION_DEBUG_LOG_PATH.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in FINALIZATION_DEBUG_LOG_PATH.read_text(
+        encoding="utf-8", errors="replace"
+    ).splitlines()[-max(1, min(limit, 100)):]:
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            rows.append(value)
+    return rows
+
+
 def append_retry_debug(event: str, **data: Any) -> None:
     """Append-only diagnose; identieke opeenvolgende regels worden onderdrukt."""
     global RETRY_DEBUG_LAST_SIGNATURE
@@ -6086,7 +6119,39 @@ def run_full_month_workflow(
     result_root = workflow_result_dir(month_key)
     result_root.mkdir(parents=True, exist_ok=True)
     result_path = result_root / FULL_WORKFLOW_RESULT_NAME
+    append_finalization_debug(
+        "workflow_result_pre_write",
+        month=month_key,
+        trigger=trigger,
+        status=status,
+        steps_total=len(steps),
+        steps_completed_field=result.get("steps_completed"),
+        steps_accepted_including_skipped=sum(
+            1 for step in steps
+            if step.get("status") in {"ok", "info", "warning", "skipped"}
+        ),
+        step_statuses=[
+            {"name": step.get("name"), "status": step.get("status")}
+            for step in steps
+        ],
+        failed_step=failed_step,
+        errors=errors,
+        path=str(result_path),
+    )
     write_atomic_json(result_path, result)
+    persisted_result = previous_workflow_result(month_key) or {}
+    append_finalization_debug(
+        "workflow_result_post_write",
+        month=month_key,
+        exists=result_path.is_file(),
+        persisted_status=persisted_result.get("status"),
+        persisted_trigger=persisted_result.get("trigger"),
+        persisted_steps_completed=persisted_result.get("steps_completed"),
+        persisted_steps_total=persisted_result.get("steps_total"),
+        persisted_failed_step=persisted_result.get("failed_step"),
+        persisted_errors=persisted_result.get("errors"),
+        path=str(result_path),
+    )
 
     state_updates = dict(
         full_workflow_last_run=finished_at, full_workflow_last_month=month_key,
@@ -6132,7 +6197,15 @@ def run_full_month_workflow(
         result["warnings"] = warnings
         write_atomic_json(result_path, result)
 
+    append_finalization_debug(
+        "workflow_close_enter",
+        month=month_key,
+        status=status,
+        failed_step=failed_step,
+        duration_seconds=duration_seconds,
+    )
     append_workflow_log(month_key, "info" if status in {"completed", "completed_warning", "cancelled"} else "error", "Workflow afgerond", status=status, failed_step=failed_step, duration_seconds=duration_seconds)
+    append_finalization_debug("workflow_log_final_written", month=month_key)
     set_workflow_lock_state(
         status="idle",
         month=month_key,
@@ -6143,11 +6216,26 @@ def run_full_month_workflow(
             else ("Volledige maandworkflow is gecontroleerd geannuleerd." if status == "cancelled" else "; ".join(errors))
         ),
     )
+    append_finalization_debug(
+        "workflow_lock_state_set_idle",
+        month=month_key,
+        lock_status=load_state().get("workflow_lock_status"),
+    )
     if WORKFLOW_LOCK.locked():
         try:
             WORKFLOW_LOCK.release()
-        except RuntimeError:
-            pass
+            append_finalization_debug("workflow_lock_released", month=month_key, released=True)
+        except RuntimeError as exc:
+            append_finalization_debug("workflow_lock_release_failed", month=month_key, error=str(exc))
+    else:
+        append_finalization_debug("workflow_lock_released", month=month_key, released=False, reason="lock_was_not_locked")
+    append_finalization_debug(
+        "workflow_return",
+        month=month_key,
+        status=result.get("status"),
+        steps_completed=result.get("steps_completed"),
+        steps_total=result.get("steps_total"),
+    )
     return result
 
 
@@ -6597,6 +6685,8 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "retry_state_machine": retry_state_machine,
             "retry_state_path": str(AUTOMATIC_RETRY_STATE_PATH),
             "retry_debug": retry_debug_snapshot(state),
+            "finalization_debug": finalization_debug_tail(limit=20),
+            "finalization_debug_log_path": str(FINALIZATION_DEBUG_LOG_PATH),
         },
         "history": history,
         "can_resume": bool(
@@ -6967,8 +7057,30 @@ def execute_automatic_month_close(
         return result
 
     update_state(automatic_month_close_last_status="running")
+    append_finalization_debug(
+        "automatic_executor_workflow_start",
+        month=month_key,
+        trigger=trigger,
+        record_as_real_automatic=record_as_real_automatic,
+    )
     workflow = run_full_month_workflow(month_key, collect_live_snapshots=False, trigger=trigger)
+    append_finalization_debug(
+        "automatic_executor_workflow_returned",
+        month=month_key,
+        workflow_status=workflow.get("status"),
+        workflow_steps_completed=workflow.get("steps_completed"),
+        workflow_steps_total=workflow.get("steps_total"),
+        workflow_failed_step=workflow.get("failed_step"),
+        workflow_errors=workflow.get("errors"),
+    )
     finalization = automatic_month_close_finalize(options, month_key, workflow)
+    append_finalization_debug(
+        "automatic_executor_finalization_returned",
+        month=month_key,
+        finalization_status=finalization.get("status"),
+        finalization_errors=finalization.get("errors"),
+        finalization_checks=finalization.get("checks"),
+    )
     final_status = str(workflow.get("status") or "error")
     if final_status in {"completed", "completed_warning"} and finalization.get("status") != "ok":
         final_status = "error"
@@ -6990,6 +7102,13 @@ def execute_automatic_month_close(
     )
     result = {"month": month_key, "status": final_status, "preflight": preflight, "workflow": workflow, "finalization": finalization, "retry_at": retry_at}
     if record_as_real_automatic:
+        append_finalization_debug(
+            "production_finalize_enter",
+            month=month_key,
+            final_status=final_status,
+            retry_needed=retry_needed,
+            finalization_status=finalization.get("status"),
+        )
         write_automatic_retry_state(
             state="COMPLETED" if not retry_needed else "OPEN",
             month=month_key,
@@ -7002,15 +7121,36 @@ def execute_automatic_month_close(
                 else "Automatische maandafsluiting vereist een nieuwe herstelpoging."
             ),
         )
+        append_finalization_debug(
+            "retry_state_written",
+            month=month_key,
+            retry_state=read_automatic_retry_state(),
+        )
         options_after = Options.load()
         if final_status in {"completed", "completed_warning"} and finalization.get("status") == "ok":
-            mark_automatic_month_completed(
+            append_finalization_debug("completion_marker_write_start", month=month_key)
+            marker_result = mark_automatic_month_completed(
                 month_key,
                 status=final_status,
                 finalization_status="ok",
                 finished_at=workflow.get("finished_at"),
             )
-        append_automatic_run_history({
+            append_finalization_debug(
+                "completion_marker_write_done",
+                month=month_key,
+                marker=marker_result,
+                marker_file_exists=AUTOMATIC_COMPLETION_MARKERS_PATH.is_file(),
+                marker_proves_completed=automatic_month_is_completed(month_key),
+            )
+        else:
+            append_finalization_debug(
+                "completion_marker_skipped",
+                month=month_key,
+                final_status=final_status,
+                finalization_status=finalization.get("status"),
+            )
+        append_finalization_debug("automatic_history_write_start", month=month_key)
+        history_row = append_automatic_run_history({
             "type": "Automatisch", "month": month_key, "status": final_status,
             "finalization_status": finalization.get("status"),
             "started_at": workflow.get("started_at"), "finished_at": workflow.get("finished_at"),
@@ -7022,6 +7162,25 @@ def execute_automatic_month_close(
                 == bool(options.automatic_month_close_enabled)
             ),
         })
+        append_finalization_debug(
+            "automatic_history_write_done",
+            month=month_key,
+            row=history_row,
+            ledger_file_exists=AUTOMATIC_RUN_LEDGER_PATH.is_file(),
+            history_proves_completed=bool(automatic_history_proves_completed(month_key)),
+        )
+        append_finalization_debug(
+            "production_finalize_done",
+            month=month_key,
+            completion_marker=automatic_month_is_completed(month_key),
+            retry_state=read_automatic_retry_state(),
+        )
+    append_finalization_debug(
+        "automatic_executor_return",
+        month=month_key,
+        status=result.get("status"),
+        record_as_real_automatic=record_as_real_automatic,
+    )
     return result
 
 
@@ -7472,6 +7631,8 @@ def html_page() -> bytes:
     retry_debug_workflow = retry_debug.get("workflow_history") or {}
     retry_debug_decision = retry_debug.get("current_decision") or {}
     retry_debug_legacy = retry_debug.get("legacy_state") or {}
+    finalization_debug = auto_close.get("finalization_debug") or []
+    finalization_debug_last = finalization_debug[-1] if finalization_debug else {}
 
     auto_test_month = str(auto_test.get("month") or datetime.now(TZ).strftime("%Y_%m")).replace("_", "-")
     workflow_active = str(workflow.get("status") or "").lower() in {"running", "importing"}
@@ -7556,7 +7717,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.10 is een diagnoseversie: de retrylogica is inhoudelijk ongewijzigd en alle beslissende bronnen worden zichtbaar gelogd.</p>
+<p class="hint">v8.10.1 traceert aanvullend de volledige workflow-finalisatie: workflow_result, finalization, completion-marker, automatische historie, retry-state en workflow-lock.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 </div>
 
@@ -7578,13 +7739,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.10.0 productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.10.1 productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
-<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.10 die eerst automatisch veilig uit.</p>
+<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.10.1 die eerst automatisch veilig uit.</p>
 <ul class="source-list">
 <li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>
@@ -7645,7 +7806,10 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <tr><th>Workflow_result</th><td>{'FOUND' if retry_debug_workflow.get('exists') else 'NOT FOUND'} · bewijs {'JA' if retry_debug_workflow.get('proves_completed') else 'NEE'} · {esc(retry_debug_workflow.get('decision') or '—')}</td></tr>
 <tr><th>Workflow checks</th><td>{esc(json.dumps(retry_debug_workflow.get('checks') or {}, ensure_ascii=False))}</td></tr>
 <tr><th>Beslissing/evidence</th><td>{esc(retry_debug_decision.get('evidence') or '—')}</td></tr>
-<tr><th>Debuglog</th><td>{esc(retry_debug.get('debug_log_path') or RETRY_DEBUG_LOG_PATH)}</td></tr>
+<tr><th>Retry debuglog</th><td>{esc(retry_debug.get('debug_log_path') or RETRY_DEBUG_LOG_PATH)}</td></tr>
+<tr><th>Finalization debuglog</th><td>{esc(auto_close.get('finalization_debug_log_path') or FINALIZATION_DEBUG_LOG_PATH)}</td></tr>
+<tr><th>Laatste finalization-event</th><td>{esc(finalization_debug_last.get('event') or 'Nog geen nieuwe run met v8.10.1')}</td></tr>
+<tr><th>Finalization events</th><td>{esc(' → '.join(str(row.get('event') or '?') for row in finalization_debug[-12:]) or 'Nog geen')}</td></tr>
 </tbody></table></div>
 </details>
 <details><summary>Databronnen en snapshots</summary>
