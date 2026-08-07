@@ -38,7 +38,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.1.6"
+APP_VERSION = "7.1.7"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -5360,6 +5360,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "error_at": state.get("full_workflow_last_error_at"),
             "traceback": state.get("full_workflow_last_traceback"),
         },
+        "live_log": workflow_log_tail(str(state.get("workflow_lock_month") or state.get("full_workflow_last_month") or ""), limit=80),
         "automatic_month_close": {
             "enabled": options.automatic_month_close_enabled,
             "day": options.automatic_month_close_day,
@@ -5701,6 +5702,9 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <p class="hint">API-key en planning staan op het tabblad <strong>Configuratie</strong>.</p>
 </div>
 <script>
+function escapeHtml(value){{
+  return String(value??'').replace(/[&<>"']/g, ch=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}}[ch]));
+}}
 async function refreshStatus(){{
   try{{
     const [statusResp, opResp] = await Promise.all([fetch('status.json',{{cache:'no-store'}}),fetch('operation-status',{{cache:'no-store'}})]);
@@ -5711,10 +5715,25 @@ async function refreshStatus(){{
     document.getElementById('progress-count').textContent=current+' / '+total;
     document.getElementById('progress-message').textContent=st.progress_message || op.workflow?.message || 'Geen actieve verwerking.';
     document.getElementById('workflow-step').textContent=op.workflow?.step || '—';
-    document.getElementById('workflow-status').textContent=op.workflow?.status || 'onbekend';
+    const workflowStatus=document.getElementById('workflow-status');
+    const lastRunStatus=document.getElementById('last-run-status');
+    const pillClass=(value)=>{{
+      const v=String(value||'').toLowerCase();
+      if(['completed','ok','ready','idle','completed_warning'].includes(v)) return 'pill ok';
+      if(['running','importing','warning','pending'].includes(v)) return 'pill warn';
+      if(['error','failed','unreadable'].includes(v)) return 'pill bad';
+      return 'pill neutral';
+    }};
+    workflowStatus.textContent=op.workflow?.status || 'onbekend';
+    workflowStatus.className=pillClass(op.workflow?.status);
     document.getElementById('last-month').textContent=op.last_run?.month || 'Nog geen';
-    document.getElementById('last-run-status').textContent=op.last_run?.status || 'Nog geen';
+    lastRunStatus.textContent=op.last_run?.status || 'Nog geen';
+    lastRunStatus.className=pillClass(op.last_run?.status);
     document.getElementById('health-score').textContent=(op.health?.score ?? 0)+'%';
+    const healthChecks=document.getElementById('health-checks');
+    if(healthChecks && Array.isArray(op.health?.checks)){{
+      healthChecks.innerHTML=op.health.checks.map(x=>`<li><span>${{escapeHtml(x.name||'')}}</span><span><span class="${{pillClass(x.status)}}">${{escapeHtml(x.status||'')}}</span> ${{escapeHtml(x.detail||'')}}</span></li>`).join('');
+    }}
     const errCard=document.getElementById('last-error-card');
     if(op.last_run?.error){{
       errCard.style.display='block';
@@ -5725,19 +5744,16 @@ async function refreshStatus(){{
     }}else{{ errCard.style.display='none'; }}
     const month=op.workflow?.month || op.last_run?.month;
     if(month){{
-      const logResp=await fetch('workflow-log?month='+encodeURIComponent(month),{{cache:'no-store'}});
-      if(logResp.ok){{
-        const logData=await logResp.json();
-        const text=(logData.lines||[]).map(x=>{{
-          let line=`${{x.timestamp||''}} [${{String(x.level||'info').toUpperCase()}}] ${{x.step?x.step+': ':''}}${{x.message||''}}${{x.error?' — '+x.error:''}}`;
-          if(x.traceback) line+='\\n'+x.traceback;
-          return line;
-        }}).join('\\n');
-        const box=document.getElementById('workflow-log');
-        box.textContent=text || 'Nog geen logregels voor '+month;
-        box.scrollTop=box.scrollHeight;
-        document.getElementById('live-log-download').href='download-workflow-log?month='+encodeURIComponent(month);
-      }}
+      const lines=Array.isArray(op.live_log) ? op.live_log : [];
+      const text=lines.map(x=>{{
+        let line=`${{x.timestamp||''}} [${{String(x.level||'info').toUpperCase()}}] ${{x.step?x.step+': ':''}}${{x.message||''}}${{x.heartbeat_message?' — '+x.heartbeat_message:''}}${{x.error?' — '+x.error:''}}`;
+        if(x.traceback) line+='\\n'+x.traceback;
+        return line;
+      }}).join('\\n');
+      const box=document.getElementById('workflow-log');
+      box.textContent=text || 'Nog geen logregels voor '+month;
+      box.scrollTop=box.scrollHeight;
+      document.getElementById('live-log-download').href='download-workflow-log?month='+encodeURIComponent(month);
     }}
   }}catch(_e){{}}
 }}
@@ -6085,15 +6101,27 @@ class Handler(BaseHTTPRequestHandler):
                 LOGGER.exception("HomeWizard-detectie mislukt.")
                 result = {"status": "error", "error": str(exc), "type": type(exc).__name__}
                 code = HTTPStatus.BAD_REQUEST
-            self.send_body(
-                code,
-                (
-                    "<html><meta charset='utf-8'><p>"
-                    + html.escape(json.dumps(result, ensure_ascii=False))
-                    + "</p><p><a href='./'>Terug</a></p></html>"
-                ).encode("utf-8"),
-                "text/html; charset=utf-8",
+            checks = result.get("checks") or []
+            rows = "".join(
+                "<tr><td>" + html.escape(str(item.get("name") or "")) + "</td>"
+                + "<td><strong>" + ("OK" if item.get("status") == "ok" else html.escape(str(item.get("status") or ""))) + "</strong></td>"
+                + "<td>" + html.escape(str(item.get("detail") or "")) + "</td></tr>"
+                for item in checks
             )
+            overall = "ALLE TESTS GESLAAGD" if result.get("status") == "ok" else "AANDACHT NODIG"
+            page = (
+                "<!doctype html><html lang='nl'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+                "<title>Volledige zelftest</title><style>body{font-family:system-ui,-apple-system,sans-serif;background:#f4f7f9;color:#17202a;margin:0}"
+                ".wrap{max-width:980px;margin:28px auto;padding:0 18px}.card{background:#fff;border-radius:14px;padding:22px;box-shadow:0 2px 12px #00000010}"
+                "table{width:100%;border-collapse:collapse;margin-top:16px}th,td{text-align:left;padding:10px;border-bottom:1px solid #dfe7ec;vertical-align:top}"
+                ".ok{color:#17864b}.bad{color:#c0392b}.meta{color:#61707d}a{color:#0277bd}</style><body><div class='wrap'><div class='card'>"
+                "<h1>Volledige zelftest</h1><p class='meta'>Versie " + html.escape(str(result.get("version") or APP_VERSION))
+                + " · uitgevoerd " + html.escape(str(result.get("checked_at") or "")) + "</p>"
+                + "<h2 class='" + ("ok" if result.get("status") == "ok" else "bad") + "'>" + overall + "</h2>"
+                + "<table><thead><tr><th>Controle</th><th>Status</th><th>Detail</th></tr></thead><tbody>" + rows + "</tbody></table>"
+                + "<p><a href='./'>Terug naar operationele console</a></p></div></div></body></html>"
+            )
+            self.send_body(code, page.encode("utf-8"), "text/html; charset=utf-8")
             return
 
         if path.endswith("/central-validation") or path == "/central-validation":

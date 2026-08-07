@@ -17,14 +17,17 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 7.1.6
+- SlimmeMeterPortal Import 7.1.7
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
 
 ## Fase 7
 
-Versie 7.1.6 bouwt daadwerkelijk voort op de geüploade 7.1.4-bron. De v7.1.4-fix voor de dubbele `message`-parameter blijft behouden. Nieuw in 7.1.6: bij de start van een nieuwe workflow worden foutstatus, traceback en oude voortgang van de vorige run direct gewist; de actuele status wordt `running`; en een normaal actieve workflow-lock telt niet langer als gezondheidsfout. Rapportgeneratoren, Recovery Update-inhoud en definitieve outputnamen blijven ongewijzigd.
+Versie 7.1.7 bouwt voort op de stabiele 7.1.6-backend. Deze release wijzigt uitsluitend de operationele gebruikersinterface: het live workflowlog wordt nu rechtstreeks via de operationele status meegeleverd en weergegeven, statuspillen en gezondheidschecks verversen live, en de volledige zelftest krijgt een leesbare resultaatpagina in plaats van ruwe JSON. Rapportgeneratoren, Recovery Update-inhoud en definitieve outputnamen blijven ongewijzigd.
 
-### v7.1.6
-De workflow-backend uit v7.1.5 blijft ongewijzigd. v7.1.6 herstelt uitsluitend de gegenereerde JavaScript van de operationele console, zodat status-, voortgangs- en workflowlog-polling weer live worden weergegeven.
+### v7.1.7
+- Betrouwbare live logweergave via `operation-status` zonder tweede log-fetch.
+- Automatische statuskleur- en gezondheidsrefresh tijdens workflowruns.
+- Leesbare HTML-uitvoer voor **Voer volledige zelftest uit**.
+- Geen wijzigingen aan import-, rapport- of Recovery Update-backend.

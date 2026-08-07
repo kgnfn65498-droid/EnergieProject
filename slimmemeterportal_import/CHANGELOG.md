@@ -1,3 +1,11 @@
+## 7.1.7
+
+- Live workflowlog wordt rechtstreeks via `operation-status` aangeleverd en iedere 2,5 seconde in de console ververst.
+- Statuspillen en gezondheidschecks verversen nu mee met de actieve workflow.
+- De volledige zelftest toont een leesbare tabel met controles, status en details in plaats van ruwe JSON.
+- JavaScript-syntax wordt opnieuw gecontroleerd op de daadwerkelijk gegenereerde console.
+- Geen wijzigingen aan backend-workflow, rapportgeneratoren, Recovery Update of outputcontract.
+
 ## 7.1.6
 
 - Herstelt de JavaScript-syntax van de operationele console: newline-escapes in traceback- en logweergave worden nu correct als `\n` aan de browser geleverd.

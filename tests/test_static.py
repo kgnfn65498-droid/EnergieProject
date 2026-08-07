@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "7.1.6"
+    assert cfg_version == app_version == "7.1.7"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "7.1.6"' in config
+    assert 'version: "7.1.7"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1149,8 +1149,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "7.1.6"' in config
-    assert 'APP_VERSION = "7.1.6"' in main
+    assert 'version: "7.1.7"' in config
+    assert 'APP_VERSION = "7.1.7"' in main
 
 
 def test_phase7_configuration_present():
@@ -1349,15 +1349,29 @@ def test_v715_active_workflow_is_not_health_failure():
     assert 'last_status in {"running", "completed", "completed_warning"}' in source
 
 
-def test_v716_generated_console_javascript_has_escaped_newlines():
+def test_v717_generated_console_javascript_has_escaped_newlines():
     """Regression: Python HTML rendering must not inject raw newlines into JS string literals."""
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "if(x.traceback) line+='\\\\n'+x.traceback;" in source
     assert "}}).join('\\\\n');" in source
 
 
-def test_v716_console_polling_contract_present():
+def test_v717_console_polling_contract_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert "fetch('workflow-log?month='" in source
+    assert '"live_log": workflow_log_tail' in source
+    assert 'Array.isArray(op.live_log)' in source
     assert "setInterval(refreshStatus,2500)" in source
     assert "box.scrollTop=box.scrollHeight" in source
+
+
+def test_v717_self_test_is_human_readable_html():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Volledige zelftest" in source
+    assert "ALLE TESTS GESLAAGD" in source
+    assert "Terug naar operationele console" in source
+
+
+def test_v717_operation_status_embeds_live_log():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"live_log": workflow_log_tail' in source
+    assert 'limit=80' in source

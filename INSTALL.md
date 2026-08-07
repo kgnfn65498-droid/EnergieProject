@@ -12,7 +12,7 @@
 7. Klik **Voer volledige zelftest uit**.
 8. De installatie is gereed wanneer:
    - `Installatie gereed` = `Ja`
-   - Zelftest = `ok` of `warning`
+   - Zelftestpagina toont **ALLE TESTS GESLAAGD** of een duidelijke waarschuwing
    - SlimmeMeterPortal API = `ok`
 
 ## Eerste productietest
