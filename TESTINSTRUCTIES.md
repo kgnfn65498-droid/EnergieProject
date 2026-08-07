@@ -1,5 +1,5 @@
-# Testinstructies v9.3.0
+# Testinstructies v9.4.0
 
-1. Commit/push v9.3.0, kies in Home Assistant **Opnieuw bouwen**, start de app en controleer dat de Web UI normaal opent. Controleer onder **Historische runs** dat `Afgerond` als `dd-mm-jjjj uu:mm` wordt getoond en dat **Retry Debug v9.3.0** de regel **Legacy bronstatus (historisch)** toont.
-2. Controleer Monitoring, Recovery en Auditintegriteit. Er mogen door deze release geen nieuwe foutstatussen ontstaan.
-3. Alleen wanneer v9.3.0 als actieve gecertificeerde productieversie moet blijven draaien: voer één keer **Test automatische maandafsluiting nu** uit. Dit is niet opnieuw een test van het oude schedulerprobleem; het is uitsluitend nodig omdat het productiecertificaat momenteel exact versiegebonden is. Daarna moet certificaat `v9.3.0` geldig zijn en het Gezondheidsdashboard 100% tonen.
+1. Commit/push v9.4.0, kies in Home Assistant **Opnieuw bouwen** en open de Web UI. Vóór certificering moet de app melden dat productiekern `9.4-core1` nog één productietest vereist; Recovery/Audit/API mogen geen fout tonen.
+2. Voer één keer **Test automatische maandafsluiting nu** uit voor `2026-08`. Dit is de laatste verplichte volledige test zolang `PRODUCTION_CORE_REVISION` op `9.4-core1` blijft.
+3. Controleer na afloop: Productieklaar, Scheduler Actief, Monitoring 0 fouten/0 wachtstatussen, Gezondheidsdashboard 100%, certificaatrelease v9.4.0 en productiekern `9.4-core1`. Bij een latere release met dezelfde productiekern moet de app zonder nieuwe maandafsluitingstest direct productieklaar blijven.

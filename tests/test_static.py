@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "9.3.0"
+    assert cfg_version == app_version == "9.4.0"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "9.3.0"' in config
+    assert 'version: "9.4.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "9.3.0"' in config
-    assert 'APP_VERSION = "9.3.0"' in main
+    assert 'version: "9.4.0"' in config
+    assert 'APP_VERSION = "9.4.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1685,7 +1685,7 @@ def test_v800_scheduler_enable_is_gated_by_product_test():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     section = source[source.index("def save_automatic_month_close_settings"):source.index("def run_automatic_month_close_test")]
     assert "if enabled and not automatic_production_readiness().get" in section
-    assert "kan pas AAN na een geslaagde productietest" in section
+    assert "kan pas AAN na certificering van productiekern" in section
 
 
 def test_v800_operation_status_exposes_production_state():
@@ -1868,7 +1868,7 @@ def test_v851_acceptance_records_prerequisite_evidence():
 def test_v851_console_explains_automatic_prerequisite():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     assert "voorbereidende productietest automatisch geslaagd" in source
-    assert "voert v{esc(APP_VERSION)} die eerst automatisch veilig uit" in source
+    assert "één veilige productietest uit" in source
 
 
 def test_v860_has_durable_completion_marker_store():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "9.3.0"' in source
+    assert 'APP_VERSION = "9.4.0"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2259,7 +2259,7 @@ def test_v815_certificate_repair_requires_current_version_test():
     start = source.index("def manage_production_certificate")
     end = source.index("def automatic_production_readiness", start)
     block = source[start:end]
-    assert 'str(source_test.get("version") or "") == APP_VERSION' in block
+    assert 'str(source_test.get("production_core_revision") or "") == PRODUCTION_CORE_REVISION' in block
     assert 'source_test.get("scheduler_state_changed") is False' in block
     assert 'str((source_test.get("finalization") or {}).get("status") or "") == "ok"' in block
 
@@ -2297,3 +2297,40 @@ def test_v930_retry_debug_marks_legacy_state_historical():
     assert "Legacy bronstatus (historisch)" in source
     assert "alleen diagnose" in source
     assert "Legacy bronstatus is uitsluitend historisch diagnosebewijs" in source
+
+
+def test_v940_core_certificate_model_present():
+    source = MAIN.read_text(encoding="utf-8")
+    assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
+    assert '"production_core_revision": PRODUCTION_CORE_REVISION' in source
+    assert '"core_revision_current"' in source
+    assert 'certificate_core_revision == PRODUCTION_CORE_REVISION' in source
+
+def test_v940_certificate_no_longer_requires_exact_release_version():
+    source = MAIN.read_text(encoding="utf-8")
+    validate = source[source.index("def validate_production_certificate"):source.index("def append_production_certificate_history")]
+    assert '"version_current"' not in validate
+    assert '"core_revision_current"' in validate
+
+def test_v940_ui_explains_core_certification():
+    source = MAIN.read_text(encoding="utf-8")
+    assert "een geldig kerncertificaat blijft bruikbaar" in source
+    assert "Kerncertificering vereist" in source
+    assert "Productiekern" in source
+
+
+def test_v940_product_test_records_core_revision():
+    source = MAIN.read_text(encoding="utf-8")
+    section = source[source.index("def run_automatic_month_close_test"):source.index("def automatic_month_close_preflight")]
+    assert section.count('"production_core_revision": PRODUCTION_CORE_REVISION') >= 2
+
+def test_v940_repair_accepts_same_core_test_not_exact_release():
+    source = MAIN.read_text(encoding="utf-8")
+    section = source[source.index("def manage_production_certificate"):source.index("def automatic_production_readiness")]
+    assert 'source_test.get("production_core_revision")' in section
+    assert 'source_test.get("version") or "") == APP_VERSION' not in section
+
+def test_v940_scheduler_acceptance_tracks_core_revision():
+    source = MAIN.read_text(encoding="utf-8")
+    section = source[source.index("def automatic_scheduler_acceptance_test"):source.index("def automatic_month_close_due")]
+    assert '"production_core_revision": PRODUCTION_CORE_REVISION' in section

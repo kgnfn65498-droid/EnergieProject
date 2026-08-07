@@ -1,5 +1,16 @@
 # Changelog
 
+## 9.4.0
+- Productiecertificering is losgekoppeld van iedere afzonderlijke UI-/diagnostiekrelease en gekoppeld aan een expliciete **productiekern-revisie** (`9.4-core1`).
+- Een productietest certificeert vanaf v9.4 de inhoudelijke kern: maandworkflow, scheduler, retry/finalization en certificeringscontract.
+- Releases die deze productiekern niet wijzigen mogen hetzelfde geldige kerncertificaat hergebruiken; daardoor is niet meer na iedere cosmetische release een volledige automatische maandafsluitingstest nodig.
+- Certificaatformaat verhoogd naar schema 3 en bevat `production_core_revision`; integriteitscontrole blijft SHA-256 beschermd.
+- Scheduler en Monitoring controleren voortaan kerncompatibiliteit in plaats van een identiek releaseversienummer.
+- Archief productiecertificaten toont naast de release ook de gecertificeerde productiekern. Legacy-certificaten blijven zichtbaar maar gelden niet als v9.4-kerncertificaat.
+- Retry Debug toont afzonderlijk certificaatrelease en productiekern.
+- v9.4.0 vereist één laatste productietest om `9.4-core1` te certificeren. Daarna hoeft een volgende release met ongewijzigde kern niet opnieuw die route te doorlopen.
+- Bestaande audittrail en certificaathistorie worden niet herschreven.
+
 ## 9.3.0
 - Diagnostiek en historie zijn verduidelijkt zonder wijzigingen aan de workflow-, scheduler-, retry-, Recovery- of certificeringslogica.
 - **Historische runs** tonen het afrondmoment voortaan compact in lokale Nederlandse tijd in plaats van een ruwe ISO-timestamp.
