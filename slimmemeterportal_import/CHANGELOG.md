@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.2.0
+- P1-fix: Aan/Uit van automatische maandafsluiting wordt direct opgeslagen.
+- Starten van de productietest kan daardoor geen niet-opgeslagen UIT-stand meer terugzetten naar de vorige AAN-stand.
+- Productietest bewaakt de opgeslagen schedulerconfig byte-voor-byte en herstelt deze bij iedere onbedoelde wijziging.
+- Finalization vereist exact de twee officiële outputbestanden.
+- PDF-header en Recovery Update ZIP-integriteit worden gecontroleerd voordat automatische productie gereed wordt verklaard.
+- Centrale maandworkflow en officiële rapportgeneratoren inhoudelijk ongewijzigd.
+
 ## 8.1.0
 - Scheduler-runtimegate: na upgrade wordt een bewaarde AAN-stand pas uitvoerbaar na een geslaagde productietest van v8.1 zelf.
 - Productiestatus onderscheidt ingestelde planning van werkelijk actieve scheduler.

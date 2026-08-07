@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "8.1.0"
+    assert cfg_version == app_version == "8.2.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.1.0"' in config
+    assert 'version: "8.2.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.1.0"' in config
-    assert 'APP_VERSION = "8.1.0"' in main
+    assert 'version: "8.2.0"' in config
+    assert 'APP_VERSION = "8.2.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1725,3 +1725,35 @@ def test_v810_human_readable_planning_and_history():
 def test_v810_automatic_history_only_contains_auto_triggers():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert 'if item.get("trigger") in {"automatic", "automatic_test"}' in source
+
+
+def test_v820_switch_has_dedicated_immediate_persist_endpoint():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def set_automatic_month_close_enabled" in source
+    assert 'set-automatic-month-close-enabled' in source
+    assert "Aan/Uit wordt direct opgeslagen" in source
+
+
+def test_v820_product_test_guards_scheduler_config_byte_for_byte():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    section = source[source.index("def run_automatic_month_close_test"):source.index("def automatic_month_close_preflight")]
+    assert "scheduler_config_before" in section
+    assert "scheduler_config_after" in section
+    assert "scheduler_config_after != scheduler_config_before" in section
+    assert "oorspronkelijke planning is hersteld" in section
+
+
+def test_v820_finalization_requires_exact_two_publication_files():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    section = source[source.index("def automatic_month_close_finalize"):source.index("def automatic_month_close_due")]
+    assert "names==expected" in section
+    assert "len(published)==2" in section
+
+
+def test_v820_finalization_checks_pdf_and_recovery_zip_integrity():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    section = source[source.index("def automatic_month_close_finalize"):source.index("def automatic_month_close_due")]
+    assert 'b"%PDF"' in section
+    assert "recovery_zip.testzip()" in section
+    assert '"report_pdf_integrity"' in section
+    assert '"recovery_zip_integrity"' in section

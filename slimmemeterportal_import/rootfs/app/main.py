@@ -39,7 +39,7 @@ AUTO_CLOSE_UI_OPTIONS_PATH = Path("/config/automatic_month_close.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.1.0"
+APP_VERSION = "8.2.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -6077,6 +6077,17 @@ def next_automatic_month_close_run(options: Options, now: datetime | None = None
     return candidate.isoformat()
 
 
+def set_automatic_month_close_enabled(enabled: bool) -> dict[str, Any]:
+    """Bewaar alleen Aan/Uit direct; behoud dag, uur en retry exact."""
+    options = Options.load()
+    return save_automatic_month_close_settings(
+        enabled=bool(enabled),
+        day=options.automatic_month_close_day,
+        hour=options.automatic_month_close_hour,
+        retry_hours=options.automatic_month_close_retry_hours,
+    )
+
+
 def save_automatic_month_close_settings(*, enabled: bool, day: int, hour: int, retry_hours: int) -> dict[str, Any]:
     """Bewaar UI-instellingen; inschakelen vereist een actuele productietest."""
     if enabled and not automatic_production_readiness().get("ready"):
@@ -6107,8 +6118,13 @@ def save_automatic_month_close_settings(*, enabled: bool, day: int, hour: int, r
 
 
 def run_automatic_month_close_test(month_key: str) -> dict[str, Any]:
-    """Voer de automatische keten gecontroleerd uit zonder schedulermaand af te vinken."""
+    """Voer de automatische keten uit zonder enige wijziging aan de planning."""
     month_key = historical_month_allowed(month_key)
+    scheduler_config_before = (
+        AUTO_CLOSE_UI_OPTIONS_PATH.read_bytes()
+        if AUTO_CLOSE_UI_OPTIONS_PATH.exists()
+        else None
+    )
     if WORKFLOW_LOCK.locked():
         raise RuntimeError("Er draait al een maandworkflow.")
     options = Options.load()
@@ -6127,6 +6143,21 @@ def run_automatic_month_close_test(month_key: str) -> dict[str, Any]:
             "error": "Preflight blokkeerde de productietest.",
             "scheduler_state_changed": False,
         }
+        scheduler_config_after = (
+            AUTO_CLOSE_UI_OPTIONS_PATH.read_bytes()
+            if AUTO_CLOSE_UI_OPTIONS_PATH.exists()
+            else None
+        )
+        if scheduler_config_after != scheduler_config_before:
+            if scheduler_config_before is None:
+                AUTO_CLOSE_UI_OPTIONS_PATH.unlink(missing_ok=True)
+            else:
+                AUTO_CLOSE_UI_OPTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+                tmp_restore = AUTO_CLOSE_UI_OPTIONS_PATH.with_suffix(".restore.tmp")
+                tmp_restore.write_bytes(scheduler_config_before)
+                tmp_restore.replace(AUTO_CLOSE_UI_OPTIONS_PATH)
+            result["scheduler_state_changed"] = True
+            result["error"] = "Preflight/test wijzigde schedulerinstellingen; oorspronkelijke planning is hersteld."
         update_state(automatic_month_close_test_last_result=result)
         return result
 
@@ -6153,6 +6184,26 @@ def run_automatic_month_close_test(month_key: str) -> dict[str, Any]:
         "error": None if status in {"completed", "completed_warning"} else "Productieketen niet volledig gereed.",
         "scheduler_state_changed": False,
     }
+    scheduler_config_after = (
+        AUTO_CLOSE_UI_OPTIONS_PATH.read_bytes()
+        if AUTO_CLOSE_UI_OPTIONS_PATH.exists()
+        else None
+    )
+    if scheduler_config_after != scheduler_config_before:
+        # Productietest mag de productieplanning nooit wijzigen.
+        if scheduler_config_before is None:
+            AUTO_CLOSE_UI_OPTIONS_PATH.unlink(missing_ok=True)
+        else:
+            AUTO_CLOSE_UI_OPTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+            tmp_restore = AUTO_CLOSE_UI_OPTIONS_PATH.with_suffix(".restore.tmp")
+            tmp_restore.write_bytes(scheduler_config_before)
+            tmp_restore.replace(AUTO_CLOSE_UI_OPTIONS_PATH)
+        result["status"] = "error"
+        result["error"] = "Productietest probeerde schedulerinstellingen te wijzigen; oorspronkelijke planning is hersteld."
+        result["scheduler_state_changed"] = True
+    else:
+        result["scheduler_state_changed"] = False
+
     update_state(automatic_month_close_test_last_result=result)
     return result
 
@@ -6205,9 +6256,37 @@ def automatic_month_close_finalize(options: Options, month_key: str, workflow_re
         add("report_generation","ok" if gen_ok else "error",state.get("report_generation_last_status") or "ontbreekt")
         published=list(state.get("report_output_last_files") or [])
         expected={f"Energierapport_{month_key}.pdf",f"Recovery_Update_{month_key}.zip"}
-        names={Path(x).name for x in published}; files_exist=all(Path(x).is_file() for x in published)
-        pub_ok=state.get("report_output_last_month")==month_key and state.get("report_output_last_status")=="completed" and expected.issubset(names) and files_exist
+        names={Path(x).name for x in published}
+        files_exist=all(Path(x).is_file() for x in published)
+        pub_ok=(
+            state.get("report_output_last_month")==month_key
+            and state.get("report_output_last_status")=="completed"
+            and names==expected
+            and len(published)==2
+            and files_exist
+        )
         add("publication","ok" if pub_ok else "error",{"status":state.get("report_output_last_status"),"files":published,"expected":sorted(expected)})
+
+        pdf_path = next((Path(x) for x in published if Path(x).name == f"Energierapport_{month_key}.pdf"), None)
+        pdf_ok = bool(pdf_path and pdf_path.is_file() and pdf_path.stat().st_size > 4 and pdf_path.read_bytes()[:4] == b"%PDF")
+        add("report_pdf_integrity", "ok" if pdf_ok else "error", str(pdf_path or "ontbreekt"))
+
+        recovery_path = next((Path(x) for x in published if Path(x).name == f"Recovery_Update_{month_key}.zip"), None)
+        recovery_ok = False
+        recovery_detail: Any = str(recovery_path or "ontbreekt")
+        if recovery_path and recovery_path.is_file():
+            try:
+                with zipfile.ZipFile(recovery_path) as recovery_zip:
+                    bad_member = recovery_zip.testzip()
+                    recovery_ok = bad_member is None and bool(recovery_zip.namelist())
+                    recovery_detail = {
+                        "path": str(recovery_path),
+                        "files": len(recovery_zip.namelist()),
+                        "bad_member": bad_member,
+                    }
+            except Exception as exc:
+                recovery_detail = str(exc)
+        add("recovery_zip_integrity", "ok" if recovery_ok else "error", recovery_detail)
     else:
         add("report_generation","ok","Rapportservice bewust uitgeschakeld."); add("publication","ok","Rapportservice bewust uitgeschakeld.")
     result={"version":APP_VERSION,"checked_at":datetime.now(TZ).isoformat(),"month":month_key,"status":"ok" if not errors else "error","checks":checks,"errors":errors}
@@ -6591,9 +6670,9 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="card"><h2>Automatische maandafsluiting</h2>
 <div class="controls">
 <div class="control-group"><h3>Planning</h3>
-<form method="post" action="save-automatic-month-close">
+<form id="automatic-planning-form" method="post" action="save-automatic-month-close">
 <div class="switch-row">
-<div><div class="switch-title">Automatisch vorige maand verwerken</div><div class="hint">Schakel de maandafsluiting hier duidelijk aan of uit.</div></div>
+<div><div class="switch-title">Automatisch vorige maand verwerken</div><div class="hint">Aan/Uit wordt direct opgeslagen. Dag, tijd en retry worden met Instellingen opslaan bewaard.</div></div>
 <label class="switch-wrap" title="Automatische maandafsluiting aan of uit">
 <input id="auto-close-enabled" type="checkbox" name="enabled" value="1" {'checked' if auto_close.get('enabled') else ''}>
 <span class="switch-slider" aria-hidden="true"></span><span id="auto-close-switch-state" class="switch-state">{'AAN' if auto_close.get('enabled') else 'UIT'}</span>
@@ -6606,7 +6685,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Inschakelen wordt door v8.0 geblokkeerd totdat de huidige versie productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.2.0 productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
@@ -6805,8 +6884,26 @@ async function refreshStatus(){{
 }}
 const autoSwitch=document.getElementById('auto-close-enabled');
 if(autoSwitch){{
-  const syncAutoSwitch=()=>{{document.getElementById('auto-close-switch-state').textContent=autoSwitch.checked?'AAN':'UIT';}};
-  autoSwitch.addEventListener('change',syncAutoSwitch); syncAutoSwitch();
+  const switchState=document.getElementById('auto-close-switch-state');
+  const syncAutoSwitch=()=>{{switchState.textContent=autoSwitch.checked?'AAN':'UIT';}};
+  autoSwitch.addEventListener('change',async()=>{{
+    const requested=autoSwitch.checked;
+    syncAutoSwitch();
+    autoSwitch.disabled=true;
+    try{{
+      const body=new URLSearchParams({{enabled:requested?'1':'0'}});
+      const response=await fetch('set-automatic-month-close-enabled',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body}});
+      const data=await response.json();
+      if(!response.ok || data.status!=='ok') throw new Error(data.error||'Opslaan mislukt');
+    }}catch(err){{
+      autoSwitch.checked=!requested;
+      syncAutoSwitch();
+      alert('Aan/Uit niet opgeslagen: '+err.message);
+    }}finally{{
+      autoSwitch.disabled=false;
+    }}
+  }});
+  syncAutoSwitch();
 }}
 document.querySelectorAll('form[action="start-month-workflow"],form[action="resume-month-workflow"],form[action="run-historical-month"],form[action="test-automatic-month-close"]').forEach(form=>form.addEventListener('submit',()=>{{
   const bar=document.getElementById('progress-bar'); bar.style.width='0%'; bar.className='running';
@@ -6984,6 +7081,28 @@ class Handler(BaseHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        if path.endswith("/set-automatic-month-close-enabled") or path == "/set-automatic-month-close-enabled":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
+            try:
+                enabled = str((form.get("enabled") or ["0"])[0]).strip() == "1"
+                result = set_automatic_month_close_enabled(enabled)
+                update_state(automatic_month_close_ui_settings_last=result)
+                body = json.dumps({
+                    "status": "ok",
+                    "enabled": enabled,
+                    "version": APP_VERSION,
+                }, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+            except Exception as exc:
+                body = json.dumps({
+                    "status": "error",
+                    "error": str(exc),
+                    "version": APP_VERSION,
+                }, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.BAD_REQUEST, body, "application/json; charset=utf-8")
+            return
+
         if path.endswith("/save-automatic-month-close") or path == "/save-automatic-month-close":
             length = int(self.headers.get("Content-Length", "0") or 0)
             form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))

@@ -461,3 +461,12 @@ De operationele console toont daarnaast één centrale productiestatus, de eerst
 De automatische planning blijft bij een software-upgrade bewaard, maar de scheduler voert niets uit totdat de nieuwe versie zelf een geslaagde productietest heeft voltooid. De console onderscheidt daarom `AAN maar wacht op test` van werkelijk `Actief`.
 
 De volgende automatische run wordt in lokale leesbare notatie getoond. Daarnaast toont de operationele console maximaal zes recente productietests en echte automatische maandafsluitingen, inclusief status, eindtijd en duur.
+
+
+## Versie 8.2.0 — side-effect-vrije productietest en outputintegriteit
+
+De Aan/Uit-schakelaar wordt vanaf v8.2 onmiddellijk persistent opgeslagen. Hierdoor bestaat er geen verschil meer tussen de zichtbare schakelstand en de schedulerconfiguratie wanneer daarna een productietest wordt gestart.
+
+Daarnaast legt de productietest vóór aanvang de schedulerconfiguratie byte-voor-byte vast en verifieert na afloop dat deze niet veranderd is. Een eventuele wijziging wordt teruggedraaid en als fout gemeld.
+
+De automatische finalization vereist exact `Energierapport_YYYY_MM.pdf` en `Recovery_Update_YYYY_MM.zip`, controleert de PDF-signatuur en voert `ZipFile.testzip()` uit op de Recovery Update.
