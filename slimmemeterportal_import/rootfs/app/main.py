@@ -52,8 +52,8 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "9.5.0"
-# v9.5: UI/testpakket-release; de gecertificeerde productiekern blijft ongewijzigd.
+APP_VERSION = "9.6.0"
+# v9.6: diagnosepakket-release; de gecertificeerde productiekern blijft ongewijzigd.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
 
@@ -8199,7 +8199,7 @@ def build_test_package() -> bytes:
         "scheduler_enabled": bool((op.get("automatic_month_close") or {}).get("enabled")),
         "scheduler_effective": bool((op.get("automatic_month_close") or {}).get("scheduler_effective")),
         "source_status": state.get("workflow_sources") or {},
-        "note": "v9.5.0 wijzigt alleen UI/diagnostiek; productiekern 9.4-core1 is ongewijzigd.",
+        "note": "v9.6.0 wijzigt alleen diagnose-/supportfunctionaliteit; productiekern 9.4-core1 is ongewijzigd.",
     }
 
     generated = {
@@ -8233,20 +8233,62 @@ def build_test_package() -> bytes:
             (workflow_log_file(month_key), f"workflow/{month_key}/workflow.log"),
         ])
 
+    entries: dict[str, bytes] = {}
+    manifest = []
+    for name, payload in generated.items():
+        data = json.dumps(payload, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+        entries[name] = data
+        manifest.append({"path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+
+    for src, arcname in files:
+        try:
+            if src.is_file():
+                data = src.read_bytes()
+                entries[arcname] = data
+                manifest.append({"path": arcname, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+        except OSError as exc:
+            manifest.append({"path": arcname, "error": str(exc)})
+
+    manifest_bytes = json.dumps(
+        {"generated_at": summary["generated_at"], "release_version": APP_VERSION, "files": manifest},
+        ensure_ascii=False, indent=2,
+    ).encode("utf-8")
+    entries["MANIFEST.json"] = manifest_bytes
+
+    summary_lines = [
+        "Energieproject diagnosepakket",
+        "============================",
+        f"Release: {APP_VERSION}",
+        f"Productiekern: {PRODUCTION_CORE_REVISION}",
+        f"Gegenereerd: {summary['generated_at']}",
+        f"Testmaand: {summary.get('test_month') or '—'}",
+        f"Productieklaar: {'JA' if summary.get('production_ready') else 'NEE'}",
+        f"Healthscore: {summary.get('health_score')}",
+        f"Productiecertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
+        f"Certificaatrelease: {summary.get('certificate_release') or '—'}",
+        f"Certificaatkern: {summary.get('certificate_core_revision') or '—'}",
+        f"Monitoring: {summary.get('monitoring_status') or '—'}; fouten={summary.get('monitoring_errors', 0)}; wachtstatussen={summary.get('monitoring_pending', 0)}",
+        f"Recovery: {summary.get('recovery_status') or '—'}; herstelacties={summary.get('recovery_actions', 0)}",
+        f"Audittrail: {summary.get('audit_integrity') or '—'}; records={summary.get('audit_records', 0)}",
+        f"Scheduler actief: {'JA' if summary.get('scheduler_effective') else 'NEE'}",
+        "",
+        "SHA-256 controle",
+        "---------------",
+        "Zie SHA256SUMS.txt voor de SHA-256 van ieder bestand in dit diagnosepakket.",
+        "Een SHA-256 van het ZIP-bestand zelf kan niet betrouwbaar in datzelfde ZIP-bestand worden opgenomen",
+        "zonder een zelf-referentiële hash te veroorzaken.",
+    ]
+    entries["samenvatting.txt"] = ("\n".join(summary_lines) + "\n").encode("utf-8")
+
+    sha_lines = []
+    for name in sorted(entries):
+        sha_lines.append(f"{hashlib.sha256(entries[name]).hexdigest()}  {name}")
+    entries["SHA256SUMS.txt"] = ("\n".join(sha_lines) + "\n").encode("utf-8")
+
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        for name, payload in generated.items():
-            archive.writestr(name, json.dumps(payload, ensure_ascii=False, indent=2, default=str))
-        manifest = []
-        for src, arcname in files:
-            try:
-                if src.is_file():
-                    data = src.read_bytes()
-                    archive.writestr(arcname, data)
-                    manifest.append({"path": arcname, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
-            except OSError as exc:
-                manifest.append({"path": arcname, "error": str(exc)})
-        archive.writestr("MANIFEST.json", json.dumps({"generated_at": summary["generated_at"], "files": manifest}, ensure_ascii=False, indent=2))
+        for name in sorted(entries):
+            archive.writestr(name, entries[name])
     return buffer.getvalue()
 
 
@@ -8571,8 +8613,8 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 </div>
 <p class="hint">Het productiecertificaat wordt automatisch gegenereerd uit een geslaagde productietest van exact deze versie, continu op integriteit gecontroleerd en kan veilig uit bestaand hard testbewijs worden hersteld.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
-<p><a class="button-link" href="download-test-package">Download testpakket</a></p>
-<p class="hint">Eén ZIP met de status- en bewijsbestanden die nodig zijn om deze release goed of af te keuren. Bevat geen API-key of options.json.</p>
+<p><a class="button-link" href="download-diagnostic-package">Download diagnosepakket</a></p>
+<p class="hint">Eén ZIP met samenvatting, SHA-256-controle en de status- en bewijsbestanden die nodig zijn om deze release goed of af te keuren. Bevat geen API-key of options.json.</p>
 </div>
 
 <div class="card"><h2>Automatische maandafsluiting</h2>
@@ -9143,15 +9185,15 @@ class Handler(BaseHTTPRequestHandler):
                 "installation_ready": state.get("installation_ready"),
             }).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
-        elif path.endswith("/download-test-package") or path == "/download-test-package":
+        elif path.endswith("/download-diagnostic-package") or path == "/download-diagnostic-package" or path.endswith("/download-test-package") or path == "/download-test-package":
             try:
                 body = build_test_package()
                 self.send_body(
                     HTTPStatus.OK, body, "application/zip",
-                    f'attachment; filename="Energieproject_testpakket_v{APP_VERSION}.zip"',
+                    f'attachment; filename="Energieproject_diagnosepakket_v{APP_VERSION}.zip"',
                 )
             except Exception as exc:
-                LOGGER.exception("Testpakket kon niet worden gebouwd.")
+                LOGGER.exception("Diagnosepakket kon niet worden gebouwd.")
                 self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc).encode("utf-8", errors="replace"), "text/plain; charset=utf-8")
         elif path.endswith("/download-monitoring-history") or path == "/download-monitoring-history":
             if not MONITORING_HISTORY_PATH.is_file():

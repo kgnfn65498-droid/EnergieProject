@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.6.0
+- **Download testpakket** hernoemd naar **Download diagnosepakket**; de oude download-URL blijft als compatibiliteitsalias werken.
+- Diagnosepakket bevat nu `samenvatting.txt` met release, productiekern, testmaand, productiegereedheid, healthscore, certificaatstatus, monitoring, Recovery, Audittrail en schedulerstatus.
+- Nieuw `SHA256SUMS.txt` bevat SHA-256 hashes van alle opgenomen diagnose- en bewijsbestanden, zodat het pakket inhoudelijk controleerbaar is.
+- ZIP-bestandsnaam gewijzigd naar `Energieproject_diagnosepakket_v9.6.0.zip`.
+- API-key en `options.json` blijven uitgesloten.
+- Productiekern blijft `9.4-core1`; workflow, scheduler, retry/finalization, Recovery, Audittrail, Monitoring en rapportgeneratoren zijn inhoudelijk niet gewijzigd. Daardoor is geen nieuwe volledige automatische maandafsluitingstest nodig.
+
 ## 9.5.0
 - Operationele console vereenvoudigd zonder wijziging van de gecertificeerde productiekern `9.4-core1`.
 - Archief productiecertificaten, Recovery, Audittrail en Live workflowlog zijn standaard ingeklapt; Retry Debug is niet langer standaard geopend.
