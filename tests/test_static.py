@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "8.9.1"
+    assert cfg_version == app_version == "8.10.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.9.1"' in config
+    assert 'version: "8.10.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.9.1"' in config
-    assert 'APP_VERSION = "8.9.1"' in main
+    assert 'version: "8.10.0"' in config
+    assert 'APP_VERSION = "8.10.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1869,7 +1869,7 @@ def test_v851_acceptance_records_prerequisite_evidence():
 def test_v851_console_explains_automatic_prerequisite():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     assert "voorbereidende productietest automatisch geslaagd" in source
-    assert "voert v8.9.1 die eerst automatisch veilig uit" in source
+    assert "voert v8.10 die eerst automatisch veilig uit" in source
 
 
 def test_v860_has_durable_completion_marker_store():
@@ -2043,3 +2043,45 @@ def test_v891_workflow_proof_does_not_accept_manual_or_incomplete_runs():
     assert 'trigger_ok = str(item.get("trigger") or "") == "automatic"' in section
     assert "steps_ok = total > 0 and completed >= total" in section
     assert "status_ok and trigger_ok and failed_step_ok and errors_ok and steps_ok" in section
+
+
+def test_v8100_is_diagnostic_and_has_retry_debug_log():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'RETRY_DEBUG_LOG_PATH = Path("/config/output/logs/retry_debug.log")' in source
+    assert "def append_retry_debug" in source
+    assert "def retry_debug_snapshot" in source
+
+
+def test_v8100_logs_migration_and_reconcile_evidence():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"migration_enter"' in source
+    assert '"migration_existing_retry_returned"' in source
+    assert '"migration_legacy_evidence"' in source
+    assert '"reconcile_enter"' in source
+    assert '"reconcile_evidence"' in source
+    assert '"reconcile_result"' in source
+
+
+def test_v8100_debug_snapshot_exposes_all_three_evidence_sources():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def retry_debug_snapshot"):source.index('RETRY_STATES =')]
+    assert '"completion_marker"' in section
+    assert '"append_history"' in section
+    assert '"workflow_history"' in section
+    assert '"current_decision"' in section
+
+
+def test_v8100_workflow_debug_explains_each_rejection_check():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def workflow_history_debug"):source.index("def retry_debug_snapshot")]
+    for name in ["status_ok", "trigger_automatic", "no_failed_step", "no_errors", "all_steps_completed"]:
+        assert name in section
+
+
+def test_v8100_console_contains_retry_debug_block():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Retry Debug v8.10" in source
+    assert "Completion marker" in source
+    assert "Append history" in source
+    assert "Workflow_result" in source
+    assert "Workflow checks" in source

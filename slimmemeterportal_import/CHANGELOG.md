@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.10.0
+- Zuivere diagnoseversie voor de persistente `2026_07 legacy_retry`.
+- Retry-, scheduler- en migratiebeslislogica inhoudelijk ongewijzigd ten opzichte van v8.9.1.
+- Nieuw append-only diagnosebestand `/config/output/logs/retry_debug.log`.
+- Logt of de migratie wordt aangeroepen, of een bestaande retry-state direct wordt teruggegeven en welke bewijsbronnen reconciliation aantreft.
+- Nieuw zichtbaar `Retry Debug v8.10`-blok onder Diagnostiek en beheer.
+- Toont statebestand, legacy state, completion-marker, append-only historie, workflow_result, afzonderlijke workflow-checks en uiteindelijke evidence.
+- Geen wijzigingen aan rapportgeneratoren, Recovery Update, schedulerroute of productieworkflow.
+
 ## 8.9.1
 - Gerichte bugfix voor legacy retry-migratie uit v8.9.0.
 - Naast completion-marker en append-only historie wordt nu ook `workflow_results/<maand>/workflow_result.json` als backwards-compatible auditbron gecontroleerd.

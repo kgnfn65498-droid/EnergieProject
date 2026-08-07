@@ -41,8 +41,9 @@ STATE_PATH = Path("/config/state.json")
 AUTOMATIC_RUN_LEDGER_PATH = Path("/config/output/automatic_run_history.jsonl")
 AUTOMATIC_COMPLETION_MARKERS_PATH = Path("/config/output/automatic_completed_months.json")
 AUTOMATIC_RETRY_STATE_PATH = Path("/config/output/automatic_retry_state.json")
+RETRY_DEBUG_LOG_PATH = Path("/config/output/logs/retry_debug.log")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.9.1"
+APP_VERSION = "8.10.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -4850,6 +4851,146 @@ def read_automatic_run_history(limit: int = 20) -> list[dict[str, Any]]:
 
 
 
+RETRY_DEBUG_LAST_SIGNATURE: str | None = None
+
+
+def append_retry_debug(event: str, **data: Any) -> None:
+    """Append-only diagnose; identieke opeenvolgende regels worden onderdrukt."""
+    global RETRY_DEBUG_LAST_SIGNATURE
+    record = {
+        "timestamp": datetime.now(TZ).isoformat(),
+        "version": APP_VERSION,
+        "event": event,
+        **data,
+    }
+    signature = json.dumps({"event": event, **data}, ensure_ascii=False, sort_keys=True, default=str)
+    if signature == RETRY_DEBUG_LAST_SIGNATURE:
+        return
+    RETRY_DEBUG_LAST_SIGNATURE = signature
+    try:
+        RETRY_DEBUG_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with RETRY_DEBUG_LOG_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+    except OSError:
+        LOGGER.exception("Retry debuglog kon niet worden geschreven.")
+
+
+def workflow_history_debug(month_key: str) -> dict[str, Any]:
+    path = OUTPUT_ROOT / "workflow_results" / month_key / "workflow_result.json"
+    detail: dict[str, Any] = {
+        "path": str(path),
+        "exists": path.is_file(),
+        "readable": False,
+        "proves_completed": False,
+        "status": None,
+        "trigger": None,
+        "failed_step": None,
+        "error_count": None,
+        "steps_completed": None,
+        "steps_total": None,
+        "checks": {},
+    }
+    if not path.is_file():
+        detail["decision"] = "workflow_result ontbreekt"
+        return detail
+    try:
+        item = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        detail["decision"] = f"workflow_result onleesbaar: {exc}"
+        return detail
+    if not isinstance(item, dict):
+        detail["decision"] = "workflow_result is geen object"
+        return detail
+
+    completed = int(item.get("steps_completed") or 0)
+    total = int(item.get("steps_total") or 0)
+    checks = {
+        "status_ok": str(item.get("status") or "") in {"completed", "completed_warning"},
+        "trigger_automatic": str(item.get("trigger") or "") == "automatic",
+        "no_failed_step": not item.get("failed_step"),
+        "no_errors": not list(item.get("errors") or []),
+        "all_steps_completed": total > 0 and completed >= total,
+    }
+    detail.update({
+        "readable": True,
+        "status": item.get("status"),
+        "trigger": item.get("trigger"),
+        "failed_step": item.get("failed_step"),
+        "error_count": len(list(item.get("errors") or [])),
+        "steps_completed": completed,
+        "steps_total": total,
+        "checks": checks,
+        "proves_completed": all(checks.values()),
+    })
+    failed = [name for name, ok in checks.items() if not ok]
+    detail["decision"] = "bewijs geldig" if not failed else "afgewezen: " + ", ".join(failed)
+    return detail
+
+
+def retry_debug_snapshot(state: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Niet-muteren­de diagnose van alle bronnen die de retrybeslissing beïnvloeden."""
+    state = state or load_state()
+    retry = read_automatic_retry_state()
+    month = str(
+        retry.get("month")
+        or state.get("automatic_month_close_retry_month")
+        or state.get("automatic_month_close_last_month")
+        or ""
+    )
+    ledger_matches = []
+    if month:
+        for item in read_automatic_run_history(limit=100):
+            if str(item.get("month") or "") == month:
+                ledger_matches.append({
+                    "type": item.get("type"),
+                    "status": item.get("status"),
+                    "finalization_status": item.get("finalization_status"),
+                    "version": item.get("version"),
+                    "finished_at": item.get("finished_at") or item.get("recorded_at"),
+                })
+    ledger_proof = automatic_history_proves_completed(month) if month else None
+    workflow_debug = workflow_history_debug(month) if month else {
+        "exists": False, "proves_completed": False, "decision": "geen retry-maand"
+    }
+    marker = (read_automatic_completion_markers().get(month) or {}) if month else {}
+    marker_ok = automatic_month_is_completed(month) if month else False
+
+    return {
+        "checked_at": datetime.now(TZ).isoformat(),
+        "retry_state_path": str(AUTOMATIC_RETRY_STATE_PATH),
+        "retry_state_file_exists": AUTOMATIC_RETRY_STATE_PATH.is_file(),
+        "retry_state_loaded": retry,
+        "legacy_state": {
+            "last_month": state.get("automatic_month_close_last_month"),
+            "last_status": state.get("automatic_month_close_last_status"),
+            "next_retry": state.get("automatic_month_close_next_retry"),
+            "retry_month": state.get("automatic_month_close_retry_month"),
+            "retry_reason": state.get("automatic_month_close_retry_reason"),
+            "retry_origin": state.get("automatic_month_close_retry_origin"),
+        },
+        "month_checked": month,
+        "completion_marker": {
+            "found": bool(marker),
+            "proves_completed": marker_ok,
+            "value": marker,
+        },
+        "append_history": {
+            "matching_records": ledger_matches,
+            "proves_completed": bool(ledger_proof),
+            "proof": ledger_proof,
+        },
+        "workflow_history": workflow_debug,
+        "current_decision": {
+            "state": retry.get("state") or "GEEN",
+            "reason": retry.get("reason"),
+            "origin": retry.get("origin"),
+            "evidence": retry.get("evidence"),
+            "next_retry": retry.get("next_retry"),
+        },
+        "debug_log_path": str(RETRY_DEBUG_LOG_PATH),
+    }
+
+
 RETRY_STATES = {"OPEN", "RUNNING", "COMPLETED", "CANCELLED", "EXPIRED"}
 
 
@@ -4944,7 +5085,22 @@ def workflow_history_proves_completed(month_key: str) -> dict[str, Any] | None:
 
 def migrate_legacy_retry_state(state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     retry = read_automatic_retry_state()
+    append_retry_debug(
+        "migration_enter",
+        retry_file_exists=AUTOMATIC_RETRY_STATE_PATH.is_file(),
+        loaded_retry=retry,
+        legacy_last_month=state.get("automatic_month_close_last_month"),
+        legacy_last_status=state.get("automatic_month_close_last_status"),
+        legacy_next_retry=state.get("automatic_month_close_next_retry"),
+    )
     if retry:
+        append_retry_debug(
+            "migration_existing_retry_returned",
+            state=retry.get("state"),
+            month=retry.get("month"),
+            reason=retry.get("reason"),
+            evidence=retry.get("evidence"),
+        )
         return state, retry
 
     next_retry = state.get("automatic_month_close_next_retry")
@@ -4963,6 +5119,15 @@ def migrate_legacy_retry_state(state: dict[str, Any]) -> tuple[dict[str, Any], d
     ledger_proof = automatic_history_proves_completed(last_month)
     workflow_proof = workflow_history_proves_completed(last_month)
     completion_marker = automatic_month_is_completed(last_month)
+    append_retry_debug(
+        "migration_legacy_evidence",
+        month=last_month,
+        ledger_proof=bool(ledger_proof),
+        workflow_proof=bool(workflow_proof),
+        workflow_debug=workflow_history_debug(last_month),
+        completion_marker=completion_marker,
+        legacy_last_status=last_status,
+    )
     if ledger_proof or workflow_proof or completion_marker or last_status in {"completed", "completed_warning"}:
         if ledger_proof:
             evidence = "Append-only historie bevat een geslaagde echte Automatisch-run."
@@ -6142,11 +6307,26 @@ def reconcile_automatic_retry_state(state: dict[str, Any]) -> tuple[dict[str, An
     state, retry = migrate_legacy_retry_state(state)
     retry_state = str(retry.get("state") or "")
     month = str(retry.get("month") or "")
+    append_retry_debug(
+        "reconcile_enter",
+        retry_state=retry_state,
+        month=month,
+        reason=retry.get("reason"),
+        evidence=retry.get("evidence"),
+    )
 
     if retry_state in {"OPEN", "RUNNING"} and month:
         ledger_proof = automatic_history_proves_completed(month)
         workflow_proof = workflow_history_proves_completed(month)
         marker = automatic_month_is_completed(month)
+        append_retry_debug(
+            "reconcile_evidence",
+            month=month,
+            ledger_proof=bool(ledger_proof),
+            workflow_proof=bool(workflow_proof),
+            workflow_debug=workflow_history_debug(month),
+            completion_marker=marker,
+        )
         if ledger_proof or workflow_proof or marker:
             if ledger_proof:
                 evidence = "Geslaagde echte Automatisch-run aangetroffen in append-only historie."
@@ -6169,6 +6349,20 @@ def reconcile_automatic_retry_state(state: dict[str, Any]) -> tuple[dict[str, An
                 automatic_month_close_retry_origin=None,
             )
             state = load_state()
+            append_retry_debug(
+                "reconcile_closed",
+                month=month,
+                resulting_state=retry.get("state"),
+                evidence=retry.get("evidence"),
+            )
+    append_retry_debug(
+        "reconcile_result",
+        month=month,
+        resulting_state=retry.get("state"),
+        reason=retry.get("reason"),
+        evidence=retry.get("evidence"),
+        next_retry=retry.get("next_retry"),
+    )
     return state, retry
 
 
@@ -6402,6 +6596,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "recovery": automatic_recovery_status(state, options, retry_state_machine),
             "retry_state_machine": retry_state_machine,
             "retry_state_path": str(AUTOMATIC_RETRY_STATE_PATH),
+            "retry_debug": retry_debug_snapshot(state),
         },
         "history": history,
         "can_resume": bool(
@@ -7270,6 +7465,13 @@ def html_page() -> bytes:
     recovery_label = str(recovery.get("label") or "Geen herstelactie nodig")
     recovery_detail = str(recovery.get("detail") or "")
     recovery_status = str(recovery.get("status") or "ready")
+    retry_debug = auto_close.get("retry_debug") or {}
+    retry_debug_state = retry_debug.get("retry_state_loaded") or {}
+    retry_debug_marker = retry_debug.get("completion_marker") or {}
+    retry_debug_ledger = retry_debug.get("append_history") or {}
+    retry_debug_workflow = retry_debug.get("workflow_history") or {}
+    retry_debug_decision = retry_debug.get("current_decision") or {}
+    retry_debug_legacy = retry_debug.get("legacy_state") or {}
 
     auto_test_month = str(auto_test.get("month") or datetime.now(TZ).strftime("%Y_%m")).replace("_", "-")
     workflow_active = str(workflow.get("status") or "").lower() in {"running", "importing"}
@@ -7354,7 +7556,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.9.1 controleert completion-marker, append-only historie én historische workflowresultaten voordat een oude productie-retry open blijft.</p>
+<p class="hint">v8.10 is een diagnoseversie: de retrylogica is inhoudelijk ongewijzigd en alle beslissende bronnen worden zichtbaar gelogd.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 </div>
 
@@ -7376,13 +7578,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.9.1 productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.10.0 productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
-<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.9.1 die eerst automatisch veilig uit.</p>
+<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.10 die eerst automatisch veilig uit.</p>
 <ul class="source-list">
 <li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>
@@ -7430,6 +7632,22 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Integriteit</small><strong>{esc(state.get('last_integrity_status') or 'Nog niet gecontroleerd')}</strong></div>
 <div class="metric"><small>Zelftest</small><strong>{esc((state.get('last_self_test') or {}).get('status', 'Nog niet uitgevoerd'))}</strong></div>
 </div>
+<details open><summary>Retry Debug v8.10</summary>
+<div class="table-wrap"><table>
+<tbody>
+<tr><th>Retry-maand</th><td>{esc(retry_debug.get('month_checked') or '—')}</td></tr>
+<tr><th>Retry-state</th><td>{esc(retry_debug_decision.get('state') or 'GEEN')}</td></tr>
+<tr><th>Reden</th><td>{esc(retry_debug_decision.get('reason') or '—')}</td></tr>
+<tr><th>Bron state</th><td>{esc(retry_debug.get('retry_state_path') or '—')} · {'FOUND' if retry_debug.get('retry_state_file_exists') else 'NOT FOUND'}</td></tr>
+<tr><th>Legacy state</th><td>maand {esc(retry_debug_legacy.get('last_month') or '—')} · status {esc(retry_debug_legacy.get('last_status') or '—')} · retry {esc(format_local_datetime(retry_debug_legacy.get('next_retry')) if retry_debug_legacy.get('next_retry') else '—')}</td></tr>
+<tr><th>Completion marker</th><td>{'FOUND' if retry_debug_marker.get('found') else 'NOT FOUND'} · bewijs {'JA' if retry_debug_marker.get('proves_completed') else 'NEE'}</td></tr>
+<tr><th>Append history</th><td>{len(retry_debug_ledger.get('matching_records') or [])} record(s) · bewijs {'JA' if retry_debug_ledger.get('proves_completed') else 'NEE'}</td></tr>
+<tr><th>Workflow_result</th><td>{'FOUND' if retry_debug_workflow.get('exists') else 'NOT FOUND'} · bewijs {'JA' if retry_debug_workflow.get('proves_completed') else 'NEE'} · {esc(retry_debug_workflow.get('decision') or '—')}</td></tr>
+<tr><th>Workflow checks</th><td>{esc(json.dumps(retry_debug_workflow.get('checks') or {}, ensure_ascii=False))}</td></tr>
+<tr><th>Beslissing/evidence</th><td>{esc(retry_debug_decision.get('evidence') or '—')}</td></tr>
+<tr><th>Debuglog</th><td>{esc(retry_debug.get('debug_log_path') or RETRY_DEBUG_LOG_PATH)}</td></tr>
+</tbody></table></div>
+</details>
 <details><summary>Databronnen en snapshots</summary>
 <form method="post" action="homewizard-discover"><button type="submit">Detecteer HomeWizard-apparaten</button></form>
 <p class="hint">Scanbereik: instelling <code>homewizard_discovery_cidr</code>.</p>

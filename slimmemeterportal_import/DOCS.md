@@ -529,3 +529,10 @@ Daarmee kan een aantoonbaar verouderde retry zoals de oude juli-retry veilig ver
 v8.9.1 repareert de migratie van oudere productie-retries. Oudere automatische runs kunnen dateren van vóór de append-only ledger en completion-marker. Daarom controleert de retry-state-machine nu drie bronnen: completion-marker, append-only automatische historie en het historische `workflow_result.json`.
 
 Een workflowresultaat wordt alleen als hard bewijs gebruikt wanneer het een echte automatische trigger betreft, de status completed/completed_warning is, geen failed_step of errors aanwezig zijn en alle workflowstappen zijn voltooid. Ook een bestaande OPEN-state die door v8.9.0 is aangemaakt wordt opnieuw tegen deze drie bronnen gecontroleerd.
+
+
+## Versie 8.10.0 — retry diagnose
+
+v8.10 verandert bewust geen retrybeslissingen. De versie instrumenteert de bestaande v8.9.1-code zodat zichtbaar wordt waarom een legacy retry OPEN blijft.
+
+De console bevat onder `Diagnostiek en beheer` een opengeklapt `Retry Debug v8.10`-blok. Daarin staan de geladen retry-state, legacy state, completion-marker, append-only records, het exacte historische workflow_result en de vijf afzonderlijke acceptatiechecks. Het append-only log staat in `/config/output/logs/retry_debug.log`.
