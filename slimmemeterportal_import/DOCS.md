@@ -435,3 +435,10 @@ De operationele console bevat nu een aparte kaart **Automatische maandafsluiting
 ## Versie 7.7.0 — bedieningspolish
 
 De operationele console toont de automatische maandafsluiting nu met een duidelijke schakelaar. Groen/AAN betekent actief, grijs/UIT uitgeschakeld. Workflowstarts worden tijdens een actieve verwerking geblokkeerd en de hervatfunctie verschijnt alleen na een echte mislukking. Statusvelden van de automatische maandafsluiting worden tijdens de normale 2,5-seconden refresh bijgewerkt.
+
+
+## Versie 7.8.0 — automatische gereedheid
+
+Een productietest geldt alleen als bewijs voor de softwareversie waarin hij is uitgevoerd. Na een upgrade blijft het oude resultaat in `state.json` voor auditdoeleinden behouden, maar de console toont `Opnieuw testen` in plaats van een oude rode fout. Een nieuwe test staat onmiddellijk op `running`.
+
+`Automatische gereedheid` wordt pas groen wanneer een actuele productietest van dezelfde versie succesvol door preflight, maandworkflow en finalization is gegaan.

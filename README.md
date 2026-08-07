@@ -17,7 +17,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 7.7.0
+- SlimmeMeterPortal Import 7.8.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
@@ -54,3 +54,7 @@ Productieharde automatische maandafsluiting met preflight en expliciete eindcont
 ### v7.7.0
 
 Automatische maandafsluiting is nu rechtstreeks vanuit de operationele console in te stellen en gecontroleerd te testen. De test voert de echte preflight, maandworkflow en finalization uit zonder de schedulermaand als reeds automatisch verwerkt te markeren.
+
+
+### v7.8.0
+Versiegebonden productieteststatus en één duidelijke automatische-gereedheidscontrole.

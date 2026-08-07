@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.8.0
+- Productieteststatus is versiegebonden; oude foutstatussen worden `Opnieuw testen`.
+- Nieuwe productietest wordt direct als `running` zichtbaar vóór de achtergrondthread start.
+- Nieuwe status `Automatische gereedheid`: pas groen na actuele preflight + workflow + finalization.
+- Foutdetail van de laatste productietest is rechtstreeks zichtbaar in de console.
+- Auditgeschiedenis blijft behouden; oude resultaten worden niet verwijderd.
+- Onderliggende maandworkflow en rapportketen ongewijzigd.
+
 ## 7.7.0
 - Duidelijke groene/grijze Aan/Uit-schakelaar voor automatische maandafsluiting.
 - Planningvelden overzichtelijk gegroepeerd en knop hernoemd naar `Instellingen opslaan`.

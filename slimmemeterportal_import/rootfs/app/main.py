@@ -39,7 +39,7 @@ AUTO_CLOSE_UI_OPTIONS_PATH = Path("/config/automatic_month_close.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.7.0"
+APP_VERSION = "7.8.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -6025,14 +6025,18 @@ def run_automatic_month_close_test(month_key: str) -> dict[str, Any]:
     options = Options.load()
     preflight = automatic_month_close_preflight(options, month_key)
     if preflight.get("status") != "ok":
+        previous_test = (load_state().get("automatic_month_close_test_last_result") or {})
         result = {
             "version": APP_VERSION,
+            "started_at": previous_test.get("started_at"),
             "tested_at": datetime.now(TZ).isoformat(),
             "month": month_key,
             "status": "blocked",
             "preflight": preflight,
             "workflow": None,
             "finalization": None,
+            "error": "Preflight blokkeerde de productietest.",
+            "scheduler_state_changed": False,
         }
         update_state(automatic_month_close_test_last_result=result)
         return result
@@ -6047,14 +6051,17 @@ def run_automatic_month_close_test(month_key: str) -> dict[str, Any]:
     status = str(workflow.get("status") or "error")
     if status in {"completed", "completed_warning"} and finalization.get("status") != "ok":
         status = "error"
+    previous_test = (load_state().get("automatic_month_close_test_last_result") or {})
     result = {
         "version": APP_VERSION,
+        "started_at": previous_test.get("started_at"),
         "tested_at": datetime.now(TZ).isoformat(),
         "month": month_key,
         "status": status,
         "preflight": preflight,
         "workflow": workflow,
         "finalization": finalization,
+        "error": None if status in {"completed", "completed_warning"} else "Productieketen niet volledig gereed.",
         "scheduler_state_changed": False,
     }
     update_state(automatic_month_close_test_last_result=result)
@@ -6285,6 +6292,8 @@ def html_page() -> bytes:
             return "ok"
         if text in {"running", "importing", "warning", "pending"}:
             return "warn"
+        if text in {"stale", "outdated", "opnieuw testen"}:
+            return "neutral"
         if text in {"error", "failed", "unreadable"}:
             return "bad"
         return "neutral"
@@ -6360,6 +6369,32 @@ def html_page() -> bytes:
     auto_preflight = auto_close.get("last_preflight") or {}
     auto_finalization = auto_close.get("last_finalization") or {}
     auto_test = auto_close.get("test_last_result") or {}
+
+    auto_test_current_version = str(auto_test.get("version") or "") == APP_VERSION
+    if auto_test and not auto_test_current_version:
+        auto_test_display_status = "Opnieuw testen"
+        auto_test_display_detail = (
+            f"Laatste test was met versie {esc(auto_test.get('version') or 'onbekend')}."
+        )
+    else:
+        auto_test_display_status = str(auto_test.get("status") or "Nog niet getest")
+        auto_test_display_detail = str(auto_test.get("error") or "")
+
+    auto_test_ok = (
+        auto_test_current_version
+        and str(auto_test.get("status") or "") in {"completed", "completed_warning"}
+        and str((auto_test.get("preflight") or {}).get("status") or "") == "ok"
+        and str((auto_test.get("finalization") or {}).get("status") or "") == "ok"
+    )
+    auto_ready_status = "ready" if auto_test_ok else (
+        "running" if str(auto_test.get("status") or "") == "running" and auto_test_current_version
+        else "pending"
+    )
+    auto_ready_text = "Klaar voor automatisch gebruik" if auto_test_ok else (
+        "Productietest loopt" if auto_ready_status == "running"
+        else "Productietest vereist"
+    )
+
     auto_test_month = str(auto_test.get("month") or datetime.now(TZ).strftime("%Y_%m")).replace("_", "-")
     workflow_active = str(workflow.get("status") or "").lower() in {"running", "importing"}
     resume_available = str(last_run.get("status") or "").lower() in {"error", "failed"}
@@ -6385,7 +6420,7 @@ main{{max-width:1180px;margin:22px auto;padding:0 18px 40px}} h1{{margin-bottom:
 .pill{{display:inline-block;padding:4px 9px;border-radius:999px;font-weight:700;font-size:.82rem;background:#e8edf0;color:#4b5963}} .pill.ok{{background:#e6f5ec;color:var(--ok)}} .pill.warn{{background:#fff2d8;color:var(--warn)}} .pill.bad{{background:#fde8e5;color:var(--bad)}}
 .progress{{height:12px;background:#e7edf1;border-radius:999px;overflow:hidden;margin:10px 0 5px}} .progress>span{{display:block;height:100%;width:{progress_pct}%;background:var(--blue);transition:width 1.2s ease;position:relative;overflow:hidden}} .progress>span.running::after{{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,#ffffff55,transparent);transform:translateX(-100%);animation:flow 1.6s infinite}} @keyframes flow{{to{{transform:translateX(100%)}}}}
 .controls{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}} .control-group{{border:1px solid var(--border);border-radius:12px;padding:16px}} form{{margin:9px 0}} button{{background:var(--blue);color:#fff;border:0;border-radius:8px;padding:11px 15px;font-weight:700;cursor:pointer}} button.secondary{{background:#546e7a}} button.danger{{background:#c0392b}} button:disabled{{background:#aeb8bd;color:#eef2f4;cursor:not-allowed;opacity:.78}} input,select{{padding:10px;border:1px solid #b8c3ca;border-radius:8px;max-width:190px}} .inline-fields{{display:flex;gap:12px;flex-wrap:wrap;align-items:center}} .inline-fields label{{font-size:.9rem;color:var(--muted)}}
-.switch-row{{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;margin:2px 0 14px;border:1px solid var(--border);border-radius:12px;background:#f8fafb}} .switch-title{{font-weight:800;color:var(--text)}} .switch-wrap{{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}} .switch-wrap input{{position:absolute;opacity:0;pointer-events:none}} .switch-slider{{position:relative;width:54px;height:30px;border-radius:999px;background:#aab5bb;transition:.2s}} .switch-slider::after{{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;border-radius:50%;background:white;box-shadow:0 1px 4px #0004;transition:.2s}} .switch-wrap input:checked + .switch-slider{{background:var(--ok)}} .switch-wrap input:checked + .switch-slider::after{{transform:translateX(24px)}} .switch-state{{min-width:31px;font-weight:800;color:#65747d}} .switch-wrap input:checked ~ .switch-state{{color:var(--ok)}} .resume-unavailable{{padding:10px 12px;border-radius:9px;background:#f3f6f7;color:#66757e;margin:9px 0}} .planning-fields{{display:grid;grid-template-columns:repeat(3,minmax(110px,1fr));gap:10px}} .planning-fields label{{display:flex;flex-direction:column;gap:5px;font-size:.88rem;color:var(--muted)}} .planning-fields input{{width:100%;max-width:none}} .auto-status{{display:flex;align-items:center;gap:8px;flex-wrap:wrap}} .auto-status small{{color:var(--muted);font-weight:500}}
+.switch-row{{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;margin:2px 0 14px;border:1px solid var(--border);border-radius:12px;background:#f8fafb}} .switch-title{{font-weight:800;color:var(--text)}} .switch-wrap{{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}} .switch-wrap input{{position:absolute;opacity:0;pointer-events:none}} .switch-slider{{position:relative;width:54px;height:30px;border-radius:999px;background:#aab5bb;transition:.2s}} .switch-slider::after{{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;border-radius:50%;background:white;box-shadow:0 1px 4px #0004;transition:.2s}} .switch-wrap input:checked + .switch-slider{{background:var(--ok)}} .switch-wrap input:checked + .switch-slider::after{{transform:translateX(24px)}} .switch-state{{min-width:31px;font-weight:800;color:#65747d}} .switch-wrap input:checked ~ .switch-state{{color:var(--ok)}} .resume-unavailable{{padding:10px 12px;border-radius:9px;background:#f3f6f7;color:#66757e;margin:9px 0}} .planning-fields{{display:grid;grid-template-columns:repeat(3,minmax(110px,1fr));gap:10px}} .planning-fields label{{display:flex;flex-direction:column;gap:5px;font-size:.88rem;color:var(--muted)}} .planning-fields input{{width:100%;max-width:none}} .auto-status{{display:flex;align-items:center;gap:8px;flex-wrap:wrap}} .auto-status small{{color:var(--muted);font-weight:500}} .test-detail{{display:block;margin-top:4px;color:var(--muted);font-size:.78rem;max-width:360px;overflow-wrap:anywhere}}
 .hint{{font-size:.9rem;color:var(--muted);margin:7px 0}} table{{width:100%;border-collapse:collapse}} th,td{{text-align:left;border-bottom:1px solid var(--border);padding:10px 8px;vertical-align:top}} th{{font-size:.82rem;color:var(--muted)}} .table-wrap{{overflow-x:auto}}
 details{{border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin:9px 0}} summary{{cursor:pointer;font-weight:700}} .source-list{{list-style:none;padding:0;margin:0}} .source-list li{{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #eef2f4}}
 a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{background:#101820;color:#e8eef2;border-radius:10px;padding:12px;min-height:110px;max-height:300px;overflow:auto;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}} .score{{font-size:2rem;font-weight:800}} 
@@ -6447,9 +6482,10 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <ul class="source-list">
+<li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>
 <li><span>Laatste preflight</span><span id="auto-last-preflight" class="pill {status_class(auto_preflight.get('status'))}">{esc(auto_preflight.get('status') or 'Nog niet getest')}</span></li>
 <li><span>Laatste finalization</span><span id="auto-last-finalization" class="pill {status_class(auto_finalization.get('status'))}">{esc(auto_finalization.get('status') or 'Nog niet getest')}</span></li>
-<li><span>Laatste productietest</span><span id="auto-last-test" class="pill {status_class(auto_test.get('status'))}">{esc(auto_test.get('status') or 'Nog niet getest')}</span></li>
+<li><span>Laatste productietest</span><span><span id="auto-last-test" class="pill {status_class(auto_test_display_status)}">{esc(auto_test_display_status)}</span><small id="auto-last-test-detail" class="test-detail">{esc(auto_test_display_detail)}</small></span></li>
 </ul>
 </div>
 </div></div>
@@ -6559,9 +6595,25 @@ async function refreshStatus(){{
     if(topDetail){{
       topDetail.textContent=auto.enabled?`dag ${{auto.day}} · ${{auto.hour}}:00 · retry ${{auto.retry_hours}}u`:'Scheduler niet actief';
     }}
-    [['auto-last-preflight',auto.last_preflight?.status],['auto-last-finalization',auto.last_finalization?.status],['auto-last-test',auto.test_last_result?.status]].forEach(([id,value])=>{{
+    [['auto-last-preflight',auto.last_preflight?.status],['auto-last-finalization',auto.last_finalization?.status]].forEach(([id,value])=>{{
       const el=document.getElementById(id); if(el){{el.textContent=value||'Nog niet getest'; el.className=pillClass(value);}}
     }});
+    const test=auto.test_last_result||{{}};
+    const currentTestVersion=String(test.version||'')===String(op.version||'');
+    const testStatus=currentTestVersion?(test.status||'Nog niet getest'):(test.status?'Opnieuw testen':'Nog niet getest');
+    const testEl=document.getElementById('auto-last-test');
+    if(testEl){{testEl.textContent=testStatus; testEl.className=pillClass(currentTestVersion?test.status:'stale');}}
+    const testDetail=document.getElementById('auto-last-test-detail');
+    if(testDetail){{
+      testDetail.textContent=currentTestVersion?(test.error||''):(test.status?`Laatste test was met versie ${{test.version||'onbekend'}}.`:'');
+    }}
+    const testOk=currentTestVersion && ['completed','completed_warning'].includes(String(test.status||'')) && test.preflight?.status==='ok' && test.finalization?.status==='ok';
+    const ready=document.getElementById('auto-readiness');
+    if(ready){{
+      const running=currentTestVersion && test.status==='running';
+      ready.textContent=testOk?'Klaar voor automatisch gebruik':(running?'Productietest loopt':'Productietest vereist');
+      ready.className=pillClass(testOk?'ready':(running?'running':'pending'));
+    }}
 
     document.getElementById('health-score').textContent=(op.health?.score ?? 0)+'%';
     const healthChecks=document.getElementById('health-checks');
@@ -6800,15 +6852,34 @@ class Handler(BaseHTTPRequestHandler):
             selected = str((form.get("month") or [""])[0]).strip().replace("-", "_")
             try:
                 month_key = historical_month_allowed(selected)
+                update_state(
+                    automatic_month_close_test_last_result={
+                        "version": APP_VERSION,
+                        "started_at": datetime.now(TZ).isoformat(),
+                        "tested_at": None,
+                        "month": month_key,
+                        "status": "running",
+                        "preflight": None,
+                        "workflow": None,
+                        "finalization": None,
+                        "error": None,
+                        "scheduler_state_changed": False,
+                    }
+                )
                 def worker() -> None:
                     try:
                         run_automatic_month_close_test(month_key)
                     except Exception as exc:
+                        previous_test = (load_state().get("automatic_month_close_test_last_result") or {})
                         update_state(automatic_month_close_test_last_result={
                             "version": APP_VERSION,
+                            "started_at": previous_test.get("started_at"),
                             "tested_at": datetime.now(TZ).isoformat(),
                             "month": month_key,
                             "status": "error",
+                            "preflight": previous_test.get("preflight"),
+                            "workflow": previous_test.get("workflow"),
+                            "finalization": previous_test.get("finalization"),
                             "error": str(exc),
                             "scheduler_state_changed": False,
                         })
