@@ -38,10 +38,10 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.3.0"
+APP_VERSION = "7.3.1"
 
 
-# v7.3.0: gewogen workflowvisualisatie. De gewichten zijn gebaseerd op de
+# v7.3.1: gewogen workflowvisualisatie. De gewichten zijn gebaseerd op de
 # gemeten doorlooptijd van de stabiele v7.2-workflow en tellen exact op tot 100.
 WORKFLOW_VISUAL_PHASES = [
     ("SlimmeMeterPortal API-test", 5.0, 0.3),
@@ -4080,7 +4080,7 @@ def expected_month_input_files(options: Options) -> list[str]:
     return files
 
 
-def build_month_input(month_key: str | None = None) -> dict[str, Any]:
+def build_month_input(month_key: str | None = None, *, reuse_existing: bool = False) -> dict[str, Any]:
     options = Options.load()
     if not options.month_input_enabled:
         raise RuntimeError("Maandmap-opbouw is uitgeschakeld.")
@@ -4136,6 +4136,19 @@ def build_month_input(month_key: str | None = None) -> dict[str, Any]:
 
     for source, destination, transform in source_map:
         if not source.exists():
+            if reuse_existing and destination.exists() and destination.is_file():
+                size = destination.stat().st_size
+                reused_result = {
+                    "source": str(destination),
+                    "target": str(destination),
+                    "written_rows": 1 if size > 0 else 0,
+                    "reused_existing": True,
+                    "bytes": size,
+                }
+                results.append(reused_result)
+                if size == 0:
+                    empty.append(destination.name)
+                continue
             missing.append(destination.name)
             continue
         result = write_deduplicated_csv(
@@ -4203,6 +4216,12 @@ def build_month_input(month_key: str | None = None) -> dict[str, Any]:
         "optional_missing": optional_missing,
         "optional_empty": optional_empty,
         "infos": info_messages,
+        "reuse_existing": reuse_existing,
+        "reused_existing_files": sorted(
+            Path(item["target"]).name
+            for item in results
+            if item.get("reused_existing")
+        ),
     }
     write_atomic_json(target / "month_input_validation.json", validation)
 
@@ -4590,14 +4609,28 @@ def resumable_step_results(month_key: str) -> dict[str, Any]:
     return results
 
 
-def start_workflow_background(month_key: str, *, collect_live_snapshots: bool, resume: bool = False) -> dict[str, Any]:
+def start_workflow_background(
+    month_key: str,
+    *,
+    collect_live_snapshots: bool,
+    resume: bool = False,
+    trigger: str | None = None,
+) -> dict[str, Any]:
     parse_month_key(month_key)
     if WORKFLOW_LOCK.locked():
         return {"status": "busy", "active": workflow_lock_snapshot(), "message": "Er draait al een maandworkflow."}
+    resolved_trigger = trigger or ("resume" if resume else "manual")
+    if resolved_trigger not in {"manual", "historical", "automatic", "resume"}:
+        raise ValueError(f"Onbekende workflowtrigger: {resolved_trigger}")
 
     def worker() -> None:
         try:
-            run_full_month_workflow(month_key, collect_live_snapshots=collect_live_snapshots, resume=resume, trigger=("resume" if resume else "manual"))
+            run_full_month_workflow(
+                month_key,
+                collect_live_snapshots=collect_live_snapshots,
+                resume=resume,
+                trigger=resolved_trigger,
+            )
         except Exception as exc:
             LOGGER.exception("Achtergrondworkflow mislukt: %s", exc)
         finally:
@@ -4624,7 +4657,7 @@ def start_workflow_background(month_key: str, *, collect_live_snapshots: bool, r
         if WORKFLOW_LOCK.locked():
             break
         time.sleep(0.01)
-    return {"status": "started", "month": month_key, "resume": resume}
+    return {"status": "started", "month": month_key, "resume": resume, "trigger": resolved_trigger}
 
 
 def workflow_previous_month_key() -> str:
@@ -5138,7 +5171,10 @@ def run_full_month_workflow(
 
         month_result = execute_step(
             "Maandmap bouwen",
-            lambda: build_month_input(month_key),
+            lambda: build_month_input(
+                month_key,
+                reuse_existing=(not collect_live_snapshots),
+            ),
             required=True,
         )
 
@@ -5980,6 +6016,12 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_redirect(self, location: str = "./") -> None:
+        self.send_response(HTTPStatus.SEE_OTHER)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
     def do_GET(self) -> None:
         if not self._client_allowed():
             self.send_body(HTTPStatus.FORBIDDEN, b"Forbidden", "text/plain")
@@ -6423,20 +6465,32 @@ class Handler(BaseHTTPRequestHandler):
 
         if path.endswith("/run-historical-month") or path == "/run-historical-month":
             length = int(self.headers.get("Content-Length", "0") or 0)
-            form = parse_qs(self.rfile.read(length).decode("utf-8"))
+            form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
             selected = (form.get("month") or [""])[0].strip().replace("-", "_")
             try:
                 month_key = historical_month_allowed(selected)
-                result = run_full_month_workflow(month_key, collect_live_snapshots=False, trigger="historical")
-                code = HTTPStatus.OK if result.get("status") in {"completed", "completed_warning"} else HTTPStatus.BAD_REQUEST
+                result = start_workflow_background(
+                    month_key,
+                    collect_live_snapshots=False,
+                    resume=False,
+                    trigger="historical",
+                )
+                code = HTTPStatus.ACCEPTED if result.get("status") == "started" else HTTPStatus.CONFLICT
             except Exception as exc:
                 result = {"status": "error", "error": str(exc)}
                 code = HTTPStatus.BAD_REQUEST
-            self.send_body(
-                code,
-                ("<html><meta charset='utf-8'><p>" + html.escape(json.dumps(result, ensure_ascii=False)) + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
-                "text/html; charset=utf-8",
-            )
+            if code == HTTPStatus.ACCEPTED:
+                self.send_redirect("./")
+            else:
+                self.send_body(
+                    code,
+                    (
+                        "<html><meta charset='utf-8'><p>"
+                        + html.escape(json.dumps(result, ensure_ascii=False))
+                        + "</p><p><a href='./'>Terug naar operationele console</a></p></html>"
+                    ).encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
             return
 
         if path.endswith("/run-full-month-workflow") or path == "/run-full-month-workflow":
@@ -6593,16 +6647,20 @@ class Handler(BaseHTTPRequestHandler):
 
         if path.endswith("/test-api") or path == "/test-api":
             result = test_api()
-            code = HTTPStatus.OK if result.get("status") == "ok" else HTTPStatus.BAD_REQUEST
-            self.send_body(
-                code,
-                (
-                    "<html><meta charset='utf-8'><p>"
-                    + html.escape(json.dumps(result, ensure_ascii=False))
-                    + "</p><p><a href='./'>Terug</a></p></html>"
-                ).encode("utf-8"),
-                "text/html; charset=utf-8",
-            )
+            if result.get("status") == "ok":
+                self.send_redirect("./")
+            else:
+                self.send_body(
+                    HTTPStatus.BAD_REQUEST,
+                    (
+                        "<html><meta charset='utf-8'><p>"
+                        + html.escape(
+                            f"API-test mislukt — {result.get('error') or 'onbekende fout'}."
+                        )
+                        + "</p><p><a href='./'>Terug naar operationele console</a></p></html>"
+                    ).encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
             return
 
         if not (path.endswith("/run") or path == "/run"):

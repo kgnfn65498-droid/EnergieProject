@@ -1,4 +1,14 @@
-# 7.3.0
+# Changelog
+
+## 7.3.1
+
+- Historische maandverwerking hergebruikt bestaande 01_Input-bestanden wanneer live snapshots bewust worden overgeslagen.
+- Historische workflow start op de achtergrond en keert direct terug naar de operationele console.
+- API-verbindingstest keert na een geslaagde test direct terug naar de operationele console.
+- Hervatten kan vanaf een mislukte historische workflow de eerder geslaagde stappen hergebruiken.
+- Geen wijzigingen aan rapportgeneratoren, Recovery Update-contract of vaste outputnamen.
+
+# 7.3.1
 
 - Gewogen workflowvoortgang op basis van gemeten stapduur.
 - Voortgang reset direct naar 0% bij start/hervatten/historische run.
@@ -14,7 +24,7 @@
 - Operationele status bevat workflow-trigger en informatie over de volgende automatische retry.
 - Rapportketen, Recovery Update-contract en vaste outputnamen zijn ongewijzigd.
 
-## 7.3.0
+## 7.3.1
 
 - Live workflowlog wordt rechtstreeks via `operation-status` aangeleverd en iedere 2,5 seconde in de console ververst.
 - Statuspillen en gezondheidschecks verversen nu mee met de actieve workflow.

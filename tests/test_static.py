@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "7.3.0"
+    assert cfg_version == app_version == "7.3.1"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "7.3.0"' in config
+    assert 'version: "7.3.1"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1149,8 +1149,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "7.3.0"' in config
-    assert 'APP_VERSION = "7.3.0"' in main
+    assert 'version: "7.3.1"' in config
+    assert 'APP_VERSION = "7.3.1"' in main
 
 
 def test_phase7_configuration_present():
@@ -1433,3 +1433,33 @@ def test_v730_progress_ui_has_eta_and_flow_animation():
     assert 'id="workflow-eta"' in source
     assert '@keyframes flow' in source
     assert "bar.className=vp.running?'running':''" in source
+
+def test_v731_historical_reuses_existing_month_input_files():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "reuse_existing: bool = False" in source
+    assert "reuse_existing=(not collect_live_snapshots)" in source
+    assert '"reused_existing": True' in source
+    assert '"reused_existing_files"' in source
+
+
+def test_v731_historical_runs_in_background_and_returns_to_console():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    route = source[source.index('if path.endswith("/run-historical-month")'):source.index('if path.endswith("/run-full-month-workflow")')]
+    assert "start_workflow_background(" in route
+    assert 'trigger="historical"' in route
+    assert 'self.send_redirect("./")' in route
+
+
+def test_v731_api_test_returns_to_console():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    route = source[source.index('if path.endswith("/test-api")'):source.index('if not (path.endswith("/run")')]
+    assert 'self.send_redirect("./")' in route
+    assert "API-test mislukt" in route
+    assert "Terug naar operationele console" in route
+
+
+def test_v731_background_workflow_accepts_explicit_trigger():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "trigger: str | None = None" in source
+    assert 'resolved_trigger = trigger or ("resume" if resume else "manual")' in source
+    assert "trigger=resolved_trigger" in source
