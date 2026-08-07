@@ -482,3 +482,8 @@ De automatische finalization vereist exact `Energierapport_YYYY_MM.pdf` en `Reco
 De scheduler-acceptatietest blijft technisch via trigger `automatic` draaien. De auditlaag herkent achteraf welke workflow bij de simulatie hoorde en labelt die `Scheduler-test`. Zo blijft de productiecode identiek, terwijl een simulatie niet langer als echte automatische maandafsluiting wordt gepresenteerd.
 
 Per automatische run worden versie en eindcontrole getoond. De acceptatietest controleert bovendien expliciet dat de gebruikersinstelling Aan/Uit vóór en na de simulatie gelijk blijft.
+
+
+## Versie 8.5.0 — append-only automatische historie
+
+Iedere automatische uitvoering krijgt een eigen regel in `/config/output/automatic_run_history.jsonl`. Daardoor blijven meerdere tests voor dezelfde maand afzonderlijk zichtbaar.

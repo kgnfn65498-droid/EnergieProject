@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "8.4.0"
+    assert cfg_version == app_version == "8.5.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.4.0"' in config
+    assert 'version: "8.5.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.4.0"' in config
-    assert 'APP_VERSION = "8.4.0"' in main
+    assert 'version: "8.5.0"' in config
+    assert 'APP_VERSION = "8.5.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1769,8 +1769,10 @@ def test_v830_scheduler_uses_shared_execution_helper():
 def test_v830_acceptance_uses_real_due_and_shared_executor():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     section = source[source.index("def automatic_scheduler_acceptance_test"):source.index("def automatic_month_close_due")]
-    assert "automatic_month_close_due(options, simulated_at)" in section
-    assert 'execute_automatic_month_close(options, month_key, trigger="automatic")' in section
+    compact = section.replace(" ", "").replace("\n", "")
+    assert "automatic_month_close_due(options,simulated_at)" in compact
+    assert "execute_automatic_month_close(" in section
+    assert 'trigger="automatic"' in compact
 
 
 def test_v830_acceptance_restores_scheduler_bookkeeping():
@@ -1815,3 +1817,28 @@ def test_v840_acceptance_verifies_switch_unchanged():
 def test_v840_console_reports_switch_unchanged():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "Aan/Uit ongewijzigd" in source
+
+
+def test_v850_append_only_ledger_exists():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'AUTOMATIC_RUN_LEDGER_PATH = Path("/config/output/automatic_run_history.jsonl")' in source
+    assert "def append_automatic_run_history" in source
+
+def test_v850_records_three_run_types():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"type": "Test"' in source
+    assert '"type": "Scheduler-test"' in source
+    assert '"type": "Automatisch"' in source
+
+def test_v850_scheduler_test_not_double_recorded():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def automatic_scheduler_acceptance_test"):source.index("def automatic_month_close_due")]
+    compact=section.replace(" ","").replace("\\n","")
+    assert "record_as_real_automatic=False" in compact
+
+def test_v850_console_prefers_ledger():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def operation_status"):source.index("def status_class")]
+    assert "read_automatic_run_history" in section
+    assert 'automatic_history_source = "append_only_ledger"' in section
+    assert 'automatic_history_source = "legacy_workflow_results"' in section

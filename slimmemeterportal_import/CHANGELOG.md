@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.5.0
+- Append-only automatische runhistorie in `automatic_run_history.jsonl`.
+- Iedere productietest, scheduler-test en echte automatische run blijft afzonderlijk bewaard.
+- Meerdere runs voor dezelfde maand overschrijven elkaar niet meer.
+- Scheduler-simulaties worden niet dubbel als echte automatische run geregistreerd.
+- Legacy-weergave blijft beschikbaar totdat de eerste v8.5-run is vastgelegd.
+
 ## 8.4.0
 - Automatische historie onderscheidt `Test`, `Scheduler-test` en echte `Automatisch` runs.
 - Historie toont softwareversie en eindcontrole.

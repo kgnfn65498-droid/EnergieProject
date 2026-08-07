@@ -38,8 +38,9 @@ OPTIONS_PATH = Path("/data/options.json")
 AUTO_CLOSE_UI_OPTIONS_PATH = Path("/config/automatic_month_close.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
+AUTOMATIC_RUN_LEDGER_PATH = Path("/config/output/automatic_run_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.4.0"
+APP_VERSION = "8.5.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -4818,6 +4819,31 @@ def create_transfer_package(
     }
 
 
+
+def append_automatic_run_history(record: dict[str, Any]) -> dict[str, Any]:
+    row = {"recorded_at": datetime.now(TZ).isoformat(), "version": APP_VERSION, **record}
+    AUTOMATIC_RUN_LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with AUTOMATIC_RUN_LEDGER_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return row
+
+
+def read_automatic_run_history(limit: int = 20) -> list[dict[str, Any]]:
+    if not AUTOMATIC_RUN_LEDGER_PATH.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in AUTOMATIC_RUN_LEDGER_PATH.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not line.strip():
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            rows.append(value)
+    return list(reversed(rows[-max(1, min(limit, 100)):]))
+
+
 FULL_WORKFLOW_RESULT_NAME = "workflow_result.json"
 WORKFLOW_LOG_NAME = "workflow.log"
 
@@ -5948,58 +5974,74 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
         limit=80,
     )
     visual = workflow_visualization(state, live_log)
-    acceptance = state.get("automatic_scheduler_acceptance_last_result") or {}
-    acceptance_execution = acceptance.get("execution") or {}
-    acceptance_workflow = acceptance_execution.get("workflow") or {}
-    acceptance_finished_at = acceptance_workflow.get("finished_at")
-    product_test = state.get("automatic_month_close_test_last_result") or {}
-    product_test_workflow = product_test.get("workflow") or {}
-    product_test_finished_at = product_test_workflow.get("finished_at")
-    last_finalization = state.get("automatic_month_close_last_finalization") or {}
-
-    automatic_history: list[dict[str, Any]] = []
-    for item in history:
-        if item.get("trigger") not in {"automatic", "automatic_test"}:
-            continue
-        run_type = "Automatisch"
-        finalization_status: str | None = None
-        if (
-            item.get("trigger") == "automatic"
-            and acceptance_finished_at
-            and item.get("finished_at") == acceptance_finished_at
-            and item.get("month") == acceptance.get("month")
-        ):
-            run_type = "Scheduler-test"
-            finalization_status = str(
-                (acceptance_execution.get("finalization") or {}).get("status") or ""
-            ) or None
-        elif (
-            item.get("trigger") == "automatic_test"
-            and product_test_finished_at
-            and item.get("finished_at") == product_test_finished_at
-            and item.get("month") == product_test.get("month")
-        ):
-            run_type = "Test"
-            finalization_status = str(
-                (product_test.get("finalization") or {}).get("status") or ""
-            ) or None
-        elif (
-            item.get("trigger") == "automatic"
-            and item.get("month") == last_finalization.get("month")
-        ):
-            finalization_status = str(last_finalization.get("status") or "") or None
-
-        automatic_history.append({
+    ledger_history = read_automatic_run_history(limit=12)
+    if ledger_history:
+        automatic_history = [{
             "month": item.get("month"),
             "version": item.get("version"),
-            "trigger": item.get("trigger"),
-            "run_type": run_type,
+            "trigger": None,
+            "run_type": item.get("type") or "Automatisch",
             "status": item.get("status"),
-            "finalization_status": finalization_status,
-            "finished_at": item.get("finished_at"),
+            "finalization_status": item.get("finalization_status"),
+            "finished_at": item.get("finished_at") or item.get("recorded_at"),
             "duration_seconds": item.get("duration_seconds"),
-        })
-    automatic_history = automatic_history[:6]
+            "scheduler_enabled_unchanged": item.get("scheduler_enabled_unchanged"),
+        } for item in ledger_history[:6]]
+        automatic_history_source = "append_only_ledger"
+    else:
+        acceptance = state.get("automatic_scheduler_acceptance_last_result") or {}
+        acceptance_execution = acceptance.get("execution") or {}
+        acceptance_workflow = acceptance_execution.get("workflow") or {}
+        acceptance_finished_at = acceptance_workflow.get("finished_at")
+        product_test = state.get("automatic_month_close_test_last_result") or {}
+        product_test_workflow = product_test.get("workflow") or {}
+        product_test_finished_at = product_test_workflow.get("finished_at")
+        last_finalization = state.get("automatic_month_close_last_finalization") or {}
+
+        automatic_history: list[dict[str, Any]] = []
+        for item in history:
+            if item.get("trigger") not in {"automatic", "automatic_test"}:
+                continue
+            run_type = "Automatisch"
+            finalization_status: str | None = None
+            if (
+                item.get("trigger") == "automatic"
+                and acceptance_finished_at
+                and item.get("finished_at") == acceptance_finished_at
+                and item.get("month") == acceptance.get("month")
+            ):
+                run_type = "Scheduler-test"
+                finalization_status = str(
+                    (acceptance_execution.get("finalization") or {}).get("status") or ""
+                ) or None
+            elif (
+                item.get("trigger") == "automatic_test"
+                and product_test_finished_at
+                and item.get("finished_at") == product_test_finished_at
+                and item.get("month") == product_test.get("month")
+            ):
+                run_type = "Test"
+                finalization_status = str(
+                    (product_test.get("finalization") or {}).get("status") or ""
+                ) or None
+            elif (
+                item.get("trigger") == "automatic"
+                and item.get("month") == last_finalization.get("month")
+            ):
+                finalization_status = str(last_finalization.get("status") or "") or None
+
+            automatic_history.append({
+                "month": item.get("month"),
+                "version": item.get("version"),
+                "trigger": item.get("trigger"),
+                "run_type": run_type,
+                "status": item.get("status"),
+                "finalization_status": finalization_status,
+                "finished_at": item.get("finished_at"),
+                "duration_seconds": item.get("duration_seconds"),
+            })
+        automatic_history = automatic_history[:6]
+        automatic_history_source = "legacy_workflow_results"
     return {
         "version": APP_VERSION,
         "generated_at": datetime.now(TZ).isoformat(),
@@ -6047,6 +6089,8 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
                 else None
             ),
             "history": automatic_history,
+            "history_source": automatic_history_source,
+            "history_path": str(AUTOMATIC_RUN_LEDGER_PATH),
         },
         "history": history,
         "can_resume": bool(
@@ -6203,6 +6247,13 @@ def run_automatic_month_close_test(month_key: str) -> dict[str, Any]:
             result["scheduler_state_changed"] = True
             result["error"] = "Preflight/test wijzigde schedulerinstellingen; oorspronkelijke planning is hersteld."
         update_state(automatic_month_close_test_last_result=result)
+        append_automatic_run_history({
+            "type": "Test", "month": month_key, "status": result.get("status"),
+            "finalization_status": None, "started_at": result.get("started_at"),
+            "finished_at": result.get("tested_at"), "duration_seconds": None,
+            "scheduler_enabled_before": None, "scheduler_enabled_after": None,
+            "scheduler_enabled_unchanged": True,
+        })
         return result
 
     current_key = datetime.now(TZ).strftime("%Y_%m")
@@ -6249,6 +6300,14 @@ def run_automatic_month_close_test(month_key: str) -> dict[str, Any]:
         result["scheduler_state_changed"] = False
 
     update_state(automatic_month_close_test_last_result=result)
+    append_automatic_run_history({
+        "type": "Test", "month": month_key, "status": result.get("status"),
+        "finalization_status": (result.get("finalization") or {}).get("status"),
+        "started_at": result.get("started_at"), "finished_at": result.get("tested_at"),
+        "duration_seconds": (result.get("workflow") or {}).get("duration_seconds"),
+        "scheduler_enabled_before": None, "scheduler_enabled_after": None,
+        "scheduler_enabled_unchanged": True,
+    })
     return result
 
 
@@ -6337,7 +6396,13 @@ def automatic_month_close_finalize(options: Options, month_key: str, workflow_re
     update_state(automatic_month_close_last_finalization=result)
     return result
 
-def execute_automatic_month_close(options: Options, month_key: str, *, trigger: str = "automatic") -> dict[str, Any]:
+def execute_automatic_month_close(
+    options: Options,
+    month_key: str,
+    *,
+    trigger: str = "automatic",
+    record_as_real_automatic: bool = True,
+) -> dict[str, Any]:
     """Gedeelde productie-executor voor scheduler en acceptatietest."""
     attempt_at = datetime.now(TZ)
     update_state(
@@ -6356,7 +6421,21 @@ def execute_automatic_month_close(options: Options, month_key: str, *, trigger: 
             automatic_month_close_last_run=datetime.now(TZ).isoformat(),
             automatic_month_close_next_retry=retry_at,
         )
-        return {"month": month_key, "status": "blocked", "preflight": preflight, "workflow": None, "finalization": None, "retry_at": retry_at}
+        result = {"month": month_key, "status": "blocked", "preflight": preflight, "workflow": None, "finalization": None, "retry_at": retry_at}
+        if record_as_real_automatic:
+            options_after = Options.load()
+            append_automatic_run_history({
+                "type": "Automatisch", "month": month_key, "status": "blocked",
+                "finalization_status": None, "started_at": attempt_at.isoformat(),
+                "finished_at": datetime.now(TZ).isoformat(), "duration_seconds": None,
+                "scheduler_enabled_before": bool(options.automatic_month_close_enabled),
+                "scheduler_enabled_after": bool(options_after.automatic_month_close_enabled),
+                "scheduler_enabled_unchanged": (
+                    bool(options_after.automatic_month_close_enabled)
+                    == bool(options.automatic_month_close_enabled)
+                ),
+            })
+        return result
 
     update_state(automatic_month_close_last_status="running")
     workflow = run_full_month_workflow(month_key, collect_live_snapshots=False, trigger=trigger)
@@ -6373,7 +6452,22 @@ def execute_automatic_month_close(options: Options, month_key: str, *, trigger: 
         automatic_month_close_last_run=datetime.now(TZ).isoformat(),
         automatic_month_close_next_retry=retry_at,
     )
-    return {"month": month_key, "status": final_status, "preflight": preflight, "workflow": workflow, "finalization": finalization, "retry_at": retry_at}
+    result = {"month": month_key, "status": final_status, "preflight": preflight, "workflow": workflow, "finalization": finalization, "retry_at": retry_at}
+    if record_as_real_automatic:
+        options_after = Options.load()
+        append_automatic_run_history({
+            "type": "Automatisch", "month": month_key, "status": final_status,
+            "finalization_status": finalization.get("status"),
+            "started_at": workflow.get("started_at"), "finished_at": workflow.get("finished_at"),
+            "duration_seconds": workflow.get("duration_seconds"),
+            "scheduler_enabled_before": bool(options.automatic_month_close_enabled),
+            "scheduler_enabled_after": bool(options_after.automatic_month_close_enabled),
+            "scheduler_enabled_unchanged": (
+                bool(options_after.automatic_month_close_enabled)
+                == bool(options.automatic_month_close_enabled)
+            ),
+        })
+    return result
 
 
 def automatic_scheduler_acceptance_test() -> dict[str, Any]:
@@ -6415,7 +6509,12 @@ def automatic_scheduler_acceptance_test() -> dict[str, Any]:
     started_at = datetime.now(TZ)
 
     try:
-        execution = execute_automatic_month_close(options, month_key, trigger="automatic")
+        execution = execute_automatic_month_close(
+            options,
+            month_key,
+            trigger="automatic",
+            record_as_real_automatic=False,
+        )
         result = {
             "version": APP_VERSION,
             "started_at": started_at.isoformat(),
@@ -6476,6 +6575,22 @@ def automatic_scheduler_acceptance_test() -> dict[str, Any]:
         result["status"] = "error"
         result["error"] = "Finalization van gesimuleerde scheduler-run is niet OK."
     update_state(automatic_scheduler_acceptance_last_result=result)
+    execution = result.get("execution") or {}
+    workflow_result = execution.get("workflow") or {}
+    finalization_result = execution.get("finalization") or {}
+    append_automatic_run_history({
+        "type": "Scheduler-test", "month": result.get("month"),
+        "status": result.get("status"),
+        "finalization_status": finalization_result.get("status"),
+        "started_at": result.get("started_at"), "finished_at": result.get("tested_at"),
+        "duration_seconds": workflow_result.get("duration_seconds"),
+        "scheduler_enabled_before": result.get("scheduler_enabled_before"),
+        "scheduler_enabled_after": result.get("scheduler_enabled_after"),
+        "scheduler_enabled_unchanged": result.get("scheduler_enabled_unchanged"),
+        "simulated_at": result.get("simulated_at"),
+        "scheduler_bookkeeping_restored": result.get("scheduler_bookkeeping_restored"),
+        "scheduler_config_unchanged": result.get("scheduler_config_unchanged"),
+    })
     return result
 
 
@@ -6839,7 +6954,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.4 bewaart de planning bij upgrades en kan de echte schedulerroute direct gecontroleerd simuleren.</p>
+<p class="hint">v8.5 bewaart de planning bij upgrades en kan de echte schedulerroute direct gecontroleerd simuleren.</p>
 </div>
 
 <div class="card"><h2>Automatische maandafsluiting</h2>
@@ -6860,7 +6975,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.4.0 productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.5.0 productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
@@ -6882,7 +6997,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <thead><tr><th>Maand</th><th>Type</th><th>Versie</th><th>Status</th><th>Eindcontrole</th><th>Afgerond</th><th>Duur</th></tr></thead>
 <tbody id="automatic-history-body">{auto_history_rows}</tbody>
 </table></div>
-<p class="hint">Toont maximaal zes runs en onderscheidt veilige test, scheduler-test en echte automatische maandafsluiting.</p>
+<p class="hint">Append-only historie: iedere test, scheduler-test en echte automatische run blijft als afzonderlijk record bewaard.</p>
 </div>
 
 <div class="card" id="last-error-card" style="display:{'block' if last_run.get('error') else 'none'}"><h2>Laatste workflowfout</h2>
