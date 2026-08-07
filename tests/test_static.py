@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "8.8.0"
+    assert cfg_version == app_version == "8.9.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.8.0"' in config
+    assert 'version: "8.9.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.8.0"' in config
-    assert 'APP_VERSION = "8.8.0"' in main
+    assert 'version: "8.9.0"' in config
+    assert 'APP_VERSION = "8.9.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1869,7 +1869,7 @@ def test_v851_acceptance_records_prerequisite_evidence():
 def test_v851_console_explains_automatic_prerequisite():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     assert "voorbereidende productietest automatisch geslaagd" in source
-    assert "voert v8.8 die eerst automatisch veilig uit" in source
+    assert "voert v8.9 die eerst automatisch veilig uit" in source
 
 
 def test_v860_has_durable_completion_marker_store():
@@ -1912,15 +1912,15 @@ def test_v860_operation_status_exposes_idempotency_protection():
 def test_v870_has_explicit_recovery_status():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     assert "def automatic_recovery_status" in source
-    assert '"status": "retry_scheduled"' in source
-    assert '"label": "Retry gepland"' in source
-    assert '"label": "Definitief afgerond"' in source
-    assert '"recovery": automatic_recovery_status(state, options)' in source
+    assert '"status": "retry_scheduled" if next_retry else "attention"' in source
+    assert '"label": "Retry gepland" if next_retry else "Herstel vereist"' in source
+    assert '"label": "Geen herstelactie nodig"' in source
+    assert '"recovery": automatic_recovery_status(state, options, retry_state_machine)' in source
 
 def test_v870_retry_status_uses_timestamp():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     section=source[source.index("def automatic_recovery_status"):source.index("def operation_status")]
-    assert "automatic_month_close_next_retry" in section
+    assert 'next_retry = retry.get("next_retry")' in section
     assert "format_local_datetime(next_retry)" in section
 
 def test_v870_clearer_acceptance_text():
@@ -1945,9 +1945,8 @@ def test_v880_has_retry_metadata_fields():
 def test_v880_reconciles_only_stale_retry_state():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     section=source[source.index("def reconcile_automatic_retry_state"):source.index("def automatic_recovery_status")]
-    assert "automatic_month_is_completed(retry_month)" in section
-    assert 'last_status in {"completed", "completed_warning"}' in section
-    assert 'retry_origin in {"automatic_test", "scheduler_test", "acceptance_test"}' in section
+    assert "automatic_history_proves_completed(month)" in section
+    assert "automatic_month_is_completed(month)" in section
     assert "automatic_month_close_next_retry=None" in section
 
 def test_v880_successful_run_clears_retry_metadata():
@@ -1967,4 +1966,44 @@ def test_v880_acceptance_restores_retry_metadata():
 def test_v880_operation_status_reconciles_retry():
     source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
     section=source[source.index("def operation_status"):source.index("def status_class")]
-    assert "state = reconcile_automatic_retry_state(state)" in section
+    assert "state, retry_state_machine = reconcile_automatic_retry_state(state)" in section
+
+
+def test_v890_has_persistent_retry_state_machine():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'AUTOMATIC_RETRY_STATE_PATH = Path("/config/output/automatic_retry_state.json")' in source
+    assert 'RETRY_STATES = {"OPEN", "RUNNING", "COMPLETED", "CANCELLED", "EXPIRED"}' in source
+    assert "def read_automatic_retry_state" in source
+    assert "def write_automatic_retry_state" in source
+
+def test_v890_completion_proof_requires_real_automatic_and_finalization_ok():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def automatic_history_proves_completed"):source.index("def read_automatic_completion_markers")]
+    assert 'str(item.get("type") or "") == "Automatisch"' in section
+    assert 'str(item.get("status") or "") in {"completed", "completed_warning"}' in section
+    assert 'str(item.get("finalization_status") or "") == "ok"' in section
+
+def test_v890_legacy_retry_closes_on_audit_proof():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def migrate_legacy_retry_state"):source.index("def read_automatic_completion_markers")]
+    assert "ledger_proof = automatic_history_proves_completed(last_month)" in section
+    assert 'state="COMPLETED"' in section
+    assert "automatic_month_close_next_retry=None" in section
+
+def test_v890_real_automatic_drives_retry_machine():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def execute_automatic_month_close"):source.index("def automatic_scheduler_acceptance_test")]
+    assert 'state="RUNNING"' in section
+    assert 'state="OPEN"' in section
+    assert 'state="COMPLETED" if not retry_needed else "OPEN"' in section
+
+def test_v890_scheduler_acceptance_does_not_write_real_retry_machine():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def automatic_scheduler_acceptance_test"):source.index("def automatic_month_close_due")]
+    compact=section.replace(" ","").replace("\\n","")
+    assert "record_as_real_automatic=False" in compact
+
+def test_v890_status_exposes_retry_machine():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"retry_state_machine": retry_state_machine' in source
+    assert '"retry_state_path": str(AUTOMATIC_RETRY_STATE_PATH)' in source

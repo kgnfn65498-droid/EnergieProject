@@ -40,8 +40,9 @@ OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 AUTOMATIC_RUN_LEDGER_PATH = Path("/config/output/automatic_run_history.jsonl")
 AUTOMATIC_COMPLETION_MARKERS_PATH = Path("/config/output/automatic_completed_months.json")
+AUTOMATIC_RETRY_STATE_PATH = Path("/config/output/automatic_retry_state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.8.0"
+APP_VERSION = "8.9.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -4849,6 +4850,122 @@ def read_automatic_run_history(limit: int = 20) -> list[dict[str, Any]]:
 
 
 
+RETRY_STATES = {"OPEN", "RUNNING", "COMPLETED", "CANCELLED", "EXPIRED"}
+
+
+def read_automatic_retry_state() -> dict[str, Any]:
+    if not AUTOMATIC_RETRY_STATE_PATH.is_file():
+        return {}
+    try:
+        value = json.loads(AUTOMATIC_RETRY_STATE_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(value, dict):
+        return {}
+    if str(value.get("state") or "") not in RETRY_STATES:
+        return {}
+    return value
+
+
+def write_automatic_retry_state(
+    *,
+    state: str,
+    month: str | None,
+    reason: str | None = None,
+    origin: str | None = None,
+    next_retry: str | None = None,
+    evidence: str | None = None,
+) -> dict[str, Any]:
+    if state not in RETRY_STATES:
+        raise ValueError(f"Ongeldige retry-state: {state}")
+    current = read_automatic_retry_state()
+    now = datetime.now(TZ).isoformat()
+    row = {
+        "state": state,
+        "month": month,
+        "reason": reason,
+        "origin": origin,
+        "next_retry": next_retry,
+        "evidence": evidence,
+        "updated_at": now,
+        "version": APP_VERSION,
+        "created_at": current.get("created_at") or now,
+    }
+    AUTOMATIC_RETRY_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = AUTOMATIC_RETRY_STATE_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(AUTOMATIC_RETRY_STATE_PATH)
+    return row
+
+
+def automatic_history_proves_completed(month_key: str) -> dict[str, Any] | None:
+    if not AUTOMATIC_RUN_LEDGER_PATH.is_file():
+        return None
+    for item in read_automatic_run_history(limit=100):
+        if (
+            str(item.get("month") or "") == month_key
+            and str(item.get("type") or "") == "Automatisch"
+            and str(item.get("status") or "") in {"completed", "completed_warning"}
+            and str(item.get("finalization_status") or "") == "ok"
+        ):
+            return item
+    return None
+
+
+def migrate_legacy_retry_state(state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    retry = read_automatic_retry_state()
+    if retry:
+        return state, retry
+
+    next_retry = state.get("automatic_month_close_next_retry")
+    last_month = str(state.get("automatic_month_close_retry_month") or state.get("automatic_month_close_last_month") or "")
+    last_status = str(state.get("automatic_month_close_last_status") or "")
+    origin = str(state.get("automatic_month_close_retry_origin") or "automatic")
+    reason = str(state.get("automatic_month_close_retry_reason") or "legacy_retry")
+
+    if not next_retry or not last_month:
+        retry = write_automatic_retry_state(
+            state="COMPLETED", month=None, reason=None, origin=None, next_retry=None,
+            evidence="Geen open legacy retry aanwezig bij migratie.",
+        )
+        return state, retry
+
+    ledger_proof = automatic_history_proves_completed(last_month)
+    completion_marker = automatic_month_is_completed(last_month)
+    if ledger_proof or completion_marker or last_status in {"completed", "completed_warning"}:
+        retry = write_automatic_retry_state(
+            state="COMPLETED",
+            month=last_month,
+            reason=reason,
+            origin=origin,
+            next_retry=None,
+            evidence=(
+                "Append-only historie bevat een geslaagde echte Automatisch-run."
+                if ledger_proof
+                else "Duurzame completion-marker of completed-state aanwezig."
+            ),
+        )
+        update_state(
+            automatic_month_close_next_retry=None,
+            automatic_month_close_retry_month=None,
+            automatic_month_close_retry_reason=None,
+            automatic_month_close_retry_origin=None,
+        )
+        return load_state(), retry
+
+    retry = write_automatic_retry_state(
+        state="OPEN",
+        month=last_month,
+        reason=reason,
+        origin=origin,
+        next_retry=str(next_retry),
+        evidence="Legacy retry zonder bewijs van definitieve voltooiing.",
+    )
+    return state, retry
+
+
+
+
 def read_automatic_completion_markers() -> dict[str, Any]:
     if not AUTOMATIC_COMPLETION_MARKERS_PATH.is_file():
         return {}
@@ -5988,82 +6105,105 @@ def workflow_visualization(state: dict[str, Any], log_lines: list[dict[str, Any]
     }
 
 
-def reconcile_automatic_retry_state(state: dict[str, Any]) -> dict[str, Any]:
-    """Ruim alleen aantoonbaar verouderde retry-state op; echte open retries blijven staan."""
-    last_month = str(state.get("automatic_month_close_last_month") or "")
-    last_status = str(state.get("automatic_month_close_last_status") or "")
-    next_retry = state.get("automatic_month_close_next_retry")
-    retry_month = str(state.get("automatic_month_close_retry_month") or last_month or "")
-    retry_origin = str(state.get("automatic_month_close_retry_origin") or "")
+def reconcile_automatic_retry_state(state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    state, retry = migrate_legacy_retry_state(state)
+    retry_state = str(retry.get("state") or "")
+    month = str(retry.get("month") or "")
 
-    if not next_retry:
-        return state
+    if retry_state in {"OPEN", "RUNNING"} and month:
+        proof = automatic_history_proves_completed(month)
+        marker = automatic_month_is_completed(month)
+        if proof or marker:
+            retry = write_automatic_retry_state(
+                state="COMPLETED",
+                month=month,
+                reason=str(retry.get("reason") or ""),
+                origin=str(retry.get("origin") or "automatic"),
+                next_retry=None,
+                evidence=(
+                    "Geslaagde echte Automatisch-run aangetroffen in append-only historie."
+                    if proof
+                    else "Duurzame completion-marker aangetroffen."
+                ),
+            )
+            update_state(
+                automatic_month_close_next_retry=None,
+                automatic_month_close_retry_month=None,
+                automatic_month_close_retry_reason=None,
+                automatic_month_close_retry_origin=None,
+            )
+            state = load_state()
+    return state, retry
 
-    completed = bool(retry_month and automatic_month_is_completed(retry_month))
-    state_says_completed = bool(
-        retry_month
-        and retry_month == last_month
-        and last_status in {"completed", "completed_warning"}
-    )
-    test_origin = retry_origin in {"automatic_test", "scheduler_test", "acceptance_test"}
 
-    if completed or state_says_completed or test_origin:
-        update_state(
-            automatic_month_close_next_retry=None,
-            automatic_month_close_retry_month=None,
-            automatic_month_close_retry_reason=None,
-            automatic_month_close_retry_origin=None,
-        )
-        return load_state()
+def automatic_recovery_status(
+    state: dict[str, Any],
+    options: Options,
+    retry: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    retry = retry or read_automatic_retry_state()
+    retry_state = str(retry.get("state") or "")
+    month = str(retry.get("month") or "")
+    next_retry = retry.get("next_retry")
+    reason = str(retry.get("reason") or "")
+    evidence = str(retry.get("evidence") or "")
 
-    return state
-
-
-def automatic_recovery_status(state: dict[str, Any], options: Options) -> dict[str, Any]:
-    """Leesbare retry- en herstelstatus voor automatische maandafsluiting."""
-    last_month = state.get("automatic_month_close_last_month")
-    last_status = str(state.get("automatic_month_close_last_status") or "")
-    next_retry = state.get("automatic_month_close_next_retry")
-    retry_month = str(state.get("automatic_month_close_retry_month") or last_month or "")
-    retry_reason = str(state.get("automatic_month_close_retry_reason") or "")
-    retry_origin = str(state.get("automatic_month_close_retry_origin") or "")
-    completed = bool(last_month and automatic_month_is_completed(str(last_month)))
-
-    if completed:
+    if retry_state == "OPEN":
         return {
-            "status": "completed",
-            "label": "Definitief afgerond",
-            "detail": f"{last_month} heeft een duurzame completion-marker.",
-            "next_retry": None,
-            "retry_required": False,
-        }
-    if next_retry and last_status in {"blocked", "error", "failed"}:
-        origin_text = "echte automatische maandafsluiting" if retry_origin in {"", "automatic"} else retry_origin
-        reason_text = f" Reden: {retry_reason}." if retry_reason else ""
-        return {
-            "status": "retry_scheduled",
-            "label": "Retry gepland",
+            "status": "retry_scheduled" if next_retry else "attention",
+            "label": "Retry gepland" if next_retry else "Herstel vereist",
             "detail": (
-                f"{retry_month or last_month or 'Onbekende maand'} wordt opnieuw geprobeerd op "
-                f"{format_local_datetime(next_retry)} ({origin_text}).{reason_text}"
+                f"{month or 'Onbekende maand'} wordt opnieuw geprobeerd op {format_local_datetime(next_retry)}. Reden: {reason or 'onbekend'}."
+                if next_retry
+                else f"{month or 'Onbekende maand'} heeft een open productie-retry. Reden: {reason or 'onbekend'}."
             ),
             "next_retry": next_retry,
             "retry_required": True,
+            "retry_state": retry_state,
         }
-    if last_status in {"blocked", "error", "failed"}:
+    if retry_state == "RUNNING":
         return {
-            "status": "attention",
-            "label": "Herstel vereist",
-            "detail": f"Laatste automatische poging voor {last_month or 'onbekende maand'} eindigde met status {last_status}; er staat nog geen retry gepland.",
+            "status": "running",
+            "label": "Herstel loopt",
+            "detail": f"Automatische herstelpoging voor {month or 'onbekende maand'} wordt uitgevoerd.",
             "next_retry": None,
             "retry_required": True,
+            "retry_state": retry_state,
+        }
+    if retry_state == "COMPLETED":
+        return {
+            "status": "ready",
+            "label": "Geen herstelactie nodig",
+            "detail": evidence or "Er staat geen openstaande productie-retry.",
+            "next_retry": None,
+            "retry_required": False,
+            "retry_state": retry_state,
+        }
+    if retry_state == "CANCELLED":
+        return {
+            "status": "ready",
+            "label": "Retry geannuleerd",
+            "detail": evidence or "De retry is gecontroleerd afgesloten.",
+            "next_retry": None,
+            "retry_required": False,
+            "retry_state": retry_state,
+        }
+    if retry_state == "EXPIRED":
+        return {
+            "status": "attention",
+            "label": "Retry verlopen",
+            "detail": evidence or "De retry is verlopen en vereist controle.",
+            "next_retry": None,
+            "retry_required": True,
+            "retry_state": retry_state,
         }
     return {
         "status": "ready",
         "label": "Geen herstelactie nodig",
-        "detail": "Er staat geen mislukte automatische maandafsluiting open.",
+        "detail": "Er staat geen openstaande productie-retry.",
         "next_retry": None,
         "retry_required": False,
+        "retry_state": "COMPLETED",
     }
 
 
@@ -6071,7 +6211,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
     """Return one compact operational view without changing workflow state."""
     options = options or Options.load()
     state = persist_normalized_status(options)
-    state = reconcile_automatic_retry_state(state)
+    state, retry_state_machine = reconcile_automatic_retry_state(state)
     results_root = OUTPUT_ROOT / "workflow_results"
     history: list[dict[str, Any]] = []
     if results_root.exists():
@@ -6223,7 +6363,9 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "completion_markers_path": str(AUTOMATIC_COMPLETION_MARKERS_PATH),
             "completed_months": sorted(read_automatic_completion_markers().keys(), reverse=True),
             "idempotency_protection": "active",
-            "recovery": automatic_recovery_status(state, options),
+            "recovery": automatic_recovery_status(state, options, retry_state_machine),
+            "retry_state_machine": retry_state_machine,
+            "retry_state_path": str(AUTOMATIC_RETRY_STATE_PATH),
         },
         "history": history,
         "can_resume": bool(
@@ -6538,6 +6680,15 @@ def execute_automatic_month_close(
 ) -> dict[str, Any]:
     """Gedeelde productie-executor voor scheduler en acceptatietest."""
     attempt_at = datetime.now(TZ)
+    if record_as_real_automatic:
+        write_automatic_retry_state(
+            state="RUNNING",
+            month=month_key,
+            reason="scheduled_or_retry_execution",
+            origin="automatic",
+            next_retry=None,
+            evidence="Echte automatische maandafsluiting gestart.",
+        )
     update_state(
         automatic_month_close_last_month=month_key,
         automatic_month_close_last_status="preflight",
@@ -6562,6 +6713,14 @@ def execute_automatic_month_close(
         )
         result = {"month": month_key, "status": "blocked", "preflight": preflight, "workflow": None, "finalization": None, "retry_at": retry_at}
         if record_as_real_automatic:
+            write_automatic_retry_state(
+                state="OPEN",
+                month=month_key,
+                reason="preflight_blocked",
+                origin="automatic",
+                next_retry=retry_at,
+                evidence="Preflight blokkeerde de echte automatische maandafsluiting.",
+            )
             options_after = Options.load()
             append_automatic_run_history({
                 "type": "Automatisch", "month": month_key, "status": "blocked",
@@ -6600,6 +6759,18 @@ def execute_automatic_month_close(
     )
     result = {"month": month_key, "status": final_status, "preflight": preflight, "workflow": workflow, "finalization": finalization, "retry_at": retry_at}
     if record_as_real_automatic:
+        write_automatic_retry_state(
+            state="COMPLETED" if not retry_needed else "OPEN",
+            month=month_key,
+            reason=None if not retry_needed else "workflow_or_finalization_failed",
+            origin="automatic",
+            next_retry=None if not retry_needed else retry_at,
+            evidence=(
+                "Echte automatische maandafsluiting en finalization volledig geslaagd."
+                if not retry_needed
+                else "Automatische maandafsluiting vereist een nieuwe herstelpoging."
+            ),
+        )
         options_after = Options.load()
         if final_status in {"completed", "completed_warning"} and finalization.get("status") == "ok":
             mark_automatic_month_completed(
@@ -7147,7 +7318,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.8 bewaart alleen echte openstaande productie-retries en ruimt aantoonbaar verouderde retry-state automatisch op.</p>
+<p class="hint">v8.9 gebruikt een expliciete retry-state-machine en sluit oude retries alleen af op basis van aantoonbaar productie-auditbewijs.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 </div>
 
@@ -7169,13 +7340,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.8.0 productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.9.0 productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
-<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.8 die eerst automatisch veilig uit.</p>
+<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.9 die eerst automatisch veilig uit.</p>
 <ul class="source-list">
 <li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>

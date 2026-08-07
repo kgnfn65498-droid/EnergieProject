@@ -515,3 +515,10 @@ De scheduler-acceptatietekst is vereenvoudigd naar simulatiemoment, doelmaand, e
 v8.8 voorkomt dat een oude retry ten onrechte zichtbaar blijft nadat dezelfde productiemaand aantoonbaar definitief is afgerond. Opschoning is bewust conservatief: een geslaagde productietest of scheduler-test mag een echte openstaande productie-retry niet verbergen.
 
 Nieuwe retries bewaren naast het retrytijdstip ook retry-maand, reden en oorsprong. Een succesvolle echte automatische maandafsluiting wist deze velden. Scheduler-acceptatietests nemen de velden op in hun snapshot en herstellen ze na de simulatie.
+
+
+## Versie 8.9.0 — retry-state-machine
+
+v8.9 gebruikt `/config/output/automatic_retry_state.json` met de toestanden OPEN, RUNNING, COMPLETED, CANCELLED en EXPIRED. Bij migratie van oudere versies wordt een legacy retry alleen afgesloten als er hard bewijs bestaat: een duurzame completion-marker of een append-only historie-item van type `Automatisch` voor dezelfde maand met status `completed`/`completed_warning` en eindcontrole `ok`.
+
+Daarmee kan een aantoonbaar verouderde retry zoals de oude juli-retry veilig verdwijnen, terwijl een werkelijk mislukte productie-run open blijft. Scheduler-acceptatietests wijzigen deze productie-state-machine niet.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.9.0
+- Expliciete persistente retry-state-machine met `OPEN`, `RUNNING`, `COMPLETED`, `CANCELLED` en `EXPIRED`.
+- Legacy retryvelden worden gemigreerd naar `automatic_retry_state.json`.
+- Migratie controleert append-only historie op een echte `Automatisch`-run voor dezelfde maand met completed/completed_warning en eindcontrole ok.
+- Een oude retry wordt alleen afgesloten op basis van productie-auditbewijs of een duurzame completion-marker.
+- Echte automatische runs sturen de state-machine; scheduler-tests wijzigen deze productie-state niet.
+- `Automatisch herstel` leest uitsluitend de retry-state-machine.
+- Schedulerroute, dubbelstartbeveiliging, rapportgeneratoren en Recovery Update inhoudelijk ongewijzigd.
+
 ## 8.8.0
 - Verouderde retry-state wordt alleen opgeschoond wanneer aantoonbaar is dat de betreffende productiemaand definitief is afgerond of de retry uit een test/acceptatiesimulatie afkomstig is.
 - Echte openstaande productie-retries worden nooit gewist door een geslaagde productietest.
