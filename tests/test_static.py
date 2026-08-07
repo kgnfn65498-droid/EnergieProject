@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "7.6.0"
+    assert cfg_version == app_version == "7.7.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "7.6.0"' in config
+    assert 'version: "7.7.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "7.6.0"' in config
-    assert 'APP_VERSION = "7.6.0"' in main
+    assert 'version: "7.7.0"' in config
+    assert 'APP_VERSION = "7.7.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1600,3 +1600,34 @@ def test_v760_product_test_runs_preflight_workflow_finalization():
     assert 'automatic_month_close_preflight' in block
     assert 'run_full_month_workflow' in block
     assert 'automatic_month_close_finalize' in block
+
+
+def test_v770_clear_automatic_month_close_switch():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'class="switch-row"' in source
+    assert 'id="auto-close-enabled"' in source
+    assert 'class="switch-slider"' in source
+    assert "Automatisch vorige maand verwerken" in source
+    assert "AAN" in source and "UIT" in source
+
+
+def test_v770_workflow_actions_disable_while_running():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'workflow_active = str(workflow.get("status")' in source
+    assert 'class="workflow-action"' in source
+    assert "document.querySelectorAll('.workflow-action').forEach(btn=>btn.disabled=active)" in source
+
+
+def test_v770_resume_only_when_failed():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'resume_available = str(last_run.get("status")' in source
+    assert "Geen mislukte workflow om te hervatten." in source
+    assert "De hervatknop verschijnt automatisch" in source
+
+
+def test_v770_automatic_status_updates_live():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'id="auto-close-top-status"' in source
+    assert 'id="auto-last-preflight"' in source
+    assert 'id="auto-last-finalization"' in source
+    assert 'id="auto-last-test"' in source

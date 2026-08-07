@@ -430,3 +430,8 @@ Voor een automatische maandafsluiting voert de app eerst een preflight uit op co
 ## Versie 7.6.0 — bediening automatische maandafsluiting
 
 De operationele console bevat nu een aparte kaart **Automatische maandafsluiting**. Daar kunnen Aan/Uit, dag, uur en retryperiode worden ingesteld. De knop **Test automatische maandafsluiting nu** voert een gecontroleerde productietest uit op een gekozen maand: preflight, echte maandworkflow en finalization. Deze test zet de schedulermaand niet op reeds verwerkt, zodat de reguliere automatische maandafsluiting later gewoon kan plaatsvinden.
+
+
+## Versie 7.7.0 — bedieningspolish
+
+De operationele console toont de automatische maandafsluiting nu met een duidelijke schakelaar. Groen/AAN betekent actief, grijs/UIT uitgeschakeld. Workflowstarts worden tijdens een actieve verwerking geblokkeerd en de hervatfunctie verschijnt alleen na een echte mislukking. Statusvelden van de automatische maandafsluiting worden tijdens de normale 2,5-seconden refresh bijgewerkt.

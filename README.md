@@ -17,7 +17,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 7.6.0
+- SlimmeMeterPortal Import 7.7.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
@@ -51,6 +51,6 @@ Workflow-broncoördinatie en eindvalidatie. Voor een actuele doelmaand wordt een
 Productieharde automatische maandafsluiting met preflight en expliciete eindcontrole op rapport en Recovery Update.
 
 
-### v7.6.0
+### v7.7.0
 
 Automatische maandafsluiting is nu rechtstreeks vanuit de operationele console in te stellen en gecontroleerd te testen. De test voert de echte preflight, maandworkflow en finalization uit zonder de schedulermaand als reeds automatisch verwerkt te markeren.

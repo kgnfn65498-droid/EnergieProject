@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.7.0
+- Duidelijke groene/grijze Aan/Uit-schakelaar voor automatische maandafsluiting.
+- Planningvelden overzichtelijk gegroepeerd en knop hernoemd naar `Instellingen opslaan`.
+- Workflowstartknoppen worden tijdens een actieve workflow uitgeschakeld.
+- Hervatten wordt alleen aangeboden wanneer de laatste workflow echt is mislukt.
+- Automatische status, preflight, finalization en productietest worden live bijgewerkt.
+- Onderliggende maandworkflow en rapportketen ongewijzigd.
+
 ## 7.6.0
 - Bedien automatische maandafsluiting rechtstreeks vanuit de operationele console.
 - Aan/uit, dag, uur en retryperiode zijn instelbaar zonder handmatig configbestand.
