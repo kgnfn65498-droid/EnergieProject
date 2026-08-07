@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "7.1.2"
+    assert cfg_version == app_version == "7.1.3"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "7.1.2"' in config
+    assert 'version: "7.1.3"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1149,8 +1149,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "7.1.2"' in config
-    assert 'APP_VERSION = "7.1.2"' in main
+    assert 'version: "7.1.3"' in config
+    assert 'APP_VERSION = "7.1.3"' in main
 
 
 def test_phase7_configuration_present():
@@ -1287,3 +1287,21 @@ def test_v712_background_worker_has_lock_failsafe():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "Failsafe heeft achtergebleven workflow-lock vrijgegeven" in source
     assert "Workflow is onverwacht gestopt; lock is veilig vrijgegeven." in source
+
+
+def test_v713_workflow_failure_diagnostics_present():
+    source = Path("slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def record_workflow_failure(" in source
+    assert "traceback.format_exception" in source
+    assert "full_workflow_last_error_type" in source
+    assert "full_workflow_last_error_step" in source
+    assert "full_workflow_last_traceback" in source
+    assert 'path.endswith("/download-workflow-log")' in source
+    assert "Laatste workflowfout" in source
+    assert "Download workflowlog" in source
+
+
+def test_v713_workflow_log_renders_traceback():
+    source = Path("slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "if(x.traceback)" in source
+    assert "application/x-ndjson" in source

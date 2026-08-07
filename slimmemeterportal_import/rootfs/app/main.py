@@ -16,6 +16,7 @@ import sys
 import signal
 import threading
 import time
+import traceback
 import urllib.error
 import urllib.request
 import socket
@@ -37,7 +38,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.1.2"
+APP_VERSION = "7.1.3"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -4473,6 +4474,45 @@ def append_workflow_log(month_key: str, level: str, message: str, **extra: Any) 
         handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def record_workflow_failure(
+    month_key: str,
+    *,
+    step: str,
+    exc: BaseException,
+    started_at: str | None = None,
+    duration_seconds: float | None = None,
+) -> dict[str, Any]:
+    """Sla de volledige diagnose van een workflowfout persistent op."""
+    tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    details = {
+        "timestamp": datetime.now(TZ).isoformat(),
+        "month": month_key,
+        "step": step,
+        "error_type": type(exc).__name__,
+        "error": str(exc),
+        "started_at": started_at,
+        "duration_seconds": duration_seconds,
+        "traceback": tb,
+    }
+    update_state(
+        full_workflow_last_error=str(exc),
+        full_workflow_last_error_type=type(exc).__name__,
+        full_workflow_last_error_step=step,
+        full_workflow_last_error_at=details["timestamp"],
+        full_workflow_last_traceback=tb,
+    )
+    append_workflow_log(
+        month_key, "error", "Stap mislukt", step=step, error=str(exc),
+        error_type=type(exc).__name__, duration_seconds=duration_seconds, traceback=tb,
+    )
+    return details
+
+
+def workflow_log_file(month_key: str) -> Path:
+    parse_month_key(month_key)
+    return workflow_result_dir(month_key) / WORKFLOW_LOG_NAME
+
+
 def workflow_log_tail(month_key: str, limit: int = 120) -> list[dict[str, Any]]:
     parse_month_key(month_key)
     path = workflow_result_dir(month_key) / WORKFLOW_LOG_NAME
@@ -4919,6 +4959,11 @@ def run_full_month_workflow(
             raise
         except Exception as exc:
             step_finished = datetime.now(TZ).isoformat()
+            step_duration = round(time.monotonic() - step_started_monotonic, 3)
+            details = record_workflow_failure(
+                month_key, step=name, exc=exc, started_at=step_started,
+                duration_seconds=step_duration,
+            )
             already_recorded = bool(
                 steps
                 and steps[-1].get("name") == name
@@ -4926,18 +4971,14 @@ def run_full_month_workflow(
             )
             if not already_recorded:
                 append_workflow_step(
-                    steps,
-                    name=name,
-                    status="error",
-                    started_at=step_started,
-                    finished_at=step_finished,
-                    error=str(exc),
+                    steps, name=name, status="error", started_at=step_started,
+                    finished_at=step_finished, error=str(exc),
                 )
+                steps[-1]["diagnostics"] = details
             failed_step = name
-            error_text = f"{name}: {exc}"
+            error_text = f"{name}: {type(exc).__name__}: {exc}"
             if error_text not in errors:
                 errors.append(error_text)
-            append_workflow_log(month_key, "error", "Stap mislukt", step=name, error=str(exc))
             if required and options.full_workflow_stop_on_error:
                 raise
             warnings.append(f"{name}: overgeslagen na fout")
@@ -5108,7 +5149,13 @@ def run_full_month_workflow(
         infos.append(f"Workflow gecontroleerd geannuleerd: {exc.reason}")
     except Exception as exc:
         if not errors:
-            errors.append(str(exc))
+            errors.append(f"{type(exc).__name__}: {exc}")
+        state_now = load_state()
+        if not state_now.get("full_workflow_last_traceback") or state_now.get("full_workflow_last_error_step") != failed_step:
+            record_workflow_failure(
+                month_key, step=failed_step or "Workflow", exc=exc,
+                duration_seconds=round(time.monotonic() - started_monotonic, 3),
+            )
         status = "error"
 
     finished_at = datetime.now(TZ).isoformat()
@@ -5140,14 +5187,18 @@ def run_full_month_workflow(
     result_path = result_root / FULL_WORKFLOW_RESULT_NAME
     write_atomic_json(result_path, result)
 
-    update_state(
-        full_workflow_last_run=finished_at,
-        full_workflow_last_month=month_key,
-        full_workflow_last_status=status,
-        full_workflow_last_step=failed_step or "Gereed",
+    state_updates = dict(
+        full_workflow_last_run=finished_at, full_workflow_last_month=month_key,
+        full_workflow_last_status=status, full_workflow_last_step=failed_step or "Gereed",
         full_workflow_last_result=str(result_path),
         full_workflow_last_error=None if status in {"completed", "completed_warning", "cancelled"} else "; ".join(errors),
     )
+    if status in {"completed", "completed_warning", "cancelled"}:
+        state_updates.update(
+            full_workflow_last_error_type=None, full_workflow_last_error_step=None,
+            full_workflow_last_error_at=None, full_workflow_last_traceback=None,
+        )
+    update_state(**state_updates)
     persist_normalized_status(options)
 
     try:
@@ -5279,6 +5330,10 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "status": state.get("full_workflow_last_status"),
             "step": state.get("full_workflow_last_step"),
             "error": state.get("full_workflow_last_error"),
+            "error_type": state.get("full_workflow_last_error_type"),
+            "error_step": state.get("full_workflow_last_error_step"),
+            "error_at": state.get("full_workflow_last_error_at"),
+            "traceback": state.get("full_workflow_last_traceback"),
         },
         "automatic_month_close": {
             "enabled": options.automatic_month_close_enabled,
@@ -5562,12 +5617,20 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 </div></div>
 
+<div class="card" id="last-error-card" style="display:{'block' if last_run.get('error') else 'none'}"><h2>Laatste workflowfout</h2>
+<div><strong id="last-error-step">{esc(last_run.get('error_step') or last_run.get('step') or '—')}</strong></div>
+<div class="hint" id="last-error-type">{esc(last_run.get('error_type') or '')}</div>
+<div id="last-error-message" class="log">{esc(last_run.get('error') or '')}</div>
+<p><a id="download-workflow-log" href="download-workflow-log?month={esc(last_run.get('month') or '')}">Download workflowlog</a></p>
+</div>
+
 <div class="card"><h2>Gezondheidsdashboard</h2>
 <div class="controls"><div><div class="score" id="health-score">{health_score}%</div><p class="hint">Projectscore op basis van API, generatoren, opslag, workflow en bronstatus.</p></div><ul class="source-list" id="health-checks">{health_rows}</ul></div>
 </div>
 
 <div class="card"><h2>Live workflowlog</h2>
 <div id="workflow-log" class="log">Log voor {esc(log_month or 'geen maand geselecteerd')} wordt automatisch bijgewerkt.</div>
+<p><a id="live-log-download" href="download-workflow-log?month={esc(log_month or '')}">Download workflowlog</a></p>
 </div>
 
 <div class="card"><h2>Historische runs</h2><div class="table-wrap"><table><thead><tr><th>Maand</th><th>Status</th><th>Stappen</th><th>Duur</th><th>Mislukte stap</th><th>Afgerond</th><th>Log</th></tr></thead><tbody>{history_html}</tbody></table></div></div>
@@ -5627,15 +5690,28 @@ async function refreshStatus(){{
     document.getElementById('last-month').textContent=op.last_run?.month || 'Nog geen';
     document.getElementById('last-run-status').textContent=op.last_run?.status || 'Nog geen';
     document.getElementById('health-score').textContent=(op.health?.score ?? 0)+'%';
+    const errCard=document.getElementById('last-error-card');
+    if(op.last_run?.error){{
+      errCard.style.display='block';
+      document.getElementById('last-error-step').textContent=op.last_run?.error_step || op.last_run?.step || '—';
+      document.getElementById('last-error-type').textContent=op.last_run?.error_type || '';
+      document.getElementById('last-error-message').textContent=op.last_run?.error || '';
+      document.getElementById('download-workflow-log').href='download-workflow-log?month='+encodeURIComponent(op.last_run?.month || '');
+    }}else{{ errCard.style.display='none'; }}
     const month=op.workflow?.month || op.last_run?.month;
     if(month){{
       const logResp=await fetch('workflow-log?month='+encodeURIComponent(month),{{cache:'no-store'}});
       if(logResp.ok){{
         const logData=await logResp.json();
-        const text=(logData.lines||[]).map(x=>`${{x.timestamp||''}} [${{String(x.level||'info').toUpperCase()}}] ${{x.step?x.step+': ':''}}${{x.message||''}}${{x.error?' — '+x.error:''}}`).join('\n');
+        const text=(logData.lines||[]).map(x=>{{
+          let line=`${{x.timestamp||''}} [${{String(x.level||'info').toUpperCase()}}] ${{x.step?x.step+': ':''}}${{x.message||''}}${{x.error?' — '+x.error:''}}`;
+          if(x.traceback) line+='\n'+x.traceback;
+          return line;
+        }}).join('\n');
         const box=document.getElementById('workflow-log');
         box.textContent=text || 'Nog geen logregels voor '+month;
         box.scrollTop=box.scrollHeight;
+        document.getElementById('live-log-download').href='download-workflow-log?month='+encodeURIComponent(month);
       }}
     }}
   }}catch(_e){{}}
@@ -5744,6 +5820,15 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
                 self.send_body(HTTPStatus.BAD_REQUEST, body, "application/json; charset=utf-8")
+        elif path.endswith("/download-workflow-log") or path == "/download-workflow-log":
+            month = (parse_qs(parsed.query).get("month") or [""])[0].strip().replace("-", "_")
+            try:
+                log_path = workflow_log_file(month)
+                if not log_path.is_file():
+                    raise FileNotFoundError(month)
+                self.send_body(HTTPStatus.OK, log_path.read_bytes(), "application/x-ndjson; charset=utf-8", f'attachment; filename="workflow_{month}.log"')
+            except Exception:
+                self.send_body(HTTPStatus.NOT_FOUND, b"Workflowlog niet gevonden", "text/plain; charset=utf-8")
         elif path.endswith("/health-dashboard") or path == "/health-dashboard":
             body = json.dumps(health_dashboard(Options.load()), ensure_ascii=False, indent=2).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")

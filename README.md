@@ -17,11 +17,11 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 7.1.2
+- SlimmeMeterPortal Import 7.1.3
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
 
 ## Fase 7
 
-Versie 7.1.2 is een stabiliteitshotfix op 7.1.1. De huidige maand wordt begrensd tot vandaag, de maandimport geeft live heartbeats, workflowstappen hebben timeoutbewaking en een failsafe voorkomt een achtergebleven workflow-lock. De bestaande rapportgeneratoren, Recovery Update-inhoud en definitieve outputnamen blijven ongewijzigd.
+Versie 7.1.3 is een diagnostische hotfix op 7.1.2. Workflowfouten bewaren nu stap, fouttype, volledige traceback en doorlooptijd, worden direct zichtbaar in de operationele console en het workflowlog is downloadbaar. De stabiliteitsmaatregelen uit 7.1.2 en de bestaande rapportgeneratoren, Recovery Update-inhoud en definitieve outputnamen blijven ongewijzigd.

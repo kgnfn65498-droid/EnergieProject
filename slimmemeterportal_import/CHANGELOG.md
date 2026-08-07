@@ -1,3 +1,12 @@
+## 7.1.3
+
+- Workflowfouten bewaren stapnaam, fouttype, fouttekst, doorlooptijd en volledige Python-traceback.
+- De operationele console toont de laatste workflowfout direct in een apart diagnoseblok.
+- Het live workflowlog toont tracebacks en blijft automatisch verversen.
+- Workflowlogs zijn downloadbaar via `download-workflow-log?month=YYYY_MM`.
+- Succesvolle of gecontroleerd geannuleerde workflows wissen verouderde foutdiagnostiek.
+- Geen wijzigingen aan rapportgeneratoren, Recovery Update-contract of definitieve outputnamen.
+
 # Changelog
 
 ## 7.1.2
