@@ -52,7 +52,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.19.0"
+APP_VERSION = "8.19.1"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -8466,7 +8466,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="card" id="production-certificates"><h2>Productiecertificaten</h2>
 <div class="table-wrap"><table>
 <thead><tr><th>Versie</th><th>Afgegeven</th><th>Status</th><th>Testmaand</th></tr></thead>
-<tbody>{certificate_history_rows}</tbody>
+<tbody id="production-certificate-history-body">{certificate_history_rows}</tbody>
 </table></div>
 <p class="hint">Append-only historie van afgegeven productiecertificaten.</p>
 <p><button id="manage-production-certificate-button" type="button" class="secondary">Controleer / herstel productiecertificaat</button></p>
@@ -8525,7 +8525,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Integriteit</small><strong>{esc(state.get('last_integrity_status') or 'Nog niet gecontroleerd')}</strong></div>
 <div class="metric"><small>Zelftest</small><strong>{esc((state.get('last_self_test') or {}).get('status', 'Nog niet uitgevoerd'))}</strong></div>
 </div>
-<details open><summary>Retry Debug v8.10</summary>
+<details open><summary>Retry Debug v{APP_VERSION}</summary>
 <div class="table-wrap"><table>
 <tbody>
 <tr><th>Retry-maand</th><td>{esc(retry_debug.get('month_checked') or '—')}</td></tr>
@@ -8538,13 +8538,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <tr><th>Workflow_result</th><td>{'FOUND' if retry_debug_workflow.get('exists') else 'NOT FOUND'} · bewijs {'JA' if retry_debug_workflow.get('proves_completed') else 'NEE'} · {esc(retry_debug_workflow.get('decision') or '—')}</td></tr>
 <tr><th>Workflow checks</th><td>{esc(json.dumps(retry_debug_workflow.get('checks') or {}, ensure_ascii=False))}</td></tr>
 <tr><th>Beslissing/evidence</th><td>{esc(retry_debug_decision.get('evidence') or '—')}</td></tr>
-<tr><th>Productiecertificaat</th><td>{'FOUND' if production_certificate_validation.get('exists') else 'NOT FOUND'} · geldig {'JA' if production_certificate_validation.get('valid') else 'NEE'}</td></tr>
-<tr><th>Certificaatversie</th><td>{esc(production_certificate_validation.get('version') or '—')} · verwacht {esc(APP_VERSION)}</td></tr>
-<tr><th>Certificaatintegriteit</th><td>{esc(production_certificate_validation.get('integrity') or 'not_checked')}</td></tr>
+<tr><th>Productiecertificaat</th><td id="retry-debug-certificate">{'FOUND' if production_certificate_validation.get('exists') else 'NOT FOUND'} · geldig {'JA' if production_certificate_validation.get('valid') else 'NEE'}</td></tr>
+<tr><th>Certificaatversie</th><td id="retry-debug-certificate-version">{esc(production_certificate_validation.get('version') or '—')} · verwacht {esc(APP_VERSION)}</td></tr>
+<tr><th>Certificaatintegriteit</th><td id="retry-debug-certificate-integrity">{esc(production_certificate_validation.get('integrity') or 'not_checked')}</td></tr>
 <tr><th>Certificaatpad</th><td>{esc(production_certificate_validation.get('path') or PRODUCTION_CERTIFICATE_PATH)}</td></tr>
 <tr><th>Retry debuglog</th><td>{esc(retry_debug.get('debug_log_path') or RETRY_DEBUG_LOG_PATH)}</td></tr>
 <tr><th>Finalization debuglog</th><td>{esc(auto_close.get('finalization_debug_log_path') or FINALIZATION_DEBUG_LOG_PATH)}</td></tr>
-<tr><th>Laatste finalization-event</th><td>{esc(finalization_debug_last.get('event') or 'Nog geen nieuwe run met v8.10.1')}</td></tr>
+<tr><th>Laatste finalization-event</th><td>{esc(finalization_debug_last.get('event') or 'Nog geen nieuwe run voor deze versie')}</td></tr>
 <tr><th>Finalization events</th><td>{esc(' → '.join(str(row.get('event') or '?') for row in finalization_debug[-12:]) or 'Nog geen')}</td></tr>
 </tbody></table></div>
 </details>
@@ -8659,6 +8659,12 @@ async function refreshStatus(){{
     if(prodCert){{
       prodCert.textContent=certValidation.valid?`v${{cert.version||op.version||''}} · Afgegeven · ${{formatLocalDateTime(cert.accepted_at)}}`:`Niet geldig — ${{certValidation.status||'ontbreekt'}}`;
     }}
+    const retryDebugCert=document.getElementById('retry-debug-certificate');
+    if(retryDebugCert) retryDebugCert.textContent=`${{certValidation.exists?'FOUND':'NOT FOUND'}} · geldig ${{certValidation.valid?'JA':'NEE'}}`;
+    const retryDebugCertVersion=document.getElementById('retry-debug-certificate-version');
+    if(retryDebugCertVersion) retryDebugCertVersion.textContent=`${{certValidation.version||'—'}} · verwacht ${{op.version||''}}`;
+    const retryDebugCertIntegrity=document.getElementById('retry-debug-certificate-integrity');
+    if(retryDebugCertIntegrity) retryDebugCertIntegrity.textContent=certValidation.integrity||'not_checked';
     const certHistoryBody=document.getElementById('production-certificate-history-body');
     if(certHistoryBody && Array.isArray(auto.production_certificate_history)){{
       certHistoryBody.innerHTML=auto.production_certificate_history.length?auto.production_certificate_history.map(item=>`<tr><td>${{escapeHtml(item.version||'—')}}</td><td>${{escapeHtml(item.accepted_at?formatLocalDateTime(item.accepted_at):'—')}}</td><td><span class="${{pillClass(item.status)}}">${{escapeHtml(item.status||'—')}}</span></td><td>${{escapeHtml(item.month||'—')}}</td></tr>`).join(''):`<tr><td colspan="4">Nog geen productiecertificaten.</td></tr>`;

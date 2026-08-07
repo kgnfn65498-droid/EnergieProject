@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.19.1
+- Retry Debug gebruikt live dezelfde productiecertificaatvalidatie als Productiestatus en Gezondheidsdashboard.
+- Productiecertificaathistorie krijgt de ontbrekende live-update hook, zodat een nieuw certificaat zonder paginaverversing zichtbaar wordt.
+- Verouderde vaste Retry Debug-versieverwijzingen vervangen door de actieve applicatieversie.
+- Geen wijzigingen aan workflow, scheduler, recovery, monitoring, auditlogica of rapportgeneratoren.
+
 ## 8.19.0
 
 - Operationele console afgerond met consistente versieaanduidingen voor Recovery, Monitoring en Audittrail.
