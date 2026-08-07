@@ -17,11 +17,11 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 7.1.4
+- SlimmeMeterPortal Import 7.1.5
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
 
 ## Fase 7
 
-Versie 7.1.4 is een gerichte hotfix op 7.1.3. De heartbeat-logaanroep gebruikt niet langer `message` als extra sleutel naast het positionele logbericht, waardoor de fout `append_workflow_log() got multiple values for argument 'message'` is opgelost. De diagnostiek uit 7.1.3, stabiliteitsmaatregelen uit 7.1.2 en de bestaande rapportgeneratoren, Recovery Update-inhoud en definitieve outputnamen blijven ongewijzigd.
+Versie 7.1.5 bouwt daadwerkelijk voort op de geüploade 7.1.4-bron. De v7.1.4-fix voor de dubbele `message`-parameter blijft behouden. Nieuw in 7.1.5: bij de start van een nieuwe workflow worden foutstatus, traceback en oude voortgang van de vorige run direct gewist; de actuele status wordt `running`; en een normaal actieve workflow-lock telt niet langer als gezondheidsfout. Rapportgeneratoren, Recovery Update-inhoud en definitieve outputnamen blijven ongewijzigd.

@@ -1,3 +1,11 @@
+## 7.1.5
+
+- Wis oude workflowfoutdiagnostiek direct bij de start van een nieuwe run.
+- Zet de actuele runstatus op `running` en reset oude voortgang naar 0/0.
+- Gezondheidsdashboard behandelt een normaal actieve workflow-lock niet langer als storing.
+- Behoudt de v7.1.4-fix voor de dubbele `message`-parameter.
+- Geen wijzigingen aan rapportgeneratoren, Recovery Update-contract of definitieve outputnamen.
+
 ## 7.1.4
 
 - Herstelt de heartbeat-logaanroep die `message` zowel positioneel als benoemd doorgaf.

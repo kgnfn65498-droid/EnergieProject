@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "7.1.4"
+    assert cfg_version == app_version == "7.1.5"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "7.1.4"' in config
+    assert 'version: "7.1.5"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1149,8 +1149,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "7.1.4"' in config
-    assert 'APP_VERSION = "7.1.4"' in main
+    assert 'version: "7.1.5"' in config
+    assert 'APP_VERSION = "7.1.5"' in main
 
 
 def test_phase7_configuration_present():
@@ -1325,3 +1325,25 @@ def test_v714_heartbeat_uses_non_conflicting_detail_key():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert 'append_workflow_log(month_key, "info", "Heartbeat", step=step, heartbeat_message=message, **extra)' in source
     assert 'append_workflow_log(month_key, "info", "Heartbeat", step=step, message=message, **extra)' not in source
+
+
+def test_v715_clears_stale_workflow_diagnostics_on_start():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    required = [
+        'full_workflow_last_status="running"',
+        'full_workflow_last_error=None',
+        'full_workflow_last_error_type=None',
+        'full_workflow_last_error_step=None',
+        'full_workflow_last_traceback=None',
+        'progress_current=0',
+        'progress_total=0',
+        'progress_message="Workflow gestart"',
+    ]
+    for token in required:
+        assert token in source, token
+
+
+def test_v715_active_workflow_is_not_health_failure():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'workflow_running = WORKFLOW_LOCK.locked()' in source
+    assert 'last_status in {"running", "completed", "completed_warning"}' in source

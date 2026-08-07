@@ -38,7 +38,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.1.4"
+APP_VERSION = "7.1.5"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -4854,6 +4854,22 @@ def run_full_month_workflow(
         step="Initialiseren",
         message="Volledige maandworkflow is gestart.",
     )
+    # Een nieuwe run mag geen foutdiagnose of voortgang van een vorige run tonen.
+    # Dit voorkomt dat een opgeloste fout tijdens een actieve run als actuele fout
+    # zichtbaar blijft in de operationele console.
+    update_state(
+        full_workflow_last_month=month_key,
+        full_workflow_last_status="running",
+        full_workflow_last_step="Initialiseren",
+        full_workflow_last_error=None,
+        full_workflow_last_error_type=None,
+        full_workflow_last_error_step=None,
+        full_workflow_last_error_at=None,
+        full_workflow_last_traceback=None,
+        progress_current=0,
+        progress_total=0,
+        progress_message="Workflow gestart",
+    )
     current_month_key = datetime.now(TZ).strftime("%Y_%m")
     target_is_current_month = month_key == current_month_key
     if collect_live_snapshots is None:
@@ -5271,9 +5287,18 @@ def health_dashboard(options: Options | None = None) -> dict[str, Any]:
     add("SlimmeMeterPortal", (state.get("api_test") or {}).get("status") == "ok", "API-verbinding")
     add("Rapportgeneratoren", BUNDLED_REPORT_GENERATORS.is_dir(), "Officiële generatoren aanwezig")
     add("Outputopslag", OUTPUT_ROOT.exists() or OUTPUT_ROOT.parent.exists(), str(OUTPUT_ROOT))
-    add("Workflow-lock", not WORKFLOW_LOCK.locked(), "vrij" if not WORKFLOW_LOCK.locked() else "actieve verwerking")
+    workflow_running = WORKFLOW_LOCK.locked() and str(state.get("workflow_lock_status") or "") == "running"
+    add(
+        "Workflow-lock",
+        (not WORKFLOW_LOCK.locked()) or workflow_running,
+        "actieve verwerking" if workflow_running else ("vrij" if not WORKFLOW_LOCK.locked() else "onverwacht bezet"),
+    )
     last_status = state.get("full_workflow_last_status")
-    add("Laatste workflow", last_status in {"completed", "completed_warning"}, str(last_status or "nog geen run"))
+    add(
+        "Laatste workflow",
+        last_status in {"running", "completed", "completed_warning"},
+        str(last_status or "nog geen run"),
+    )
     source_values = list((state.get("workflow_sources") or {}).values())
     add("Bronstatus", bool(source_values) and all(str(v).lower() in {"ready", "ok", "completed"} for v in source_values), ", ".join(map(str, source_values)) or "nog onbekend")
 
