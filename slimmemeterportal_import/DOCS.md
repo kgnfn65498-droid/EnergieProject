@@ -501,3 +501,10 @@ Beide uitvoeringen blijven afzonderlijk zichtbaar in de append-only historie. De
 Een echte automatische maandafsluiting wordt pas als definitief uitgevoerd beschouwd als zowel de workflowstatus `completed`/`completed_warning` is als de finalization `ok` is. Daarna schrijft v8.6 atomisch een marker naar `/config/output/automatic_completed_months.json`.
 
 `automatic_month_close_due()` controleert deze duurzame marker vóór de normale state. Daardoor leidt een Home Assistant restart, verloren runtime-state of meerdere schedulercontroles niet tot een tweede automatische verwerking van dezelfde maand. Geblokkeerde en mislukte runs krijgen bewust geen marker en blijven via de ingestelde retry opnieuw uitvoerbaar. Scheduler-acceptatietests schrijven nooit een productie-marker.
+
+
+## Versie 8.7.0 — zichtbare retry- en herstelstatus
+
+De operationele console toont expliciet de status van automatisch herstel. Een mislukte of geblokkeerde automatische maandafsluiting vermeldt of een retry gepland staat en op welk tijdstip. Een definitief geslaagde maand toont dat de duurzame completion-marker aanwezig is.
+
+De scheduler-acceptatietekst is vereenvoudigd naar simulatiemoment, doelmaand, eventuele voorbereidende productietest en bevestiging dat de schedulerinstelling ongewijzigd bleef.

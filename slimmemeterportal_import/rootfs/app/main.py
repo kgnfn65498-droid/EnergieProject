@@ -41,7 +41,7 @@ STATE_PATH = Path("/config/state.json")
 AUTOMATIC_RUN_LEDGER_PATH = Path("/config/output/automatic_run_history.jsonl")
 AUTOMATIC_COMPLETION_MARKERS_PATH = Path("/config/output/automatic_completed_months.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.6.0"
+APP_VERSION = "8.7.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -5985,6 +5985,46 @@ def workflow_visualization(state: dict[str, Any], log_lines: list[dict[str, Any]
     }
 
 
+def automatic_recovery_status(state: dict[str, Any], options: Options) -> dict[str, Any]:
+    """Leesbare retry- en herstelstatus voor automatische maandafsluiting."""
+    last_month = state.get("automatic_month_close_last_month")
+    last_status = str(state.get("automatic_month_close_last_status") or "")
+    next_retry = state.get("automatic_month_close_next_retry")
+    completed = bool(last_month and automatic_month_is_completed(str(last_month)))
+
+    if completed:
+        return {
+            "status": "completed",
+            "label": "Definitief afgerond",
+            "detail": f"{last_month} heeft een duurzame completion-marker.",
+            "next_retry": None,
+            "retry_required": False,
+        }
+    if next_retry and last_status in {"blocked", "error", "failed"}:
+        return {
+            "status": "retry_scheduled",
+            "label": "Retry gepland",
+            "detail": f"{last_month or 'Onbekende maand'} wordt opnieuw geprobeerd op {format_local_datetime(next_retry)}.",
+            "next_retry": next_retry,
+            "retry_required": True,
+        }
+    if last_status in {"blocked", "error", "failed"}:
+        return {
+            "status": "attention",
+            "label": "Herstel vereist",
+            "detail": f"Laatste automatische poging voor {last_month or 'onbekende maand'} eindigde met status {last_status}; er staat nog geen retry gepland.",
+            "next_retry": None,
+            "retry_required": True,
+        }
+    return {
+        "status": "ready",
+        "label": "Geen herstelactie nodig",
+        "detail": "Er staat geen mislukte automatische maandafsluiting open.",
+        "next_retry": None,
+        "retry_required": False,
+    }
+
+
 def operation_status(options: Options | None = None) -> dict[str, Any]:
     """Return one compact operational view without changing workflow state."""
     options = options or Options.load()
@@ -6140,6 +6180,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "completion_markers_path": str(AUTOMATIC_COMPLETION_MARKERS_PATH),
             "completed_months": sorted(read_automatic_completion_markers().keys(), reverse=True),
             "idempotency_protection": "active",
+            "recovery": automatic_recovery_status(state, options),
         },
         "history": history,
         "can_resume": bool(
@@ -6952,12 +6993,17 @@ def html_page() -> bytes:
         else ("Opnieuw testen" if scheduler_acceptance else "Nog niet getest")
     )
     scheduler_acceptance_detail = (
-        f"{format_local_datetime(scheduler_acceptance.get('simulated_at'))} · maand {scheduler_acceptance.get('month') or '—'}"
-        + (" · productietest automatisch uitgevoerd" if scheduler_acceptance.get("prerequisite_product_test_ran") is True else "")
-        + (" · Aan/Uit ongewijzigd" if scheduler_acceptance.get("scheduler_enabled_unchanged") is True else "")
+        f"Gesimuleerd voor {format_local_datetime(scheduler_acceptance.get('simulated_at'))} · doelmaand {scheduler_acceptance.get('month') or '—'}"
+        + (" · voorbereidende productietest automatisch geslaagd" if scheduler_acceptance.get("prerequisite_product_test_ran") is True else "")
+        + (" · schedulerinstelling ongewijzigd" if scheduler_acceptance.get("scheduler_enabled_unchanged") is True else "")
         if scheduler_acceptance_current and scheduler_acceptance.get("simulated_at")
         else ""
     )
+
+    recovery = auto_close.get("recovery") or {}
+    recovery_label = str(recovery.get("label") or "Geen herstelactie nodig")
+    recovery_detail = str(recovery.get("detail") or "")
+    recovery_status = str(recovery.get("status") or "ready")
 
     auto_test_month = str(auto_test.get("month") or datetime.now(TZ).strftime("%Y_%m")).replace("_", "-")
     workflow_active = str(workflow.get("status") or "").lower() in {"running", "importing"}
@@ -7042,7 +7088,8 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.6 bewaart de planning bij upgrades en voorkomt met duurzame maandmarkers dat een reeds geslaagde automatische maand na een restart opnieuw wordt uitgevoerd.</p>
+<p class="hint">v8.7 bewaart de planning bij upgrades, voorkomt dubbele automatische maandafsluitingen na restart en maakt retries expliciet zichtbaar.</p>
+<div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 </div>
 
 <div class="card"><h2>Automatische maandafsluiting</h2>
@@ -7063,13 +7110,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.6.0 productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.7.0 productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
-<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.5.1 die eerst automatisch veilig uit.</p>
+<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.7 die eerst automatisch veilig uit.</p>
 <ul class="source-list">
 <li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>
@@ -7234,7 +7281,13 @@ async function refreshStatus(){{
     const acceptanceEl=document.getElementById('scheduler-acceptance-status');
     if(acceptanceEl){{acceptanceEl.textContent=acceptanceStatus; acceptanceEl.className=pillClass(acceptanceCurrent?acceptance.status:'stale');}}
     const acceptanceDetail=document.getElementById('scheduler-acceptance-detail');
-    if(acceptanceDetail){{acceptanceDetail.textContent=acceptanceCurrent&&acceptance.simulated_at?`${{formatLocalDateTime(acceptance.simulated_at)}} · maand ${{acceptance.month||'—'}}${{acceptance.prerequisite_product_test_ran===true?' · productietest automatisch uitgevoerd':''}}${{acceptance.scheduler_enabled_unchanged===true?' · Aan/Uit ongewijzigd':''}}`:'';}}
+    if(acceptanceDetail){{acceptanceDetail.textContent=acceptanceCurrent&&acceptance.simulated_at?`Gesimuleerd voor ${{formatLocalDateTime(acceptance.simulated_at)}} · doelmaand ${{acceptance.month||'—'}}${{acceptance.prerequisite_product_test_ran===true?' · voorbereidende productietest automatisch geslaagd':''}}${{acceptance.scheduler_enabled_unchanged===true?' · schedulerinstelling ongewijzigd':''}}`:'';}}
+
+    const recovery=auto.recovery||{{}};
+    const recoveryStatus=document.getElementById('automatic-recovery-status');
+    if(recoveryStatus){{recoveryStatus.textContent=recovery.label||'Geen herstelactie nodig'; recoveryStatus.className=pillClass(recovery.status||'ready');}}
+    const recoveryDetail=document.getElementById('automatic-recovery-detail');
+    if(recoveryDetail){{recoveryDetail.textContent=recovery.detail||'';}}
 
     const ready=document.getElementById('auto-readiness');
     if(ready){{

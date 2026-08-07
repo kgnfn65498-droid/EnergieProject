@@ -17,7 +17,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 8.6.0
+- SlimmeMeterPortal Import 8.7.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
@@ -94,3 +94,7 @@ Scheduler-acceptatietest voert ontbrekende actuele productietest automatisch vei
 
 ### v8.6.0
 Duurzame restart- en dubbelstartbeveiliging voor echte automatische maandafsluitingen.
+
+
+### v8.7.0
+Zichtbare automatische retry-/herstelstatus en duidelijkere scheduler-acceptatietekst.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.7.0
+- Duidelijkere scheduler-acceptatietekst met simulatiemoment, doelmaand, voorbereidende productietest en ongewijzigde schedulerinstelling.
+- Nieuwe zichtbare status `Automatisch herstel` in de productiestatus.
+- Bij blocked/error/failed wordt aangegeven of en wanneer een retry gepland staat.
+- Definitief afgeronde maanden tonen dat een duurzame completion-marker aanwezig is.
+- Geen wijziging aan schedulerroute, idempotency-beveiliging, rapportgeneratoren of Recovery Update.
+
 ## 8.6.0
 - Duurzame idempotency-beveiliging voor echte automatische maandafsluitingen.
 - Na een volledig geslaagde automatische run wordt atomisch een maandmarker opgeslagen in `automatic_completed_months.json`.
