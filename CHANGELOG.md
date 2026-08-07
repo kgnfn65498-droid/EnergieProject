@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.9.0
+- Release Candidate voor v10.0.0 op basis van de goedgekeurde v9.8.0-productiebasis.
+- Diagnosepakket vermeldt expliciet `Releasefase: Release Candidate` en `Doelrelease: 10.0.0`.
+- `test_summary.json` bevat `release_stage=release_candidate` en `target_stable_release=10.0.0`.
+- Productiekern blijft `9.4-core1`; workflow, scheduler, retry/finalization, Recovery, Audittrail, Monitoring en rapportgeneratoren zijn inhoudelijk ongewijzigd.
+- Geen nieuwe automatische maandafsluitingstest nodig zolang het bestaande kerncertificaat geldig blijft.
+- Documentatie en versieaanduidingen opgeschoond voor de eindvalidatie richting v10.0.0.
+
 ## 9.8.0
 - Diagnosepakket maakt het hergebruik van een geldig kerncertificaat expliciet en begrijpelijk.
 - `samenvatting.txt` toont nu softwareversie, gebruikte productiekern, geldigheid van het kerncertificaat, oorspronkelijke certificeringsrelease en of het certificaat voor deze release wordt hergebruikt.

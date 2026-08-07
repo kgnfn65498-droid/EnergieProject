@@ -1,6 +1,6 @@
-# EnergieProject v9.2.0
+# EnergieProject v9.9.0 – Release Candidate
 
-Deze release verfijnt de operationele productieconsole van v9.0.0 zonder de gecertificeerde workflowkern te wijzigen. Productiegereedheid en systeemgezondheid worden duidelijker van elkaar onderscheiden.
+v9.9.0 is de Release Candidate voor v10.0.0. De gecertificeerde productiekern `9.4-core1` blijft ongewijzigd; deze release richt zich op eindvalidatie, consistente diagnose en documentatie.
 
 # Energie Home Assistant Apps
 
@@ -21,7 +21,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 9.2.0
+- SlimmeMeterPortal Import 9.9.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.9.0
+- Release Candidate voor v10.0.0.
+- Diagnosepakket bevat expliciete releasefase en doelrelease.
+- Productiekern `9.4-core1` blijft ongewijzigd; geen nieuwe volledige maandafsluitingstest vereist.
+- Documentatie en versieaanduidingen opgeschoond voor eindvalidatie.
+
 ## 9.8.0
 - Diagnosepakket maakt het hergebruik van een geldig kerncertificaat expliciet en begrijpelijk.
 - `samenvatting.txt` toont nu softwareversie, gebruikte productiekern, geldigheid van het kerncertificaat, oorspronkelijke certificeringsrelease en of het certificaat voor deze release wordt hergebruikt.
