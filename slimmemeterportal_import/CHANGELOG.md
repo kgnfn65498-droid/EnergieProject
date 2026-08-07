@@ -1,5 +1,16 @@
 # Changelog
 
+## 8.15.0
+
+- Productiecertificaat wordt automatisch uitgegeven na een geslaagde veilige productietest van exact dezelfde softwareversie.
+- Nieuw veilig certificaatbeheer: controle/herstel kan alleen vanuit hard opgeslagen testbewijs van v8.15.0; zonder geldig bewijs blijft de status `test_required`.
+- Certificaatformaat uitgebreid naar schema 2 met uniek `certificate_id`, uitgiftebron en test-evidence.
+- Append-only certificaathistorie bevat nu ook certificaat-ID en uitgiftebron.
+- Nieuw beheerbestand `production_certificate_management.json` met laatste controle/herstelactie.
+- Nieuw UI-beheer: **Controleer / herstel productiecertificaat** en download van het actuele certificaat.
+- Schedulerbeveiliging blijft ongewijzigd: automatisch inschakelen kan alleen met een integraal geldig certificaat van exact v8.15.0.
+- Geen wijzigingen aan centrale maandworkflow, retry-state, workflow-lock, rapportgeneratie of historische verwerking.
+
 ## 8.14.0
 - Production Lifecycle Manager bovenop v8.13.
 - Persistent productiecertificaat in `/config/output/production_certificate.json`.

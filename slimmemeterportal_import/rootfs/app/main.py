@@ -45,8 +45,9 @@ RETRY_DEBUG_LOG_PATH = Path("/config/output/logs/retry_debug.log")
 FINALIZATION_DEBUG_LOG_PATH = Path("/config/output/logs/finalization_debug.log")
 PRODUCTION_CERTIFICATE_PATH = Path("/config/output/production_certificate.json")
 PRODUCTION_CERTIFICATE_HISTORY_PATH = Path("/config/output/production_certificate_history.jsonl")
+PRODUCTION_CERTIFICATE_MANAGEMENT_PATH = Path("/config/output/production_certificate_management.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.14.0"
+APP_VERSION = "8.15.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -6836,10 +6837,12 @@ def validate_production_certificate(
 def append_production_certificate_history(certificate: dict[str, Any]) -> None:
     row = {
         "recorded_at": datetime.now(TZ).isoformat(),
+        "certificate_id": certificate.get("certificate_id"),
         "version": certificate.get("version"),
         "status": certificate.get("status"),
         "accepted_at": certificate.get("accepted_at"),
         "month": certificate.get("month"),
+        "issued_by": certificate.get("issued_by"),
         "integrity_sha256": certificate.get("integrity_sha256"),
     }
     PRODUCTION_CERTIFICATE_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -6877,7 +6880,8 @@ def write_production_acceptance(test_result: dict[str, Any]) -> dict[str, Any]:
         and test_result.get("scheduler_state_changed") is False
     )
     certificate = {
-        "schema": 1,
+        "schema": 2,
+        "certificate_id": f"{APP_VERSION}-{datetime.now(TZ).strftime('%Y%m%dT%H%M%S%z')}",
         "version": APP_VERSION,
         "status": "accepted" if valid else "rejected",
         "accepted_at": datetime.now(TZ).isoformat() if valid else None,
@@ -6889,6 +6893,12 @@ def write_production_acceptance(test_result: dict[str, Any]) -> dict[str, Any]:
         "workflow_status": workflow.get("status"),
         "finalization_status": finalization.get("status"),
         "scheduler_state_unchanged": test_result.get("scheduler_state_changed") is False,
+        "issued_by": "automatic_production_test",
+        "evidence": {
+            "test_version": test_result.get("version"),
+            "test_month": test_result.get("month"),
+            "test_status": test_result.get("status"),
+        },
     }
     certificate["integrity_sha256"] = production_certificate_payload_hash(certificate)
 
@@ -6908,8 +6918,51 @@ def write_production_acceptance(test_result: dict[str, Any]) -> dict[str, Any]:
     return certificate
 
 
+def manage_production_certificate(*, allow_repair: bool = True) -> dict[str, Any]:
+    """Controleer het actuele certificaat en herstel het uitsluitend uit hard testbewijs van deze versie."""
+    before = validate_production_certificate()
+    action = "validated"
+    repaired = False
+    source_test: dict[str, Any] | None = None
+    if allow_repair and not before.get("valid"):
+        candidate = load_state().get("automatic_month_close_test_last_result") or {}
+        source_test = candidate if isinstance(candidate, dict) else {}
+        candidate_valid = bool(
+            str(source_test.get("version") or "") == APP_VERSION
+            and str(source_test.get("status") or "") in {"completed", "completed_warning"}
+            and str((source_test.get("preflight") or {}).get("status") or "") == "ok"
+            and str((source_test.get("workflow") or {}).get("status") or "") in {"completed", "completed_warning"}
+            and str((source_test.get("finalization") or {}).get("status") or "") == "ok"
+            and source_test.get("scheduler_state_changed") is False
+        )
+        if candidate_valid:
+            write_production_acceptance(source_test)
+            repaired = True
+            action = "generated_from_current_version_test"
+        else:
+            action = "test_required"
+    after = validate_production_certificate()
+    result = {
+        "version": APP_VERSION,
+        "checked_at": datetime.now(TZ).isoformat(),
+        "action": action,
+        "repaired": repaired,
+        "valid": bool(after.get("valid")),
+        "status": after.get("status"),
+        "reason": after.get("reason"),
+        "certificate_id": (after.get("certificate") or {}).get("certificate_id"),
+        "certificate_path": str(PRODUCTION_CERTIFICATE_PATH),
+        "history_path": str(PRODUCTION_CERTIFICATE_HISTORY_PATH),
+        "source_test_month": source_test.get("month") if source_test else None,
+    }
+    write_atomic_json(PRODUCTION_CERTIFICATE_MANAGEMENT_PATH, result)
+    update_state(production_certificate_management=result)
+    return result
+
+
 def automatic_production_readiness(state: dict[str, Any] | None = None) -> dict[str, Any]:
     """Alleen een geldig certificaat van exact deze versie geeft productie vrij."""
+    manage_production_certificate(allow_repair=True)
     validation = validate_production_certificate()
     certificate = validation.get("certificate") or {}
     return {
@@ -7944,7 +7997,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 <div class="metric"><small>Productiecertificaat</small><strong id="production-certificate">{esc(production_certificate_text)}</strong></div>
 </div>
-<p class="hint">v8.14 valideert het productiecertificaat continu en laat de scheduler alleen draaien met een geldig certificaat van exact deze versie.</p>
+<p class="hint">v8.15 genereert het productiecertificaat automatisch uit een geslaagde productietest van exact deze versie, valideert de integriteit continu en kan het certificaat veilig uit bestaand hard testbewijs herstellen.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
 </div>
 
@@ -7966,13 +8019,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.14.0 gecertificeerd is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.15.0 gecertificeerd is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
-<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.14.0 die eerst automatisch veilig uit.</p>
+<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.15.0 die eerst automatisch veilig uit.</p>
 <ul class="source-list">
 <li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>
@@ -7997,6 +8050,9 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <tbody>{certificate_history_rows}</tbody>
 </table></div>
 <p class="hint">Append-only historie van afgegeven productiecertificaten.</p>
+<form method="post" action="manage-production-certificate"><button type="submit" class="secondary">Controleer / herstel productiecertificaat</button></form>
+<p class="hint">Herstel is alleen toegestaan uit een aantoonbaar geslaagde productietest van exact v8.15.0; er wordt nooit een certificaat zonder testbewijs aangemaakt.</p>
+<p><a href="download-production-certificate">Download huidig productiecertificaat</a></p>
 </div>
 
 <div class="card" id="last-error-card" style="display:{'block' if last_run.get('error') else 'none'}"><h2>Laatste workflowfout</h2>
@@ -8389,6 +8445,16 @@ class Handler(BaseHTTPRequestHandler):
                 "installation_ready": state.get("installation_ready"),
             }).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/download-production-certificate") or path == "/download-production-certificate":
+            validation = validate_production_certificate()
+            if not validation.get("exists"):
+                self.send_body(HTTPStatus.NOT_FOUND, b"Productiecertificaat ontbreekt", "text/plain")
+            else:
+                body = PRODUCTION_CERTIFICATE_PATH.read_bytes()
+                self.send_body(
+                    HTTPStatus.OK, body, "application/json; charset=utf-8",
+                    'attachment; filename="production_certificate.json"',
+                )
         elif path.endswith("/download") or path == "/download":
             month = (parse_qs(parsed.query).get("month") or [""])[0]
             try:
@@ -8706,6 +8772,22 @@ class Handler(BaseHTTPRequestHandler):
                 code = HTTPStatus.OK
             except Exception as exc:
                 result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            self.send_body(
+                code,
+                ("<html><meta charset='utf-8'><p>"
+                 + html.escape(json.dumps(result, ensure_ascii=False))
+                 + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+
+        if path.endswith("/manage-production-certificate") or path == "/manage-production-certificate":
+            try:
+                result = manage_production_certificate(allow_repair=True)
+                code = HTTPStatus.OK if result.get("valid") else HTTPStatus.BAD_REQUEST
+            except Exception as exc:
+                result = {"status": "error", "error": str(exc), "version": APP_VERSION}
                 code = HTTPStatus.BAD_REQUEST
             self.send_body(
                 code,
