@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.6.0
+- Duurzame idempotency-beveiliging voor echte automatische maandafsluitingen.
+- Na een volledig geslaagde automatische run wordt atomisch een maandmarker opgeslagen in `automatic_completed_months.json`.
+- De scheduler controleert deze marker vóór de gewone state en voert een reeds geslaagde maand daardoor niet opnieuw uit na een Home Assistant restart.
+- Mislukte en geblokkeerde runs krijgen géén completion marker en blijven volgens de ingestelde retry opnieuw uitvoerbaar.
+- Scheduler-acceptatietests gebruiken dezelfde productiecode maar schrijven nooit een echte completion marker.
+- Append-only historie, productietest en rapportagecontract blijven ongewijzigd.
+
 ## 8.5.1
 - Scheduler-acceptatietest voert na een upgrade automatisch eerst de verplichte veilige productietest van dezelfde softwareversie uit.
 - Alleen na een geslaagde voorbereidende productietest wordt de echte schedulerroute gesimuleerd.

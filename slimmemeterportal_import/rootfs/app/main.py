@@ -39,8 +39,9 @@ AUTO_CLOSE_UI_OPTIONS_PATH = Path("/config/automatic_month_close.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 AUTOMATIC_RUN_LEDGER_PATH = Path("/config/output/automatic_run_history.jsonl")
+AUTOMATIC_COMPLETION_MARKERS_PATH = Path("/config/output/automatic_completed_months.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.5.1"
+APP_VERSION = "8.6.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -4844,6 +4845,51 @@ def read_automatic_run_history(limit: int = 20) -> list[dict[str, Any]]:
     return list(reversed(rows[-max(1, min(limit, 100)):]))
 
 
+
+def read_automatic_completion_markers() -> dict[str, Any]:
+    if not AUTOMATIC_COMPLETION_MARKERS_PATH.is_file():
+        return {}
+    try:
+        value = json.loads(AUTOMATIC_COMPLETION_MARKERS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def automatic_month_is_completed(month_key: str) -> bool:
+    marker = read_automatic_completion_markers().get(month_key) or {}
+    return bool(
+        isinstance(marker, dict)
+        and marker.get("status") in {"completed", "completed_warning"}
+        and marker.get("finalization_status") == "ok"
+    )
+
+
+def mark_automatic_month_completed(
+    month_key: str,
+    *,
+    status: str,
+    finalization_status: str,
+    finished_at: str | None,
+) -> dict[str, Any]:
+    """Schrijf een duurzame, atomische productie-completion marker."""
+    markers = read_automatic_completion_markers()
+    marker = {
+        "month": month_key,
+        "status": status,
+        "finalization_status": finalization_status,
+        "finished_at": finished_at or datetime.now(TZ).isoformat(),
+        "version": APP_VERSION,
+        "recorded_at": datetime.now(TZ).isoformat(),
+    }
+    markers[month_key] = marker
+    AUTOMATIC_COMPLETION_MARKERS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = AUTOMATIC_COMPLETION_MARKERS_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(markers, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(AUTOMATIC_COMPLETION_MARKERS_PATH)
+    return marker
+
+
 FULL_WORKFLOW_RESULT_NAME = "workflow_result.json"
 WORKFLOW_LOG_NAME = "workflow.log"
 
@@ -6091,6 +6137,9 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "history": automatic_history,
             "history_source": automatic_history_source,
             "history_path": str(AUTOMATIC_RUN_LEDGER_PATH),
+            "completion_markers_path": str(AUTOMATIC_COMPLETION_MARKERS_PATH),
+            "completed_months": sorted(read_automatic_completion_markers().keys(), reverse=True),
+            "idempotency_protection": "active",
         },
         "history": history,
         "can_resume": bool(
@@ -6455,6 +6504,13 @@ def execute_automatic_month_close(
     result = {"month": month_key, "status": final_status, "preflight": preflight, "workflow": workflow, "finalization": finalization, "retry_at": retry_at}
     if record_as_real_automatic:
         options_after = Options.load()
+        if final_status in {"completed", "completed_warning"} and finalization.get("status") == "ok":
+            mark_automatic_month_completed(
+                month_key,
+                status=final_status,
+                finalization_status="ok",
+                finished_at=workflow.get("finished_at"),
+            )
         append_automatic_run_history({
             "type": "Automatisch", "month": month_key, "status": final_status,
             "finalization_status": finalization.get("status"),
@@ -6634,6 +6690,9 @@ def automatic_month_close_due(options: Options, now: datetime) -> str | None:
     year, month = previous_month(now.date())
     month_key = f"{year:04d}_{month:02d}"
     state = load_state()
+    if automatic_month_is_completed(month_key):
+        # v8.6: duurzame idempotency-marker is leidend, ook na Home Assistant restart.
+        return None
     if state.get("automatic_month_close_last_month") == month_key and state.get("automatic_month_close_last_status") in {"completed", "completed_warning"}:
         return None
 
@@ -6983,7 +7042,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.5.1 bewaart de planning bij upgrades en kan de echte schedulerroute direct gecontroleerd simuleren.</p>
+<p class="hint">v8.6 bewaart de planning bij upgrades en voorkomt met duurzame maandmarkers dat een reeds geslaagde automatische maand na een restart opnieuw wordt uitgevoerd.</p>
 </div>
 
 <div class="card"><h2>Automatische maandafsluiting</h2>
@@ -7004,7 +7063,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.5.1 productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.6.0 productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>

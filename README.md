@@ -17,7 +17,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 8.5.1
+- SlimmeMeterPortal Import 8.6.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
@@ -90,3 +90,7 @@ Append-only automatische runhistorie.
 
 ### v8.5.1
 Scheduler-acceptatietest voert ontbrekende actuele productietest automatisch veilig uit voordat de productie-schedulerroute wordt gesimuleerd.
+
+
+### v8.6.0
+Duurzame restart- en dubbelstartbeveiliging voor echte automatische maandafsluitingen.

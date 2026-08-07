@@ -494,3 +494,10 @@ Iedere automatische uitvoering krijgt een eigen regel in `/config/output/automat
 Na een software-upgrade hoeft de gebruiker niet meer eerst handmatig een afzonderlijke productietest uit te voeren voordat de scheduler-acceptatietest bruikbaar is. `Simuleer volgende scheduler-run nu` controleert de productiegereedheid en voert, indien nodig, eerst de veilige productietest van de actuele versie uit. Alleen als die test volledig slaagt wordt dezelfde productie-schedulerroute als voorheen gesimuleerd.
 
 Beide uitvoeringen blijven afzonderlijk zichtbaar in de append-only historie. De schedulerinstellingen en schedulerboekhouding worden door de test niet gewijzigd.
+
+
+## Versie 8.6.0 — restart- en dubbelstartbeveiliging
+
+Een echte automatische maandafsluiting wordt pas als definitief uitgevoerd beschouwd als zowel de workflowstatus `completed`/`completed_warning` is als de finalization `ok` is. Daarna schrijft v8.6 atomisch een marker naar `/config/output/automatic_completed_months.json`.
+
+`automatic_month_close_due()` controleert deze duurzame marker vóór de normale state. Daardoor leidt een Home Assistant restart, verloren runtime-state of meerdere schedulercontroles niet tot een tweede automatische verwerking van dezelfde maand. Geblokkeerde en mislukte runs krijgen bewust geen marker en blijven via de ingestelde retry opnieuw uitvoerbaar. Scheduler-acceptatietests schrijven nooit een productie-marker.
