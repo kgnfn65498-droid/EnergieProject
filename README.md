@@ -1,3 +1,7 @@
+# EnergieProject v8.18.0
+
+Deze release bouwt voort op v8.17.0 en voegt productiemonitoring toe zonder de bestaande maandworkflow te wijzigen.
+
 # Energie Home Assistant Apps
 
 Home Assistant app-repository voor het Energieproject.

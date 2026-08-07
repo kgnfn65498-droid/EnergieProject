@@ -49,8 +49,10 @@ PRODUCTION_CERTIFICATE_MANAGEMENT_PATH = Path("/config/output/production_certifi
 AUDIT_TRAIL_PATH = Path("/config/output/audit_trail.jsonl")
 RECOVERY_STATE_PATH = Path("/config/output/recovery_state.json")
 RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
+MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
+MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.17.0"
+APP_VERSION = "8.18.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -83,6 +85,7 @@ WORKFLOW_LOCK_META = threading.Lock()
 WORKFLOW_ACTIVE: dict[str, Any] = {}
 STATE_LOCK = threading.RLock()
 AUDIT_LOCK = threading.Lock()
+MONITORING_LOCK = threading.Lock()
 
 
 class ImportCancelled(Exception):
@@ -6286,6 +6289,121 @@ def historical_month_allowed(month_key: str) -> str:
     return f"{year:04d}_{month:02d}"
 
 
+def read_monitoring_status() -> dict[str, Any]:
+    """Lees de laatst vastgelegde monitoringstatus zonder runtime-acties te starten."""
+    try:
+        if MONITORING_STATE_PATH.is_file():
+            data = json.loads(MONITORING_STATE_PATH.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        LOGGER.exception("Monitoringstatus kon niet worden gelezen.")
+    return {}
+
+
+def read_monitoring_history(limit: int = 20) -> list[dict[str, Any]]:
+    if not MONITORING_HISTORY_PATH.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    try:
+        for line in MONITORING_HISTORY_PATH.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(item, dict):
+                rows.append(item)
+    except OSError:
+        LOGGER.exception("Monitoringhistorie kon niet worden gelezen.")
+        return []
+    return list(reversed(rows[-max(1, limit):]))
+
+
+def monitoring_snapshot(options: Options | None = None, *, force: bool = False, trigger: str = "status") -> dict[str, Any]:
+    """Productiemonitoring; alleen statuswisselingen worden append-only opgeslagen."""
+    options = options or Options.load()
+    with MONITORING_LOCK:
+        previous = read_monitoring_status()
+        if not force and previous.get("checked_at"):
+            try:
+                checked = datetime.fromisoformat(str(previous.get("checked_at")))
+                if checked.tzinfo is None:
+                    checked = checked.replace(tzinfo=TZ)
+                if (datetime.now(TZ) - checked).total_seconds() < 30:
+                    return previous
+            except (TypeError, ValueError):
+                pass
+
+        state = load_state()
+        certificate = validate_production_certificate()
+        audit = validate_audit_trail()
+        recovery = read_recovery_status()
+        checks: list[dict[str, Any]] = []
+
+        def add(name: str, status: str, detail: str) -> None:
+            checks.append({"name": name, "status": status, "detail": detail})
+
+        api_ok = (state.get("api_test") or {}).get("status") == "ok"
+        add("API", "ok" if api_ok else "warning", "verbonden" if api_ok else "API-test niet ok")
+
+        last_status = str(state.get("full_workflow_last_status") or "")
+        workflow_ok = last_status in {"completed", "completed_warning", "running"}
+        add("Workflow", "ok" if workflow_ok else "warning", last_status or "nog geen run")
+
+        add("Productiecertificaat", "ok" if certificate.get("valid") else "warning",
+            "geldig" if certificate.get("valid") else str(certificate.get("status") or "ongeldig"))
+        add("Audittrail", "ok" if audit.get("valid") else "attention", str(audit.get("status") or "unknown"))
+
+        recovery_status = str(recovery.get("status") or "unknown")
+        add("Recovery", "ok" if recovery_status == "ok" else "warning", recovery_status)
+
+        if options.automatic_month_close_enabled:
+            scheduler_ok = bool(certificate.get("valid"))
+            add("Scheduler", "ok" if scheduler_ok else "warning",
+                "actief" if scheduler_ok else "wacht op geldig productiecertificaat")
+        else:
+            add("Scheduler", "ok", "uitgeschakeld")
+
+        source_values = list((state.get("workflow_sources") or {}).values())
+        sources_ok = bool(source_values) and all(str(v).lower() in {"ready", "ok", "completed"} for v in source_values)
+        add("Bronnen", "ok" if sources_ok else "warning", ", ".join(map(str, source_values)) or "nog onbekend")
+
+        active = [item for item in checks if item["status"] != "ok"]
+        overall = "attention" if any(item["status"] == "attention" for item in active) else ("warning" if active else "ok")
+        fingerprint = hashlib.sha256(json.dumps(
+            [(item["name"], item["status"], item["detail"]) for item in checks],
+            ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")).hexdigest()
+        now = datetime.now(TZ).isoformat()
+        result = {
+            "version": APP_VERSION,
+            "checked_at": now,
+            "trigger": trigger,
+            "status": overall,
+            "active_alerts": len(active),
+            "checks": checks,
+            "fingerprint": fingerprint,
+            "history_path": str(MONITORING_HISTORY_PATH),
+        }
+        MONITORING_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(MONITORING_STATE_PATH, result)
+
+        if str(previous.get("fingerprint") or "") != fingerprint:
+            record = {"recorded_at": now, **result}
+            with MONITORING_HISTORY_PATH.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":"), default=str) + "\n")
+            try:
+                if validate_audit_trail().get("valid"):
+                    append_audit_event(
+                        "monitoring", action="status_changed", status=overall,
+                        details={"active_alerts": len(active), "checks": checks, "trigger": trigger},
+                    )
+            except Exception as exc:
+                LOGGER.warning("Monitoringstatus kon niet aan audittrail worden toegevoegd: %s", exc)
+        return result
+
+
 def health_dashboard(options: Options | None = None) -> dict[str, Any]:
     options = options or Options.load()
     state = load_state()
@@ -6322,6 +6440,9 @@ def health_dashboard(options: Options | None = None) -> dict[str, Any]:
     audit_validation = validate_audit_trail()
     add("Audittrail", bool(audit_validation.get("valid")), f"{audit_validation.get('records', 0)} record(s)")
     add("Auditintegriteit", bool(audit_validation.get("valid")), str(audit_validation.get("status") or "unknown"))
+    monitoring = monitoring_snapshot(options)
+    add("Monitoring", monitoring.get("status") == "ok",
+        f"{monitoring.get('active_alerts', 0)} actieve waarschuwing(en)")
 
     passed = sum(1 for c in checks if c["status"] == "ok")
     score = round((passed / len(checks)) * 100) if checks else 0
@@ -6883,6 +7004,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
         },
         "audit_trail": {"validation": validate_audit_trail(), "events": read_audit_trail(limit=12), "path": str(AUDIT_TRAIL_PATH)},
         "recovery_controller": read_recovery_status(),
+        "monitoring": monitoring_snapshot(options),
         "history": history,
         "can_resume": bool(
             state.get("full_workflow_last_month")
@@ -8183,6 +8305,15 @@ def html_page() -> bytes:
         + "<td>" + esc(item.get("month") or "—") + "</td></tr>"
         for item in (audit_trail.get("events") or [])
     ) or "<tr><td colspan='5'>Nog geen auditrecords.</td></tr>"
+    monitoring = op.get("monitoring") or monitoring_snapshot(options)
+    monitoring_checks = monitoring.get("checks") or []
+    monitoring_status = str(monitoring.get("status") or "unknown")
+    monitoring_count = int(monitoring.get("active_alerts") or 0)
+    monitoring_checked = format_local_datetime(monitoring.get("checked_at")) if monitoring.get("checked_at") else "Nog niet gecontroleerd"
+    monitoring_rows = "".join(
+        f"<li><span>{esc(item.get('name') or '—')}</span><span><span class='pill {status_class(item.get('status'))}'>{esc(item.get('status') or '—')}</span> {esc(item.get('detail') or '')}</span></li>"
+        for item in monitoring_checks
+    ) or "<li><span>Monitoring</span><span>Nog geen status</span></li>"
     recovery_controller = op.get("recovery_controller") or {}
     recovery_controller_status = str(recovery_controller.get("status") or "not_checked")
     recovery_controller_count = int(recovery_controller.get("repair_count") or 0)
@@ -8351,7 +8482,14 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <p class="hint">Controleert en reconcilieert uitsluitend duurzame status uit bestaand hard bewijs. Start nooit zelfstandig een maandworkflow en wijzigt geen ongeldige auditketen.</p>
 </div>
 
-<div class="card"><h2>Audittrail v8.16</h2>
+<div class="card" id="monitoring-v818"><h2>Monitoring v8.18</h2>
+<div class="metrics"><div class="metric"><small>Status</small><strong><span id="monitoring-status" class="pill {status_class(monitoring_status)}">{esc(monitoring_status)}</span></strong></div><div class="metric"><small>Actieve waarschuwingen</small><strong id="monitoring-alert-count">{esc(monitoring_count)}</strong></div><div class="metric"><small>Laatste controle</small><strong id="monitoring-checked">{esc(monitoring_checked)}</strong></div></div>
+<ul class="source-list" id="monitoring-checks">{monitoring_rows}</ul>
+<p><button id="run-monitoring-button" type="button" class="secondary">Controleer monitoring nu</button> <a href="download-monitoring-history">Download monitoringhistorie</a></p>
+<p class="hint">Bewaakt API, workflow, productiecertificaat, audittrail, recovery, scheduler en bronstatus. Alleen statuswijzigingen worden append-only opgeslagen; monitoring start zelf geen workflow.</p>
+</div>
+
+<div class="card"><h2>Audittrail</h2>
 <div class="metrics"><div class="metric"><small>Integriteit</small><strong id="audit-integrity">{esc(audit_validation.get('status') or 'empty')}</strong></div><div class="metric"><small>Records</small><strong id="audit-record-count">{esc(audit_validation.get('records', 0))}</strong></div></div>
 <div class="table-wrap"><table><thead><tr><th>Moment</th><th>Type</th><th>Actie</th><th>Status</th><th>Maand</th></tr></thead><tbody id="audit-trail-body">{audit_rows}</tbody></table></div>
 <p class="hint">Append-only, hash-gekoppelde audittrail van workflows, productietests, schedulerwijzigingen, scheduler-acceptatietests en productiecertificaten.</p>
@@ -8548,6 +8686,17 @@ async function refreshStatus(){{
       healthChecks.innerHTML=op.health.checks.map(x=>`<li><span>${{escapeHtml(x.name||'')}}</span><span><span class="${{pillClass(x.status)}}">${{escapeHtml(x.status||'')}}</span> ${{escapeHtml(x.detail||'')}}</span></li>`).join('');
     }}
 
+    const monitoring=op.monitoring||{{}};
+    const monitoringStatus=document.getElementById('monitoring-status');
+    const monitoringCount=document.getElementById('monitoring-alert-count');
+    const monitoringChecked=document.getElementById('monitoring-checked');
+    const monitoringChecks=document.getElementById('monitoring-checks');
+    if(monitoringStatus){{monitoringStatus.textContent=monitoring.status||'unknown';monitoringStatus.className=pillClass(monitoring.status);}}
+    if(monitoringCount) monitoringCount.textContent=String(monitoring.active_alerts??0);
+    if(monitoringChecked) monitoringChecked.textContent=monitoring.checked_at?formatLocalDateTime(monitoring.checked_at):'Nog niet gecontroleerd';
+    if(monitoringChecks && Array.isArray(monitoring.checks)){{
+      monitoringChecks.innerHTML=monitoring.checks.map(item=>`<li><span>${{escapeHtml(item.name||'—')}}</span><span><span class="${{pillClass(item.status)}}">${{escapeHtml(item.status||'—')}}</span> ${{escapeHtml(item.detail||'')}}</span></li>`).join('');
+    }}
     const audit=op.audit_trail||{{}};
     const auditValidation=audit.validation||{{}};
     const auditIntegrity=document.getElementById('audit-integrity');
@@ -8626,6 +8775,18 @@ if(recoveryButton){{
       if(!response.ok) throw new Error(result.error||'Recoverycontrole mislukt');
       await refreshStatus();
     }}catch(err){{alert(String(err.message||err));}}finally{{recoveryButton.disabled=false;}}
+  }});
+}}
+const monitoringButton=document.getElementById('run-monitoring-button');
+if(monitoringButton){{
+  monitoringButton.addEventListener('click', async()=>{{
+    monitoringButton.disabled=true;
+    try{{
+      const response=await fetch('run-monitoring',{{method:'POST',headers:{{'X-Requested-With':'fetch','Accept':'application/json'}}}});
+      const result=await response.json();
+      if(!response.ok) throw new Error(result.error||'Monitoringcontrole mislukt');
+      await refreshStatus();
+    }}catch(err){{alert(String(err.message||err));}}finally{{monitoringButton.disabled=false;}}
   }});
 }}
 const autoSwitch=document.getElementById('auto-close-enabled');
@@ -8806,6 +8967,11 @@ class Handler(BaseHTTPRequestHandler):
                 "installation_ready": state.get("installation_ready"),
             }).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/download-monitoring-history") or path == "/download-monitoring-history":
+            if not MONITORING_HISTORY_PATH.is_file():
+                self.send_body(HTTPStatus.NOT_FOUND, b"Monitoringhistorie niet gevonden", "text/plain; charset=utf-8")
+            else:
+                self.send_body(HTTPStatus.OK, MONITORING_HISTORY_PATH.read_bytes(), "application/x-ndjson; charset=utf-8", 'attachment; filename="monitoring_history.jsonl"')
         elif path.endswith("/download-audit-trail") or path == "/download-audit-trail":
             if not AUDIT_TRAIL_PATH.is_file():
                 self.send_body(HTTPStatus.NOT_FOUND, b"Audittrail ontbreekt", "text/plain")
@@ -9147,6 +9313,16 @@ class Handler(BaseHTTPRequestHandler):
                  + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
                 "text/html; charset=utf-8",
             )
+            return
+
+        if path.endswith("/run-monitoring") or path == "/run-monitoring":
+            try:
+                result = monitoring_snapshot(Options.load(), force=True, trigger="manual")
+                body = json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8")
+                self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+            except Exception as exc:
+                body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, body, "application/json; charset=utf-8")
             return
 
         if path.endswith("/run-recovery-controller") or path == "/run-recovery-controller":
@@ -9560,13 +9736,15 @@ def main() -> None:
         try:
             time.sleep(1)
             recovery_result = run_recovery_controller(trigger="startup")
-            LOGGER.info("Recovery v8.17 startupcontrole: %s; herstelacties=%s", recovery_result.get("status"), recovery_result.get("repair_count"))
+            LOGGER.info("Recovery startupcontrole: %s; herstelacties=%s", recovery_result.get("status"), recovery_result.get("repair_count"))
             result = run_self_test()
             LOGGER.info(
                 "Automatische zelftest afgerond: %s; installatie_gereed=%s",
                 result.get("status"),
                 result.get("status") != "error",
             )
+            monitor = monitoring_snapshot(Options.load(), force=True, trigger="startup")
+            LOGGER.info("Monitoring v8.18 startupcontrole: %s; waarschuwingen=%s", monitor.get("status"), monitor.get("active_alerts"))
         except Exception:
             LOGGER.exception("Automatische zelftest mislukt.")
 

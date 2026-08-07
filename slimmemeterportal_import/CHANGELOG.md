@@ -1,5 +1,17 @@
 # Changelog
 
+## 8.18.0
+
+- Productiemonitoring toegevoegd voor API, workflow, productiecertificaat, audittrail, recovery, scheduler en bronstatus.
+- Monitoringstatus wordt maximaal iedere 30 seconden geëvalueerd tijdens normale consolepolling.
+- Alleen echte statuswijzigingen worden append-only opgeslagen in `/config/output/monitoring_history.jsonl`.
+- Laatste monitoringsnapshot wordt duurzaam opgeslagen in `/config/output/monitoring_state.json`.
+- Statuswisselingen worden tevens in de bestaande audittrail vastgelegd wanneer de auditketen geldig is.
+- Nieuwe compacte consolekaart **Monitoring v8.18** met handmatige controle en download van monitoringhistorie.
+- Gezondheidsdashboard neemt monitoring mee in de projectscore.
+- Audittrailtitel generiek gemaakt; bestaande auditinhoud en hashketen blijven ongewijzigd.
+- Recovery, scheduler, maandworkflow, retry-state en rapportgeneratoren inhoudelijk ongewijzigd.
+
 ## 8.17.0
 
 - Recovery-controller toegevoegd voor veilige automatische reconciliatie uit bestaand hard bewijs.
