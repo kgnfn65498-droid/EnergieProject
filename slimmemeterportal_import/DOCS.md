@@ -470,3 +470,8 @@ De Aan/Uit-schakelaar wordt vanaf v8.2 onmiddellijk persistent opgeslagen. Hierd
 Daarnaast legt de productietest vóór aanvang de schedulerconfiguratie byte-voor-byte vast en verifieert na afloop dat deze niet veranderd is. Een eventuele wijziging wordt teruggedraaid en als fout gemeld.
 
 De automatische finalization vereist exact `Energierapport_YYYY_MM.pdf` en `Recovery_Update_YYYY_MM.zip`, controleert de PDF-signatuur en voert `ZipFile.testzip()` uit op de Recovery Update.
+
+
+## Versie 8.3.0 — scheduler-acceptatietest
+
+`Simuleer volgende scheduler-run nu` zet de klok logisch op de eerstvolgende geplande maandafsluiting en gebruikt daarna dezelfde `automatic_month_close_due()` en `execute_automatic_month_close()` als de echte scheduler. Na afloop worden de schedulerboekhoudvelden en schedulerconfiguratie teruggezet. Daardoor kan de productie-route vandaag al volledig worden getest.

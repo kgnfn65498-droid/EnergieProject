@@ -39,7 +39,7 @@ AUTO_CLOSE_UI_OPTIONS_PATH = Path("/config/automatic_month_close.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.2.0"
+APP_VERSION = "8.3.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -472,6 +472,7 @@ def default_state() -> dict[str, Any]:
         "automatic_month_close_last_preflight": None,
         "automatic_month_close_last_finalization": None,
         "automatic_month_close_test_last_result": None,
+        "automatic_scheduler_acceptance_last_result": None,
         "last_self_test": None,
         "installation_ready": False,
     }
@@ -5992,6 +5993,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "last_preflight": state.get("automatic_month_close_last_preflight"),
             "last_finalization": state.get("automatic_month_close_last_finalization"),
             "test_last_result": state.get("automatic_month_close_test_last_result"),
+            "scheduler_acceptance_last_result": state.get("automatic_scheduler_acceptance_last_result"),
             "production_readiness": automatic_production_readiness(state),
             "scheduler_effective": bool(
                 options.automatic_month_close_enabled
@@ -6293,6 +6295,133 @@ def automatic_month_close_finalize(options: Options, month_key: str, workflow_re
     update_state(automatic_month_close_last_finalization=result)
     return result
 
+def execute_automatic_month_close(options: Options, month_key: str, *, trigger: str = "automatic") -> dict[str, Any]:
+    """Gedeelde productie-executor voor scheduler en acceptatietest."""
+    attempt_at = datetime.now(TZ)
+    update_state(
+        automatic_month_close_last_month=month_key,
+        automatic_month_close_last_status="preflight",
+        automatic_month_close_last_attempt=attempt_at.isoformat(),
+        automatic_month_close_last_run=attempt_at.isoformat(),
+        automatic_month_close_next_retry=None,
+    )
+    preflight = automatic_month_close_preflight(options, month_key)
+    if preflight.get("status") != "ok":
+        retry_at = (datetime.now(TZ) + timedelta(hours=options.automatic_month_close_retry_hours)).isoformat()
+        update_state(
+            automatic_month_close_last_month=month_key,
+            automatic_month_close_last_status="blocked",
+            automatic_month_close_last_run=datetime.now(TZ).isoformat(),
+            automatic_month_close_next_retry=retry_at,
+        )
+        return {"month": month_key, "status": "blocked", "preflight": preflight, "workflow": None, "finalization": None, "retry_at": retry_at}
+
+    update_state(automatic_month_close_last_status="running")
+    workflow = run_full_month_workflow(month_key, collect_live_snapshots=False, trigger=trigger)
+    finalization = automatic_month_close_finalize(options, month_key, workflow)
+    final_status = str(workflow.get("status") or "error")
+    if final_status in {"completed", "completed_warning"} and finalization.get("status") != "ok":
+        final_status = "error"
+    retry_at = None
+    if final_status not in {"completed", "completed_warning"}:
+        retry_at = (datetime.now(TZ) + timedelta(hours=options.automatic_month_close_retry_hours)).isoformat()
+    update_state(
+        automatic_month_close_last_month=month_key,
+        automatic_month_close_last_status=final_status,
+        automatic_month_close_last_run=datetime.now(TZ).isoformat(),
+        automatic_month_close_next_retry=retry_at,
+    )
+    return {"month": month_key, "status": final_status, "preflight": preflight, "workflow": workflow, "finalization": finalization, "retry_at": retry_at}
+
+
+def automatic_scheduler_acceptance_test() -> dict[str, Any]:
+    """Simuleer de eerstvolgende geplande run via exact de productie-schedulerroute."""
+    if WORKFLOW_LOCK.locked():
+        raise RuntimeError("Er draait al een maandworkflow.")
+    options = Options.load()
+    if not automatic_production_readiness().get("ready"):
+        raise RuntimeError("Voer eerst de veilige productietest van versie " + APP_VERSION + " uit.")
+    if not options.automatic_month_close_enabled:
+        raise RuntimeError("Zet automatische maandafsluiting eerst AAN.")
+
+    now = datetime.now(TZ)
+    simulated_at = now.replace(
+        day=options.automatic_month_close_day,
+        hour=options.automatic_month_close_hour,
+        minute=0, second=0, microsecond=0,
+    )
+    if simulated_at <= now:
+        year = simulated_at.year + (1 if simulated_at.month == 12 else 0)
+        month = 1 if simulated_at.month == 12 else simulated_at.month + 1
+        simulated_at = simulated_at.replace(year=year, month=month, day=options.automatic_month_close_day)
+
+    month_key = automatic_month_close_due(options, simulated_at)
+    if not month_key:
+        raise RuntimeError("De gesimuleerde scheduler vond geen verschuldigde maand.")
+
+    scheduler_keys = (
+        "automatic_month_close_last_month",
+        "automatic_month_close_last_status",
+        "automatic_month_close_last_attempt",
+        "automatic_month_close_last_run",
+        "automatic_month_close_next_retry",
+    )
+    before = load_state()
+    scheduler_before = {key: before.get(key) for key in scheduler_keys}
+    config_before = AUTO_CLOSE_UI_OPTIONS_PATH.read_bytes() if AUTO_CLOSE_UI_OPTIONS_PATH.exists() else None
+    started_at = datetime.now(TZ)
+
+    try:
+        execution = execute_automatic_month_close(options, month_key, trigger="automatic")
+        result = {
+            "version": APP_VERSION,
+            "started_at": started_at.isoformat(),
+            "tested_at": datetime.now(TZ).isoformat(),
+            "simulated_at": simulated_at.isoformat(),
+            "month": month_key,
+            "status": execution.get("status"),
+            "execution": execution,
+            "scheduler_bookkeeping_restored": False,
+            "scheduler_config_unchanged": None,
+            "error": None,
+        }
+    except Exception as exc:
+        result = {
+            "version": APP_VERSION,
+            "started_at": started_at.isoformat(),
+            "tested_at": datetime.now(TZ).isoformat(),
+            "simulated_at": simulated_at.isoformat(),
+            "month": month_key,
+            "status": "error",
+            "execution": None,
+            "scheduler_bookkeeping_restored": False,
+            "scheduler_config_unchanged": None,
+            "error": str(exc),
+        }
+    finally:
+        update_state(**scheduler_before)
+        config_after = AUTO_CLOSE_UI_OPTIONS_PATH.read_bytes() if AUTO_CLOSE_UI_OPTIONS_PATH.exists() else None
+        if config_after != config_before:
+            if config_before is None:
+                AUTO_CLOSE_UI_OPTIONS_PATH.unlink(missing_ok=True)
+            else:
+                AUTO_CLOSE_UI_OPTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+                tmp = AUTO_CLOSE_UI_OPTIONS_PATH.with_suffix(".acceptance.restore.tmp")
+                tmp.write_bytes(config_before)
+                tmp.replace(AUTO_CLOSE_UI_OPTIONS_PATH)
+            config_after = config_before
+
+    result["scheduler_bookkeeping_restored"] = True
+    result["scheduler_config_unchanged"] = config_after == config_before
+    execution = result.get("execution") or {}
+    finalization = execution.get("finalization") or {}
+    if result.get("status") in {"completed", "completed_warning"} and finalization.get("status") != "ok":
+        result["status"] = "error"
+        result["error"] = "Finalization van gesimuleerde scheduler-run is niet OK."
+    update_state(automatic_scheduler_acceptance_last_result=result)
+    return result
+
+
 def automatic_month_close_due(options: Options, now: datetime) -> str | None:
     if not options.automatic_month_close_enabled:
         return None
@@ -6377,34 +6506,7 @@ def scheduler() -> None:
 
             close_month = automatic_month_close_due(options, datetime.now(TZ))
             if close_month and not WORKFLOW_LOCK.locked():
-                attempt_at = datetime.now(TZ)
-                update_state(
-                    automatic_month_close_last_month=close_month,
-                    automatic_month_close_last_status="preflight",
-                    automatic_month_close_last_attempt=attempt_at.isoformat(),
-                    automatic_month_close_last_run=attempt_at.isoformat(),
-                    automatic_month_close_next_retry=None,
-                )
-                preflight = automatic_month_close_preflight(options, close_month)
-                if preflight.get("status") != "ok":
-                    retry_at = (datetime.now(TZ) + timedelta(hours=options.automatic_month_close_retry_hours)).isoformat()
-                    update_state(automatic_month_close_last_month=close_month,automatic_month_close_last_status="blocked",automatic_month_close_last_run=datetime.now(TZ).isoformat(),automatic_month_close_next_retry=retry_at)
-                    if options.workflow_notify_home_assistant:
-                        try:
-                            notify_home_assistant("Automatische energie-maandafsluiting geblokkeerd",f"Maand {close_month} kon niet starten. Nieuwe poging na {options.automatic_month_close_retry_hours} uur.")
-                        except Exception as exc:
-                            LOGGER.warning("Preflight-notificatie mislukt: %s", exc)
-                else:
-                    update_state(automatic_month_close_last_status="running")
-                    result = run_full_month_workflow(close_month, collect_live_snapshots=False, trigger="automatic")
-                    finalization = automatic_month_close_finalize(options, close_month, result)
-                    final_status = str(result.get("status") or "error")
-                    if final_status in {"completed", "completed_warning"} and finalization.get("status") != "ok":
-                        final_status = "error"
-                    retry_at = None
-                    if final_status not in {"completed", "completed_warning"}:
-                        retry_at = (datetime.now(TZ) + timedelta(hours=options.automatic_month_close_retry_hours)).isoformat()
-                    update_state(automatic_month_close_last_month=close_month,automatic_month_close_last_status=final_status,automatic_month_close_last_run=datetime.now(TZ).isoformat(),automatic_month_close_next_retry=retry_at)
+                execute_automatic_month_close(options, close_month, trigger="automatic")
 
             if not options.schedule_enabled:
                 update_state(next_scheduled_run=None)
@@ -6583,6 +6685,19 @@ def html_page() -> bytes:
         else "Nog geen complete publicatie"
     )
 
+    scheduler_acceptance = auto_close.get("scheduler_acceptance_last_result") or {}
+    scheduler_acceptance_current = str(scheduler_acceptance.get("version") or "") == APP_VERSION
+    scheduler_acceptance_status = (
+        str(scheduler_acceptance.get("status") or "Nog niet getest")
+        if scheduler_acceptance_current
+        else ("Opnieuw testen" if scheduler_acceptance else "Nog niet getest")
+    )
+    scheduler_acceptance_detail = (
+        f"{format_local_datetime(scheduler_acceptance.get('simulated_at'))} · maand {scheduler_acceptance.get('month') or '—'}"
+        if scheduler_acceptance_current and scheduler_acceptance.get("simulated_at")
+        else ""
+    )
+
     auto_test_month = str(auto_test.get("month") or datetime.now(TZ).strftime("%Y_%m")).replace("_", "-")
     workflow_active = str(workflow.get("status") or "").lower() in {"running", "importing"}
     resume_available = str(last_run.get("status") or "").lower() in {"error", "failed"}
@@ -6664,7 +6779,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.1 bewaart de planning bij upgrades, maar voert de scheduler pas uit nadat deze versie zelf een volledige productietest heeft doorlopen.</p>
+<p class="hint">v8.3 bewaart de planning bij upgrades en kan de echte schedulerroute direct gecontroleerd simuleren.</p>
 </div>
 
 <div class="card"><h2>Automatische maandafsluiting</h2>
@@ -6685,12 +6800,15 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.2.0 productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.3.0 productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
+<form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
+<p class="hint">Test exact de echte schedulerroute op de volgende geplande datum en herstelt daarna de schedulerboekhouding.</p>
 <ul class="source-list">
+<li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>
 <li><span>Laatste preflight</span><span id="auto-last-preflight" class="pill {status_class(auto_preflight.get('status'))}">{esc(auto_preflight.get('status') or 'Nog niet getest')}</span></li>
 <li><span>Laatste finalization</span><span id="auto-last-finalization" class="pill {status_class(auto_finalization.get('status'))}">{esc(auto_finalization.get('status') or 'Nog niet getest')}</span></li>
@@ -6847,6 +6965,14 @@ async function refreshStatus(){{
       autoHistory.innerHTML=auto.history.length?auto.history.map(item=>`<tr><td>${{escapeHtml(item.month||'—')}}</td><td>${{item.trigger==='automatic_test'?'Test':'Automatisch'}}</td><td><span class="${{pillClass(item.status)}}">${{escapeHtml(item.status||'—')}}</span></td><td>${{escapeHtml(item.finished_at?formatLocalDateTime(item.finished_at):'—')}}</td><td>${{item.duration_seconds==null?'—':Number(item.duration_seconds).toFixed(1)+' s'}}</td></tr>`).join(''):`<tr><td colspan="5">Nog geen automatische runs geregistreerd.</td></tr>`;
     }}
 
+    const acceptance=auto.scheduler_acceptance_last_result||{{}};
+    const acceptanceCurrent=String(acceptance.version||'')===String(op.version||'');
+    const acceptanceStatus=acceptanceCurrent?(acceptance.status||'Nog niet getest'):(acceptance.status?'Opnieuw testen':'Nog niet getest');
+    const acceptanceEl=document.getElementById('scheduler-acceptance-status');
+    if(acceptanceEl){{acceptanceEl.textContent=acceptanceStatus; acceptanceEl.className=pillClass(acceptanceCurrent?acceptance.status:'stale');}}
+    const acceptanceDetail=document.getElementById('scheduler-acceptance-detail');
+    if(acceptanceDetail){{acceptanceDetail.textContent=acceptanceCurrent&&acceptance.simulated_at?`${{formatLocalDateTime(acceptance.simulated_at)}} · maand ${{acceptance.month||'—'}}`:'';}}
+
     const ready=document.getElementById('auto-readiness');
     if(ready){{
       const running=currentTestVersion && test.status==='running';
@@ -6905,7 +7031,7 @@ if(autoSwitch){{
   }});
   syncAutoSwitch();
 }}
-document.querySelectorAll('form[action="start-month-workflow"],form[action="resume-month-workflow"],form[action="run-historical-month"],form[action="test-automatic-month-close"]').forEach(form=>form.addEventListener('submit',()=>{{
+document.querySelectorAll('form[action="start-month-workflow"],form[action="resume-month-workflow"],form[action="run-historical-month"],form[action="test-automatic-month-close"],form[action="test-scheduler-acceptance"]').forEach(form=>form.addEventListener('submit',()=>{{
   const bar=document.getElementById('progress-bar'); bar.style.width='0%'; bar.className='running';
   document.getElementById('progress-count').textContent='Stap 0 van 11';
   document.getElementById('progress-message').textContent='Workflow starten';
@@ -7119,6 +7245,46 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_body(
                     HTTPStatus.BAD_REQUEST,
                     ("<html><meta charset='utf-8'><p>Instellingen niet opgeslagen: "
+                     + html.escape(str(exc))
+                     + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
+            return
+
+        if path.endswith("/test-scheduler-acceptance") or path == "/test-scheduler-acceptance":
+            try:
+                if WORKFLOW_LOCK.locked():
+                    raise RuntimeError("Er draait al een maandworkflow.")
+                update_state(automatic_scheduler_acceptance_last_result={
+                    "version": APP_VERSION,
+                    "started_at": datetime.now(TZ).isoformat(),
+                    "tested_at": None,
+                    "simulated_at": None,
+                    "month": None,
+                    "status": "running",
+                    "execution": None,
+                    "scheduler_bookkeeping_restored": False,
+                    "scheduler_config_unchanged": None,
+                    "error": None,
+                })
+                def scheduler_acceptance_worker() -> None:
+                    try:
+                        automatic_scheduler_acceptance_test()
+                    except Exception as exc:
+                        previous = load_state().get("automatic_scheduler_acceptance_last_result") or {}
+                        update_state(automatic_scheduler_acceptance_last_result={
+                            **previous,
+                            "version": APP_VERSION,
+                            "tested_at": datetime.now(TZ).isoformat(),
+                            "status": "error",
+                            "error": str(exc),
+                        })
+                threading.Thread(target=scheduler_acceptance_worker, daemon=True).start()
+                self.send_redirect("./")
+            except Exception as exc:
+                self.send_body(
+                    HTTPStatus.BAD_REQUEST,
+                    ("<html><meta charset='utf-8'><p>Scheduler-acceptatietest kon niet starten: "
                      + html.escape(str(exc))
                      + "</p><p><a href='./'>Terug</a></p></html>").encode("utf-8"),
                     "text/html; charset=utf-8",

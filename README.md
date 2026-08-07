@@ -17,7 +17,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 8.2.0
+- SlimmeMeterPortal Import 8.3.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
@@ -74,3 +74,7 @@ Upgradeveilige scheduler-gate, leesbare planning en automatische maandhistorie.
 
 ### v8.2.0
 Direct opgeslagen scheduler-schakelaar, side-effect-vrije productietest en outputintegriteitscontrole.
+
+
+### v8.3.0
+Directe acceptatietest van de echte automatische schedulerroute.

@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "8.2.0"
+    assert cfg_version == app_version == "8.3.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.2.0"' in config
+    assert 'version: "8.3.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.2.0"' in config
-    assert 'APP_VERSION = "8.2.0"' in main
+    assert 'version: "8.3.0"' in config
+    assert 'APP_VERSION = "8.3.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1174,7 +1174,7 @@ def test_phase7_automatic_month_close_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert "def automatic_month_close_due" in source
     assert "automatic_month_close_last_month" in source
-    assert "run_full_month_workflow(close_month, collect_live_snapshots=False, trigger=\"automatic\")" in source
+    assert 'execute_automatic_month_close(options, close_month, trigger="automatic")' in source
 
 
 def test_phase7_historical_selection_present():
@@ -1564,8 +1564,8 @@ def test_v750_automatic_close_finalization_present():
 
 def test_v750_preflight_before_automatic_workflow():
     source=(ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    sched=source[source.index("def scheduler()"):source.index("def month_archives()") ]
-    assert sched.index("automatic_month_close_preflight") < sched.index("run_full_month_workflow")
+    shared=source[source.index("def execute_automatic_month_close"):source.index("def automatic_scheduler_acceptance_test")]
+    assert shared.index("automatic_month_close_preflight") < shared.index("run_full_month_workflow")
 
 
 def test_v760_console_has_automatic_close_controls():
@@ -1757,3 +1757,31 @@ def test_v820_finalization_checks_pdf_and_recovery_zip_integrity():
     assert "recovery_zip.testzip()" in section
     assert '"report_pdf_integrity"' in section
     assert '"recovery_zip_integrity"' in section
+
+
+def test_v830_scheduler_uses_shared_execution_helper():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    scheduler = source[source.index("def scheduler()"):source.index("def month_archives()")]
+    assert 'execute_automatic_month_close(options, close_month, trigger="automatic")' in scheduler
+
+
+def test_v830_acceptance_uses_real_due_and_shared_executor():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    section = source[source.index("def automatic_scheduler_acceptance_test"):source.index("def automatic_month_close_due")]
+    assert "automatic_month_close_due(options, simulated_at)" in section
+    assert 'execute_automatic_month_close(options, month_key, trigger="automatic")' in section
+
+
+def test_v830_acceptance_restores_scheduler_bookkeeping():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    section = source[source.index("def automatic_scheduler_acceptance_test"):source.index("def automatic_month_close_due")]
+    assert "scheduler_before" in section
+    assert "update_state(**scheduler_before)" in section
+    assert "scheduler_bookkeeping_restored" in section
+
+
+def test_v830_console_exposes_scheduler_acceptance_test():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Simuleer volgende scheduler-run nu" in source
+    assert "test-scheduler-acceptance" in source
+    assert '"scheduler_acceptance_last_result": state.get("automatic_scheduler_acceptance_last_result")' in source

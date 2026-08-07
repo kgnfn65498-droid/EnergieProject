@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.3.0
+- Nieuwe scheduler-acceptatietest simuleert de eerstvolgende geplande automatische maandafsluiting direct.
+- Productiescheduler en acceptatietest gebruiken exact dezelfde gedeelde executor.
+- Acceptatietest gebruikt de echte due-beslissing en trigger `automatic`.
+- Schedulerboekhouding en schedulerconfiguratie worden na de simulatie hersteld.
+- Hierdoor kan de echte automatische route worden getest zonder te wachten op de volgende maand.
+
 ## 8.2.0
 - P1-fix: Aan/Uit van automatische maandafsluiting wordt direct opgeslagen.
 - Starten van de productietest kan daardoor geen niet-opgeslagen UIT-stand meer terugzetten naar de vorige AAN-stand.
