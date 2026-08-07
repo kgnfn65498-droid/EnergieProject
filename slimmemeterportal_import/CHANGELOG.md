@@ -1,6 +1,9 @@
 # Changelog
 
-## 7.3.4
+## 7.3.5
+
+- Classificeert een gecontroleerde historische rapport-skip als informatie in plaats van waarschuwing.
+- Een geslaagde historische import zonder volledige detailbronnen eindigt nu als `completed`.
 
 - Historische recovery doorzoekt nu ook recursief de echte maandboom achter `YYYY_MM als archief downloaden` (`/config/output/YYYY_MM`).
 - Reeds bewaarde ZIP-archieven met de maandcode in de bestandsnaam worden automatisch als extra read-only bron ontdekt.

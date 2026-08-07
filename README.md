@@ -17,16 +17,19 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 7.3.4
+- SlimmeMeterPortal Import 7.3.5
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
 
 ## Fase 7
 
-Versie 7.3.4 bouwt voort op de stabiele v7.3.1-workflow. Deze release herstelt historische maandverwerking zonder actuele snapshots als historische data te gebruiken. Bij een historische run worden exact benoemde bestaande maandbestanden ook recursief gezocht in de echte `/config/output/YYYY_MM`-maandboom achter de downloadknop en in reeds bewaarde maand-ZIP-archieven.
+Versie 7.3.5 bouwt voort op de stabiele v7.3.1-workflow. Deze release herstelt historische maandverwerking zonder actuele snapshots als historische data te gebruiken. Bij een historische run worden exact benoemde bestaande maandbestanden ook recursief gezocht in de echte `/config/output/YYYY_MM`-maandboom achter de downloadknop en in reeds bewaarde maand-ZIP-archieven.
 
-### v7.3.4
+### v7.3.5
+
+Historische verwerking eindigt nu groen wanneer alleen rapportgeneratie bewust wordt overgeslagen wegens niet-beschikbare historische detailbronnen. Deze situatie is informatief en geen waarschuwing.
+
 - Herstel historische maanddata uit bestaande, exact benoemde bronnen.
 - Zoek ook recursief in `/config/output/YYYY_MM`, het overdrachtspakket en bestaande maand-ZIP-archieven.
 - Bestaande bestanden worden nooit overschreven of hernoemd.

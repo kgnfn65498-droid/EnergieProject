@@ -38,7 +38,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.3.4"
+APP_VERSION = "7.3.5"
 
 
 # v7.3.3: historische maandarchief-recovery plus gewogen workflowvisualisatie. De gewichten zijn gebaseerd op de
@@ -5419,16 +5419,16 @@ def run_full_month_workflow(
                             "report_input": readiness,
                         },
                     )
-                    warning = (
-                        "Historische maand verwerkt; rapportgeneratie overgeslagen omdat "
-                        "historische detailbronnen ontbreken: "
+                    info = (
+                        "Historische maand verwerkt; rapportgeneratie informatief overgeslagen omdat "
+                        "historische detailbronnen niet volledig beschikbaar zijn: "
                         + ", ".join(readiness.get("missing") or readiness.get("empty") or [])
                     )
-                    warnings.append(warning)
+                    infos.append(info)
                     append_workflow_log(
                         month_key,
-                        "warning",
-                        "Historisch rapport overgeslagen",
+                        "info",
+                        "Historisch rapport informatief overgeslagen",
                         missing=readiness.get("missing", []),
                         empty=readiness.get("empty", []),
                     )
