@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.5.1
+- Scheduler-acceptatietest voert na een upgrade automatisch eerst de verplichte veilige productietest van dezelfde softwareversie uit.
+- Alleen na een geslaagde voorbereidende productietest wordt de echte schedulerroute gesimuleerd.
+- De knop `Simuleer volgende scheduler-run nu` eindigt daardoor niet meer direct op `error` uitsluitend omdat de actuele versie nog niet productiegereed was.
+- Scheduler Aan/Uit, planning en schedulerboekhouding blijven beschermd en ongewijzigd.
+- Append-only historie registreert zowel de voorbereidende productietest als de scheduler-test afzonderlijk.
+- Centrale maandworkflow, rapportgeneratoren en Recovery Update inhoudelijk ongewijzigd.
+
 ## 8.5.0
 - Append-only automatische runhistorie in `automatic_run_history.jsonl`.
 - Iedere productietest, scheduler-test en echte automatische run blijft afzonderlijk bewaard.

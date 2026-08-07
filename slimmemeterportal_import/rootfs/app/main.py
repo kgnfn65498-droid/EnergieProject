@@ -40,7 +40,7 @@ OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 AUTOMATIC_RUN_LEDGER_PATH = Path("/config/output/automatic_run_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.5.0"
+APP_VERSION = "8.5.1"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -6475,8 +6475,28 @@ def automatic_scheduler_acceptance_test() -> dict[str, Any]:
     if WORKFLOW_LOCK.locked():
         raise RuntimeError("Er draait al een maandworkflow.")
     options = Options.load()
+    prerequisite_product_test: dict[str, Any] | None = None
     if not automatic_production_readiness().get("ready"):
-        raise RuntimeError("Voer eerst de veilige productietest van versie " + APP_VERSION + " uit.")
+        # v8.5.1: de acceptatietest is zelfstandig bruikbaar na een upgrade.
+        # Eerst wordt exact dezelfde veilige productietest uitgevoerd; alleen bij
+        # succes mag de echte schedulerroute worden gesimuleerd.
+        prerequisite_month = datetime.now(TZ).strftime("%Y_%m")
+        prerequisite_product_test = run_automatic_month_close_test(prerequisite_month)
+        if str(prerequisite_product_test.get("status") or "") not in {
+            "completed",
+            "completed_warning",
+        } or not automatic_production_readiness().get("ready"):
+            detail = prerequisite_product_test.get("error") or "onbekende fout"
+            raise RuntimeError(
+                "Automatische voorbereidende productietest voor "
+                + APP_VERSION
+                + " is mislukt: "
+                + str(detail)
+            )
+        # De productietest mag de planning niet wijzigen. Herlaad daarom pas nu
+        # de scheduleropties die de simulatie daadwerkelijk gaat gebruiken.
+        options = Options.load()
+
     if not options.automatic_month_close_enabled:
         raise RuntimeError("Zet automatische maandafsluiting eerst AAN.")
 
@@ -6523,6 +6543,8 @@ def automatic_scheduler_acceptance_test() -> dict[str, Any]:
             "month": month_key,
             "status": execution.get("status"),
             "execution": execution,
+            "prerequisite_product_test": prerequisite_product_test,
+            "prerequisite_product_test_ran": prerequisite_product_test is not None,
             "scheduler_bookkeeping_restored": False,
             "scheduler_config_unchanged": None,
             "scheduler_enabled_before": scheduler_enabled_before,
@@ -6539,6 +6561,8 @@ def automatic_scheduler_acceptance_test() -> dict[str, Any]:
             "month": month_key,
             "status": "error",
             "execution": None,
+            "prerequisite_product_test": prerequisite_product_test,
+            "prerequisite_product_test_ran": prerequisite_product_test is not None,
             "scheduler_bookkeeping_restored": False,
             "scheduler_config_unchanged": None,
             "scheduler_enabled_before": scheduler_enabled_before,
@@ -6590,6 +6614,10 @@ def automatic_scheduler_acceptance_test() -> dict[str, Any]:
         "simulated_at": result.get("simulated_at"),
         "scheduler_bookkeeping_restored": result.get("scheduler_bookkeeping_restored"),
         "scheduler_config_unchanged": result.get("scheduler_config_unchanged"),
+        "prerequisite_product_test_ran": result.get("prerequisite_product_test_ran"),
+        "prerequisite_product_test_status": (
+            (result.get("prerequisite_product_test") or {}).get("status")
+        ),
     })
     return result
 
@@ -6866,6 +6894,7 @@ def html_page() -> bytes:
     )
     scheduler_acceptance_detail = (
         f"{format_local_datetime(scheduler_acceptance.get('simulated_at'))} · maand {scheduler_acceptance.get('month') or '—'}"
+        + (" · productietest automatisch uitgevoerd" if scheduler_acceptance.get("prerequisite_product_test_ran") is True else "")
         + (" · Aan/Uit ongewijzigd" if scheduler_acceptance.get("scheduler_enabled_unchanged") is True else "")
         if scheduler_acceptance_current and scheduler_acceptance.get("simulated_at")
         else ""
@@ -6954,7 +6983,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.5 bewaart de planning bij upgrades en kan de echte schedulerroute direct gecontroleerd simuleren.</p>
+<p class="hint">v8.5.1 bewaart de planning bij upgrades en kan de echte schedulerroute direct gecontroleerd simuleren.</p>
 </div>
 
 <div class="card"><h2>Automatische maandafsluiting</h2>
@@ -6975,13 +7004,13 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.5.0 productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.5.1 productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
 <p class="hint">Voert preflight → echte maandworkflow → finalization uit, maar markeert de schedulermaand niet als reeds automatisch afgesloten.</p>
 <form method="post" action="test-scheduler-acceptance"><button type="submit" class="secondary workflow-action"{disabled_attr}>Simuleer volgende scheduler-run nu</button></form>
-<p class="hint">Test exact de echte schedulerroute op de volgende geplande datum en herstelt daarna de schedulerboekhouding.</p>
+<p class="hint">Test exact de echte schedulerroute. Als deze versie nog geen productietest heeft, voert v8.5.1 die eerst automatisch veilig uit.</p>
 <ul class="source-list">
 <li><span>Scheduler-acceptatietest</span><span><span id="scheduler-acceptance-status" class="pill {status_class(scheduler_acceptance_status)}">{esc(scheduler_acceptance_status)}</span><small id="scheduler-acceptance-detail" class="test-detail">{esc(scheduler_acceptance_detail)}</small></span></li>
 <li><span>Automatische gereedheid</span><span id="auto-readiness" class="pill {status_class(auto_ready_status)}">{esc(auto_ready_text)}</span></li>
@@ -7146,7 +7175,7 @@ async function refreshStatus(){{
     const acceptanceEl=document.getElementById('scheduler-acceptance-status');
     if(acceptanceEl){{acceptanceEl.textContent=acceptanceStatus; acceptanceEl.className=pillClass(acceptanceCurrent?acceptance.status:'stale');}}
     const acceptanceDetail=document.getElementById('scheduler-acceptance-detail');
-    if(acceptanceDetail){{acceptanceDetail.textContent=acceptanceCurrent&&acceptance.simulated_at?`${{formatLocalDateTime(acceptance.simulated_at)}} · maand ${{acceptance.month||'—'}}${{acceptance.scheduler_enabled_unchanged===true?' · Aan/Uit ongewijzigd':''}}`:'';}}
+    if(acceptanceDetail){{acceptanceDetail.textContent=acceptanceCurrent&&acceptance.simulated_at?`${{formatLocalDateTime(acceptance.simulated_at)}} · maand ${{acceptance.month||'—'}}${{acceptance.prerequisite_product_test_ran===true?' · productietest automatisch uitgevoerd':''}}${{acceptance.scheduler_enabled_unchanged===true?' · Aan/Uit ongewijzigd':''}}`:'';}}
 
     const ready=document.getElementById('auto-readiness');
     if(ready){{

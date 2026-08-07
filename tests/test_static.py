@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "8.5.0"
+    assert cfg_version == app_version == "8.5.1"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.5.0"' in config
+    assert 'version: "8.5.1"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.5.0"' in config
-    assert 'APP_VERSION = "8.5.0"' in main
+    assert 'version: "8.5.1"' in config
+    assert 'APP_VERSION = "8.5.1"' in main
 
 
 def test_phase7_configuration_present():
@@ -1842,3 +1842,31 @@ def test_v850_console_prefers_ledger():
     assert "read_automatic_run_history" in section
     assert 'automatic_history_source = "append_only_ledger"' in section
     assert 'automatic_history_source = "legacy_workflow_results"' in section
+
+
+def test_v851_scheduler_acceptance_auto_runs_required_product_test():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def automatic_scheduler_acceptance_test"):source.index("def automatic_month_close_due")]
+    assert "prerequisite_product_test = run_automatic_month_close_test(prerequisite_month)" in section
+    assert "automatic_production_readiness().get(\"ready\")" in section
+    assert "options = Options.load()" in section
+
+
+def test_v851_scheduler_acceptance_stops_when_prerequisite_fails():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    section=source[source.index("def automatic_scheduler_acceptance_test"):source.index("def automatic_month_close_due")]
+    assert "Automatische voorbereidende productietest voor " in section
+    assert "is mislukt:" in section
+
+
+def test_v851_acceptance_records_prerequisite_evidence():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"prerequisite_product_test": prerequisite_product_test' in source
+    assert '"prerequisite_product_test_ran": prerequisite_product_test is not None' in source
+    assert '"prerequisite_product_test_status": (' in source
+
+
+def test_v851_console_explains_automatic_prerequisite():
+    source=(ADDON/"rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "productietest automatisch uitgevoerd" in source
+    assert "voert v8.5.1 die eerst automatisch veilig uit" in source

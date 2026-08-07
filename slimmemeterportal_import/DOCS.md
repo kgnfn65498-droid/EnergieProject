@@ -487,3 +487,10 @@ Per automatische run worden versie en eindcontrole getoond. De acceptatietest co
 ## Versie 8.5.0 — append-only automatische historie
 
 Iedere automatische uitvoering krijgt een eigen regel in `/config/output/automatic_run_history.jsonl`. Daardoor blijven meerdere tests voor dezelfde maand afzonderlijk zichtbaar.
+
+
+## Versie 8.5.1 — zelfstandige scheduler-acceptatietest
+
+Na een software-upgrade hoeft de gebruiker niet meer eerst handmatig een afzonderlijke productietest uit te voeren voordat de scheduler-acceptatietest bruikbaar is. `Simuleer volgende scheduler-run nu` controleert de productiegereedheid en voert, indien nodig, eerst de veilige productietest van de actuele versie uit. Alleen als die test volledig slaagt wordt dezelfde productie-schedulerroute als voorheen gesimuleerd.
+
+Beide uitvoeringen blijven afzonderlijk zichtbaar in de append-only historie. De schedulerinstellingen en schedulerboekhouding worden door de test niet gewijzigd.
