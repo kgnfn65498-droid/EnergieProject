@@ -475,3 +475,10 @@ De automatische finalization vereist exact `Energierapport_YYYY_MM.pdf` en `Reco
 ## Versie 8.3.0 — scheduler-acceptatietest
 
 `Simuleer volgende scheduler-run nu` zet de klok logisch op de eerstvolgende geplande maandafsluiting en gebruikt daarna dezelfde `automatic_month_close_due()` en `execute_automatic_month_close()` als de echte scheduler. Na afloop worden de schedulerboekhoudvelden en schedulerconfiguratie teruggezet. Daardoor kan de productie-route vandaag al volledig worden getest.
+
+
+## Versie 8.4.0 — auditbare schedulerhistorie
+
+De scheduler-acceptatietest blijft technisch via trigger `automatic` draaien. De auditlaag herkent achteraf welke workflow bij de simulatie hoorde en labelt die `Scheduler-test`. Zo blijft de productiecode identiek, terwijl een simulatie niet langer als echte automatische maandafsluiting wordt gepresenteerd.
+
+Per automatische run worden versie en eindcontrole getoond. De acceptatietest controleert bovendien expliciet dat de gebruikersinstelling Aan/Uit vóór en na de simulatie gelijk blijft.

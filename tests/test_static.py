@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "8.3.0"
+    assert cfg_version == app_version == "8.4.0"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "8.3.0"' in config
+    assert 'version: "8.4.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1155,8 +1155,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "8.3.0"' in config
-    assert 'APP_VERSION = "8.3.0"' in main
+    assert 'version: "8.4.0"' in config
+    assert 'APP_VERSION = "8.4.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -1724,7 +1724,8 @@ def test_v810_human_readable_planning_and_history():
 
 def test_v810_automatic_history_only_contains_auto_triggers():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'if item.get("trigger") in {"automatic", "automatic_test"}' in source
+    assert 'if item.get("trigger") not in {"automatic", "automatic_test"}:' in source
+    assert "continue" in source
 
 
 def test_v820_switch_has_dedicated_immediate_persist_endpoint():
@@ -1785,3 +1786,32 @@ def test_v830_console_exposes_scheduler_acceptance_test():
     assert "Simuleer volgende scheduler-run nu" in source
     assert "test-scheduler-acceptance" in source
     assert '"scheduler_acceptance_last_result": state.get("automatic_scheduler_acceptance_last_result")' in source
+
+
+def test_v840_history_distinguishes_scheduler_test():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'run_type = "Scheduler-test"' in source
+    assert '"run_type": run_type' in source
+    assert "<th>Versie</th>" in source
+    assert "<th>Eindcontrole</th>" in source
+
+
+def test_v840_history_preserves_version_and_finalization():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"version": result.get("version")' in source
+    assert '"version": item.get("version")' in source
+    assert '"finalization_status": finalization_status' in source
+
+
+def test_v840_acceptance_verifies_switch_unchanged():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    section = source[source.index("def automatic_scheduler_acceptance_test"):source.index("def automatic_month_close_due")]
+    assert "scheduler_enabled_before" in section
+    assert "scheduler_enabled_after" in section
+    assert "scheduler_enabled_unchanged" in section
+    assert "Scheduler Aan/Uit is tijdens de acceptatietest gewijzigd." in section
+
+
+def test_v840_console_reports_switch_unchanged():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Aan/Uit ongewijzigd" in source

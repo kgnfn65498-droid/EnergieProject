@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.4.0
+- Automatische historie onderscheidt `Test`, `Scheduler-test` en echte `Automatisch` runs.
+- Historie toont softwareversie en eindcontrole.
+- Scheduler-acceptatietest verifieert expliciet dat Aan/Uit ongewijzigd blijft.
+- Productietrigger blijft `automatic`; onderscheid gebeurt uitsluitend in de auditlaag.
+- Schedulerroute, maandworkflow, rapportgeneratoren en Recovery Update inhoudelijk ongewijzigd.
+
 ## 8.3.0
 - Nieuwe scheduler-acceptatietest simuleert de eerstvolgende geplande automatische maandafsluiting direct.
 - Productiescheduler en acceptatietest gebruiken exact dezelfde gedeelde executor.

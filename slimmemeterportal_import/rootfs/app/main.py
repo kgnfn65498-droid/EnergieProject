@@ -39,7 +39,7 @@ AUTO_CLOSE_UI_OPTIONS_PATH = Path("/config/automatic_month_close.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "8.3.0"
+APP_VERSION = "8.4.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -5931,6 +5931,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
                 try:
                     result = json.loads(result_path.read_text(encoding="utf-8"))
                     item.update({
+                        "version": result.get("version"),
                         "status": result.get("status", "unknown"),
                         "trigger": result.get("trigger", "manual"),
                         "finished_at": result.get("finished_at"),
@@ -5947,17 +5948,58 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
         limit=80,
     )
     visual = workflow_visualization(state, live_log)
-    automatic_history = [
-        {
+    acceptance = state.get("automatic_scheduler_acceptance_last_result") or {}
+    acceptance_execution = acceptance.get("execution") or {}
+    acceptance_workflow = acceptance_execution.get("workflow") or {}
+    acceptance_finished_at = acceptance_workflow.get("finished_at")
+    product_test = state.get("automatic_month_close_test_last_result") or {}
+    product_test_workflow = product_test.get("workflow") or {}
+    product_test_finished_at = product_test_workflow.get("finished_at")
+    last_finalization = state.get("automatic_month_close_last_finalization") or {}
+
+    automatic_history: list[dict[str, Any]] = []
+    for item in history:
+        if item.get("trigger") not in {"automatic", "automatic_test"}:
+            continue
+        run_type = "Automatisch"
+        finalization_status: str | None = None
+        if (
+            item.get("trigger") == "automatic"
+            and acceptance_finished_at
+            and item.get("finished_at") == acceptance_finished_at
+            and item.get("month") == acceptance.get("month")
+        ):
+            run_type = "Scheduler-test"
+            finalization_status = str(
+                (acceptance_execution.get("finalization") or {}).get("status") or ""
+            ) or None
+        elif (
+            item.get("trigger") == "automatic_test"
+            and product_test_finished_at
+            and item.get("finished_at") == product_test_finished_at
+            and item.get("month") == product_test.get("month")
+        ):
+            run_type = "Test"
+            finalization_status = str(
+                (product_test.get("finalization") or {}).get("status") or ""
+            ) or None
+        elif (
+            item.get("trigger") == "automatic"
+            and item.get("month") == last_finalization.get("month")
+        ):
+            finalization_status = str(last_finalization.get("status") or "") or None
+
+        automatic_history.append({
             "month": item.get("month"),
+            "version": item.get("version"),
             "trigger": item.get("trigger"),
+            "run_type": run_type,
             "status": item.get("status"),
+            "finalization_status": finalization_status,
             "finished_at": item.get("finished_at"),
             "duration_seconds": item.get("duration_seconds"),
-        }
-        for item in history
-        if item.get("trigger") in {"automatic", "automatic_test"}
-    ][:6]
+        })
+    automatic_history = automatic_history[:6]
     return {
         "version": APP_VERSION,
         "generated_at": datetime.now(TZ).isoformat(),
@@ -6359,6 +6401,7 @@ def automatic_scheduler_acceptance_test() -> dict[str, Any]:
     if not month_key:
         raise RuntimeError("De gesimuleerde scheduler vond geen verschuldigde maand.")
 
+    scheduler_enabled_before = bool(options.automatic_month_close_enabled)
     scheduler_keys = (
         "automatic_month_close_last_month",
         "automatic_month_close_last_status",
@@ -6383,6 +6426,9 @@ def automatic_scheduler_acceptance_test() -> dict[str, Any]:
             "execution": execution,
             "scheduler_bookkeeping_restored": False,
             "scheduler_config_unchanged": None,
+            "scheduler_enabled_before": scheduler_enabled_before,
+            "scheduler_enabled_after": None,
+            "scheduler_enabled_unchanged": None,
             "error": None,
         }
     except Exception as exc:
@@ -6396,6 +6442,9 @@ def automatic_scheduler_acceptance_test() -> dict[str, Any]:
             "execution": None,
             "scheduler_bookkeeping_restored": False,
             "scheduler_config_unchanged": None,
+            "scheduler_enabled_before": scheduler_enabled_before,
+            "scheduler_enabled_after": None,
+            "scheduler_enabled_unchanged": None,
             "error": str(exc),
         }
     finally:
@@ -6413,6 +6462,14 @@ def automatic_scheduler_acceptance_test() -> dict[str, Any]:
 
     result["scheduler_bookkeeping_restored"] = True
     result["scheduler_config_unchanged"] = config_after == config_before
+    options_after = Options.load()
+    result["scheduler_enabled_after"] = bool(options_after.automatic_month_close_enabled)
+    result["scheduler_enabled_unchanged"] = (
+        result["scheduler_enabled_after"] == result["scheduler_enabled_before"]
+    )
+    if not result["scheduler_enabled_unchanged"]:
+        result["status"] = "error"
+        result["error"] = "Scheduler Aan/Uit is tijdens de acceptatietest gewijzigd."
     execution = result.get("execution") or {}
     finalization = execution.get("finalization") or {}
     if result.get("status") in {"completed", "completed_warning"} and finalization.get("status") != "ok":
@@ -6694,6 +6751,7 @@ def html_page() -> bytes:
     )
     scheduler_acceptance_detail = (
         f"{format_local_datetime(scheduler_acceptance.get('simulated_at'))} · maand {scheduler_acceptance.get('month') or '—'}"
+        + (" · Aan/Uit ongewijzigd" if scheduler_acceptance.get("scheduler_enabled_unchanged") is True else "")
         if scheduler_acceptance_current and scheduler_acceptance.get("simulated_at")
         else ""
     )
@@ -6705,13 +6763,15 @@ def html_page() -> bytes:
     auto_history_rows = "".join(
         "<tr>"
         f"<td>{esc(item.get('month') or '—')}</td>"
-        f"<td>{'Test' if item.get('trigger') == 'automatic_test' else 'Automatisch'}</td>"
+        f"<td>{esc(item.get('run_type') or 'Automatisch')}</td>"
+        f"<td>{esc(item.get('version') or '—')}</td>"
         f"<td><span class='pill {status_class(item.get('status'))}'>{esc(item.get('status') or '—')}</span></td>"
+        f"<td><span class='pill {status_class(item.get('finalization_status'))}'>{esc(item.get('finalization_status') or '—')}</span></td>"
         f"<td>{esc(format_local_datetime(item.get('finished_at')) if item.get('finished_at') else '—')}</td>"
         f"<td>{esc(f'{float(item.get('duration_seconds')):.1f} s' if item.get('duration_seconds') is not None else '—')}</td>"
         "</tr>"
         for item in (auto_close.get("history") or [])
-    ) or "<tr><td colspan='5'>Nog geen automatische runs geregistreerd.</td></tr>"
+    ) or "<tr><td colspan='7'>Nog geen automatische runs geregistreerd.</td></tr>"
 
     resume_html = (
         f"""<form method="post" action="resume-month-workflow"><input type="month" name="month" value="{esc((last_run.get('month') or default_month).replace('_','-'))}" required> <button type="submit" class="secondary workflow-action">Hervat mislukte workflow</button></form>
@@ -6779,7 +6839,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
 <div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 </div>
-<p class="hint">v8.3 bewaart de planning bij upgrades en kan de echte schedulerroute direct gecontroleerd simuleren.</p>
+<p class="hint">v8.4 bewaart de planning bij upgrades en kan de echte schedulerroute direct gecontroleerd simuleren.</p>
 </div>
 
 <div class="card"><h2>Automatische maandafsluiting</h2>
@@ -6800,7 +6860,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 <p><button type="submit">Instellingen opslaan</button></p>
 </form>
-<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.3.0 productieklaar is.</p>
+<p class="hint">De scheduler verwerkt normaal de vorige kalendermaand. Aan/Uit wordt direct opgeslagen; inschakelen blijft geblokkeerd totdat v8.4.0 productieklaar is.</p>
 </div>
 <div class="control-group"><h3>Veilige productietest</h3>
 <form method="post" action="test-automatic-month-close"><input type="month" name="month" value="{esc(auto_test_month)}" required> <button type="submit" class="secondary workflow-action"{disabled_attr}>Test automatische maandafsluiting nu</button></form>
@@ -6819,10 +6879,10 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 
 <div class="card"><h2>Automatische maandhistorie</h2>
 <div class="table-wrap"><table>
-<thead><tr><th>Maand</th><th>Type</th><th>Status</th><th>Afgerond</th><th>Duur</th></tr></thead>
+<thead><tr><th>Maand</th><th>Type</th><th>Versie</th><th>Status</th><th>Eindcontrole</th><th>Afgerond</th><th>Duur</th></tr></thead>
 <tbody id="automatic-history-body">{auto_history_rows}</tbody>
 </table></div>
-<p class="hint">Toont maximaal de laatste zes productietests en echte automatische maandafsluitingen.</p>
+<p class="hint">Toont maximaal zes runs en onderscheidt veilige test, scheduler-test en echte automatische maandafsluiting.</p>
 </div>
 
 <div class="card" id="last-error-card" style="display:{'block' if last_run.get('error') else 'none'}"><h2>Laatste workflowfout</h2>
@@ -6962,7 +7022,7 @@ async function refreshStatus(){{
 
     const autoHistory=document.getElementById('automatic-history-body');
     if(autoHistory && Array.isArray(auto.history)){{
-      autoHistory.innerHTML=auto.history.length?auto.history.map(item=>`<tr><td>${{escapeHtml(item.month||'—')}}</td><td>${{item.trigger==='automatic_test'?'Test':'Automatisch'}}</td><td><span class="${{pillClass(item.status)}}">${{escapeHtml(item.status||'—')}}</span></td><td>${{escapeHtml(item.finished_at?formatLocalDateTime(item.finished_at):'—')}}</td><td>${{item.duration_seconds==null?'—':Number(item.duration_seconds).toFixed(1)+' s'}}</td></tr>`).join(''):`<tr><td colspan="5">Nog geen automatische runs geregistreerd.</td></tr>`;
+      autoHistory.innerHTML=auto.history.length?auto.history.map(item=>`<tr><td>${{escapeHtml(item.month||'—')}}</td><td>${{escapeHtml(item.run_type||'Automatisch')}}</td><td>${{escapeHtml(item.version||'—')}}</td><td><span class="${{pillClass(item.status)}}">${{escapeHtml(item.status||'—')}}</span></td><td><span class="${{pillClass(item.finalization_status)}}">${{escapeHtml(item.finalization_status||'—')}}</span></td><td>${{escapeHtml(item.finished_at?formatLocalDateTime(item.finished_at):'—')}}</td><td>${{item.duration_seconds==null?'—':Number(item.duration_seconds).toFixed(1)+' s'}}</td></tr>`).join(''):`<tr><td colspan="7">Nog geen automatische runs geregistreerd.</td></tr>`;
     }}
 
     const acceptance=auto.scheduler_acceptance_last_result||{{}};
@@ -6971,7 +7031,7 @@ async function refreshStatus(){{
     const acceptanceEl=document.getElementById('scheduler-acceptance-status');
     if(acceptanceEl){{acceptanceEl.textContent=acceptanceStatus; acceptanceEl.className=pillClass(acceptanceCurrent?acceptance.status:'stale');}}
     const acceptanceDetail=document.getElementById('scheduler-acceptance-detail');
-    if(acceptanceDetail){{acceptanceDetail.textContent=acceptanceCurrent&&acceptance.simulated_at?`${{formatLocalDateTime(acceptance.simulated_at)}} · maand ${{acceptance.month||'—'}}`:'';}}
+    if(acceptanceDetail){{acceptanceDetail.textContent=acceptanceCurrent&&acceptance.simulated_at?`${{formatLocalDateTime(acceptance.simulated_at)}} · maand ${{acceptance.month||'—'}}${{acceptance.scheduler_enabled_unchanged===true?' · Aan/Uit ongewijzigd':''}}`:'';}}
 
     const ready=document.getElementById('auto-readiness');
     if(ready){{
