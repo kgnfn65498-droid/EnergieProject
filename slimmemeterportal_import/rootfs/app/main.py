@@ -37,7 +37,7 @@ OPTIONS_PATH = Path("/data/options.json")
 OUTPUT_ROOT = Path("/config/output")
 STATE_PATH = Path("/config/state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "7.0.0"
+APP_VERSION = "7.0.1"
 BUNDLED_REPORT_GENERATORS = Path("/app/report_generators")
 
 CONFIG_ROOT = Path("/data")
@@ -5055,11 +5055,34 @@ def html_page() -> bytes:
     try:
         options = Options.load()
         default_month = options.target_month or datetime.now(TZ).strftime("%Y-%m")
+        op = operation_status(options)
     except Exception:
+        options = None
         default_month = datetime.now(TZ).strftime("%Y-%m")
+        op = {"workflow": {}, "last_run": {}, "automatic_month_close": {}, "history": []}
 
     def esc(value: Any) -> str:
         return html.escape(str(value if value is not None else ""))
+
+    def status_class(value: Any) -> str:
+        text = str(value or "").lower()
+        if text in {"completed", "ok", "ready", "idle", "completed_warning"}:
+            return "ok"
+        if text in {"running", "importing", "warning", "pending"}:
+            return "warn"
+        if text in {"error", "failed", "unreadable"}:
+            return "bad"
+        return "neutral"
+
+    def fmt_duration(value: Any) -> str:
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError):
+            return "—"
+        if seconds < 60:
+            return f"{seconds:.1f} s"
+        minutes, rest = divmod(int(round(seconds)), 60)
+        return f"{minutes}m {rest:02d}s"
 
     api_test = state.get("api_test") or {}
     api_text = "Nog niet getest"
@@ -5070,140 +5093,151 @@ def html_page() -> bytes:
             else f"Fout — {api_test.get('error', 'onbekend')}"
         )
 
+    workflow = op.get("workflow") or {}
+    last_run = op.get("last_run") or {}
+    auto_close = op.get("automatic_month_close") or {}
+    history = op.get("history") or []
+    progress_current = int(state.get("progress_current") or 0)
+    progress_total = int(state.get("progress_total") or 0)
+    progress_pct = int(round((progress_current / progress_total) * 100)) if progress_total else 0
+
+    history_rows = []
+    for item in history:
+        failed = item.get("failed_step") or "—"
+        steps = f"{item.get('steps_completed', '—')} / {item.get('steps_total', '—')}"
+        history_rows.append(
+            "<tr>"
+            f"<td><strong>{esc(item.get('month'))}</strong></td>"
+            f"<td><span class='pill {status_class(item.get('status'))}'>{esc(item.get('status'))}</span></td>"
+            f"<td>{esc(steps)}</td>"
+            f"<td>{esc(fmt_duration(item.get('duration_seconds')))}</td>"
+            f"<td>{esc(failed)}</td>"
+            f"<td>{esc(item.get('finished_at') or '—')}</td>"
+            "</tr>"
+        )
+    history_html = "".join(history_rows) or "<tr><td colspan='6'>Nog geen historische runs.</td></tr>"
+
     downloads = "".join(
-        f"<li><a href='download?month={html.escape(month)}'>{html.escape(month)} downloaden</a></li>"
+        f"<li><a href='download?month={html.escape(month)}'>{html.escape(month)} als archief downloaden</a></li>"
         for month in month_archives()
     ) or "<li>Nog geen uitvoer</li>"
+
+    source_items = "".join(
+        f"<li><span>{esc(k)}</span><span class='pill {status_class(v)}'>{esc(v)}</span></li>"
+        for k, v in (state.get("workflow_sources") or {}).items()
+    ) or "<li><span>Nog geen bronstatus beschikbaar</span></li>"
+
+    auto_text = (
+        f"Aan — dag {esc(auto_close.get('day'))} om {esc(auto_close.get('hour'))}:00"
+        if auto_close.get("enabled") else "Uit"
+    )
 
     return f"""<!doctype html>
 <html lang="nl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SlimmeMeterPortal Import</title>
+<title>Energieproject — operationele console</title>
 <style>
-body{{font-family:system-ui;margin:0;background:#f5f7f9;color:#17202a}}
-main{{max-width:800px;margin:24px auto;padding:0 16px}}
-.card{{background:#fff;border-radius:14px;padding:20px;margin:14px 0;box-shadow:0 2px 12px #0001}}
-dl{{display:grid;grid-template-columns:210px 1fr;gap:8px}}
-button{{background:#03a9f4;color:#fff;border:0;border-radius:8px;padding:11px 16px;font-weight:700;margin-right:8px}}
-input{{padding:10px;border:1px solid #bbb;border-radius:8px}}
-a{{color:#0277bd}}
+:root{{--bg:#f4f7f9;--card:#fff;--text:#17202a;--muted:#61707d;--blue:#039be5;--border:#dfe7ec;--ok:#17864b;--warn:#b87500;--bad:#c0392b}}
+*{{box-sizing:border-box}} body{{font-family:system-ui,-apple-system,sans-serif;margin:0;background:var(--bg);color:var(--text)}}
+main{{max-width:1180px;margin:22px auto;padding:0 18px 40px}} h1{{margin-bottom:4px}} h2{{margin:0 0 16px}} h3{{margin:0 0 12px}}
+.subtitle{{color:var(--muted);margin:0 0 18px}} .grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}}
+.card{{background:var(--card);border-radius:14px;padding:20px;margin:14px 0;box-shadow:0 2px 12px #00000010;border:1px solid #edf1f3}}
+.metric{{padding:16px;border:1px solid var(--border);border-radius:12px;background:#fff}} .metric small{{display:block;color:var(--muted);margin-bottom:7px}} .metric strong{{font-size:1.08rem;overflow-wrap:anywhere}}
+.pill{{display:inline-block;padding:4px 9px;border-radius:999px;font-weight:700;font-size:.82rem;background:#e8edf0;color:#4b5963}} .pill.ok{{background:#e6f5ec;color:var(--ok)}} .pill.warn{{background:#fff2d8;color:var(--warn)}} .pill.bad{{background:#fde8e5;color:var(--bad)}}
+.progress{{height:12px;background:#e7edf1;border-radius:999px;overflow:hidden;margin:10px 0 5px}} .progress>span{{display:block;height:100%;width:{progress_pct}%;background:var(--blue);transition:width .3s}}
+.controls{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}} .control-group{{border:1px solid var(--border);border-radius:12px;padding:16px}} form{{margin:9px 0}} button{{background:var(--blue);color:#fff;border:0;border-radius:8px;padding:11px 15px;font-weight:700;cursor:pointer}} button.secondary{{background:#546e7a}} button.danger{{background:#c0392b}} input{{padding:10px;border:1px solid #b8c3ca;border-radius:8px;max-width:190px}}
+.hint{{font-size:.9rem;color:var(--muted);margin:7px 0}} table{{width:100%;border-collapse:collapse}} th,td{{text-align:left;border-bottom:1px solid var(--border);padding:10px 8px;vertical-align:top}} th{{font-size:.82rem;color:var(--muted)}} .table-wrap{{overflow-x:auto}}
+details{{border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin:9px 0}} summary{{cursor:pointer;font-weight:700}} .source-list{{list-style:none;padding:0;margin:0}} .source-list li{{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #eef2f4}}
+a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} 
+@media(max-width:850px){{.grid{{grid-template-columns:repeat(2,minmax(0,1fr))}}.controls{{grid-template-columns:1fr}}}} @media(max-width:520px){{.grid{{grid-template-columns:1fr}}}}
 </style></head><body><main>
-<h1>SlimmeMeterPortal Import</h1>
-<div class="card"><h2>Status</h2><dl>
-<dt>Versie</dt><dd>{APP_VERSION}</dd>
-<dt>Status</dt><dd>{esc(state.get("status"))}</dd>
-<dt>Laatste maand</dt><dd>{esc(state.get("last_target_month"))}</dd>
-<dt>Laatste uitvoer</dt><dd>{esc(state.get("last_output"))}</dd>
-<dt>Validatie</dt><dd>{esc(state.get("last_validation_status"))}</dd>
-<dt>Laatste fout</dt><dd>{esc(state.get("last_error") or "Geen")}</dd>
-<dt>Volgende run</dt><dd>{esc(state.get("next_scheduled_run") or "Uitgeschakeld")}</dd>
-<dt>API-test</dt><dd>{esc(api_text)}</dd>
-<dt>Integriteit</dt><dd>{esc(state.get("last_integrity_status") or "Nog niet gecontroleerd")}</dd>
-<dt>Records laatste maand</dt><dd>{esc((state.get("last_summary") or {}).get("totals", {}).get("records", "Nog geen"))}</dd>
-<dt>Dubbele records</dt><dd>{esc((state.get("last_summary") or {}).get("totals", {}).get("duplicates", "Nog geen"))}</dd>
-<dt>Overdrachtspakket</dt><dd>{esc(state.get("last_transfer_bundle") or "Nog geen")}</dd>
-<dt>Laatste HomeWizard snapshot</dt><dd>{esc(state.get("homewizard_last_snapshot") or "Nog geen")}</dd>
-<dt>HomeWizard detectie</dt><dd>{esc((str(state.get("homewizard_discovery_count", 0)) + " apparaat/apparaten") if state.get("homewizard_discovery_last") else state.get("homewizard_discovery_status", "Nog niet uitgevoerd"))}</dd>
-<dt>HomeWizard netwerk</dt><dd>{esc(state.get("homewizard_discovery_cidr") or "Niet bepaald")}</dd>
-<dt>Home Assistant-koppeling</dt><dd>{esc((str(state.get("homewizard_mapping_count", 0)) + " apparaat/apparaten") if state.get("homewizard_mapping_last") else "Nog niet uitgevoerd")}</dd>
-<dt>HA energiesnapshot</dt><dd>{esc(state.get("homeassistant_energy_last_snapshot") or "Nog geen")}</dd>
-<dt>Laatste maandmap</dt><dd>{esc((state.get("month_input_last_month") or "Nog geen") + " — " + (state.get("month_input_last_status") or ""))}</dd>
-<dt>EPEX-validatie</dt><dd>{esc(state.get("epex_last_validation_status") or "Nog niet uitgevoerd")}</dd>
-<dt>Laatste overdracht</dt><dd>{esc((state.get("transfer_last_month") or "Nog geen") + " — " + (state.get("transfer_last_status") or ""))}</dd>
-<dt>Overdrachtspad</dt><dd>{esc(state.get("transfer_last_path") or "Nog geen")}</dd>
-<dt>Laatste volledige workflow</dt><dd>{esc((state.get("full_workflow_last_month") or "Nog geen") + " — " + (state.get("full_workflow_last_status") or ""))}</dd>
-<dt>Workflow-stap</dt><dd>{esc(state.get("full_workflow_last_step") or "Nog niet uitgevoerd")}</dd>
-<dt>HomeWizard fout</dt><dd>{esc(state.get("homewizard_last_error") or "Geen")}</dd>
-<dt>Laatste Enphase-import</dt><dd>{esc(state.get("enphase_last_import") or "Nog geen")}</dd>
-<dt>Laatste EPEX elektriciteit</dt><dd>{esc(state.get("epex_electricity_last_import") or "Nog geen")}</dd>
-<dt>Laatste EPEX gas</dt><dd>{esc(state.get("epex_gas_last_import") or "Nog geen")}</dd>
-<dt>Centrale validatie</dt><dd>{esc((state.get("last_central_validation") or {}).get("status", "Nog niet uitgevoerd"))}</dd>
-<dt>Rapporttrigger</dt><dd>{esc((state.get("last_report_trigger") or {}).get("status", "Nog niet uitgevoerd"))}</dd>
-<dt>Rapporttrigger fout</dt><dd>{esc(state.get("last_report_trigger_error") or "Geen")}</dd>
-<dt>Installatie gereed</dt><dd>{esc("Ja" if state.get("installation_ready") else "Nee")}</dd>
-<dt>Zelftest</dt><dd>{esc((state.get("last_self_test") or {}).get("status", "Nog niet uitgevoerd"))}</dd>
-<dt>Voortgang</dt><dd>{esc(state.get("progress_current", 0))} / {esc(state.get("progress_total", 0))} — {esc(state.get("progress_message") or "")}</dd>
-</dl></div>
-<div class="card"><h2>Bediening</h2>
-<form method="post" action="run">
-<input name="month" type="month" value="{esc(default_month)}" required>
-<button type="submit">Importeer nu</button>
-</form>
-<form method="post" action="cancel" style="margin-top:12px">
-<button type="submit">Annuleer actieve import</button>
-</form>
-<form method="post" action="test-api" style="margin-top:12px">
-<button type="submit">Test API-verbinding</button>
-</form>
-<form method="post" action="verify" style="margin-top:12px">
-<button type="submit">Controleer laatste maand</button>
-</form>
-<form method="post" action="homewizard-discover" style="margin-top:12px">
-<button type="submit">Detecteer HomeWizard-apparaten</button>
-<p style="margin:8px 0 0">Scanbereik: instelling <code>homewizard_discovery_cidr</code>.</p>
-</form>
-<form method="post" action="run-full-month-workflow" style="margin-top:12px">
-<input type="month" name="month" value="{esc(default_month)}" required>
-<button type="submit">Verwerk maanddata</button>
-<p style="margin:8px 0 0">Handmatige test gebruikt de gekozen maand. De geplande maandrun gebruikt de vorige kalendermaand.</p>
-</form>
-<form method="post" action="run-historical-month" style="margin-top:12px">
-<label>Historische maand <input type="month" name="month" value="{esc(default_month)}" required></label>
-<button type="submit">Verwerk geselecteerde historische maand</button>
-<p style="margin:8px 0 0">Live snapshots worden nooit aan een historische maand toegevoegd.</p>
-</form>
-<form method="post" action="create-transfer-package" style="margin-top:12px">
-<button type="submit">Maak overdrachtspakket</button>
-</form>
-<form method="post" action="epex-import-validate" style="margin-top:12px">
-<button type="submit">Importeer en valideer EPEX</button>
-</form>
-<form method="post" action="build-month-input" style="margin-top:12px">
-<button type="submit">Bouw maandmap</button>
-</form>
-<form method="post" action="homeassistant-energy-snapshot" style="margin-top:12px">
-<button type="submit">Maak HA energiesnapshot</button>
-</form>
-<form method="post" action="homewizard-snapshot" style="margin-top:12px">
-<button type="submit">Maak HomeWizard snapshot</button>
-</form>
-<form method="post" action="enphase-import" style="margin-top:12px">
-<button type="submit">Importeer Enphase</button>
-</form>
-<form method="post" action="epex-electricity-import" style="margin-top:12px">
-<button type="submit">Importeer EPEX elektriciteit</button>
-</form>
-<form method="post" action="epex-gas-import" style="margin-top:12px">
-<button type="submit">Importeer EPEX gas</button>
-</form>
-<form method="post" action="central-validation" style="margin-top:12px">
-<button type="submit">Voer centrale validatie uit</button>
-</form>
-<form method="post" action="check-report-runtime" style="margin-top:12px">
-<button type="submit">Controleer rapportmodules</button>
-</form>
-<form method="post" action="build-report-adapter" style="margin-top:12px">
-<button type="submit">Bouw rapportdata-adapter</button>
-</form>
-<form method="post" action="install-report-generators" style="margin-top:12px">
-<button type="submit">Installeer officiële rapportgeneratoren</button>
-</form>
-<form method="post" action="run-report-page1" style="margin-top:12px">
-<button type="submit">Test rapportgenerator pagina 1</button>
-</form>
-<form method="post" action="report-service-check" style="margin-top:12px">
-<button type="submit">Controleer rapportservice</button>
-</form>
-<form method="post" action="run-report-generation" style="margin-top:12px">
-<button type="submit">Genereer compleet maandrapport</button>
-</form>
-<form method="post" action="self-test" style="margin-top:12px">
-<button type="submit">Voer volledige zelftest uit</button>
-</form></div>
-<div class="card"><h2>Bronstatus</h2><ul>{"" .join(f"<li>{esc(k)}: {esc(v)}</li>" for k, v in (state.get("workflow_sources") or {}).items())}</ul></div>
+<h1>Energieproject</h1><p class="subtitle">Operationele console · SlimmeMeterPortal Import · versie {APP_VERSION}</p>
+
+<div class="grid">
+  <div class="metric"><small>Workflow</small><strong><span id="workflow-status" class="pill {status_class(workflow.get('status'))}">{esc(workflow.get('status') or 'onbekend')}</span></strong></div>
+  <div class="metric"><small>Laatste maand</small><strong id="last-month">{esc(last_run.get('month') or 'Nog geen')}</strong></div>
+  <div class="metric"><small>Laatste run</small><strong><span id="last-run-status" class="pill {status_class(last_run.get('status'))}">{esc(last_run.get('status') or 'Nog geen')}</span></strong></div>
+  <div class="metric"><small>Automatische maandafsluiting</small><strong>{auto_text}</strong></div>
+</div>
+
+<div class="card"><h2>Actuele voortgang</h2>
+<div><strong id="progress-message">{esc(state.get('progress_message') or workflow.get('message') or 'Geen actieve verwerking.')}</strong></div>
+<div class="progress"><span id="progress-bar"></span></div>
+<div class="hint"><span id="progress-count">{progress_current} / {progress_total}</span> · stap: <span id="workflow-step">{esc(workflow.get('step') or '—')}</span></div>
+</div>
+
+<div class="card"><h2>Bediening</h2><div class="controls">
+<div class="control-group"><h3>Maandverwerking</h3>
+<form method="post" action="run-full-month-workflow"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit">Verwerk maanddata</button></form>
+<p class="hint">Handmatige verwerking gebruikt de gekozen maand.</p>
+<form method="post" action="run-historical-month"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit">Verwerk historische maand</button></form>
+<p class="hint">Bij historische verwerking worden geen live snapshots toegevoegd.</p>
+<form method="post" action="cancel"><button type="submit" class="danger">Annuleer actieve import</button></form>
+</div>
+<div class="control-group"><h3>Import en controle</h3>
+<form method="post" action="run"><input name="month" type="month" value="{esc(default_month)}" required> <button type="submit">Importeer SMP</button></form>
+<form method="post" action="verify"><button type="submit">Controleer laatste maand</button></form>
+<form method="post" action="test-api"><button type="submit">Test API-verbinding</button></form>
+<form method="post" action="self-test"><button type="submit" class="secondary">Voer volledige zelftest uit</button></form>
+</div>
+</div></div>
+
+<div class="card"><h2>Historische runs</h2><div class="table-wrap"><table><thead><tr><th>Maand</th><th>Status</th><th>Stappen</th><th>Duur</th><th>Mislukte stap</th><th>Afgerond</th></tr></thead><tbody>{history_html}</tbody></table></div></div>
+
+<div class="card"><h2>Bronstatus</h2><ul class="source-list">{source_items}</ul></div>
+
 <div class="card"><h2>Downloads</h2><ul>{downloads}</ul></div>
-<div class="card"><p>API-key en planning staan op het tabblad <strong>Configuratie</strong>.</p>
-<p><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="workflow-lock-status">Workflowstatus</a> · <a href="operation-status">Operationele status</a> · <a href="health">Healthcheck</a></p></div>
+
+<div class="card"><h2>Diagnostiek en beheer</h2>
+<div class="grid">
+<div class="metric"><small>API-test</small><strong>{esc(api_text)}</strong></div>
+<div class="metric"><small>Centrale validatie</small><strong>{esc((state.get('last_central_validation') or {}).get('status', 'Nog niet uitgevoerd'))}</strong></div>
+<div class="metric"><small>Integriteit</small><strong>{esc(state.get('last_integrity_status') or 'Nog niet gecontroleerd')}</strong></div>
+<div class="metric"><small>Zelftest</small><strong>{esc((state.get('last_self_test') or {}).get('status', 'Nog niet uitgevoerd'))}</strong></div>
+</div>
+<details><summary>Databronnen en snapshots</summary>
+<form method="post" action="homewizard-discover"><button type="submit">Detecteer HomeWizard-apparaten</button></form>
+<p class="hint">Scanbereik: instelling <code>homewizard_discovery_cidr</code>.</p>
+<p class="hint">HomeWizard netwerk: {esc(state.get('homewizard_discovery_cidr') or 'Niet bepaald')}</p>
+<form method="post" action="homeassistant-energy-snapshot"><button type="submit">Maak HA energiesnapshot</button></form>
+<form method="post" action="homewizard-snapshot"><button type="submit">Maak HomeWizard snapshot</button></form>
+<form method="post" action="enphase-import"><button type="submit">Importeer Enphase</button></form>
+<form method="post" action="epex-electricity-import"><button type="submit">Importeer EPEX elektriciteit</button></form>
+<form method="post" action="epex-gas-import"><button type="submit">Importeer EPEX gas</button></form>
+<form method="post" action="epex-import-validate"><button type="submit">Importeer en valideer EPEX</button></form>
+</details>
+<details><summary>Rapportage en overdracht</summary>
+<form method="post" action="build-month-input"><button type="submit">Bouw maandmap</button></form>
+<form method="post" action="central-validation"><button type="submit">Voer centrale validatie uit</button></form>
+<form method="post" action="create-transfer-package"><button type="submit">Maak overdrachtspakket</button></form>
+<form method="post" action="check-report-runtime"><button type="submit">Controleer rapportmodules</button></form>
+<form method="post" action="build-report-adapter"><button type="submit">Bouw rapportdata-adapter</button></form>
+<form method="post" action="install-report-generators"><button type="submit">Installeer officiële rapportgeneratoren</button></form>
+<form method="post" action="run-report-page1"><button type="submit">Test rapportgenerator pagina 1</button></form>
+<form method="post" action="report-service-check"><button type="submit">Controleer rapportservice</button></form>
+<form method="post" action="run-report-generation"><button type="submit">Genereer compleet maandrapport</button></form>
+</details>
+<p class="links"><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="workflow-lock-status">Workflowstatus</a> · <a href="operation-status">Operationele status</a> · <a href="health">Healthcheck</a></p>
+<p class="hint">API-key en planning staan op het tabblad <strong>Configuratie</strong>.</p>
+</div>
+<script>
+async function refreshStatus(){{
+  try{{
+    const [statusResp, opResp] = await Promise.all([fetch('status.json',{{cache:'no-store'}}),fetch('operation-status',{{cache:'no-store'}})]);
+    if(!statusResp.ok || !opResp.ok) return;
+    const st=await statusResp.json(), op=await opResp.json();
+    const current=Number(st.progress_current||0), total=Number(st.progress_total||0), pct=total?Math.round(current/total*100):0;
+    document.getElementById('progress-bar').style.width=pct+'%';
+    document.getElementById('progress-count').textContent=current+' / '+total;
+    document.getElementById('progress-message').textContent=st.progress_message || op.workflow?.message || 'Geen actieve verwerking.';
+    document.getElementById('workflow-step').textContent=op.workflow?.step || '—';
+    document.getElementById('workflow-status').textContent=op.workflow?.status || 'onbekend';
+    document.getElementById('last-month').textContent=op.last_run?.month || 'Nog geen';
+    document.getElementById('last-run-status').textContent=op.last_run?.status || 'Nog geen';
+  }}catch(_e){{}}
+}}
+setInterval(refreshStatus,5000);
+</script>
 </main></body></html>""".encode("utf-8")
 
 

@@ -15,7 +15,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "7.0.0"
+    assert cfg_version == app_version == "7.0.1"
 
 def test_required_files():
     required = [
@@ -254,7 +254,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "7.0.0"' in config
+    assert 'version: "7.0.1"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1146,11 +1146,11 @@ def test_v691_validates_required_report_inputs():
     assert '"input_validation": input_validation' in source
 
 # Fase 7.0: maandafsluiting, historische selectie en operationele status.
-def test_version_7_0_0_matches():
+def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "7.0.0"' in config
-    assert 'APP_VERSION = "7.0.0"' in main
+    assert 'version: "7.0.1"' in config
+    assert 'APP_VERSION = "7.0.1"' in main
 
 
 def test_phase7_configuration_present():
@@ -1184,3 +1184,25 @@ def test_phase7_operation_status_present():
     assert "def operation_status" in source
     assert 'path.endswith("/operation-status")' in source
     assert "Operationele status" in source
+
+
+def test_v701_operation_console_present():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Operationele console" in source
+    assert "Actuele voortgang" in source
+    assert "Historische runs" in source
+    assert "Diagnostiek en beheer" in source
+    assert "setInterval(refreshStatus,5000)" in source
+
+def test_v701_preserves_core_workflow_actions():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    for action in [
+        "run-full-month-workflow", "run-historical-month", "central-validation",
+        "run-report-generation", "create-transfer-package", "self-test"
+    ]:
+        assert f'action="{action}"' in source
+
+def test_v701_preserves_output_contract_names():
+    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'f"Energierapport_{month_key}.pdf"' in source
+    assert 'f"Recovery_Update_{month_key}.zip"' in source
