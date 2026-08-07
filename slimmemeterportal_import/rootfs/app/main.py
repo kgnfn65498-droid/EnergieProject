@@ -52,7 +52,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "9.2.0"
+APP_VERSION = "9.3.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -8211,7 +8211,7 @@ def html_page() -> bytes:
             f"<td>{esc(steps)}</td>"
             f"<td>{esc(fmt_duration(item.get('duration_seconds')))}</td>"
             f"<td>{esc(failed)}</td>"
-            f"<td>{esc(item.get('finished_at') or '—')}</td>"
+            f"<td>{esc(format_local_datetime(item.get('finished_at')) if item.get('finished_at') else '—')}</td>"
             f"<td><a href='workflow-log?month={esc(item.get('month'))}'>open</a></td>"
             "</tr>"
         )
@@ -8571,7 +8571,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <tr><th>Retry-state</th><td>{esc(retry_debug_decision.get('state') or 'GEEN')}</td></tr>
 <tr><th>Reden</th><td>{esc(retry_debug_decision.get('reason') or '—')}</td></tr>
 <tr><th>Bron state</th><td>{esc(retry_debug.get('retry_state_path') or '—')} · {'FOUND' if retry_debug.get('retry_state_file_exists') else 'NOT FOUND'}</td></tr>
-<tr><th>Legacy state</th><td>maand {esc(retry_debug_legacy.get('last_month') or '—')} · status {esc(retry_debug_legacy.get('last_status') or '—')} · retry {esc(format_local_datetime(retry_debug_legacy.get('next_retry')) if retry_debug_legacy.get('next_retry') else '—')}</td></tr>
+<tr><th>Legacy bronstatus (historisch)</th><td>maand {esc(retry_debug_legacy.get('last_month') or '—')} · status {esc(retry_debug_legacy.get('last_status') or '—')} · retry {esc(format_local_datetime(retry_debug_legacy.get('next_retry')) if retry_debug_legacy.get('next_retry') else '—')} · alleen diagnose</td></tr>
 <tr><th>Completion marker</th><td>{'FOUND' if retry_debug_marker.get('found') else 'NOT FOUND'} · bewijs {'JA' if retry_debug_marker.get('proves_completed') else 'NEE'}</td></tr>
 <tr><th>Append history</th><td>{len(retry_debug_ledger.get('matching_records') or [])} record(s) · bewijs {'JA' if retry_debug_ledger.get('proves_completed') else 'NEE'}</td></tr>
 <tr><th>Workflow_result</th><td>{'FOUND' if retry_debug_workflow.get('exists') else 'NOT FOUND'} · bewijs {'JA' if retry_debug_workflow.get('proves_completed') else 'NEE'} · {esc(retry_debug_workflow.get('decision') or '—')}</td></tr>
@@ -8586,6 +8586,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 <tr><th>Laatste finalization-event</th><td>{esc(finalization_debug_last.get('event') or 'Nog geen nieuwe run voor deze versie')}</td></tr>
 <tr><th>Finalization events</th><td>{esc(' → '.join(str(row.get('event') or '?') for row in finalization_debug[-12:]) or 'Nog geen')}</td></tr>
 </tbody></table></div>
+<p class="hint">Legacy bronstatus is uitsluitend historisch diagnosebewijs. De actuele retry-, workflow- en productiestatus worden bepaald door de duurzame workflow_result- en certificaatvalidatie hierboven.</p>
 </details>
 <details><summary>Databronnen en snapshots</summary>
 <form method="post" action="homewizard-discover"><button type="submit">Detecteer HomeWizard-apparaten</button></form>

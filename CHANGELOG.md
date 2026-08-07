@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.3.0
+- Diagnostiek en historie zijn verduidelijkt zonder wijzigingen aan de workflow-, scheduler-, retry-, Recovery- of certificeringslogica.
+- **Historische runs** tonen het afrondmoment voortaan compact in lokale Nederlandse tijd in plaats van een ruwe ISO-timestamp.
+- **Retry Debug** noemt de oude legacy-status voortaan expliciet **Legacy bronstatus (historisch)** en markeert deze als uitsluitend diagnosebewijs.
+- Extra toelichting maakt duidelijk dat actuele productiestatus wordt bepaald door `workflow_result` en productiecertificaatvalidatie, niet door oude legacy-velden.
+- Bestaande audittrail, monitoringhistorie, productiecertificaten en oude records worden niet herschreven.
+- Deze release raakt de maandworkflow niet; eventuele productietest is alleen nodig omdat productiecertificaten nog strikt aan de actieve softwareversie zijn gekoppeld.
+
 ## 9.2.0
 - Verwachte overgangstoestanden tijdens versiecertificering worden intern als `pending` behandeld in plaats van als waarschuwing/aandachtstatus.
 - Monitoring toont voortaan **Wachtstatussen** naast echte fouten; een ontbrekend certificaat direct na een upgrade is daarmee expliciet een tijdelijke lifecycle-status.

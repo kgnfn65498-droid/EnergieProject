@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "9.2.0"
+    assert cfg_version == app_version == "9.3.0"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "9.2.0"' in config
+    assert 'version: "9.3.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "9.2.0"' in config
-    assert 'APP_VERSION = "9.2.0"' in main
+    assert 'version: "9.3.0"' in config
+    assert 'APP_VERSION = "9.3.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "9.2.0"' in source
+    assert 'APP_VERSION = "9.3.0"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2286,3 +2286,14 @@ def test_v920_monitoring_uses_pending_lifecycle_state():
 def test_v920_preserves_legacy_attention_compatibility():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     assert '"attention_points": len(pending_points)' in source
+
+def test_v930_historical_run_timestamp_uses_local_format():
+    source = MAIN.read_text(encoding="utf-8")
+    assert "format_local_datetime(item.get('finished_at')) if item.get('finished_at') else '—'" in source
+
+
+def test_v930_retry_debug_marks_legacy_state_historical():
+    source = MAIN.read_text(encoding="utf-8")
+    assert "Legacy bronstatus (historisch)" in source
+    assert "alleen diagnose" in source
+    assert "Legacy bronstatus is uitsluitend historisch diagnosebewijs" in source

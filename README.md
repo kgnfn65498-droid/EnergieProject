@@ -1,4 +1,4 @@
-# EnergieProject v9.2.0
+# EnergieProject v9.3.0
 
 Deze release verfijnt de operationele productieconsole van v9.0.0 zonder de gecertificeerde workflowkern te wijzigen. Productiegereedheid en systeemgezondheid worden duidelijker van elkaar onderscheiden.
 
@@ -21,7 +21,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 9.2.0
+- SlimmeMeterPortal Import 9.3.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 
