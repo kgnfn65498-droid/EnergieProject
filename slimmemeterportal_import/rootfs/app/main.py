@@ -52,7 +52,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "9.1.0"
+APP_VERSION = "9.2.0"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -6353,20 +6353,20 @@ def monitoring_snapshot(options: Options | None = None, *, force: bool = False, 
 
         cert_current = str(certificate.get("version") or "") == APP_VERSION
         cert_integrity_ok = certificate.get("integrity") in {"ok", "not_checked"}
-        cert_status = "ok" if certificate.get("valid") else ("attention" if cert_integrity_ok and not cert_current else "warning")
+        cert_status = "ok" if certificate.get("valid") else ("pending" if cert_integrity_ok and not cert_current else "warning")
         cert_detail = (
             "geldig" if certificate.get("valid")
             else (f"nog niet gecertificeerd voor v{APP_VERSION}" if cert_integrity_ok and not cert_current else str(certificate.get("status") or "ongeldig"))
         )
         add("Productiecertificaat", cert_status, cert_detail)
-        add("Audittrail", "ok" if audit.get("valid") else "attention", str(audit.get("status") or "unknown"))
+        add("Audittrail", "ok" if audit.get("valid") else "warning", str(audit.get("status") or "unknown"))
 
         recovery_status = str(recovery.get("status") or "unknown")
         add("Recovery", "ok" if recovery_status == "ok" else "warning", recovery_status)
 
         if options.automatic_month_close_enabled:
             scheduler_ok = bool(certificate.get("valid"))
-            add("Scheduler", "ok" if scheduler_ok else "attention",
+            add("Scheduler", "ok" if scheduler_ok else "pending",
                 "actief" if scheduler_ok else f"wacht op productiecertificaat v{APP_VERSION}")
         else:
             add("Scheduler", "ok", "uitgeschakeld")
@@ -6377,8 +6377,8 @@ def monitoring_snapshot(options: Options | None = None, *, force: bool = False, 
 
         active = [item for item in checks if item["status"] != "ok"]
         errors = [item for item in active if item["status"] == "warning"]
-        attention_points = [item for item in active if item["status"] == "attention"]
-        overall = "warning" if errors else ("attention" if attention_points else "ok")
+        pending_points = [item for item in active if item["status"] in {"pending", "attention"}]
+        overall = "warning" if errors else ("pending" if pending_points else "ok")
         fingerprint = hashlib.sha256(json.dumps(
             [(item["name"], item["status"], item["detail"]) for item in checks],
             ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -6391,7 +6391,8 @@ def monitoring_snapshot(options: Options | None = None, *, force: bool = False, 
             "status": overall,
             "active_alerts": len(active),
             "active_errors": len(errors),
-            "attention_points": len(attention_points),
+            "pending_points": len(pending_points),
+            "attention_points": len(pending_points),  # compatibiliteit met v9.1-statusclients
             "checks": checks,
             "fingerprint": fingerprint,
             "history_path": str(MONITORING_HISTORY_PATH),
@@ -6406,8 +6407,16 @@ def monitoring_snapshot(options: Options | None = None, *, force: bool = False, 
             try:
                 if validate_audit_trail().get("valid"):
                     append_audit_event(
-                        "monitoring", action="status_changed", status=overall,
-                        details={"active_alerts": len(active), "active_errors": len(errors), "attention_points": len(attention_points), "checks": checks, "trigger": trigger},
+                        "monitoring", action="status_changed", status=("info" if overall == "pending" else overall),
+                        details={
+                            "active_alerts": len(active),
+                            "active_errors": len(errors),
+                            "pending_points": len(pending_points),
+                            "attention_points": len(pending_points),
+                            "checks": checks,
+                            "trigger": trigger,
+                            "lifecycle_status": overall,
+                        },
                     )
             except Exception as exc:
                 LOGGER.warning("Monitoringstatus kon niet aan audittrail worden toegevoegd: %s", exc)
@@ -6447,34 +6456,34 @@ def health_dashboard(options: Options | None = None) -> dict[str, Any]:
     add(
         "Productiecertificaat", bool(certificate_validation.get("valid")),
         "geldig" if certificate_validation.get("valid") else f"nog niet gecertificeerd voor v{APP_VERSION}",
-        status_if_not_ok="attention" if certificate_gate_expected else "warning",
+        status_if_not_ok="pending" if certificate_gate_expected else "warning",
     )
     add("Certificaatintegriteit", certificate_integrity in {"ok", "not_checked"}, certificate_integrity)
     add(
         "Certificaatversie", certificate_current,
         f"laatste {certificate_validation.get('version') or 'geen'} · doel {APP_VERSION}",
-        status_if_not_ok="attention" if certificate_gate_expected else "warning",
+        status_if_not_ok="pending" if certificate_gate_expected else "warning",
     )
     audit_validation = validate_audit_trail()
     add("Audittrail", bool(audit_validation.get("valid")), f"{audit_validation.get('records', 0)} record(s)")
     add("Auditintegriteit", bool(audit_validation.get("valid")), str(audit_validation.get("status") or "unknown"))
     monitoring = monitoring_snapshot(options)
     monitoring_errors = int(monitoring.get("active_errors") or 0)
-    monitoring_attention = int(monitoring.get("attention_points") or 0)
-    monitoring_ok = monitoring_errors == 0 and monitoring_attention == 0
-    monitoring_detail = f"{monitoring_errors} fout(en) · {monitoring_attention} aandachtspunt(en)"
+    monitoring_pending = int(monitoring.get("pending_points") if monitoring.get("pending_points") is not None else (monitoring.get("attention_points") or 0))
+    monitoring_ok = monitoring_errors == 0 and monitoring_pending == 0
+    monitoring_detail = f"{monitoring_errors} fout(en) · {monitoring_pending} wachtstatus(sen)"
     add(
         "Monitoring", monitoring_ok, monitoring_detail,
-        status_if_not_ok="attention" if monitoring_errors == 0 else "warning",
+        status_if_not_ok="pending" if monitoring_errors == 0 else "warning",
     )
 
-    weights = {"ok": 1.0, "attention": 0.8, "warning": 0.0}
+    weights = {"ok": 1.0, "pending": 0.9, "attention": 0.8, "warning": 0.0}
     score = round((sum(weights.get(c["status"], 0.0) for c in checks) / len(checks)) * 100) if checks else 0
     return {
         "version": APP_VERSION,
         "generated_at": datetime.now(TZ).isoformat(),
         "score": score,
-        "status": "ok" if score == 100 else ("attention" if score >= 90 else "warning"),
+        "status": "ok" if score == 100 else ("pending" if score >= 90 else "warning"),
         "checks": checks,
     }
 
@@ -8338,7 +8347,7 @@ def html_page() -> bytes:
     monitoring_status = str(monitoring.get("status") or "unknown")
     monitoring_count = int(monitoring.get("active_alerts") or 0)
     monitoring_errors = int(monitoring.get("active_errors") or 0)
-    monitoring_attention = int(monitoring.get("attention_points") or 0)
+    monitoring_pending = int(monitoring.get("pending_points") if monitoring.get("pending_points") is not None else (monitoring.get("attention_points") or 0))
     monitoring_checked = format_local_datetime(monitoring.get("checked_at")) if monitoring.get("checked_at") else "Nog niet gecontroleerd"
     monitoring_rows = "".join(
         f"<li><span>{esc(item.get('name') or '—')}</span><span><span class='pill {status_class(item.get('status'))}'>{esc(item.get('status') or '—')}</span> {esc(item.get('detail') or '')}</span></li>"
@@ -8513,7 +8522,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 
 <div class="card" id="monitoring-v818"><h2>Monitoring v{APP_VERSION}</h2>
-<div class="metrics"><div class="metric"><small>Status</small><strong><span id="monitoring-status" class="pill {status_class(monitoring_status)}">{esc(monitoring_status)}</span></strong></div><div class="metric"><small>Fouten</small><strong id="monitoring-error-count">{esc(monitoring_errors)}</strong></div><div class="metric"><small>Aandachtspunten</small><strong id="monitoring-attention-count">{esc(monitoring_attention)}</strong></div><div class="metric"><small>Laatste controle</small><strong id="monitoring-checked">{esc(monitoring_checked)}</strong></div></div>
+<div class="metrics"><div class="metric"><small>Status</small><strong><span id="monitoring-status" class="pill {status_class(monitoring_status)}">{esc(monitoring_status)}</span></strong></div><div class="metric"><small>Fouten</small><strong id="monitoring-error-count">{esc(monitoring_errors)}</strong></div><div class="metric"><small>Wachtstatussen</small><strong id="monitoring-attention-count">{esc(monitoring_pending)}</strong></div><div class="metric"><small>Laatste controle</small><strong id="monitoring-checked">{esc(monitoring_checked)}</strong></div></div>
 <ul class="source-list" id="monitoring-checks">{monitoring_rows}</ul>
 <p><button id="run-monitoring-button" type="button" class="secondary">Controleer monitoring nu</button> <a href="download-monitoring-history">Download monitoringhistorie</a></p>
 <p class="hint">Bewaakt API, workflow, productiecertificaat, audittrail, recovery, scheduler en bronstatus. Alleen statuswijzigingen worden append-only opgeslagen; monitoring start zelf geen workflow.</p>
@@ -8534,7 +8543,7 @@ a{{color:#0277bd}} .links{{line-height:2}} code{{font-size:.9em}} .log{{backgrou
 </div>
 
 <div class="card"><h2>Gezondheidsdashboard</h2>
-<div class="controls"><div><div class="score" id="health-score">{health_score}%</div><p class="hint">Systeemgezondheid: aandachtspunten zoals een nog vereiste versiecertificering verlagen de score beperkt; echte fouten wegen zwaar.</p></div><ul class="source-list" id="health-checks">{health_rows}</ul></div>
+<div class="controls"><div><div class="score" id="health-score">{health_score}%</div><p class="hint">Systeemgezondheid: normale wachtstatussen tijdens versiecertificering zijn geen fout; echte storingen wegen zwaar.</p></div><ul class="source-list" id="health-checks">{health_rows}</ul></div>
 </div>
 
 <div class="card"><h2>Live workflowlog</h2>
@@ -8740,7 +8749,7 @@ async function refreshStatus(){{
     const monitoringChecks=document.getElementById('monitoring-checks');
     if(monitoringStatus){{monitoringStatus.textContent=monitoring.status||'unknown';monitoringStatus.className=pillClass(monitoring.status);}}
     if(monitoringErrors) monitoringErrors.textContent=String(monitoring.active_errors??0);
-    if(monitoringAttention) monitoringAttention.textContent=String(monitoring.attention_points??0);
+    if(monitoringAttention) monitoringAttention.textContent=String(monitoring.pending_points??monitoring.attention_points??0);
     if(monitoringChecked) monitoringChecked.textContent=monitoring.checked_at?formatLocalDateTime(monitoring.checked_at):'Nog niet gecontroleerd';
     if(monitoringChecks && Array.isArray(monitoring.checks)){{
       monitoringChecks.innerHTML=monitoring.checks.map(item=>`<li><span>${{escapeHtml(item.name||'—')}}</span><span><span class="${{pillClass(item.status)}}">${{escapeHtml(item.status||'—')}}</span> ${{escapeHtml(item.detail||'')}}</span></li>`).join('');

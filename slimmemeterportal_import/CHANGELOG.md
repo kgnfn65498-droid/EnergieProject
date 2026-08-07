@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.2.0
+- Verwachte overgangstoestanden tijdens versiecertificering worden intern als `pending` behandeld in plaats van als waarschuwing/aandachtstatus.
+- Monitoring toont voortaan **Wachtstatussen** naast echte fouten; een ontbrekend certificaat direct na een upgrade is daarmee expliciet een tijdelijke lifecycle-status.
+- Nieuwe monitoring-auditrecords schrijven een normale wachtstatus als `info` in de append-only audittrail, met de werkelijke lifecycle-status (`pending`) in de details. Hierdoor lijkt een verwachte certificeringsfase niet meer op een historische fout.
+- Gezondheidsdashboard weegt `pending` als tijdelijke status en blijft onderscheid maken tussen normale certificeringswachttijd en echte storingen.
+- Bestaande v8/v9 auditrecords worden niet herschreven; de hashketen en historische waarheid blijven volledig intact.
+- Workflow, schedulerlogica, retry-state, Recovery, certificaatuitgifte en officiële rapportgeneratoren blijven inhoudelijk ongewijzigd.
+
 ## 9.1.0
 - Productiestatus gebruikt duidelijke tekst **Nog niet gecertificeerd** wanneer de actieve versie nog een eigen productietest nodig heeft.
 - Monitoring onderscheidt echte fouten van normale aandachtspunten; een versie-upgrade zonder nieuw certificaat is geen systeemfout.

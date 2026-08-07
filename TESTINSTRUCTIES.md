@@ -1,5 +1,5 @@
-# Testinstructies v9.1.0
+# Testinstructies v9.2.0
 
-1. Commit/push v9.1.0, kies in Home Assistant **Opnieuw bouwen**, start de app en open de Web UI. Vóór de v9.1.0-productietest mag de console **Nog niet gecertificeerd** tonen; Monitoring hoort daarbij 0 fouten en alleen aandachtspunten te melden. Het Gezondheidsdashboard hoort duidelijk hoger te blijven dan de oude 75%-weergave.
-2. Voer één keer **Test automatische maandafsluiting nu** uit voor `2026-08`. Laat de pagina open; na afronding moeten Productiestatus en **Archief productiecertificaten** automatisch v9.1.0 tonen.
-3. Eindcontrole: Recovery v9.1.0 `ok`, Monitoring v9.1.0 `ok` met **0 fouten / 0 aandachtspunten**, Audittrail v9.1.0 integriteit `ok`, Gezondheidsdashboard **100%**, Retry Debug `FOUND · geldig JA` en `9.1.0 · verwacht 9.1.0`.
+1. Commit/push v9.2.0, kies in Home Assistant **Opnieuw bouwen**, start de app en controleer vóór de productietest dat Monitoring **0 fouten** toont en een eventueel ontbrekend v9.2.0-certificaat als **wachtstatus** behandelt.
+2. Voer één keer **Test automatische maandafsluiting nu** uit voor `2026-08`. Na afronding moeten Productiestatus en Archief productiecertificaten v9.2.0 tonen.
+3. Eindcontrole: Monitoring **0 fouten / 0 wachtstatussen**, Recovery `ok`, Auditintegriteit `ok`, Gezondheidsdashboard **100%**, Retry Debug `9.2.0 · verwacht 9.2.0`. In de Audittrail mag de tijdelijke certificeringsfase als `info` staan; er mag door deze normale overgang geen nieuw `warning`-record ontstaan.
