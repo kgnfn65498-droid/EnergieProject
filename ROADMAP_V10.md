@@ -16,3 +16,5 @@
 
 ## Daarna
 - v11: proactieve energieassistent op basis van de gevalideerde analysecontext.
+
+- v10.5.8: EPEX-analyse gekoppeld aan de echte productiebron `05_Maanddata/EPEX`, inclusief dekking en bronhiaten.

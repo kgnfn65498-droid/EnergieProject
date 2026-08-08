@@ -1,4 +1,4 @@
-# EnergieProject v10.5.7
+# EnergieProject v10.5.8
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -9,3 +9,7 @@ De automatische releaseketen QNAP -> GitHub -> Home Assistant, de maandworkflow,
 
 ## v10.5.7
 De analysecontext bevat nu ook read-only historische EPEX-prijscontext per maand: aantal prijsrecords, gemiddelde, minimum en maximum voor elektriciteit en gas. Er worden bewust geen all-in energiekosten berekend zolang leverancierstarieven, belastingen en dekking niet volledig bewezen zijn.
+
+
+## v10.5.8
+De historische analyse leest EPEX nu uit de echte projectbron `05_Maanddata/EPEX`, inclusief de volledigheidsstatus uit `EPEX_index.csv`.

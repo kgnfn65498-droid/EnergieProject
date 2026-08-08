@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.7"
+APP_VERSION = "10.5.8"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4182,31 +4182,112 @@ def _round_metric(value: float) -> float:
     return round(float(value), 3)
 
 
-def _price_file_metrics(path: Path) -> dict[str, Any]:
-    """Vat reeds opgeslagen prijsdata samen zonder tarief-/kostenaannames."""
-    rows = read_csv_rows(path)
-    values: list[float] = []
+EPEX_HISTORY_ROOT = NAS_PROJECT_ROOT / "05_Maanddata" / "EPEX"
+
+
+def _read_epex_rows(path: Path) -> list[dict[str, str]]:
+    """Lees de officiële EPEX-v6 maandbestanden (UTF-8 BOM, puntkomma)."""
+    if not path.is_file():
+        return []
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            return [dict(row) for row in csv.DictReader(handle, delimiter=";")]
+    except (OSError, UnicodeError, csv.Error):
+        return []
+
+
+def _epex_price_stats(path: Path, *, unit: str) -> dict[str, Any]:
+    """Vat EPEX-v6 prijsrecords samen met expliciete prijsdefinitie."""
+    rows = _read_epex_rows(path)
+    fields = ("prijs_excl_btw", "prijs_incl_btw", "prijs_incl_btw_en_eb")
+    series: dict[str, list[float]] = {field: [] for field in fields}
+    frequencies: set[str] = set()
     for row in rows:
-        raw = row.get("value")
-        if raw in (None, ""):
-            # Sommige historische exports gebruiken een expliciete prijskolom.
-            for key in ("price", "prijs", "market_price", "spot_price"):
-                if row.get(key) not in (None, ""):
-                    raw = row.get(key)
-                    break
-        try:
-            if raw is not None:
-                values.append(float(str(raw).replace(",", ".")))
-        except (TypeError, ValueError):
-            continue
-    if not values:
-        return {"available": False, "observations": 0, "average": None, "minimum": None, "maximum": None}
+        frequency = str(row.get("frequentie") or "").strip()
+        if frequency:
+            frequencies.add(frequency)
+        for field in fields:
+            raw = row.get(field)
+            try:
+                if raw not in (None, ""):
+                    series[field].append(float(str(raw).replace(",", ".")))
+            except (TypeError, ValueError):
+                continue
+
+    selected = series["prijs_incl_btw_en_eb"]
+    if not selected:
+        return {
+            "available": False,
+            "observations": 0,
+            "average": None,
+            "minimum": None,
+            "maximum": None,
+            "price_field": "prijs_incl_btw_en_eb",
+            "unit": unit,
+            "frequency": sorted(frequencies)[0] if len(frequencies) == 1 else None,
+            "components": {},
+        }
+
+    components: dict[str, Any] = {}
+    for field, values in series.items():
+        if values:
+            components[field] = {
+                "average": _round_metric(sum(values) / len(values)),
+                "minimum": _round_metric(min(values)),
+                "maximum": _round_metric(max(values)),
+            }
+
     return {
         "available": True,
-        "observations": len(values),
-        "average": _round_metric(sum(values) / len(values)),
-        "minimum": _round_metric(min(values)),
-        "maximum": _round_metric(max(values)),
+        "observations": len(selected),
+        "average": _round_metric(sum(selected) / len(selected)),
+        "minimum": _round_metric(min(selected)),
+        "maximum": _round_metric(max(selected)),
+        "price_field": "prijs_incl_btw_en_eb",
+        "unit": unit,
+        "frequency": sorted(frequencies)[0] if len(frequencies) == 1 else ("mixed" if frequencies else None),
+        "components": components,
+    }
+
+
+def _epex_index() -> dict[str, dict[str, str]]:
+    path = EPEX_HISTORY_ROOT / "EPEX_index.csv"
+    rows = _read_epex_rows(path)
+    return {str(row.get("maand") or "").strip(): row for row in rows if row.get("maand")}
+
+
+def _epex_month_context(month_key: str) -> dict[str, Any]:
+    year = int(month_key[:4])
+    month_dash = month_key.replace("_", "-")
+    index_row = _epex_index().get(month_dash, {})
+    year_root = EPEX_HISTORY_ROOT / str(year)
+    electricity_path = year_root / f"{month_dash}_stroom.csv"
+    gas_path = year_root / f"{month_dash}_gas.csv"
+
+    coverage_status = str(index_row.get("volledigheid") or "").strip() or (
+        "bestanden_aanwezig_zonder_index" if electricity_path.is_file() or gas_path.is_file() else "not_available"
+    )
+    source_gaps_raw = str(index_row.get("bronhiaten") or "").strip()
+    try:
+        source_gaps = int(source_gaps_raw) if source_gaps_raw else 0
+    except ValueError:
+        source_gaps = None
+
+    return {
+        "source": "05_Maanddata/EPEX",
+        "coverage": {
+            "status": coverage_status,
+            "first_date": index_row.get("eerste_datum") or None,
+            "last_date": index_row.get("laatste_datum") or None,
+            "source_gaps": source_gaps,
+        },
+        "electricity": _epex_price_stats(electricity_path, unit="EUR/kWh"),
+        "gas": _epex_price_stats(gas_path, unit="EUR/m3"),
+        "interpretation": (
+            "Prijsstatistiek uit de bestaande EPEX-v6 maandbestanden. "
+            "average/minimum/maximum gebruiken 'prijs_incl_btw_en_eb' uit die bron; "
+            "dit is geen leverancier-all-in prijs en bevat geen leveranciersopslag of vaste kosten."
+        ),
     }
 
 
@@ -4216,8 +4297,6 @@ def _month_energy_metrics(month_key: str) -> dict[str, Any]:
     p1e_path = folder / "P1e.csv"
     p1g_path = folder / "P1g.csv"
     enphase_path = folder / "Enphase.csv"
-    epex_electricity_path = folder / "EPEX stroom.csv"
-    epex_gas_path = folder / "EPEX gas.csv"
     p1e_rows = read_csv_rows(p1e_path)
     p1g_rows = read_csv_rows(p1g_path)
     enphase_rows = read_csv_rows(enphase_path)
@@ -4275,7 +4354,6 @@ def _month_energy_metrics(month_key: str) -> dict[str, Any]:
     available_sources = [
         name for name, file_name in (
             ("P1e", "P1e.csv"), ("P1g", "P1g.csv"), ("Enphase", "Enphase.csv"),
-            ("EPEX electricity", "EPEX stroom.csv"), ("EPEX gas", "EPEX gas.csv"),
         ) if (folder / file_name).is_file()
     ]
 
@@ -4297,11 +4375,7 @@ def _month_energy_metrics(month_key: str) -> dict[str, Any]:
             "self_use_pct": metric(self_use_pct),
             "self_supply_pct": metric(self_supply_pct),
         },
-        "price_context": {
-            "electricity": _price_file_metrics(epex_electricity_path),
-            "gas": _price_file_metrics(epex_gas_path),
-            "interpretation": "Ruwe historische prijsstatistiek uit bestaande EPEX-maandbestanden; geen leveranciersopslag, belasting of totale energiekosten.",
-        },
+        "price_context": _epex_month_context(month_key),
         "quality": {
             "month_input_validation": validation.get("status") or "not_available",
             "production_source": production_source,
@@ -4409,7 +4483,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "solar_production_kwh": "Enphase-opwek; bij ontbrekende Enphase alleen expliciet gemarkeerde export_fallback.",
             "self_use_pct": "Direct eigen zonnegebruik gedeeld door zonneproductie; null als brondekking dit niet betrouwbaar toelaat.",
             "self_supply_pct": "Direct eigen zonnegebruik gedeeld door berekend huishoudelijk elektriciteitsgebruik; null als brondekking dit niet betrouwbaar toelaat.",
-            "price_context": "Gemiddelde, minimum en maximum uit reeds opgeslagen EPEX-prijsrecords; nadrukkelijk geen all-in leverancierstarief of kostenberekening.",
+            "price_context": "Historische EPEX-v6 prijscontext uit 05_Maanddata/EPEX, inclusief brondekking. De hoofdstatistiek gebruikt prijs_incl_btw_en_eb en is geen leverancier-all-in prijs.",
         },
         "months": months,
         "quarters": quarters,
@@ -8831,7 +8905,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.7",
+        "target_stable_release": "10.5.8",
     }
 
     summary = {
@@ -8863,7 +8937,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.7",
+        "target_stable_release": "10.5.8",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -8930,7 +9004,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.7",
+        "Doelrelease: 10.5.8",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

@@ -586,3 +586,7 @@ De operationele console bevat de link `Analysecontext`. Het endpoint `/analysis-
 
 ## Versie 10.5.7 — historische prijscontext
 De analysecontext bevat per maand `price_context` met ruwe statistiek uit bestaande `EPEX stroom.csv` en `EPEX gas.csv`. De waarden worden niet als all-in leverancierstarief of werkelijke kosten gepresenteerd. Ontbrekende of niet-numerieke prijsdata blijft expliciet niet beschikbaar.
+
+
+## Versie 10.5.8 — EPEX productiebron
+De analysecontext leest de bestaande EPEX-v6 historie rechtstreeks uit `/share/Energie_NAS/EnergieProject/05_Maanddata/EPEX`. `EPEX_index.csv` bepaalt de maanddekking. De hoofdstatistiek gebruikt `prijs_incl_btw_en_eb`; leverancieropslag en vaste kosten worden niet toegevoegd of aangenomen.
