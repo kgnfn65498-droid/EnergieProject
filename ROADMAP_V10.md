@@ -23,3 +23,7 @@ Gestandaardiseerde historische analysecontext voor kwartaal-/jaarvergelijkingen 
 
 ## v11 — Proactieve energieassistent
 Zelf relevante markt-, prijs-, weer- en besparingsontwikkelingen signaleren en onderbouwde acties voorstellen.
+
+## v10.4.1
+- Self-safe installer/watcher: uitvoering buiten live worktree.
+- Eerst handmatig installeren vanuit v10.3.1; daarna watcher starten en automatische verwerking met een volgende release bewijzen.

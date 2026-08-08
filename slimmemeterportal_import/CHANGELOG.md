@@ -1,5 +1,10 @@
 # Changelog
 
+## 10.4.1
+
+- Automatische NAS release watcher toegevoegd.
+- Productiekern ongewijzigd: 9.4-core1.
+
 ## 10.3.1
 - Release-inbox installer gehardend met volledige tar-rollback en strengere eindcontrole.
 - Geen functionele wijziging aan maandworkflow of rapportgeneratoren; productiekern blijft `9.4-core1`.

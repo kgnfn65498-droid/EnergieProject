@@ -12,12 +12,25 @@ BACKUPS="$SHARE/EnergieProject_Backups"
 LOCK="$INBOX/.installer.lock"
 REQUIRED="README.md INSTALL.md CHANGELOG.md MANIFEST.sha256 SHA256SUMS.json repository.yaml VERSIE.txt"
 
+# Safety rule: never run the live installer from inside the worktree that it replaces.
+# If invoked from the project, copy to /tmp and re-exec before touching the worktree.
+if [ "${ENERGIE_INSTALLER_REEXEC:-0}" != "1" ]; then
+  case "$0" in
+    "$PROJECT"/*)
+      TMP_SELF="/tmp/energie_release_installer.$$.sh"
+      cp "$0" "$TMP_SELF" || { echo "FOUT: installer kon zichzelf niet naar /tmp kopieren" >&2; exit 1; }
+      chmod 700 "$TMP_SELF" || true
+      export ENERGIE_INSTALLER_REEXEC=1
+      exec sh "$TMP_SELF" "$@"
+      ;;
+  esac
+fi
+
 ZIP_WORK=""
 STAGE=""
 BACKUP=""
 BASE_COMMIT=""
 WORKTREE_REPLACED=0
-COMMIT_CREATED=0
 
 log(){ printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 cleanup(){ [ -n "$STAGE" ] && rm -rf "$STAGE" 2>/dev/null || true; rmdir "$LOCK" 2>/dev/null || true; }
@@ -31,6 +44,7 @@ restore_backup(){
   if [ -n "$BASE_COMMIT" ]; then
     cd "$PROJECT"
     git reset --hard "$BASE_COMMIT" >/dev/null 2>&1 || return 1
+    git config core.filemode false
   fi
   WORKTREE_REPLACED=0
   log "Rollback: herstel uit backup voltooid"
@@ -90,17 +104,18 @@ tar -tzf "$BACKUP" >/dev/null 2>&1 || fail "backup-validatie mislukt"
 log "Backup gevalideerd: $BACKUP"
 
 log "FASE 5/8: release-worktree vervangen"
-find "$PROJECT" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} + || fail "oude worktree leegmaken mislukt"
+# WORKTREE_REPLACED becomes true BEFORE deletion, so any deletion failure triggers tar rollback.
 WORKTREE_REPLACED=1
+find "$PROJECT" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} + || fail "oude worktree leegmaken mislukt"
 cp -a "$STAGE"/. "$PROJECT"/ || fail "nieuwe release kopiëren mislukt"
+cd "$PROJECT"
 git config core.filemode false
 
 log "FASE 6/8: post-installatiecontroles"
 for f in $REQUIRED; do [ -f "$PROJECT/$f" ] || fail "post-installatiebestand ontbreekt: $f"; done
 (cd "$PROJECT" && sha256sum -c MANIFEST.sha256 >/dev/null) || fail "post-installatie SHA256-validatie mislukt"
-if [ -f tools/release_installer.sh ]; then
-  sh -n tools/release_installer.sh || fail "shellsyntax release_installer.sh ongeldig"
-fi
+[ -f tools/release_installer.sh ] && sh -n tools/release_installer.sh || fail "shellsyntax release_installer.sh ongeldig"
+[ -f tools/release_watcher.sh ] && sh -n tools/release_watcher.sh || fail "shellsyntax release_watcher.sh ongeldig"
 if command -v python3 >/dev/null 2>&1 && python3 -m pytest --version >/dev/null 2>&1; then
   if [ -f tests/test_static.py ]; then
     python3 -m pytest -q tests/test_static.py || fail "statische tests mislukt"
@@ -119,7 +134,6 @@ if git diff --cached --quiet; then
   log "Geen inhoudelijke wijziging; release $NEW_VERSION is al actief."
 else
   git commit -m "v${NEW_VERSION}: automated release inbox install" || fail "commit mislukt"
-  COMMIT_CREATED=1
   NEW_COMMIT="$(git rev-parse HEAD)"
   if ! git push origin main; then
     REMOTE_AFTER="$(git ls-remote origin refs/heads/main | awk '{print $1}')"

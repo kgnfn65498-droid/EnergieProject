@@ -1,5 +1,13 @@
 # Changelog
 
+## 10.4.1
+- Structurele fix: release-installer verplaatst zichzelf eerst naar `/tmp` wanneer hij vanuit de live worktree wordt gestart.
+- `WORKTREE_REPLACED` wordt vóór het leegmaken gezet, zodat ook een fout tijdens verwijderen direct de gevalideerde tar-backup terugzet.
+- Release-watcher draait eveneens buiten de live worktree en kopieert de installer voor iedere run naar `/tmp`.
+- Post-installatiecontrole valideert nu zowel `release_installer.sh` als `release_watcher.sh`.
+- GitHub-, backup-, SHA256- en clean-repositorycontroles uit v10.3.1 blijven ongewijzigd.
+- Productiekern `9.4-core1` blijft ongewijzigd.
+
 ## 10.3.1
 - Release-installer gehardend met volledige tar-gebaseerde rollback van de vorige worktree.
 - Installatie stopt bij tracked of untracked lokale wijzigingen en bij verschil tussen lokale `main` en GitHub `main`.

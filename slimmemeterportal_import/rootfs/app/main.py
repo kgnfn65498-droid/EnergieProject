@@ -52,7 +52,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.3.1"
+APP_VERSION = "10.4.1"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -8562,7 +8562,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.3.1",
+        "target_stable_release": "10.4.1",
     }
 
     summary = {
@@ -8594,8 +8594,8 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.3.1",
-        "note": "v10.3.1 gebruikt de nieuwe EnergieProject NAS-root en een gecontroleerde release-inbox met staging, validatie, backup en rollback; productiekern 9.4-core1 blijft ongewijzigd.",
+        "target_stable_release": "10.4.1",
+        "note": "v10.4.1 gebruikt self-safe installer- en watcherprocessen buiten de live worktree; release-inbox, backup, rollback en GitHub-controles blijven actief; productiekern 9.4-core1 blijft ongewijzigd.",
     }
 
     generated = {
@@ -8661,7 +8661,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.3.1",
+        "Doelrelease: 10.4.1",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

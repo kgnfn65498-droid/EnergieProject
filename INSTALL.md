@@ -31,3 +31,8 @@
 
 Na publicatie via een Git-repository worden nieuwe versies via de normale
 Home Assistant-knop **Update** aangeboden.
+
+## v10.4.1 herstelinstallatie
+v10.4.1 moet vanuit de bewezen v10.3.1-basis worden geïnstalleerd. De installer mag direct met `sh /share/Energie_NAS/EnergieProject/tools/release_installer.sh` worden gestart: hij verplaatst zichzelf vóór worktree-wijzigingen automatisch naar `/tmp`.
+
+Na succesvolle installatie kan de watcher handmatig worden gestart met `sh /share/Energie_NAS/EnergieProject/tools/release_watcher.sh run`. Een volgende release valideert daarna dat alleen een ZIP in `incoming` voldoende is.
