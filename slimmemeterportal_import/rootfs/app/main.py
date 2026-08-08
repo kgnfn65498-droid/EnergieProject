@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.11"
+APP_VERSION = "10.5.13"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4182,21 +4182,30 @@ def _round_metric(value: float) -> float:
     return round(float(value), 3)
 
 
-def _resolve_epex_history_root() -> Path:
-    """Vind EPEX in de feitelijke Home Assistant share en in legacy projectpaden."""
+def _resolve_epex_history_root() -> Path | None:
+    """Vind EPEX op bekende HA-mounts en via begrensde autodetectie."""
     candidates = (
         NAS_SHARE_ROOT / "05_Maanddata" / "EPEX",
         NAS_SHARE_ROOT / "EPEX",
         NAS_PROJECT_ROOT / "05_Maanddata" / "EPEX",
         NAS_PROJECT_ROOT / "EPEX",
+        Path("/media/Energie_NAS") / "05_Maanddata" / "EPEX",
+        Path("/media/Energie_NAS") / "EPEX",
     )
     for candidate in candidates:
         if (candidate / "EPEX_index.csv").is_file():
             return candidate
-    # Geen bestaand pad stilzwijgend als geldig behandelen.
-    # Het eerste pad is de productie-layout van Energie_NAS en wordt alleen
-    # als diagnostische resolved_path teruggegeven.
-    return candidates[0]
+    for base in (Path("/share"), Path("/media")):
+        if not base.is_dir():
+            continue
+        try:
+            for index_file in base.glob("**/EPEX_index.csv"):
+                parent = index_file.parent
+                if parent.name == "EPEX":
+                    return parent
+        except (OSError, PermissionError):
+            continue
+    return None
 
 
 EPEX_HISTORY_ROOT = _resolve_epex_history_root()
@@ -4268,6 +4277,8 @@ def _epex_price_stats(path: Path, *, unit: str) -> dict[str, Any]:
 
 
 def _epex_index() -> dict[str, dict[str, str]]:
+    if EPEX_HISTORY_ROOT is None:
+        return {}
     path = EPEX_HISTORY_ROOT / "EPEX_index.csv"
     rows = _read_epex_rows(path)
     return {str(row.get("maand") or "").strip(): row for row in rows if row.get("maand")}
@@ -4277,9 +4288,9 @@ def _epex_month_context(month_key: str) -> dict[str, Any]:
     year = int(month_key[:4])
     month_dash = month_key.replace("_", "-")
     index_row = _epex_index().get(month_dash, {})
-    year_root = EPEX_HISTORY_ROOT / str(year)
-    electricity_path = year_root / f"{month_dash}_stroom.csv"
-    gas_path = year_root / f"{month_dash}_gas.csv"
+    year_root = EPEX_HISTORY_ROOT / str(year) if EPEX_HISTORY_ROOT is not None else None
+    electricity_path = year_root / f"{month_dash}_stroom.csv" if year_root is not None else Path("/nonexistent/epex_stroom.csv")
+    gas_path = year_root / f"{month_dash}_gas.csv" if year_root is not None else Path("/nonexistent/epex_gas.csv")
 
     coverage_status = str(index_row.get("volledigheid") or "").strip() or (
         "bestanden_aanwezig_zonder_index" if electricity_path.is_file() or gas_path.is_file() else "not_available"
@@ -4292,7 +4303,8 @@ def _epex_month_context(month_key: str) -> dict[str, Any]:
 
     return {
         "source": "05_Maanddata/EPEX",
-        "resolved_path": str(EPEX_HISTORY_ROOT),
+        "resolved_path": str(EPEX_HISTORY_ROOT) if EPEX_HISTORY_ROOT is not None else None,
+        "source_found": EPEX_HISTORY_ROOT is not None,
         "coverage": {
             "status": coverage_status,
             "first_date": index_row.get("eerste_datum") or None,
@@ -8923,7 +8935,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.11",
+        "target_stable_release": "10.5.13",
     }
 
     summary = {
@@ -8955,7 +8967,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.11",
+        "target_stable_release": "10.5.13",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9022,7 +9034,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.11",
+        "Doelrelease: 10.5.13",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

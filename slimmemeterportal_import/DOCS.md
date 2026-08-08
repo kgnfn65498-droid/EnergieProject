@@ -600,3 +600,11 @@ De productiegegevens staan direct onder de Home Assistant share `Energie_NAS`. V
 
 ## Versie 10.5.11 — race-safe releaseketen
 `release_watcher.sh` gebruikt `.watcher.lock` als atomische singleton-claim. Het PID-bestand blijft alleen statusinformatie. `release_installer.sh` verplaatst een ZIP uit `processing` pas naar `failed` wanneer deze minimaal 600 seconden oud is. Daardoor kan een gelijktijdige cronstart een actieve release niet meer kapen.
+
+
+## Versie 10.5.12 — EPEX autodetectie
+De analyse zoekt `EPEX_index.csv` onder bekende paden en begrensd onder `/share` en `/media`; alleen een bestaande index geldt als gevonden bron.
+
+
+## Versie 10.5.13 — veilige Finder/QNAP overdracht
+De watcher verwerkt een ZIP pas nadat de bestandsgrootte drie opeenvolgende controles stabiel is gebleven.

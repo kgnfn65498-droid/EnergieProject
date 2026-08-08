@@ -24,3 +24,7 @@
 - v10.5.10: EPEX gekoppeld aan de feitelijke Energie_NAS-root (`05_Maanddata/EPEX`).
 
 - v10.5.11: release-watcher race condition opgelost met atomische singleton-lock en veilige processing-quarantaine.
+
+- v10.5.12: EPEX-autodetectie over Home Assistant `/share` en `/media`.
+
+- v10.5.13: SMB/Finder-safe ZIP-stabiliteitscontrole vóór release-installatie.

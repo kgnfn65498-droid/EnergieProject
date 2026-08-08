@@ -1,17 +1,16 @@
-# Testinstructies v10.5.11
+# Testinstructies v10.5.13
 
-1. Laat `EnergieProject_v10.5.10.zip` in `failed` staan; verplaats die NIET terug.
-2. Plaats alleen `EnergieProject_v10.5.11.zip` in `EnergieProject_Inbox/incoming`.
-3. Wacht op de automatische QNAP-verwerking.
-4. De ZIP moet naar `processed` gaan en mag niet meer in `failed` eindigen.
-5. Home Assistant moet daarna update `10.5.11` aanbieden.
-6. Installeer 10.5.11 via Home Assistant en herstart daarna één keer **SlimmeMeterPortal Import**.
-7. Controleer versie `10.5.11` en workflow `idle`.
-8. Klik **Download analysedata** en stuur alleen dat JSON-bestand terug.
+Omdat de huidige live watcher (10.5.11) een `.zip` al kan oppakken terwijl Finder nog kopieert:
+1. Download `EnergieProject_v10.5.13.upload`.
+2. Sleep dit bestand volledig naar `EnergieProject_Inbox/incoming`.
+3. Wacht tot Finder klaar is.
+4. Hernoem IN `incoming` alleen de extensie `.upload` naar `.zip`.
+5. Daarna doet de QNAP alles automatisch.
+6. Installeer 10.5.13 in Home Assistant en herstart SlimmeMeterPortal Import één keer.
+7. Klik **Download analysedata** en stuur het JSON-bestand.
 
-Gebruik GEEN Home Assistant Terminal. Gebruik GEEN handmatige Git-commit of Git-push.
-Geen maandworkflow starten.
+Vanaf 10.5.13 mag een volgende `.zip` weer rechtstreeks naar `incoming`: de watcher wacht dan zelf tot de kopie compleet is.
 
-Verwacht in de analysedata voor juli 2026 nog steeds de v10.5.10 EPEX-correctie:
-`resolved_path = /share/Energie_NAS/05_Maanddata/EPEX`, gedeeltelijke dekking t/m 2026-07-29,
-2784 stroomrecords en 696 gasrecords.
+Gebruik GEEN Home Assistant Terminal. Gebruik GEEN handmatige Git-acties.
+Verwacht bij bereikbare EPEX-bron voor juli 2026: `gedeeltelijk` t/m `2026-07-29`, 2784 stroomrecords en 696 gasrecords.
+Gebruik GEEN handmatige Git-commit of Git-push.

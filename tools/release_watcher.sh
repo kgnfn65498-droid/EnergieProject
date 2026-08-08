@@ -17,6 +17,10 @@ PIDFILE="$INBOX/.watcher.pid"
 WATCHER_LOCK="$INBOX/.watcher.lock"
 STATUSFILE="$INBOX/latest_release_status.txt"
 INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"
+STABLE_POLLS="${ENERGIE_ZIP_STABLE_POLLS:-3}"
+LAST_ZIP=""
+LAST_SIZE=""
+STABLE_COUNT=0
 
 # Keep the long-running watcher outside the worktree too. This prevents an update
 # from deleting the script file from which the watcher is currently running.
@@ -97,15 +101,31 @@ while :; do
   if [ -e "$1" ]; then
     COUNT=$#
     if [ "$COUNT" -eq 1 ]; then
-      ZIP_NAME="$(basename "$1")"
-      log "ZIP gedetecteerd: $ZIP_NAME"
-      write_status "PROCESSING" "$ZIP_NAME"
-      if run_installer; then
-        log "Automatische verwerking afgerond"
-        write_status "SUCCESS" "$ZIP_NAME"
+      ZIP_PATH="$1"
+      ZIP_NAME="$(basename "$ZIP_PATH")"
+      ZIP_SIZE="$(wc -c < "$ZIP_PATH" 2>/dev/null | tr -d ' ' || echo 0)"
+      if [ "$ZIP_NAME" = "$LAST_ZIP" ] && [ "$ZIP_SIZE" = "$LAST_SIZE" ] && [ "$ZIP_SIZE" -gt 0 ]; then
+        STABLE_COUNT=$((STABLE_COUNT + 1))
       else
-        log "FOUT: automatische verwerking mislukt; zie installerlog en failed-map"
-        write_status "FAILED" "$ZIP_NAME"
+        LAST_ZIP="$ZIP_NAME"
+        LAST_SIZE="$ZIP_SIZE"
+        STABLE_COUNT=1
+        log "ZIP gedetecteerd; wacht op complete kopie: $ZIP_NAME (${ZIP_SIZE} bytes)"
+        write_status "COPYING" "$ZIP_NAME"
+      fi
+      if [ "$STABLE_COUNT" -ge "$STABLE_POLLS" ]; then
+        log "ZIP stabiel na ${STABLE_COUNT} controles: $ZIP_NAME"
+        write_status "PROCESSING" "$ZIP_NAME"
+        if run_installer; then
+          log "Automatische verwerking afgerond"
+          write_status "SUCCESS" "$ZIP_NAME"
+        else
+          log "FOUT: automatische verwerking mislukt; zie installerlog en failed-map"
+          write_status "FAILED" "$ZIP_NAME"
+        fi
+        LAST_ZIP=""
+        LAST_SIZE=""
+        STABLE_COUNT=0
       fi
     else
       log "WACHT: $COUNT ZIP-bestanden in incoming; installer vereist exact één ZIP"

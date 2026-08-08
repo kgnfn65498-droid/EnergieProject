@@ -1,5 +1,17 @@
 # Changelog
 
+## 10.5.13
+- Release-watcher wacht nu op een volledig gekopieerde en stabiele ZIP voordat de installer start.
+- Voorkomt Finder/QNAP-race waarbij een ZIP tijdens SMB-kopiëren al werd verplaatst en als corrupt werd afgekeurd.
+- EPEX-autodetectie uit v10.5.12 blijft behouden.
+- Race-safe singleton-lock uit v10.5.11 blijft behouden.
+
+## 10.5.12
+- EPEX-brondetectie uitgebreid met begrensde autodetectie onder Home Assistant `/share` en `/media`.
+- Alleen een werkelijk bestaand `EPEX_index.csv` geldt nog als gevonden bron; `resolved_path` is anders null.
+- Race-safe releaseketen uit v10.5.11 blijft behouden.
+- Geen wijziging aan productiekern, maandworkflow of scheduler.
+
 ## 10.5.11
 - Verhelpt de race condition waardoor meerdere QNAP release-watchers tegelijk dezelfde ZIP konden detecteren.
 - De watcher gebruikt nu een atomische directory-lock (`.watcher.lock`) in plaats van alleen een niet-atomische PID-controle.

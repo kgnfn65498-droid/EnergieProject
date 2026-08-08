@@ -1,4 +1,4 @@
-# EnergieProject v10.5.11
+# EnergieProject v10.5.13
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -23,3 +23,7 @@ EPEX leest nu primair uit de echte `Energie_NAS/05_Maanddata/EPEX` productieboom
 
 ## v10.5.11
 De automatische QNAP-releaseketen is race-safe gemaakt met een atomisch watcher-lock. Recente ZIP's in `processing` worden niet meer ten onrechte als verweesd naar `failed` verplaatst.
+
+
+## v10.5.12
+EPEX wordt automatisch gezocht onder de Home Assistant opslagroots; niet-bestaande fallbackpaden worden niet meer als gevonden gemeld.
