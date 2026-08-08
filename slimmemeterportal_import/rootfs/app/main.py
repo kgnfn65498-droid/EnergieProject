@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.23"
+APP_VERSION = "10.5.24"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4825,6 +4825,11 @@ def _nextenergy_consumption_weighted_month(month_key: str) -> dict[str, Any]:
             used.append(stamp)
         if not used or kwh <= 0:
             return output
+        first_dt = datetime.strptime(used[0], "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+        last_dt = datetime.strptime(used[-1], "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+        observed_hours = max((last_dt - first_dt).total_seconds() / 3600.0, 0.0)
+        daily_import = (kwh / (observed_hours / 24.0)) if observed_hours > 0 else None
+        daily_cost = (cost / (observed_hours / 24.0)) if observed_hours > 0 else None
         output.update({
             "available": True,
             "matched_intervals": len(used),
@@ -4832,6 +4837,9 @@ def _nextenergy_consumption_weighted_month(month_key: str) -> dict[str, Any]:
             "weighted_average_eur_per_kwh": _round_metric(cost / kwh),
             "observed_import_cost_eur": round(cost, 2),
             "first_snapshot": used[0], "last_snapshot": used[-1],
+            "observed_window_hours": _round_metric(observed_hours),
+            "observed_daily_import_run_rate_kwh": _round_metric(daily_import) if daily_import is not None else None,
+            "observed_daily_variable_cost_run_rate_eur": round(daily_cost, 2) if daily_cost is not None else None,
             "coverage": "partial_observed_window",
             "quality": "consumption_weighted_observed",
         })
@@ -5120,10 +5128,13 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         financial["observed_import_kwh"] = weighted.get("import_kwh_observed")
         financial["observed_weighted_electricity_price_eur_per_kwh"] = weighted.get("weighted_average_eur_per_kwh")
         financial["observed_variable_electricity_cost_eur"] = weighted.get("observed_import_cost_eur")
+        financial["observed_window_hours"] = weighted.get("observed_window_hours")
+        financial["observed_daily_import_run_rate_kwh"] = weighted.get("observed_daily_import_run_rate_kwh")
+        financial["observed_daily_variable_cost_run_rate_eur"] = weighted.get("observed_daily_variable_cost_run_rate_eur")
         financial["nextenergy_weighted_import"] = {
             key: weighted.get(key) for key in (
                 "matched_intervals", "first_snapshot", "last_snapshot",
-                "coverage", "quality", "transport"
+                "observed_window_hours", "coverage", "quality", "transport"
             )
         }
         note = "NextEnergy-verbruikgewogen kosten dekken alleen de beschikbare kwartiersnapshotperiode; niet extrapoleren naar een volledige maand."
@@ -9596,7 +9607,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.23",
+        "target_stable_release": "10.5.24",
     }
 
     summary = {
@@ -9628,7 +9639,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.23",
+        "target_stable_release": "10.5.24",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9695,7 +9706,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.23",
+        "Doelrelease: 10.5.24",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

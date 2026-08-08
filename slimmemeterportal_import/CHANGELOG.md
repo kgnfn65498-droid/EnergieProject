@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.5.24
+- Verbruikgewogen financiële waarneming uitgebreid met exacte geobserveerde tijdsduur.
+- Veilige dag-run-rate toegevoegd voor import-kWh en variabele stroomkosten.
+- Run-rate blijft expliciet een observatie van de beschikbare periode en wordt niet als volledige maandprognose gepresenteerd.
+- Basis gelegd voor latere contractjaarprognose zodra voldoende representatieve dekking beschikbaar is.
+
 ## 10.5.23
 - Verbruikgewogen NextEnergy-resultaten geïntegreerd in de financiële maandcontext.
 - Maanden met echte geobserveerde kwartierkosten krijgen `partial_observed`.

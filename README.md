@@ -1,4 +1,4 @@
-# EnergieProject v10.5.23
+# EnergieProject v10.5.24
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -67,3 +67,7 @@ P1-importdelta's worden nu gekoppeld aan de NextEnergy-prijs uit dezelfde kwarti
 
 ## v10.5.23
 De bewezen verbruikgewogen NextEnergy-kosten zijn nu onderdeel van de financiële maandcontext.
+
+
+## v10.5.24
+De financiële analyse kent nu naast geobserveerde kosten ook de exacte meetduur en dag-run-rate, zonder die als volledige maandprognose te misbruiken.

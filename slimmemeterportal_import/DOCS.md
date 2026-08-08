@@ -648,3 +648,7 @@ Per kwartiersnapshot: positieve P1-importdelta × NextEnergy-prijs. Resultaat bl
 
 ## v10.5.23
 Valide verbruikgewogen NextEnergy-waarnemingen geven de maand financiële status `partial_observed`; er wordt niet naar een volledige maand geëxtrapoleerd.
+
+
+## v10.5.24
+De verbruikgewogen deelperiode rapporteert nu `observed_window_hours`, dagelijkse import-run-rate en dagelijkse variabele-kosten-run-rate. Dit zijn observatiekengetallen, geen maandprognose.

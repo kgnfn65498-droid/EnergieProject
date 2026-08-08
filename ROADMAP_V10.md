@@ -48,3 +48,5 @@
 - v10.5.22: verbruikgewogen NextEnergy-afnameprijs en geobserveerde importkosten.
 
 - v10.5.23: verbruikgewogen NextEnergy-kosten geïntegreerd in financiële maandstatus.
+
+- v10.5.24: geobserveerde financiële run-rate en meetduur als basis voor betrouwbare prognoses.
