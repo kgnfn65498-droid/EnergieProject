@@ -20,6 +20,7 @@ INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"
 STABLE_POLLS="${ENERGIE_ZIP_STABLE_POLLS:-3}"
 LAST_ZIP=""
 LAST_SIZE=""
+LAST_MTIME=""
 STABLE_COUNT=0
 
 # Keep the long-running watcher outside the worktree too. This prevents an update
@@ -77,10 +78,19 @@ case "${1:-run}" in
   *) echo "Gebruik: $0 [run|once|status|stop]" >&2; exit 2;;
 esac
 
-# Atomische singleton-claim. Een PID-bestand alleen is niet voldoende:
-# twee cronstarts kunnen tegelijk controleren voordat een van beide het PID schrijft.
+# Atomische singleton-claim met zelfherstel van een achtergebleven lock.
+# Een levende PID wint altijd; een lock zonder levende PID wordt veilig opgeruimd.
 if ! mkdir "$WATCHER_LOCK" 2>/dev/null; then
-  exit 0
+  EXISTING_PID="$(cat "$PIDFILE" 2>/dev/null || true)"
+  case "$EXISTING_PID" in
+    ''|*[!0-9]*) EXISTING_PID="";;
+  esac
+  if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+    exit 0
+  fi
+  rm -f "$PIDFILE" 2>/dev/null || true
+  rmdir "$WATCHER_LOCK" 2>/dev/null || exit 0
+  mkdir "$WATCHER_LOCK" 2>/dev/null || exit 0
 fi
 
 # Vanaf hier is deze watcher de enige eigenaar. Ruim een eventueel oud PID-bestand op
@@ -91,6 +101,15 @@ printf '%s\n' "$$" > "$PIDFILE"
 cleanup_watcher(){
   rm -f "$PIDFILE" 2>/dev/null || true
   rmdir "$WATCHER_LOCK" 2>/dev/null || true
+}
+refresh_watcher_from_installed_release(){
+  NEW_WATCHER="$PROJECT/tools/release_watcher.sh"
+  [ -f "$NEW_WATCHER" ] || return 1
+  log "Watcher-refresh: autonoom overschakelen naar nieuw geïnstalleerde watcher"
+  cleanup_watcher
+  trap - EXIT INT TERM
+  unset ENERGIE_WATCHER_REEXEC
+  exec sh "$NEW_WATCHER" run
 }
 trap 'cleanup_watcher' EXIT INT TERM
 log "Release watcher gestart; interval=${INTERVAL}s"
@@ -104,28 +123,40 @@ while :; do
       ZIP_PATH="$1"
       ZIP_NAME="$(basename "$ZIP_PATH")"
       ZIP_SIZE="$(wc -c < "$ZIP_PATH" 2>/dev/null | tr -d ' ' || echo 0)"
-      if [ "$ZIP_NAME" = "$LAST_ZIP" ] && [ "$ZIP_SIZE" = "$LAST_SIZE" ] && [ "$ZIP_SIZE" -gt 0 ]; then
+      ZIP_MTIME="$(date -r "$ZIP_PATH" +%s 2>/dev/null || echo 0)"
+
+      if [ "$ZIP_NAME" = "$LAST_ZIP" ] && [ "$ZIP_SIZE" = "$LAST_SIZE" ] && [ "$ZIP_MTIME" = "$LAST_MTIME" ] && [ "$ZIP_SIZE" -gt 0 ]; then
         STABLE_COUNT=$((STABLE_COUNT + 1))
       else
         LAST_ZIP="$ZIP_NAME"
         LAST_SIZE="$ZIP_SIZE"
+        LAST_MTIME="$ZIP_MTIME"
         STABLE_COUNT=1
         log "ZIP gedetecteerd; wacht op complete kopie: $ZIP_NAME (${ZIP_SIZE} bytes)"
         write_status "COPYING" "$ZIP_NAME"
       fi
+
       if [ "$STABLE_COUNT" -ge "$STABLE_POLLS" ]; then
-        log "ZIP stabiel na ${STABLE_COUNT} controles: $ZIP_NAME"
-        write_status "PROCESSING" "$ZIP_NAME"
-        if run_installer; then
-          log "Automatische verwerking afgerond"
-          write_status "SUCCESS" "$ZIP_NAME"
+        if unzip -tqq "$ZIP_PATH" >/dev/null 2>&1; then
+          log "ZIP stabiel en integraal na ${STABLE_COUNT} controles: $ZIP_NAME"
+          write_status "PROCESSING" "$ZIP_NAME"
+          if run_installer; then
+            log "Automatische verwerking afgerond"
+            write_status "SUCCESS" "$ZIP_NAME"
+            refresh_watcher_from_installed_release
+          else
+            log "FOUT: automatische verwerking mislukt; zie installerlog en failed-map"
+            write_status "FAILED" "$ZIP_NAME"
+          fi
+          LAST_ZIP=""
+          LAST_SIZE=""
+          LAST_MTIME=""
+          STABLE_COUNT=0
         else
-          log "FOUT: automatische verwerking mislukt; zie installerlog en failed-map"
-          write_status "FAILED" "$ZIP_NAME"
+          log "ZIP nog niet compleet/integer; blijft in incoming: $ZIP_NAME"
+          write_status "COPYING" "$ZIP_NAME"
+          STABLE_COUNT=0
         fi
-        LAST_ZIP=""
-        LAST_SIZE=""
-        STABLE_COUNT=0
       fi
     else
       log "WACHT: $COUNT ZIP-bestanden in incoming; installer vereist exact één ZIP"

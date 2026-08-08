@@ -45,16 +45,7 @@ WORKTREE_REPLACED=0
 log(){ printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 WATCHER_PIDFILE="$INBOX/.watcher.pid"
 schedule_watcher_refresh(){
-  [ -f "$WATCHER_PIDFILE" ] || return 0
-  WATCHER_PID="$(cat "$WATCHER_PIDFILE" 2>/dev/null || true)"
-  case "$WATCHER_PID" in ''|*[!0-9]*) return 0;; esac
-  kill -0 "$WATCHER_PID" 2>/dev/null || return 0
-  if command -v nohup >/dev/null 2>&1; then
-    nohup sh -c "sleep 2; kill '$WATCHER_PID' 2>/dev/null || true" >/dev/null 2>&1 &
-  else
-    ( sleep 2; kill "$WATCHER_PID" 2>/dev/null || true ) >/dev/null 2>&1 &
-  fi
-  log "Watcher-refresh gepland; QNAP cron start daarna automatisch de nieuw geïnstalleerde watcher"
+  log "Watcher-refresh gepland; actieve watcher schakelt autonoom over op de nieuw geïnstalleerde release"
 }
 cleanup(){
   [ -n "$PREFLIGHT" ] && rm -rf "$PREFLIGHT" 2>/dev/null || true

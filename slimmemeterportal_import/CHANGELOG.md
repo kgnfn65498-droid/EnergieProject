@@ -1,5 +1,19 @@
 # Changelog
 
+## 10.5.15
+- Finder/SMB release-inname verder gehard: watcher controleert nu bestandsgrootte én wijzigingstijd over meerdere polls.
+- De watcher voert vóór de installer zelf `unzip -tqq` uit; een nog onvolledige ZIP blijft in `incoming` en wordt niet meer naar `failed` verplaatst.
+- Terminalvrije self-refresh en stale-lock herstel uit v10.5.14 blijven behouden.
+- EPEX read-only MCP-brug uit v10.5.14 blijft behouden.
+- Geen wijziging aan productiekern `9.4-core1`, maandworkflow of scheduler.
+
+## 10.5.14
+- Release-watcher herstart zichzelf na een succesvolle installatie rechtstreeks vanuit de nieuw geïnstalleerde release; QNAP cron/Terminal is niet meer nodig.
+- Achtergebleven `.watcher.lock` en `.watcher.pid` worden automatisch hersteld wanneer de PID niet meer leeft.
+- Finder/SMB ZIP-stabiliteitscontrole uit v10.5.13 blijft behouden.
+- EPEX-analyse krijgt een tweede, werkelijke gegevensroute: read-only via de bestaande Energie MCP op de QNAP (`192.168.1.200:8000/mcp`) wanneer geen lokale HA-mount beschikbaar is.
+- Geen wijziging aan productiekern `9.4-core1`, maandworkflow of scheduler.
+
 ## 10.5.13
 - Release-watcher wacht nu op een volledig gekopieerde en stabiele ZIP voordat de installer start.
 - Voorkomt Finder/QNAP-race waarbij een ZIP tijdens SMB-kopiëren al werd verplaatst en als corrupt werd afgekeurd.

@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.13"
+APP_VERSION = "10.5.15"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -70,6 +70,7 @@ PROJECT_BACKUP_PREFIX = "EnergieProject_maandbackup"
 # QNAP-share onder /share/Energie_NAS/EnergieProject. Releases komen als ZIP in
 # EnergieProject_Inbox/incoming en doorlopen processing -> processed/failed.
 NAS_PROJECT_ROOT = NAS_SHARE_ROOT / "EnergieProject"
+ENERGIE_MCP_URL = os.environ.get("ENERGIE_MCP_URL", "http://192.168.1.200:8000/mcp").rstrip("/")
 NAS_RELEASE_ROOT = NAS_SHARE_ROOT / "EnergieProject_Inbox"
 
 GITHUB_PUBLISH_DIR = Path("/config/github_publisher")
@@ -4182,6 +4183,174 @@ def _round_metric(value: float) -> float:
     return round(float(value), 3)
 
 
+_EPEX_MCP_CACHE: dict[str, str | None] = {}
+
+
+def _mcp_read_project_text(relative_path: str, timeout: float = 6.0) -> str | None:
+    """Lees één projecttekstbestand via de read-only Energie MCP op de QNAP."""
+    if relative_path in _EPEX_MCP_CACHE:
+        return _EPEX_MCP_CACHE[relative_path]
+
+    request_id = int(time.time() * 1000) % 2147483647
+    payload = {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": "tools/call",
+        "params": {
+            "name": "read_text_file",
+            "arguments": {"path": relative_path},
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {},
+                "io.modelcontextprotocol/clientInfo": {
+                    "name": "energieproject-homeassistant",
+                    "version": APP_VERSION,
+                },
+            },
+        },
+    }
+    req = urllib.request.Request(
+        ENERGIE_MCP_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": "2026-07-28",
+            "Mcp-Method": "tools/call",
+            "Mcp-Name": "read_text_file",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            raw = response.read().decode("utf-8")
+        envelope = json.loads(raw)
+        result = envelope.get("result") or {}
+        structured = result.get("structuredContent")
+        text: str | None = None
+        if isinstance(structured, dict):
+            candidate = structured.get("content")
+            if isinstance(candidate, str):
+                text = candidate
+        if text is None:
+            for block in result.get("content") or []:
+                if not isinstance(block, dict) or block.get("type") != "text":
+                    continue
+                candidate = block.get("text")
+                if not isinstance(candidate, str):
+                    continue
+                try:
+                    decoded = json.loads(candidate)
+                    if isinstance(decoded, dict) and isinstance(decoded.get("content"), str):
+                        text = decoded["content"]
+                    else:
+                        text = candidate
+                except json.JSONDecodeError:
+                    text = candidate
+                if text is not None:
+                    break
+        _EPEX_MCP_CACHE[relative_path] = text
+        return text
+    except Exception as exc:
+        LOGGER.info("Energie MCP read mislukt voor %s: %s", relative_path, exc)
+        _EPEX_MCP_CACHE[relative_path] = None
+        return None
+
+
+def _read_epex_text_rows(text: str | None) -> list[dict[str, str]]:
+    if not text:
+        return []
+    try:
+        return [dict(row) for row in csv.DictReader(io.StringIO(text.lstrip("\ufeff")), delimiter=";")]
+    except csv.Error:
+        return []
+
+
+def _epex_price_stats_rows(rows: list[dict[str, str]], *, unit: str) -> dict[str, Any]:
+    fields = ("prijs_excl_btw", "prijs_incl_btw", "prijs_incl_btw_en_eb")
+    series: dict[str, list[float]] = {field: [] for field in fields}
+    frequencies: set[str] = set()
+    for row in rows:
+        frequency = str(row.get("frequentie") or "").strip()
+        if frequency:
+            frequencies.add(frequency)
+        for field in fields:
+            raw = row.get(field)
+            try:
+                if raw not in (None, ""):
+                    series[field].append(float(str(raw).replace(",", ".")))
+            except (TypeError, ValueError):
+                continue
+    selected = series["prijs_incl_btw_en_eb"]
+    if not selected:
+        return {
+            "available": False, "observations": 0, "average": None, "minimum": None,
+            "maximum": None, "price_field": "prijs_incl_btw_en_eb", "unit": unit,
+            "frequency": None, "components": {},
+        }
+    components: dict[str, Any] = {}
+    for field, values in series.items():
+        if values:
+            components[field] = {
+                "average": _round_metric(sum(values) / len(values)),
+                "minimum": _round_metric(min(values)),
+                "maximum": _round_metric(max(values)),
+            }
+    return {
+        "available": True,
+        "observations": len(selected),
+        "average": _round_metric(sum(selected) / len(selected)),
+        "minimum": _round_metric(min(selected)),
+        "maximum": _round_metric(max(selected)),
+        "price_field": "prijs_incl_btw_en_eb",
+        "unit": unit,
+        "frequency": sorted(frequencies)[0] if len(frequencies) == 1 else ("mixed" if frequencies else None),
+        "components": components,
+    }
+
+
+def _epex_mcp_month_context(month_key: str) -> dict[str, Any] | None:
+    month_dash = month_key.replace("_", "-")
+    year = month_key[:4]
+    index_text = _mcp_read_project_text("05_Maanddata/EPEX/EPEX_index.csv")
+    index_rows = _read_epex_text_rows(index_text)
+    if not index_rows:
+        return None
+    index = {str(row.get("maand") or "").strip(): row for row in index_rows if row.get("maand")}
+    index_row = index.get(month_dash, {})
+    electricity_rows = _read_epex_text_rows(
+        _mcp_read_project_text(f"05_Maanddata/EPEX/{year}/{month_dash}_stroom.csv")
+    )
+    gas_rows = _read_epex_text_rows(
+        _mcp_read_project_text(f"05_Maanddata/EPEX/{year}/{month_dash}_gas.csv")
+    )
+    if not index_row and not electricity_rows and not gas_rows:
+        return None
+    source_gaps_raw = str(index_row.get("bronhiaten") or "").strip()
+    try:
+        source_gaps = int(source_gaps_raw) if source_gaps_raw else 0
+    except ValueError:
+        source_gaps = None
+    return {
+        "source": "Energie_MCP/05_Maanddata/EPEX",
+        "resolved_path": f"{ENERGIE_MCP_URL} :: 05_Maanddata/EPEX",
+        "source_found": True,
+        "transport": "mcp_streamable_http_read_only",
+        "coverage": {
+            "status": str(index_row.get("volledigheid") or "").strip() or "bestanden_aanwezig_zonder_index",
+            "first_date": index_row.get("eerste_datum") or None,
+            "last_date": index_row.get("laatste_datum") or None,
+            "source_gaps": source_gaps,
+        },
+        "electricity": _epex_price_stats_rows(electricity_rows, unit="EUR/kWh"),
+        "gas": _epex_price_stats_rows(gas_rows, unit="EUR/m3"),
+        "interpretation": (
+            "Prijsstatistiek uit de bestaande EPEX-v6 maandbestanden, read-only via de Energie MCP. "
+            "average/minimum/maximum gebruiken prijs_incl_btw_en_eb; dit is geen leverancier-all-in prijs."
+        ),
+    }
+
+
 def _resolve_epex_history_root() -> Path | None:
     """Vind EPEX op bekende HA-mounts en via begrensde autodetectie."""
     candidates = (
@@ -4285,6 +4454,11 @@ def _epex_index() -> dict[str, dict[str, str]]:
 
 
 def _epex_month_context(month_key: str) -> dict[str, Any]:
+    if EPEX_HISTORY_ROOT is None:
+        mcp_context = _epex_mcp_month_context(month_key)
+        if mcp_context is not None:
+            return mcp_context
+
     year = int(month_key[:4])
     month_dash = month_key.replace("_", "-")
     index_row = _epex_index().get(month_dash, {})
@@ -8935,7 +9109,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.13",
+        "target_stable_release": "10.5.15",
     }
 
     summary = {
@@ -8967,7 +9141,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.13",
+        "target_stable_release": "10.5.15",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9034,7 +9208,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.13",
+        "Doelrelease: 10.5.15",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

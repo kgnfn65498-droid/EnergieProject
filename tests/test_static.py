@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "10.5.13"
+    assert cfg_version == app_version == "10.5.15"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "10.5.13"' in config
+    assert 'version: "10.5.15"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "10.5.13"' in config
-    assert 'APP_VERSION = "10.5.13"' in main
+    assert 'version: "10.5.15"' in config
+    assert 'APP_VERSION = "10.5.15"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.13"' in source
+    assert 'APP_VERSION = "10.5.15"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2433,7 +2433,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.13"' in source
+    assert 'APP_VERSION = "10.5.15"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -2483,10 +2483,11 @@ def test_release_watcher_duplicate_start_is_quiet():
 
 def test_release_installer_schedules_watcher_refresh():
     installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    watcher = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
     assert 'schedule_watcher_refresh' in installer
-    assert 'WATCHER_PIDFILE="$INBOX/.watcher.pid"' in installer
     assert 'Watcher-refresh gepland' in installer
-    assert 'nohup sh -c' in installer
+    assert 'refresh_watcher_from_installed_release' in watcher
+    assert 'exec sh "$NEW_WATCHER" run' in watcher
 
 
 def test_v1050_shows_release_chain_in_ha_console():
@@ -2653,3 +2654,34 @@ def test_v10513_watcher_waits_for_stable_zip_copy():
     assert 'ZIP_SIZE="$(wc -c < "$ZIP_PATH"' in source
     assert '"$STABLE_COUNT" -ge "$STABLE_POLLS"' in source
     assert 'write_status "COPYING" "$ZIP_NAME"' in source
+
+def test_v10514_watcher_self_refreshes_without_cron_or_terminal():
+    watcher = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
+    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    assert "refresh_watcher_from_installed_release" in watcher
+    assert 'exec sh "$NEW_WATCHER" run' in watcher
+    assert 'unset ENERGIE_WATCHER_REEXEC' in watcher
+    assert "actieve watcher schakelt autonoom" in installer
+    assert "kill '$WATCHER_PID'" not in installer
+
+def test_v10514_watcher_recovers_stale_lock():
+    watcher = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
+    assert 'EXISTING_PID="$(cat "$PIDFILE"' in watcher
+    assert 'kill -0 "$EXISTING_PID"' in watcher
+    assert 'rmdir "$WATCHER_LOCK"' in watcher
+
+def test_v10514_epex_has_read_only_mcp_fallback():
+    source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'http://192.168.1.200:8000/mcp' in source
+    assert '"name": "read_text_file"' in source
+    assert '"io.modelcontextprotocol/protocolVersion": "2026-07-28"' in source
+    assert '"transport": "mcp_streamable_http_read_only"' in source
+    assert '_epex_mcp_month_context(month_key)' in source
+
+def test_v10515_watcher_gates_installer_on_zip_integrity():
+    source = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
+    assert 'ZIP_MTIME="$(date -r "$ZIP_PATH" +%s' in source
+    assert '"$ZIP_MTIME" = "$LAST_MTIME"' in source
+    assert 'unzip -tqq "$ZIP_PATH"' in source
+    assert 'ZIP nog niet compleet/integer; blijft in incoming' in source
+    assert source.index('unzip -tqq "$ZIP_PATH"') < source.index('if run_installer; then')

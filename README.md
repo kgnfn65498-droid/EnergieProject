@@ -1,4 +1,4 @@
-# EnergieProject v10.5.13
+# EnergieProject v10.5.15
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -27,3 +27,11 @@ De automatische QNAP-releaseketen is race-safe gemaakt met een atomisch watcher-
 
 ## v10.5.12
 EPEX wordt automatisch gezocht onder de Home Assistant opslagroots; niet-bestaande fallbackpaden worden niet meer als gevonden gemeld.
+
+
+## v10.5.14
+De releaseketen is nu zelfherstellend en herstart de watcher autonoom na installatie. EPEX kan daarnaast read-only via de bestaande Energie MCP worden gelezen wanneer de NAS-map niet rechtstreeks in de Home Assistant add-on is gemount.
+
+
+## v10.5.15
+De release-watcher wacht niet alleen op stabiele grootte/mtime, maar valideert de ZIP ook zelf vóór de installer. Onvolledige Finder/SMB-kopieën blijven veilig in `incoming`.

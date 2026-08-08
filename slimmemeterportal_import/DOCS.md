@@ -608,3 +608,11 @@ De analyse zoekt `EPEX_index.csv` onder bekende paden en begrensd onder `/share`
 
 ## Versie 10.5.13 — veilige Finder/QNAP overdracht
 De watcher verwerkt een ZIP pas nadat de bestandsgrootte drie opeenvolgende controles stabiel is gebleven.
+
+
+## Versie 10.5.14 — terminalvrije releaseketen en EPEX MCP
+Na een geslaagde installatie ruimt de actieve watcher zijn eigen lock/PID op en `exec`-t hij de watcher uit de nieuw geïnstalleerde release. Een achtergebleven lock zonder levende PID wordt bij startup automatisch hersteld. Voor EPEX probeert de analyse eerst een lokale HA-mount; als die ontbreekt wordt de bestaande read-only Energie MCP op de QNAP gebruikt.
+
+
+## Versie 10.5.15 — upload-integriteitsgate
+Een release-ZIP wordt pas aan de installer gegeven nadat grootte en mtime meerdere polls stabiel zijn én `unzip -tqq` succesvol is. Een half gekopieerd bestand blijft in `incoming`.

@@ -28,3 +28,7 @@
 - v10.5.12: EPEX-autodetectie over Home Assistant `/share` en `/media`.
 
 - v10.5.13: SMB/Finder-safe ZIP-stabiliteitscontrole vóór release-installatie.
+
+- v10.5.14: terminalvrije watcher-self-refresh en EPEX read-only MCP-brug.
+
+- v10.5.15: pre-installer ZIP-integriteitsgate voor Finder/SMB uploads.
