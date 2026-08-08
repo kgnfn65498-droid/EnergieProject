@@ -616,3 +616,11 @@ Na een geslaagde installatie ruimt de actieve watcher zijn eigen lock/PID op en 
 
 ## Versie 10.5.15 — upload-integriteitsgate
 Een release-ZIP wordt pas aan de installer gegeven nadat grootte en mtime meerdere polls stabiel zijn én `unzip -tqq` succesvol is. Een half gekopieerd bestand blijft in `incoming`.
+
+
+## Versie 10.5.16 — EPEX statussemantiek
+Een werkende MCP-route zonder maandbestand wordt `source_found=true` + `coverage.status=month_not_available`.
+
+
+## Versie 10.5.17 — Container Station watcher
+De release-watcher kan in `energie-release-watcher` draaien op `python:3.12-slim`, een image die al voor het Energieplatform wordt gebruikt. De volledige `AI Projecten`-share wordt als `/energy` gemount. Heartbeat-locking voorkomt dubbele host/container-watchers en Container Station herstart het watcherproces automatisch.

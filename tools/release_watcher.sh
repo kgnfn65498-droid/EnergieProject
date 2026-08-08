@@ -16,6 +16,9 @@ INSTALLER_SOURCE="$PROJECT/tools/release_installer.sh"
 PIDFILE="$INBOX/.watcher.pid"
 WATCHER_LOCK="$INBOX/.watcher.lock"
 STATUSFILE="$INBOX/latest_release_status.txt"
+HEARTBEAT="$INBOX/.watcher.heartbeat"
+ZIP_HELPER_SOURCE="$PROJECT/tools/release_zip.py"
+HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
 INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"
 STABLE_POLLS="${ENERGIE_ZIP_STABLE_POLLS:-3}"
 LAST_ZIP=""
@@ -45,6 +48,27 @@ write_status(){
   TMP_STATUS="$STATUSFILE.tmp.$$"
   printf '%s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$STATUS" "$DETAIL" > "$TMP_STATUS"
   mv "$TMP_STATUS" "$STATUSFILE"
+}
+
+zip_integrity_ok(){
+  ZIP_PATH=$1
+  if command -v python3 >/dev/null 2>&1 && [ -f "$ZIP_HELPER_SOURCE" ]; then
+    python3 "$ZIP_HELPER_SOURCE" test "$ZIP_PATH" >/dev/null 2>&1
+  else
+    unzip -tqq "$ZIP_PATH" >/dev/null 2>&1
+  fi
+}
+
+heartbeat_age(){
+  NOW="$(date +%s)"
+  MODIFIED="$(date -r "$HEARTBEAT" +%s 2>/dev/null || echo 0)"
+  [ "$MODIFIED" -gt 0 ] || { echo 999999; return; }
+  echo $((NOW - MODIFIED))
+}
+
+touch_heartbeat(){
+  printf '%s\n' "$(date +%s)" > "$HEARTBEAT.tmp.$$"
+  mv "$HEARTBEAT.tmp.$$" "$HEARTBEAT"
 }
 
 run_installer(){
@@ -78,17 +102,14 @@ case "${1:-run}" in
   *) echo "Gebruik: $0 [run|once|status|stop]" >&2; exit 2;;
 esac
 
-# Atomische singleton-claim met zelfherstel van een achtergebleven lock.
-# Een levende PID wint altijd; een lock zonder levende PID wordt veilig opgeruimd.
+# Cross-namespace singleton-claim. PID's zijn niet betrouwbaar tussen QNAP-host
+# en Docker namespaces; de gedeelde heartbeat bepaalt daarom of de lock actief is.
 if ! mkdir "$WATCHER_LOCK" 2>/dev/null; then
-  EXISTING_PID="$(cat "$PIDFILE" 2>/dev/null || true)"
-  case "$EXISTING_PID" in
-    ''|*[!0-9]*) EXISTING_PID="";;
-  esac
-  if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+  AGE="$(heartbeat_age)"
+  if [ -f "$HEARTBEAT" ] && [ "$AGE" -lt "$HEARTBEAT_STALE_SECONDS" ]; then
     exit 0
   fi
-  rm -f "$PIDFILE" 2>/dev/null || true
+  rm -f "$PIDFILE" "$HEARTBEAT" 2>/dev/null || true
   rmdir "$WATCHER_LOCK" 2>/dev/null || exit 0
   mkdir "$WATCHER_LOCK" 2>/dev/null || exit 0
 fi
@@ -99,7 +120,7 @@ rm -f "$PIDFILE" 2>/dev/null || true
 printf '%s\n' "$$" > "$PIDFILE"
 
 cleanup_watcher(){
-  rm -f "$PIDFILE" 2>/dev/null || true
+  rm -f "$PIDFILE" "$HEARTBEAT" 2>/dev/null || true
   rmdir "$WATCHER_LOCK" 2>/dev/null || true
 }
 refresh_watcher_from_installed_release(){
@@ -112,10 +133,12 @@ refresh_watcher_from_installed_release(){
   exec sh "$NEW_WATCHER" run
 }
 trap 'cleanup_watcher' EXIT INT TERM
+touch_heartbeat
 log "Release watcher gestart; interval=${INTERVAL}s"
 [ -f "$STATUSFILE" ] || write_status "WATCHER_ACTIVE" "interval=${INTERVAL}s"
 
 while :; do
+  touch_heartbeat
   set -- "$INCOMING"/*.zip
   if [ -e "$1" ]; then
     COUNT=$#
@@ -137,7 +160,7 @@ while :; do
       fi
 
       if [ "$STABLE_COUNT" -ge "$STABLE_POLLS" ]; then
-        if unzip -tqq "$ZIP_PATH" >/dev/null 2>&1; then
+        if zip_integrity_ok "$ZIP_PATH"; then
           log "ZIP stabiel en integraal na ${STABLE_COUNT} controles: $ZIP_NAME"
           write_status "PROCESSING" "$ZIP_NAME"
           if run_installer; then

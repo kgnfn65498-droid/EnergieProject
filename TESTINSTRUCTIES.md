@@ -1,20 +1,20 @@
-# Testinstructies v10.5.15
+# Testinstructies v10.5.17
 
-Eenmalige veilige overgang vanaf de huidige live watcher:
-1. Download `EnergieProject_v10.5.15.ready`.
-2. Kopieer dit bestand naar `EnergieProject_Inbox/incoming`.
-3. Wacht tot Finder volledig klaar is.
-4. Hernoem in Finder alleen de extensie `.ready` naar `.zip`.
-5. Daarna niets meer doen: QNAP moet de release automatisch verwerken.
-6. Installeer 10.5.15 in Home Assistant en herstart SlimmeMeterPortal Import één keer.
-7. Klik **Download analysedata** en stuur het JSON-bestand.
+## Eenmalige overgang
+1. Laat mislukte v10.5.16 in `failed` staan.
+2. Plaats `EnergieProject_v10.5.17.ready` volledig in `EnergieProject_Inbox/incoming`.
+3. Hernoem pas na volledig kopiëren `.ready` naar `.zip`.
+4. Omdat de huidige losse watcher gestopt is, start deze overgang één laatste keer via de bestaande watcher/installer.
+5. Na succesvolle installatie van 10.5.17 voer één keer uit:
+   `sh "/share/AI Projecten/EnergieProject/tools/bootstrap_release_watcher_container.sh"`
+6. Daarna moet in Container Station een vijfde groene container staan: `energie-release-watcher`.
 
-Vanaf v10.5.15 mogen volgende `.zip`-bestanden weer rechtstreeks naar `incoming`.
+Vanaf daarna:
+- alleen een normale `.zip` in `incoming`;
+- geen Terminal voor releases;
+- geen `.ready`;
+- geen watcher-PID/lock handelingen.
+
 Gebruik GEEN Home Assistant Terminal. Gebruik GEEN handmatige Git-commit of Git-push.
 
-Verwacht in de analysedata voor juli 2026 bij werkende EPEX-brug:
-- `source_found = true`
-- `coverage.status = gedeeltelijk`
-- `last_date = 2026-07-29`
-- stroom: 2784 observaties
-- gas: 696 observaties
+Na installatie blijft juli-EPEX `gedeeltelijk` t/m 2026-07-29; dat is de bekende brondekking.

@@ -1,4 +1,4 @@
-# EnergieProject v10.5.15
+# EnergieProject v10.5.17
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -35,3 +35,11 @@ De releaseketen is nu zelfherstellend en herstart de watcher autonoom na install
 
 ## v10.5.15
 De release-watcher wacht niet alleen op stabiele grootte/mtime, maar valideert de ZIP ook zelf vóór de installer. Onvolledige Finder/SMB-kopieën blijven veilig in `incoming`.
+
+
+## v10.5.16
+EPEX-diagnostiek scheidt bronbereikbaarheid van maandbeschikbaarheid.
+
+
+## v10.5.17
+De release-watcher is voorbereid als eigen Container Station-service. Daarmee bewaakt Container Station het proces en herstart het automatisch. De vier bestaande Energie-containers worden niet gewijzigd.

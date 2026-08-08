@@ -1,5 +1,20 @@
 # Changelog
 
+## 10.5.17
+- Release-watcher kan nu als aparte Container Station-container `energie-release-watcher` draaien met `restart=unless-stopped`.
+- Nieuwe gedeelde heartbeat maakt singleton-detectie betrouwbaar tussen QNAP-hostprocessen en Docker PID-namespaces.
+- Stale `.watcher.lock` wordt na 30 seconden zonder heartbeat automatisch hersteld.
+- ZIP-validatie heeft een Python fallback (`tools/release_zip.py`), zodat de watcher-container geen extra `unzip`-pakket hoeft te installeren.
+- Eenmalige bootstrap `tools/bootstrap_release_watcher_container.sh` maakt/stopt/herstart de container zonder de vier bestaande Energie-containers te wijzigen.
+- EPEX-MCP en analyseverbeteringen uit v10.5.16 blijven behouden.
+
+## 10.5.16
+- EPEX-bronstatus onderscheidt nu een bereikbare bron van een nog ontbrekend maandbestand.
+- Huidige maand zonder EPEX-bestand geeft `source_found=true` en `coverage.status=month_not_available`.
+- Analysedownload toont bovenaan `price_status` met bronbereikbaarheid en beschikbare prijsmaanden.
+- Releaseketen v10.5.15 blijft ongewijzigd; ZIP rechtstreeks naar `incoming`.
+- Geen wijziging aan productiekern `9.4-core1`, maandworkflow of scheduler.
+
 ## 10.5.15
 - Finder/SMB release-inname verder gehard: watcher controleert nu bestandsgrootte én wijzigingstijd over meerdere polls.
 - De watcher voert vóór de installer zelf `unzip -tqq` uit; een nog onvolledige ZIP blijft in `incoming` en wordt niet meer naar `failed` verplaatst.

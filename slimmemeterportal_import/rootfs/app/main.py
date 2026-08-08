@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.15"
+APP_VERSION = "10.5.17"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4325,7 +4325,16 @@ def _epex_mcp_month_context(month_key: str) -> dict[str, Any] | None:
         _mcp_read_project_text(f"05_Maanddata/EPEX/{year}/{month_dash}_gas.csv")
     )
     if not index_row and not electricity_rows and not gas_rows:
-        return None
+        return {
+            "source": "Energie_MCP/05_Maanddata/EPEX",
+            "resolved_path": f"{ENERGIE_MCP_URL} :: 05_Maanddata/EPEX",
+            "source_found": True,
+            "transport": "mcp_streamable_http_read_only",
+            "coverage": {"status": "month_not_available", "first_date": None, "last_date": None, "source_gaps": 0},
+            "electricity": {"available": False, "observations": 0, "average": None, "minimum": None, "maximum": None, "price_field": "prijs_incl_btw_en_eb", "unit": "EUR/kWh", "frequency": None, "components": {}},
+            "gas": {"available": False, "observations": 0, "average": None, "minimum": None, "maximum": None, "price_field": "prijs_incl_btw_en_eb", "unit": "EUR/m3", "frequency": None, "components": {}},
+            "interpretation": "De EPEX-bron is via de Energie MCP bereikbaar, maar voor deze kalendermaand is nog geen EPEX-v6 maandbestand/indexregel beschikbaar.",
+        }
     source_gaps_raw = str(index_row.get("bronhiaten") or "").strip()
     try:
         source_gaps = int(source_gaps_raw) if source_gaps_raw else 0
@@ -4664,10 +4673,22 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     if inconsistent_months:
         warnings.append("Zonne-KPI's niet berekend wegens ongelijke brondekking: " + ", ".join(inconsistent_months))
 
+    epex_months_available = [
+        item["month"] for item in months
+        if (item.get("price_context") or {}).get("electricity", {}).get("available")
+        or (item.get("price_context") or {}).get("gas", {}).get("available")
+    ]
+    epex_source_reachable = any(bool((item.get("price_context") or {}).get("source_found")) for item in months)
+
     return {
         "schema": ANALYSIS_CONTEXT_SCHEMA,
         "version": APP_VERSION,
         "generated_at": datetime.now(TZ).isoformat(),
+        "price_status": {
+            "epex_source_reachable": epex_source_reachable,
+            "months_with_price_data": epex_months_available,
+            "latest_month_with_price_data": epex_months_available[-1] if epex_months_available else None,
+        },
         "scope": {"year_filter": year, "month_count": len(months)},
         "history_span": {
             "first_month": months[0]["month"] if months else None,
@@ -9109,7 +9130,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.15",
+        "target_stable_release": "10.5.17",
     }
 
     summary = {
@@ -9141,7 +9162,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.15",
+        "target_stable_release": "10.5.17",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9208,7 +9229,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.15",
+        "Doelrelease: 10.5.17",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

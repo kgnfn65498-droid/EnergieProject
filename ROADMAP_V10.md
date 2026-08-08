@@ -32,3 +32,7 @@
 - v10.5.14: terminalvrije watcher-self-refresh en EPEX read-only MCP-brug.
 
 - v10.5.15: pre-installer ZIP-integriteitsgate voor Finder/SMB uploads.
+
+- v10.5.16: EPEX bronbereikbaarheid en maandbeschikbaarheid expliciet gescheiden.
+
+- v10.5.17: release-watcher als zelfstandige auto-restart Container Station-service.

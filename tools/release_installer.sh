@@ -18,6 +18,7 @@ BACKUPS="$SHARE/EnergieProject_Backups"
 LOCK="$INBOX/.installer.lock"
 PROCESSING_STALE_SECONDS="${ENERGIE_PROCESSING_STALE_SECONDS:-600}"
 REQUIRED="README.md INSTALL.md CHANGELOG.md MANIFEST.sha256 SHA256SUMS.json repository.yaml VERSIE.txt"
+ZIP_HELPER="$PROJECT/tools/release_zip.py"
 
 # Safety rule: never run the live installer from inside the worktree that it replaces.
 # If invoked from the project, copy to /tmp and re-exec before touching the worktree.
@@ -52,6 +53,34 @@ cleanup(){
   [ -n "$RESTORE_STAGE" ] && rm -rf "$RESTORE_STAGE" 2>/dev/null || true
   [ -n "$STAGE" ] && rm -rf "$STAGE" 2>/dev/null || true
   rmdir "$LOCK" 2>/dev/null || true
+}
+
+zip_test(){
+  ZIP_PATH=$1
+  if command -v python3 >/dev/null 2>&1 && [ -f "$ZIP_HELPER" ]; then
+    python3 "$ZIP_HELPER" test "$ZIP_PATH" >/dev/null 2>&1
+  else
+    unzip -t "$ZIP_PATH" >/dev/null 2>&1
+  fi
+}
+
+zip_list(){
+  ZIP_PATH=$1
+  if command -v python3 >/dev/null 2>&1 && [ -f "$ZIP_HELPER" ]; then
+    python3 "$ZIP_HELPER" list "$ZIP_PATH"
+  else
+    unzip -l "$ZIP_PATH" | awk '{print $4}'
+  fi
+}
+
+zip_extract(){
+  ZIP_PATH=$1
+  DEST=$2
+  if command -v python3 >/dev/null 2>&1 && [ -f "$ZIP_HELPER" ]; then
+    python3 "$ZIP_HELPER" extract "$ZIP_PATH" "$DEST"
+  else
+    unzip -q "$ZIP_PATH" -d "$DEST"
+  fi
 }
 
 copy_tree_no_metadata(){
@@ -131,12 +160,12 @@ mv "$ZIP" "$ZIP_WORK"
 log "Release gevonden: $(basename "$ZIP_WORK")"
 
 log "FASE 2/8: ZIP- en releasevalidatie"
-unzip -t "$ZIP_WORK" >/dev/null 2>&1 || fail "ZIP-integriteit ongeldig"
-LIST="$(unzip -l "$ZIP_WORK" | awk '{print $4}')"
+zip_test "$ZIP_WORK" || fail "ZIP-integriteit ongeldig"
+LIST="$(zip_list "$ZIP_WORK")"
 for f in $REQUIRED; do printf '%s\n' "$LIST" | grep -Fxq "$f" || fail "verplicht bestand ontbreekt: $f"; done
 
 STAGE="$(mktemp -d /tmp/energie-release.XXXXXX)"
-unzip -q "$ZIP_WORK" -d "$STAGE" || fail "uitpakken naar staging mislukt"
+zip_extract "$ZIP_WORK" "$STAGE" || fail "uitpakken naar staging mislukt"
 (cd "$STAGE" && sha256sum -c MANIFEST.sha256 >/dev/null) || fail "SHA256-validatie mislukt"
 NEW_VERSION="$(tr -d '\r\n ' < "$STAGE/VERSIE.txt")"
 [ -n "$NEW_VERSION" ] || fail "VERSIE.txt is leeg"

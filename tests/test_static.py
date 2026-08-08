@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "10.5.15"
+    assert cfg_version == app_version == "10.5.17"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "10.5.15"' in config
+    assert 'version: "10.5.17"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "10.5.15"' in config
-    assert 'APP_VERSION = "10.5.15"' in main
+    assert 'version: "10.5.17"' in config
+    assert 'APP_VERSION = "10.5.17"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.15"' in source
+    assert 'APP_VERSION = "10.5.17"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2433,7 +2433,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.15"' in source
+    assert 'APP_VERSION = "10.5.17"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -2666,8 +2666,9 @@ def test_v10514_watcher_self_refreshes_without_cron_or_terminal():
 
 def test_v10514_watcher_recovers_stale_lock():
     watcher = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    assert 'EXISTING_PID="$(cat "$PIDFILE"' in watcher
-    assert 'kill -0 "$EXISTING_PID"' in watcher
+    assert 'HEARTBEAT="$INBOX/.watcher.heartbeat"' in watcher
+    assert 'heartbeat_age' in watcher
+    assert '"$AGE" -lt "$HEARTBEAT_STALE_SECONDS"' in watcher
     assert 'rmdir "$WATCHER_LOCK"' in watcher
 
 def test_v10514_epex_has_read_only_mcp_fallback():
@@ -2685,3 +2686,36 @@ def test_v10515_watcher_gates_installer_on_zip_integrity():
     assert 'unzip -tqq "$ZIP_PATH"' in source
     assert 'ZIP nog niet compleet/integer; blijft in incoming' in source
     assert source.index('unzip -tqq "$ZIP_PATH"') < source.index('if run_installer; then')
+
+def test_v10516_epex_status_semantics():
+    source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"status": "month_not_available"' in source
+    assert '"epex_source_reachable": epex_source_reachable' in source
+    assert '"latest_month_with_price_data"' in source
+
+def test_v10517_container_bootstrap_is_isolated_and_restartable():
+    source = (ROOT / "tools/bootstrap_release_watcher_container.sh").read_text(encoding="utf-8")
+    assert 'CONTAINER_NAME="energie-release-watcher"' in source
+    assert '--restart unless-stopped' in source
+    assert '-v "$HOST_SHARE:/energy"' in source
+    assert 'python:3.12-slim' in source
+    assert "energie-filesystem-mcp" not in source
+    assert "energie-git" not in source
+    assert "energie-ngrok" not in source
+    assert "energie-quarter-hour-scheduler" not in source
+
+def test_v10517_watcher_uses_cross_namespace_heartbeat():
+    source = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
+    assert 'HEARTBEAT="$INBOX/.watcher.heartbeat"' in source
+    assert 'HEARTBEAT_STALE_SECONDS' in source
+    assert 'touch_heartbeat' in source
+    assert 'Cross-namespace singleton-claim' in source
+
+def test_v10517_has_python_zip_helper():
+    source = (ROOT / "tools/release_zip.py").read_text(encoding="utf-8")
+    watcher = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
+    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    assert "zipfile.ZipFile" in source
+    assert "unsafe ZIP member" in source
+    assert 'python3 "$ZIP_HELPER_SOURCE" test' in watcher
+    assert 'python3 "$ZIP_HELPER" extract' in installer
