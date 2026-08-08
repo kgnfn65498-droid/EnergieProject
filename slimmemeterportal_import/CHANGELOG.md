@@ -1,6 +1,13 @@
 # Changelog
 
-## 10.4.2
+## 10.4.5
+- QNAP-veilige release-installatie zonder metadata-/timestamp-preservering.
+- Preflight controleert schrijven, normaal kopiëren en verwijderen vóór de worktree wordt vervangen.
+- Rollback pakt de backup eerst uit in `/tmp` en kopieert daarna zonder metadata-preservering terug naar de QNAP-share.
+- Gitloze QNAP-modus en 5-seconden release-watcher blijven actief.
+- Productiekern `9.4-core1` blijft ongewijzigd.
+
+## 10.4.3
 - Praktijktest voor volledig automatische releaseverwerking door de reeds draaiende NAS release-watcher.
 - Geen wijziging aan productiekern `9.4-core1`; release-installer en watcher blijven functioneel gelijk aan de bewezen v10.4.1-basis.
 - Versie-update maakt zichtbaar of ZIP-detectie, validatie, backup, installatie, GitHub-push en archivering zonder Terminal-commando verlopen.

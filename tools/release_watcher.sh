@@ -1,14 +1,21 @@
 #!/bin/sh
 set -eu
 
-SHARE="${ENERGIE_SHARE:-/share/Energie_NAS}"
+if [ -n "${ENERGIE_SHARE:-}" ]; then
+  SHARE="$ENERGIE_SHARE"
+elif [ -d "/share/AI Projecten/EnergieProject" ]; then
+  SHARE="/share/AI Projecten"
+else
+  SHARE="/share/Energie_NAS"
+fi
 PROJECT="$SHARE/EnergieProject"
 INBOX="$SHARE/EnergieProject_Inbox"
 INCOMING="$INBOX/incoming"
 LOGDIR="$INBOX/logs"
 INSTALLER_SOURCE="$PROJECT/tools/release_installer.sh"
 PIDFILE="$INBOX/.watcher.pid"
-INTERVAL="${ENERGIE_WATCH_INTERVAL:-30}"
+STATUSFILE="$INBOX/latest_release_status.txt"
+INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"
 
 # Keep the long-running watcher outside the worktree too. This prevents an update
 # from deleting the script file from which the watcher is currently running.
@@ -26,6 +33,13 @@ fi
 
 mkdir -p "$INCOMING" "$LOGDIR"
 log(){ printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOGDIR/release_watcher.log"; }
+write_status(){
+  STATUS=$1
+  DETAIL=${2:-}
+  TMP_STATUS="$STATUSFILE.tmp.$$"
+  printf '%s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$STATUS" "$DETAIL" > "$TMP_STATUS"
+  mv "$TMP_STATUS" "$STATUSFILE"
+}
 
 run_installer(){
   [ -f "$INSTALLER_SOURCE" ] || { log "FOUT: installer ontbreekt: $INSTALLER_SOURCE"; return 1; }
@@ -35,16 +49,17 @@ run_installer(){
   if ENERGIE_INSTALLER_REEXEC=1 sh "$TMP_INSTALLER" >> "$LOGDIR/release_watcher.log" 2>&1; then
     rm -f "$TMP_INSTALLER"
     return 0
+  else
+    RC=$?
+    rm -f "$TMP_INSTALLER"
+    return "$RC"
   fi
-  RC=$?
-  rm -f "$TMP_INSTALLER"
-  return "$RC"
 }
 
 case "${1:-run}" in
   status)
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-      echo "ACTIEF pid=$(cat "$PIDFILE")"; exit 0
+      echo "ACTIEF pid=$(cat "$PIDFILE")"; [ -f "$STATUSFILE" ] && cat "$STATUSFILE"; exit 0
     fi
     echo "NIET ACTIEF"; exit 1;;
   stop)
@@ -57,22 +72,27 @@ case "${1:-run}" in
 esac
 
 if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-  log "Watcher is al actief pid=$(cat "$PIDFILE")"; exit 0
+  exit 0
 fi
 echo $$ > "$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT INT TERM
 log "Release watcher gestart; interval=${INTERVAL}s"
+[ -f "$STATUSFILE" ] || write_status "WATCHER_ACTIVE" "interval=${INTERVAL}s"
 
 while :; do
   set -- "$INCOMING"/*.zip
   if [ -e "$1" ]; then
     COUNT=$#
     if [ "$COUNT" -eq 1 ]; then
-      log "ZIP gedetecteerd: $(basename "$1")"
+      ZIP_NAME="$(basename "$1")"
+      log "ZIP gedetecteerd: $ZIP_NAME"
+      write_status "PROCESSING" "$ZIP_NAME"
       if run_installer; then
         log "Automatische verwerking afgerond"
+        write_status "SUCCESS" "$ZIP_NAME"
       else
         log "FOUT: automatische verwerking mislukt; zie installerlog en failed-map"
+        write_status "FAILED" "$ZIP_NAME"
       fi
     else
       log "WACHT: $COUNT ZIP-bestanden in incoming; installer vereist exact één ZIP"

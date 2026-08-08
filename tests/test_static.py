@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "10.4.2"
+    assert cfg_version == app_version == "10.5.0"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "10.4.2"' in config
+    assert 'version: "10.5.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "10.4.2"' in config
-    assert 'APP_VERSION = "10.4.2"' in main
+    assert 'version: "10.5.0"' in config
+    assert 'APP_VERSION = "10.5.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.4.2"' in source
+    assert 'APP_VERSION = "10.5.0"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2433,7 +2433,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.4.2"' in source
+    assert 'APP_VERSION = "10.5.0"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -2447,3 +2447,50 @@ def test_v103_release_inbox_paths_and_installer():
     text = installer.read_text(encoding="utf-8")
     for token in ("unzip -t", "sha256sum -c MANIFEST.sha256", "git status --porcelain --untracked-files=all", "restore_backup", "git push origin main", "git ls-remote origin refs/heads/main", "EnergieProject_Backups"):
         assert token in text
+
+
+def test_release_installer_is_qnap_metadata_safe():
+    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    assert "cp -a" not in installer
+    assert 'copy_tree_no_metadata "$STAGE" "$PROJECT"' in installer
+    assert 'tar -xzf "$BACKUP" -C "$RESTORE_STAGE"' in installer
+    assert 'tar -xzf "$BACKUP" -C "$PROJECT"' not in installer
+
+
+def test_release_installer_has_qnap_write_preflight():
+    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    assert ".energie_release_preflight.$$" in installer
+    assert "QNAP preflight schrijven/kopiëren/verwijderen = OK" in installer
+    assert 'rm -rf "$PREFLIGHT"' in installer
+
+
+def test_release_watcher_defaults_to_five_seconds():
+    watcher = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
+    assert 'INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"' in watcher
+
+
+def test_release_watcher_compact_status_file_present():
+    source = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
+    assert 'STATUSFILE="$INBOX/latest_release_status.txt"' in source
+    assert 'write_status "PROCESSING" "$ZIP_NAME"' in source
+    assert 'write_status "SUCCESS" "$ZIP_NAME"' in source
+    assert 'write_status "FAILED" "$ZIP_NAME"' in source
+
+def test_release_watcher_duplicate_start_is_quiet():
+    source = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
+    assert 'Watcher is al actief pid=' not in source
+
+
+def test_release_installer_schedules_watcher_refresh():
+    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    assert 'schedule_watcher_refresh' in installer
+    assert 'WATCHER_PIDFILE="$INBOX/.watcher.pid"' in installer
+    assert 'Watcher-refresh gepland' in installer
+    assert 'nohup sh -c' in installer
+
+
+def test_v1050_shows_release_chain_in_ha_console():
+    main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "<small>Releaseketen</small>" in main
+    assert "QNAP ZIP-only · watcher 5 s · Terminal niet vereist" in main
+    assert 'class="pill ok">Automatisch</span>' in main

@@ -1,22 +1,11 @@
-# Installatie / praktijktest v10.4.2
+# Installatie / praktijktest v10.4.5
 
-## Voorwaarde
-- v10.4.1 staat actief op de NAS en GitHub.
-- `release_watcher.sh` draait en toont `Release watcher gestart; interval=30s`.
+## Belangrijk: eenmalige bootstrap
+De actieve productiebasis is na de mislukte v10.4.4-poging teruggevallen op de oudere installer. Die oudere installer kan v10.4.5 niet zelfstandig bootstrappen. Daarom is voor v10.4.5 één eenmalige bootstrap nodig via het meegeleverde `BOOTSTRAP_v10.4.5.sh`-bestand. Na succesvolle installatie moeten normale volgende releases weer uitsluitend als ZIP in `incoming` kunnen worden geplaatst.
 
-## v10.4.2 testen
-1. Plaats `EnergieProject_v10.4.2.zip` in:
-   `AI Projecten/EnergieProject_Inbox/incoming`
-2. **Voer geen Terminal-commando uit.**
-3. Wacht ongeveer 30–60 seconden.
-4. De watcher hoort automatisch te valideren, back-uppen, installeren, committen/pushen en de ZIP naar `processed` te verplaatsen.
-5. Controleer daarna GitHub: `main` moet v10.4.2 tonen.
-6. Home Assistant mag daarna de normale app-update naar 10.4.2 aanbieden; die update blijft vooralsnog een bewuste handmatige Home Assistant-handeling.
-
-## Bij fout
-- Geen handmatige reparaties uitvoeren.
-- Laat de ZIP in `failed` staan en deel de watcher-/installeruitvoer.
-- De gevalideerde herstelbackup en GitHub-baseline blijven de herstelbron.
-
-## Productiekern
-`9.4-core1` blijft ongewijzigd.
+## Doelresultaat
+- v10.4.5 wordt geïnstalleerd zonder `git` en zonder metadata-/timestamp-preservering op de QNAP-share.
+- De release-ZIP eindigt in `processed`.
+- `VERSIE.txt` bevat `10.4.5`.
+- De QNAP-watcher start daarna weer automatisch via de bestaande cronconfiguratie en controleert iedere 5 seconden.
+- Bestaande failed-releases blijven ongemoeid.
