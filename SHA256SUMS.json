@@ -1,6 +1,6 @@
 {
-  "version": "10.2.0",
-  "file_count": 76,
+  "version": "10.3.0",
+  "file_count": 72,
   "files": [
     {
       "path": ".gitignore",
@@ -8,34 +8,9 @@
       "sha256": "f10529b220b514ca72c66fd592c80ec5b3dea6a0a49f2658d80617824c5aa5e7"
     },
     {
-      "path": ".pytest_cache/.gitignore",
-      "bytes": 37,
-      "sha256": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd"
-    },
-    {
-      "path": ".pytest_cache/CACHEDIR.TAG",
-      "bytes": 191,
-      "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4"
-    },
-    {
-      "path": ".pytest_cache/README.md",
-      "bytes": 302,
-      "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad"
-    },
-    {
-      "path": ".pytest_cache/v/cache/lastfailed",
-      "bytes": 2,
-      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
-    },
-    {
-      "path": ".pytest_cache/v/cache/nodeids",
-      "bytes": 26064,
-      "sha256": "c743bde0f26a8bda357c8ef1ecc2581f73e328d10333491a854c7ae69be29c79"
-    },
-    {
       "path": "CHANGELOG.md",
-      "bytes": 36333,
-      "sha256": "3410d8b947316fc3fa48bf021d3a149ae64fd0557f4696681d05665aeddfce42"
+      "bytes": 36612,
+      "sha256": "b52a11df3cd9e2f9f8912bb3fb218747beced7efc0ae64fc6b4690a97e6286e7"
     },
     {
       "path": "INSTALL.md",
@@ -59,8 +34,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 5348,
-      "sha256": "6bf8f73fb9ea22d91b8ae8eccd72981b51cfe9dacbdf34192bedc471ee4cdc15"
+      "bytes": 1271,
+      "sha256": "de7d0ded8a702074b02ccb8d13c913ddcd13f3acdd04507e9bd304de9ae11dbd"
     },
     {
       "path": "ROADMAP_V10.md",
@@ -69,13 +44,13 @@
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "bytes": 808,
-      "sha256": "c0af2c6d4f667dd0a423bf32c2be27278e3f6c2edc49ba8f65c7ef672a190d16"
+      "bytes": 886,
+      "sha256": "3cd1b2da1f5c38585daed3cdcfaa1185f1c0c0bad47d60b0723221da4bc48865"
     },
     {
       "path": "VERSIE.txt",
       "bytes": 7,
-      "sha256": "cf966a5d3bfdb4c3dab146c0b12a22b85a30aa449ed010a5ee3cf04ddeb5302e"
+      "sha256": "0e708eef342a2f967271f72664a436c9f532e6362d2a58fedfa12b1759ea9cd0"
     },
     {
       "path": "repository.yaml",
@@ -84,8 +59,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "bytes": 34996,
-      "sha256": "f68cf74f2c063d00a9f74c412c38d6c06be317d1bc7bcc2814823e5e4f6e0fa6"
+      "bytes": 36612,
+      "sha256": "b52a11df3cd9e2f9f8912bb3fb218747beced7efc0ae64fc6b4690a97e6286e7"
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -105,12 +80,12 @@
     {
       "path": "slimmemeterportal_import/config.yaml",
       "bytes": 5431,
-      "sha256": "eb7ca981025b111aa58730a605814d1de8add616f51f2dc3e10f56f373f99183"
+      "sha256": "6b4d9650bf8b1b6d6fb74460d1194370a1fda1b69ee6f392532b3c33b587e0f6"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "bytes": 469801,
-      "sha256": "e75c8fd3aed2eb24dc1185263ae821ca5a45d4d86dc89efe3459c1318ef842bc"
+      "bytes": 469594,
+      "sha256": "be2cabd5722b2b416057a84ad13bcf813d23a831c9802895f271b7c246ee2300"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -379,8 +354,13 @@
     },
     {
       "path": "tests/test_static.py",
-      "bytes": 113182,
-      "sha256": "cfa3ff2955692963fbab1a61e40a7803cba01bcc07ed2414a6cdb6b95fcd7b06"
+      "bytes": 113565,
+      "sha256": "7430ffc5b6202b0cd46d0c0a257c6cf54ff9bafbe4dd20e9632b507b9088abb0"
+    },
+    {
+      "path": "tools/release_installer.sh",
+      "bytes": 3160,
+      "sha256": "da42c5daf434cdb3eaf07002bc970e1eb57092d0adc5c03d84c0033fce9af686"
     }
   ]
 }

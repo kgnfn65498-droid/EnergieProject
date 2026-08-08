@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.3.0
+- Nieuwe NAS-master en release-inbox paden vastgelegd.
+- Veilige host-side release-installer toegevoegd met staging, SHA256-validatie, backup, rollback en Git push.
+- iMac verwijderd als noodzakelijke schakel in de projectketen.
+- Productiekern 9.4-core1 ongewijzigd.
+
 ## 10.2.0
 - Veilige NAS-migratievoorbereiding toegevoegd zonder automatische verplaatsingen of verwijderingen.
 - Oude projectstructuur (`00_Config` t/m `99_Archief`) wordt automatisch herkend zodra `Energie_NAS` in Home Assistant is gekoppeld.

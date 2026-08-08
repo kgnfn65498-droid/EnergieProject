@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.3.0
+- Nieuwe NAS-master en release-inbox paden vastgelegd.
+- Veilige host-side release-installer toegevoegd met staging, SHA256-validatie, backup, rollback en Git push.
+- iMac verwijderd als noodzakelijke schakel in de projectketen.
+- Productiekern 9.4-core1 ongewijzigd.
+
 ## 10.2.0
 - Veilige NAS-migratievoorbereiding toegevoegd zonder automatische verplaatsingen of verwijderingen.
 - Oude projectstructuur (`00_Config` t/m `99_Archief`) wordt automatisch herkend zodra `Energie_NAS` in Home Assistant is gekoppeld.
@@ -13,25 +19,31 @@
 - Productiekern `9.4-core1` en maandworkflow blijven ongewijzigd.
 
 ## 10.1.0
-- 24/7 infrastructuurcontrole voor `/share/Energie_NAS`.
-- Automatische maand-sidecarback-up naar QNAP na een geslaagde volledige workflow.
-- Maximaal 24 back-ups met automatische opschoning.
-- Diagnosepakket uitgebreid met infrastructuurstatus.
-- Downloadbare chat-overdracht en actuele noodherstelhandleiding toegevoegd.
-- API-sleutels/options.json worden nooit in projectback-ups opgenomen.
-- Productiekern `9.4-core1` ongewijzigd.
+- 24/7 infrastructuurfundament toegevoegd; de iMac is geen noodzakelijke schakel meer voor maanddata of projectback-ups.
+- Nieuwe QNAP-opslagcontrole voor een Home Assistant netwerkshare met naam `Energie_NAS` onder `/share/Energie_NAS`.
+- Na iedere geslaagde volledige maandworkflow wordt, zodra de QNAP-share beschikbaar is, automatisch een sidecarback-up naar `EnergieProject_Backups` geschreven.
+- Projectback-ups bevatten herstelrelevante maand-/runtimegegevens en SHA-256, maar nooit `options.json` of API-sleutels.
+- Automatische retentie houdt maximaal 24 projectback-ups aan.
+- Nieuwe UI-kaart **24/7 infrastructuur** toont QNAP-bereikbaarheid, back-updoel en laatste back-upstatus.
+- Diagnosepakket bevat nu ook `infrastructure_status.json` en de laatste projectback-upstatus.
+- Nieuwe knop **Download chat-overdracht** maakt een ZIP met nieuwe-chat startbestand, vaste ontwikkelafspraken, roadmap, noodherstelhandleiding en actuele projectstatus.
+- `NOODHERSTEL.md`, `PROJECT_AFSPRAKEN.md` en `ROADMAP_V10.md` toegevoegd aan de release.
+- De bestaande maandworkflowuitkomst, scheduler, retry, certificering en rapportgeneratoren blijven inhoudelijk ongewijzigd; productiekern blijft `9.4-core1`.
 
 ## 10.0.0
-- Stable Production Release.
-- Promoteert de goedgekeurde v9.9.0 Release Candidate zonder wijziging van productiekern `9.4-core1`.
-- Diagnosemetadata staat op `stable`; bestaande productiecertificering blijft herbruikbaar.
-- Geen functionele wijziging aan workflow, scheduler, retry/finalization, Recovery, Monitoring, Audittrail of rapportgeneratoren.
+- Eerste stabiele productierelease op basis van de volledig gevalideerde v9.9.0 Release Candidate.
+- Productiekern `9.4-core1` blijft ongewijzigd; geen nieuwe maandafsluitingstest nodig voor deze promotie.
+- Diagnosepakket rapporteert `Releasefase: Stable` en automatische GO/NO-GO blijft leidend voor technische releasevalidatie.
+- Recovery, Monitoring, Audittrail, scheduler, certificaatvalidatie en gezondheidsdashboard blijven onderdeel van de productiecontrole.
+- Geen functionele wijziging aan maandworkflow, rapportgeneratoren of bronimport.
 
 ## 9.9.0
-- Release Candidate voor v10.0.0.
-- Diagnosepakket bevat expliciete releasefase en doelrelease.
-- Productiekern `9.4-core1` blijft ongewijzigd; geen nieuwe volledige maandafsluitingstest vereist.
-- Documentatie en versieaanduidingen opgeschoond voor eindvalidatie.
+- Release Candidate voor v10.0.0 op basis van de goedgekeurde v9.8.0-productiebasis.
+- Diagnosepakket vermeldt expliciet `Releasefase: Release Candidate` en `Doelrelease: 10.0.0`.
+- `test_summary.json` bevat `release_stage=release_candidate` en `target_stable_release=10.0.0`.
+- Productiekern blijft `9.4-core1`; workflow, scheduler, retry/finalization, Recovery, Audittrail, Monitoring en rapportgeneratoren zijn inhoudelijk ongewijzigd.
+- Geen nieuwe automatische maandafsluitingstest nodig zolang het bestaande kerncertificaat geldig blijft.
+- Documentatie en versieaanduidingen opgeschoond voor de eindvalidatie richting v10.0.0.
 
 ## 9.8.0
 - Diagnosepakket maakt het hergebruik van een geldig kerncertificaat expliciet en begrijpelijk.

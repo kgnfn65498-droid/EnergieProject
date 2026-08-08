@@ -1,7 +1,8 @@
-# Testinstructies v10.2.0
+# Testinstructies v10.3.0
 
-1. Werk de Home Assistant-app bij naar v10.2.0. Normaal is alleen de app-update/herstart en GUI verversen nodig; **Opnieuw opbouwen** alleen als Home Assistant aantoonbaar een oude image blijft gebruiken.
-2. Controleer dat bovenaan **versie 10.2.0** staat. De productiekern blijft `9.4-core1`; voer géén nieuwe automatische maandafsluitingstest uit.
-3. Kijk naar **NAS migratie & release-inbox**. Zolang `Energie_NAS` nog niet als Home Assistant-share gekoppeld is, is `setup_required` een geldige uitkomst.
-4. Klik **Download diagnosepakket** en stuur alleen die ZIP terug. Daarmee worden productie, infrastructuur, migratie-inventaris en release-inbox in één keer beoordeeld.
-5. Verplaats of verwijder nog niets op NAS of iMac. v10.2 is uitsluitend inventarisatie/validatie.
+1. Zet `EnergieProject_v10.3.0.zip` in `AI Projecten/EnergieProject_Inbox/incoming`.
+2. Voer in Home Assistant Terminal & SSH vanaf de NAS-master één keer uit: `sh /share/Energie_NAS/EnergieProject/tools/release_installer.sh`. Voor deze eerste v10.3-overgang staat het script pas na handmatige plaatsing van de v10.3-worktree in de master; daarom mag v10.3 zelf nog via de bestaande Home Assistant update worden geïnstalleerd.
+3. Update de Home Assistant-app normaal naar 10.3.0; alleen app-herstart + GUI verversen is nodig. Geen rebuild tenzij HA aantoonbaar de oude image gebruikt.
+4. Controleer bovenaan versie 10.3.0 en download het diagnosepakket.
+5. Geen automatische maandafsluitingstest nodig; productiekern blijft 9.4-core1.
+6. Voor v10.4 testen we de echte inboxroute: ZIP in `incoming` -> validator -> backup -> Git commit/push -> `processed`.
