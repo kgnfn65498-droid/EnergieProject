@@ -636,3 +636,7 @@ De analysecontext bevat bekende contractmetadata en leest de ingestelde NextEner
 
 ## Versie 10.5.20 — historische leverancierprijs
 `monthly_electricity_price_telemetry` leest per kalendermaand de bestaande Home Assistant kwartier-snapshots en vat NextEnergy-prijsobservaties samen. Deze statistiek is bewust ongewogen en wordt niet als echte maandkost gepresenteerd.
+
+
+## Versie 10.5.21 — NAS/MCP historische prijsreader
+De kwartier-snapshots blijven op de NAS. De add-on zoekt de NextEnergy-entiteit via MCP `search_content`, parseert de state uit de contextregels en gebruikt de snapshotnaam als timestampfallback.

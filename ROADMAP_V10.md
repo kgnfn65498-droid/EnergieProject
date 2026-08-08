@@ -42,3 +42,5 @@
 - v10.5.19: NextEnergy-contractcontext en live leverancier-prijstelemetrie.
 
 - v10.5.20: historische NextEnergy-prijsreeks uit Home Assistant kwartier-snapshots.
+
+- v10.5.21: historische NextEnergy-prijsreader via NAS/MCP productiepad.

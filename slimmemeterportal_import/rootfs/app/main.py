@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.20"
+APP_VERSION = "10.5.21"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4184,6 +4184,72 @@ def _round_metric(value: float) -> float:
 
 
 _EPEX_MCP_CACHE: dict[str, str | None] = {}
+_MCP_TOOL_CACHE: dict[str, Any] = {}
+
+
+def _mcp_call_project_tool(name: str, arguments: dict[str, Any], timeout: float = 8.0) -> Any:
+    """Roep één read-only Energie-MCP tool aan en normaliseer structured/text JSON."""
+    cache_key = json.dumps({"name": name, "arguments": arguments}, sort_keys=True, ensure_ascii=False)
+    if cache_key in _MCP_TOOL_CACHE:
+        return _MCP_TOOL_CACHE[cache_key]
+
+    request_id = int(time.time() * 1000) % 2147483647
+    payload = {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": "tools/call",
+        "params": {
+            "name": name,
+            "arguments": arguments,
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {},
+                "io.modelcontextprotocol/clientInfo": {
+                    "name": "energieproject-homeassistant",
+                    "version": APP_VERSION,
+                },
+            },
+        },
+    }
+    req = urllib.request.Request(
+        ENERGIE_MCP_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": "2026-07-28",
+            "Mcp-Method": "tools/call",
+            "Mcp-Name": name,
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            raw = response.read().decode("utf-8")
+        envelope = json.loads(raw)
+        result = envelope.get("result") or {}
+        structured = result.get("structuredContent")
+        if structured is not None:
+            _MCP_TOOL_CACHE[cache_key] = structured
+            return structured
+
+        for block in result.get("content") or []:
+            if not isinstance(block, dict) or block.get("type") != "text":
+                continue
+            text = block.get("text")
+            if not isinstance(text, str):
+                continue
+            try:
+                decoded = json.loads(text)
+            except json.JSONDecodeError:
+                decoded = text
+            _MCP_TOOL_CACHE[cache_key] = decoded
+            return decoded
+    except Exception as exc:
+        LOGGER.info("Energie MCP tool %s mislukt: %s", name, exc)
+
+    _MCP_TOOL_CACHE[cache_key] = None
+    return None
 
 
 def _mcp_read_project_text(relative_path: str, timeout: float = 6.0) -> str | None:
@@ -4684,8 +4750,7 @@ def _aggregate_analysis_period(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _nextenergy_month_telemetry(month_key: str) -> dict[str, Any]:
-    """Lees historische NextEnergy-prijstelemetrie uit kwartier-snapshots."""
-    folder = MONTH_INPUT_ROOT / month_key / "HomeAssistant" / "QuarterHour"
+    """Historische NextEnergy-prijsobservaties: NAS/MCP eerst, lokale fallback daarna."""
     result = {
         "month": month_key,
         "available": False,
@@ -4696,41 +4761,110 @@ def _nextenergy_month_telemetry(month_key: str) -> dict[str, Any]:
         "maximum_eur_per_kwh": None,
         "first_timestamp": None,
         "last_timestamp": None,
-        "source": "HomeAssistant/QuarterHour",
+        "source": None,
+        "transport": None,
         "quality": "not_available",
     }
     try:
         options = Options.load()
         entity_id = str(options.nextenergy_entity_id or "").strip()
         result["entity_id"] = entity_id or None
-        if not entity_id or not folder.is_dir():
+        if not entity_id:
             return result
 
         values: list[float] = []
         timestamps: list[str] = []
-        for snapshot in sorted(folder.glob("home_assistant_quarter_*.json")):
-            try:
-                payload = json.loads(snapshot.read_text(encoding="utf-8"))
-            except Exception:
-                continue
-            entities = payload.get("entities") if isinstance(payload, dict) else None
-            if not isinstance(entities, list):
-                continue
-            for entity in entities:
-                if not isinstance(entity, dict) or entity.get("entity_id") != entity_id:
+
+        # Productiepad: kwartier-snapshots staan op de Energie-NAS en zijn
+        # read-only beschikbaar via de bestaande MCP.
+        mcp_path = f"01_Input/{month_key}/HomeAssistant/QuarterHour"
+        search_result = _mcp_call_project_tool(
+            "search_content",
+            {
+                "query": entity_id,
+                "path": mcp_path,
+                "case_sensitive": True,
+                "max_results": 500,
+                "context_lines": 3,
+            },
+            timeout=12.0,
+        )
+        if isinstance(search_result, dict):
+            matches = search_result.get("matches") or []
+            for match in matches:
+                if not isinstance(match, dict):
                     continue
-                try:
-                    value = float(str(entity.get("state")).replace(",", "."))
-                except (TypeError, ValueError):
-                    continue
-                values.append(value)
-                stamp = entity.get("last_updated") or entity.get("last_changed")
-                if isinstance(stamp, str) and stamp:
-                    timestamps.append(stamp)
-                break
+                state_value = None
+                timestamp = None
+                lines = []
+                matching_text = match.get("matching_text")
+                if isinstance(matching_text, str):
+                    lines.append(matching_text)
+                for ctx in match.get("context") or []:
+                    if isinstance(ctx, dict) and isinstance(ctx.get("text"), str):
+                        lines.append(ctx["text"])
+
+                for line in lines:
+                    state_match = re.search(r'"state"\s*:\s*"([-+]?\d+(?:[.,]\d+)?)"', line)
+                    if state_match:
+                        try:
+                            state_value = float(state_match.group(1).replace(",", "."))
+                        except ValueError:
+                            pass
+                    ts_match = re.search(
+                        r'"(?:last_updated|last_changed)"\s*:\s*"([^"]+)"',
+                        line,
+                    )
+                    if ts_match:
+                        timestamp = ts_match.group(1)
+
+                # Bestandsnaam bevat ook een betrouwbare snapshot-timestamp.
+                if not timestamp:
+                    path_value = str(match.get("path") or "")
+                    file_match = re.search(r'home_assistant_quarter_(\d{8}T\d{6}Z)\.json$', path_value)
+                    if file_match:
+                        timestamp = file_match.group(1)
+
+                if state_value is not None:
+                    values.append(state_value)
+                    if timestamp:
+                        timestamps.append(timestamp)
+
+            if values:
+                result["source"] = mcp_path
+                result["transport"] = "mcp_search_content_read_only"
+
+        # Ontwikkel-/fallbackpad: als snapshots lokaal beschikbaar zijn.
+        if not values:
+            folder = MONTH_INPUT_ROOT / month_key / "HomeAssistant" / "QuarterHour"
+            if folder.is_dir():
+                for snapshot in sorted(folder.glob("home_assistant_quarter_*.json")):
+                    try:
+                        payload = json.loads(snapshot.read_text(encoding="utf-8"))
+                    except Exception:
+                        continue
+                    entities = payload.get("entities") if isinstance(payload, dict) else None
+                    if not isinstance(entities, list):
+                        continue
+                    for entity in entities:
+                        if not isinstance(entity, dict) or entity.get("entity_id") != entity_id:
+                            continue
+                        try:
+                            value = float(str(entity.get("state")).replace(",", "."))
+                        except (TypeError, ValueError):
+                            continue
+                        values.append(value)
+                        stamp = entity.get("last_updated") or entity.get("last_changed")
+                        if isinstance(stamp, str) and stamp:
+                            timestamps.append(stamp)
+                        break
+                if values:
+                    result["source"] = str(folder)
+                    result["transport"] = "local_filesystem_read_only"
 
         if not values:
             return result
+
         result.update({
             "available": True,
             "observations": len(values),
@@ -4887,6 +5021,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "months_partially_costable": financial_months_partial,
             "supplier_live_price_connected": supplier_live_connected,
             "supplier_price_history_connected": bool(supplier_price_history),
+            "supplier_price_history_transport": (supplier_price_history[0].get("transport") if supplier_price_history else None),
             "supplier_contract_costs_connected": False,
             "export_credit_connected": False,
             "ready_for_all_in_costs": False,
@@ -9334,7 +9469,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.20",
+        "target_stable_release": "10.5.21",
     }
 
     summary = {
@@ -9366,7 +9501,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.20",
+        "target_stable_release": "10.5.21",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9433,7 +9568,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.20",
+        "Doelrelease: 10.5.21",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

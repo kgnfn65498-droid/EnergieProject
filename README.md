@@ -1,4 +1,4 @@
-# EnergieProject v10.5.20
+# EnergieProject v10.5.21
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -55,3 +55,7 @@ NextEnergy is nu als leveranciercontext gekoppeld. Live prijsdata wordt gebruikt
 
 ## v10.5.20
 NextEnergy-prijstelemetrie wordt nu ook historisch uit de kwartier-snapshots gelezen. Dit vormt de basis voor latere tijdgewogen en verbruikgewogen financiële analyse.
+
+
+## v10.5.21
+De historische NextEnergy-prijsreader gebruikt nu de werkelijke NAS-bron via de read-only Energie MCP. Daarmee wordt de eerder lege historische prijsreeks beschikbaar zonder bestanden te dupliceren.

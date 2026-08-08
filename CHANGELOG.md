@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.5.21
+- Historische NextEnergy-reader gecorrigeerd voor de werkelijke NAS-opslaglocatie.
+- Home Assistant leest kwartier-snapshots nu read-only via Energie MCP `search_content` uit `01_Input/YYYY_MM/HomeAssistant/QuarterHour`.
+- Lokale filesystem-reader blijft uitsluitend als fallback bestaan.
+- `supplier_price_history_transport` maakt zichtbaar via welke route de historische prijsdata is gevonden.
+- Geen wijzigingen aan de stabiele release-watcherketen.
+
 ## 10.5.20
 - Historische NextEnergy-prijstelemetrie toegevoegd vanuit Home Assistant kwartier-snapshots.
 - Per beschikbare maand worden observatieaantal, gemiddelde, minimum, maximum en eerste/laatste timestamp berekend.
