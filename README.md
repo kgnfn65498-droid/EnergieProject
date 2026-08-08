@@ -1,4 +1,4 @@
-# EnergieProject v10.5.29
+# EnergieProject v10.5.30
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -91,3 +91,7 @@ Financiële run-rates krijgen nu een harde kwaliteitsdrempel: pas vanaf zeven da
 
 ## v10.5.29
 De financiële analyse toont nu hoe ver de echte meetdekking richting de 7-dagendrempel is gevorderd, zonder al te extrapoleren.
+
+
+## v10.5.30
+De kern van de v10.6 prognose-engine staat nu klaar achter de 7-dagen kwaliteitsgate. Er worden vóór die drempel bewust geen projectiewaarden gepubliceerd.

@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.29"
+APP_VERSION = "10.5.30"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -5107,6 +5107,7 @@ def _supplier_contract_context() -> dict[str, Any]:
             "gas_supplier_formula_known": False,
             "consumption_weighted_import_available": False,
             "projection_ready_months": [],
+            "projection_engine": {"stage": "prepared_gated", "target_release": "10.6", "thirty_day_variable_projection_logic_ready": True, "supplier_all_in_projection_ready": False, "activation_requires_observed_days": 7.0},
             "projection_observation_status": [],
             "projection_policy": {"minimum_observed_days": 7.0, "automatic_month_extrapolation": False, "automatic_contract_year_extrapolation": False},
             "all_in_ready": False,
@@ -5229,17 +5230,34 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             max(0.0, minimum_days - float(coverage_days))
             if coverage_days is not None else minimum_days
         )
+        eligible = bool(coverage_days is not None and coverage_days >= minimum_days)
         financial["projection_eligibility"] = {
-            "eligible": bool(coverage_days is not None and coverage_days >= minimum_days),
+            "eligible": eligible,
             "minimum_observed_days": minimum_days,
             "observed_days": observed_days,
             "coverage_progress_pct": round(progress_pct, 1),
             "remaining_observation_days": _round_metric(remaining_days),
             "reason": (
                 "minimum_observation_window_met"
-                if coverage_days is not None and coverage_days >= minimum_days
-                else "insufficient_observation_window"
+                if eligible else "insufficient_observation_window"
             ),
+        }
+        # 10.6-voorbereiding: berekenbare projectievelden bestaan al, maar worden
+        # uitsluitend gevuld wanneer de kwaliteitsdrempel werkelijk gehaald is.
+        financial["projection_preview"] = {
+            "status": "eligible_not_all_in" if eligible else "blocked_insufficient_observation",
+            "basis": "observed_daily_run_rate",
+            "projected_30d_import_kwh": (
+                _round_metric(float(weighted.get("observed_daily_import_run_rate_kwh")) * 30.0)
+                if eligible and isinstance(weighted.get("observed_daily_import_run_rate_kwh"), (int, float))
+                else None
+            ),
+            "projected_30d_variable_electricity_cost_eur": (
+                round(float(weighted.get("observed_daily_variable_cost_run_rate_eur")) * 30.0, 2)
+                if eligible and isinstance(weighted.get("observed_daily_variable_cost_run_rate_eur"), (int, float))
+                else None
+            ),
+            "supplier_all_in_projection": False,
         }
         financial["nextenergy_weighted_import"] = {
             key: weighted.get(key) for key in (
@@ -5261,6 +5279,13 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         if eligibility.get("eligible"):
             projection_months.append(str(month.get("month")))
     supplier_context["cost_model"]["projection_ready_months"] = projection_months
+    supplier_context["cost_model"]["projection_engine"] = {
+        "stage": "prepared_gated",
+        "target_release": "10.6",
+        "thirty_day_variable_projection_logic_ready": True,
+        "supplier_all_in_projection_ready": False,
+        "activation_requires_observed_days": 7.0,
+    }
     supplier_context["cost_model"]["projection_observation_status"] = [
         {
             "month": str(month.get("month")),
@@ -9738,7 +9763,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.29",
+        "target_stable_release": "10.5.30",
     }
 
     summary = {
@@ -9770,7 +9795,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.29",
+        "target_stable_release": "10.5.30",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9837,7 +9862,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.29",
+        "Doelrelease: 10.5.30",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

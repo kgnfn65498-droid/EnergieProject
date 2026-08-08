@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.5.30
+- Voorbereiding op v10.6: de 30-dagen variabele-stroomprojectielogica is ingebouwd achter de bestaande 7-dagen kwaliteitsdrempel.
+- `projection_preview` blijft leeg zolang de observatiedrempel niet is gehaald.
+- Zodra de drempel gehaald is, kan de engine 30-dagen import en variabele stroomkosten berekenen uit de echte dag-run-rate.
+- Leverancier-all-in projectie blijft apart geblokkeerd totdat opslag, vaste kosten, terugleververgoeding en gasformule gekoppeld zijn.
+- `projection_engine` rapporteert expliciet de v10.6-gereedheid.
+
 ## 10.5.29
 - Prognosekwaliteitsdrempel uit 10.5.28 uitgebreid met voortgangsmeting.
 - Per maand worden `coverage_progress_pct` en `remaining_observation_days` gerapporteerd.

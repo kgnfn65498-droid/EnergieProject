@@ -672,3 +672,7 @@ De gewogen reader berekent de geobserveerde tijdsduur met timezone-aware UTC-dat
 
 ## v10.5.29
 `coverage_progress_pct` en `remaining_observation_days` maken zichtbaar wanneer voldoende echte data beschikbaar komt voor de volgende prognosestap.
+
+
+## v10.5.30
+`projection_preview` bevat pas 30-dagenwaarden wanneer `projection_eligibility.eligible=true`. All-in projecties blijven onafhankelijk geblokkeerd.

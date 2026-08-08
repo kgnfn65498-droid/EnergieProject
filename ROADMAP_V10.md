@@ -60,3 +60,5 @@
 - v10.5.28: prognosekwaliteitsdrempel op echte NextEnergy/P1-waarnemingen; geen voortijdige extrapolatie.
 
 - v10.5.29: meetdekking/prognosegereedheid als expliciete voortgangs-KPI.
+
+- v10.5.30: v10.6 30-dagen variabele-stroomprojectie voorbereid achter kwaliteitsgate.
