@@ -582,3 +582,7 @@ De operationele console toont direct bovenaan een **Sneloverzicht analyse** met 
 ## Versie 10.5.5 — gestandaardiseerde analysecontext
 
 De operationele console bevat de link `Analysecontext`. Het endpoint `/analysis-context` leest uitsluitend bestaande maandmappen onder `/config/output/01_Input/YYYY_MM` en retourneert schema `energie_analysis_context_v1` met maand-, kwartaal- en kalenderjaaraggregaties. De context schrijft geen brondata terug en wijzigt de maandworkflow niet. Onvolledige kwartalen en kalenderjaren worden expliciet gemarkeerd. Met `?year=YYYY` kan de context tot één kalenderjaar worden beperkt.
+
+
+## Versie 10.5.7 — historische prijscontext
+De analysecontext bevat per maand `price_context` met ruwe statistiek uit bestaande `EPEX stroom.csv` en `EPEX gas.csv`. De waarden worden niet als all-in leverancierstarief of werkelijke kosten gepresenteerd. Ontbrekende of niet-numerieke prijsdata blijft expliciet niet beschikbaar.

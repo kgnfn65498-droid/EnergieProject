@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.5.7
+- Analysecontext uitgebreid met historische EPEX-prijscontext uit reeds aanwezige maandbestanden.
+- Per maand worden voor elektriciteit en gas aantal observaties, gemiddelde, minimum en maximum beschikbaar gemaakt.
+- Geen nieuwe databron en geen wijziging aan de maandworkflow of releaseketen.
+- Geen all-in kostenberekening zolang leverancierstarief, belasting en volledige periode-dekking niet bewezen zijn.
+
 ## 10.5.6
 - Nieuw **Sneloverzicht analyse** direct bovenaan de operationele console; historie, laatste analysemaand en datakwaliteit zijn zichtbaar zonder naar beneden te scrollen.
 - Nieuwe knop **Download analysedata** levert de actuele analysecontext als JSON-download.

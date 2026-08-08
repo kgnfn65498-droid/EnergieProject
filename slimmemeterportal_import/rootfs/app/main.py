@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.6"
+APP_VERSION = "10.5.7"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4182,12 +4182,42 @@ def _round_metric(value: float) -> float:
     return round(float(value), 3)
 
 
+def _price_file_metrics(path: Path) -> dict[str, Any]:
+    """Vat reeds opgeslagen prijsdata samen zonder tarief-/kostenaannames."""
+    rows = read_csv_rows(path)
+    values: list[float] = []
+    for row in rows:
+        raw = row.get("value")
+        if raw in (None, ""):
+            # Sommige historische exports gebruiken een expliciete prijskolom.
+            for key in ("price", "prijs", "market_price", "spot_price"):
+                if row.get(key) not in (None, ""):
+                    raw = row.get(key)
+                    break
+        try:
+            if raw is not None:
+                values.append(float(str(raw).replace(",", ".")))
+        except (TypeError, ValueError):
+            continue
+    if not values:
+        return {"available": False, "observations": 0, "average": None, "minimum": None, "maximum": None}
+    return {
+        "available": True,
+        "observations": len(values),
+        "average": _round_metric(sum(values) / len(values)),
+        "minimum": _round_metric(min(values)),
+        "maximum": _round_metric(max(values)),
+    }
+
+
 def _month_energy_metrics(month_key: str) -> dict[str, Any]:
     parse_month_key(month_key)
     folder = MONTH_INPUT_ROOT / month_key
     p1e_path = folder / "P1e.csv"
     p1g_path = folder / "P1g.csv"
     enphase_path = folder / "Enphase.csv"
+    epex_electricity_path = folder / "EPEX stroom.csv"
+    epex_gas_path = folder / "EPEX gas.csv"
     p1e_rows = read_csv_rows(p1e_path)
     p1g_rows = read_csv_rows(p1g_path)
     enphase_rows = read_csv_rows(enphase_path)
@@ -4266,6 +4296,11 @@ def _month_energy_metrics(month_key: str) -> dict[str, Any]:
             "house_use_kwh": metric(house_use_kwh),
             "self_use_pct": metric(self_use_pct),
             "self_supply_pct": metric(self_supply_pct),
+        },
+        "price_context": {
+            "electricity": _price_file_metrics(epex_electricity_path),
+            "gas": _price_file_metrics(epex_gas_path),
+            "interpretation": "Ruwe historische prijsstatistiek uit bestaande EPEX-maandbestanden; geen leveranciersopslag, belasting of totale energiekosten.",
         },
         "quality": {
             "month_input_validation": validation.get("status") or "not_available",
@@ -4374,6 +4409,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "solar_production_kwh": "Enphase-opwek; bij ontbrekende Enphase alleen expliciet gemarkeerde export_fallback.",
             "self_use_pct": "Direct eigen zonnegebruik gedeeld door zonneproductie; null als brondekking dit niet betrouwbaar toelaat.",
             "self_supply_pct": "Direct eigen zonnegebruik gedeeld door berekend huishoudelijk elektriciteitsgebruik; null als brondekking dit niet betrouwbaar toelaat.",
+            "price_context": "Gemiddelde, minimum en maximum uit reeds opgeslagen EPEX-prijsrecords; nadrukkelijk geen all-in leverancierstarief of kostenberekening.",
         },
         "months": months,
         "quarters": quarters,
@@ -8795,7 +8831,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.6",
+        "target_stable_release": "10.5.7",
     }
 
     summary = {
@@ -8827,7 +8863,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.6",
+        "target_stable_release": "10.5.7",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -8894,7 +8930,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.6",
+        "Doelrelease: 10.5.7",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
