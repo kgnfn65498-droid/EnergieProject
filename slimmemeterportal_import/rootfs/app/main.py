@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.19"
+APP_VERSION = "10.5.20"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4683,6 +4683,71 @@ def _aggregate_analysis_period(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _nextenergy_month_telemetry(month_key: str) -> dict[str, Any]:
+    """Lees historische NextEnergy-prijstelemetrie uit kwartier-snapshots."""
+    folder = MONTH_INPUT_ROOT / month_key / "HomeAssistant" / "QuarterHour"
+    result = {
+        "month": month_key,
+        "available": False,
+        "entity_id": None,
+        "observations": 0,
+        "average_eur_per_kwh": None,
+        "minimum_eur_per_kwh": None,
+        "maximum_eur_per_kwh": None,
+        "first_timestamp": None,
+        "last_timestamp": None,
+        "source": "HomeAssistant/QuarterHour",
+        "quality": "not_available",
+    }
+    try:
+        options = Options.load()
+        entity_id = str(options.nextenergy_entity_id or "").strip()
+        result["entity_id"] = entity_id or None
+        if not entity_id or not folder.is_dir():
+            return result
+
+        values: list[float] = []
+        timestamps: list[str] = []
+        for snapshot in sorted(folder.glob("home_assistant_quarter_*.json")):
+            try:
+                payload = json.loads(snapshot.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            entities = payload.get("entities") if isinstance(payload, dict) else None
+            if not isinstance(entities, list):
+                continue
+            for entity in entities:
+                if not isinstance(entity, dict) or entity.get("entity_id") != entity_id:
+                    continue
+                try:
+                    value = float(str(entity.get("state")).replace(",", "."))
+                except (TypeError, ValueError):
+                    continue
+                values.append(value)
+                stamp = entity.get("last_updated") or entity.get("last_changed")
+                if isinstance(stamp, str) and stamp:
+                    timestamps.append(stamp)
+                break
+
+        if not values:
+            return result
+        result.update({
+            "available": True,
+            "observations": len(values),
+            "average_eur_per_kwh": _round_metric(sum(values) / len(values)),
+            "minimum_eur_per_kwh": _round_metric(min(values)),
+            "maximum_eur_per_kwh": _round_metric(max(values)),
+            "first_timestamp": min(timestamps) if timestamps else None,
+            "last_timestamp": max(timestamps) if timestamps else None,
+            "quality": "observed_unweighted",
+        })
+        return result
+    except Exception as exc:
+        result["quality"] = "error"
+        result["error"] = str(exc)
+        return result
+
+
 def _supplier_contract_context() -> dict[str, Any]:
     """Bekende contractcontext + live NextEnergy-prijstelemetrie zonder bedragen te verzinnen."""
     contract = {
@@ -4729,6 +4794,7 @@ def _supplier_contract_context() -> dict[str, Any]:
         },
         "interpretation": (
             "Live NextEnergy-prijs is alleen referentie voor actuele dynamische stroomprijs. "
+            "Kwartier-snapshots leveren daarnaast historische prijsobservaties voor trendanalyse. "
             "Maandkosten worden pas leverancier-all-in wanneer opslag, vaste kosten, "
             "terugleververgoeding en gasformule officieel zijn gekoppeld."
         ),
@@ -4798,6 +4864,14 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     supplier_live_connected = bool(
         (supplier_context.get("live_electricity_price") or {}).get("available")
     )
+    supplier_price_history = [
+        _nextenergy_month_telemetry(str(item.get("month")))
+        for item in months
+    ]
+    supplier_price_history = [
+        item for item in supplier_price_history if item.get("available")
+    ]
+    supplier_context["monthly_electricity_price_telemetry"] = supplier_price_history
 
     return {
         "schema": ANALYSIS_CONTEXT_SCHEMA,
@@ -4812,6 +4886,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "months_fully_costable": financial_months_available,
             "months_partially_costable": financial_months_partial,
             "supplier_live_price_connected": supplier_live_connected,
+            "supplier_price_history_connected": bool(supplier_price_history),
             "supplier_contract_costs_connected": False,
             "export_credit_connected": False,
             "ready_for_all_in_costs": False,
@@ -4836,7 +4911,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "solar_production_kwh": "Enphase-opwek; bij ontbrekende Enphase alleen expliciet gemarkeerde export_fallback.",
             "self_use_pct": "Direct eigen zonnegebruik gedeeld door zonneproductie; null als brondekking dit niet betrouwbaar toelaat.",
             "self_supply_pct": "Direct eigen zonnegebruik gedeeld door berekend huishoudelijk elektriciteitsgebruik; null als brondekking dit niet betrouwbaar toelaat.",
-            "supplier_context": "Bekende NextEnergy-contractmetadata plus live Home Assistant-prijstelemetrie; nog geen leverancier-all-in kostmodel.",
+            "supplier_context": "Bekende NextEnergy-contractmetadata plus live en historische Home Assistant-prijstelemetrie; historische gemiddelden zijn ongewogen prijsobservaties en nog geen verbruikgewogen maandkosten.",
             "price_context": "Historische EPEX-v6 prijscontext. De reader zoekt eerst in de feitelijke Home Assistant share `/share/Energie_NAS/05_Maanddata/EPEX` en ondersteunt daarnaast legacy projectpaden. De hoofdstatistiek gebruikt prijs_incl_btw_en_eb en is geen leverancier-all-in prijs.",
         },
         "months": months,
@@ -9259,7 +9334,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.19",
+        "target_stable_release": "10.5.20",
     }
 
     summary = {
@@ -9291,7 +9366,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.19",
+        "target_stable_release": "10.5.20",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9358,7 +9433,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.19",
+        "Doelrelease: 10.5.20",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

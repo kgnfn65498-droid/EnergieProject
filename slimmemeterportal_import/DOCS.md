@@ -632,3 +632,7 @@ De release-watcher kan in `energie-release-watcher` draaien op `python:3.12-slim
 
 ## Versie 10.5.19 — NextEnergy-koppeling
 De analysecontext bevat bekende contractmetadata en leest de ingestelde NextEnergy-prijsentiteit live uit Home Assistant. Onbekende contractcomponenten worden niet geschat.
+
+
+## Versie 10.5.20 — historische leverancierprijs
+`monthly_electricity_price_telemetry` leest per kalendermaand de bestaande Home Assistant kwartier-snapshots en vat NextEnergy-prijsobservaties samen. Deze statistiek is bewust ongewogen en wordt niet als echte maandkost gepresenteerd.

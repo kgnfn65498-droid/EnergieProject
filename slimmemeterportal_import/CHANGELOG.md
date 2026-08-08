@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.5.20
+- Historische NextEnergy-prijstelemetrie toegevoegd vanuit Home Assistant kwartier-snapshots.
+- Per beschikbare maand worden observatieaantal, gemiddelde, minimum, maximum en eerste/laatste timestamp berekend.
+- `supplier_price_history_connected` maakt zichtbaar of historische leverancier-prijsdata daadwerkelijk beschikbaar is.
+- Historische prijsstatistiek wordt expliciet als ongewogen prijstrend gemarkeerd; nog niet als verbruikgewogen energiekost.
+- Bestaande NextEnergy live-koppeling en conservatieve all-in blokkering blijven intact.
+
 ## 10.5.19
 - NextEnergy-contractcontext toegevoegd aan de analysecontext.
 - Bekende contractgegevens vastgelegd: start 15-07-2026, dynamische stroom, variabel gas, voorschot €150, opzegtermijn 5 werkdagen.

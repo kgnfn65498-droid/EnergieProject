@@ -40,3 +40,5 @@
 - v10.5.18: eerste financiële context met dekkinggestuurde marktvariabele kosten.
 
 - v10.5.19: NextEnergy-contractcontext en live leverancier-prijstelemetrie.
+
+- v10.5.20: historische NextEnergy-prijsreeks uit Home Assistant kwartier-snapshots.

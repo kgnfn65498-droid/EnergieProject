@@ -1,4 +1,4 @@
-# EnergieProject v10.5.19
+# EnergieProject v10.5.20
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -51,3 +51,7 @@ Eerste conservatieve financiële analysebasis: alleen kosten bij bewezen overlap
 
 ## v10.5.19
 NextEnergy is nu als leveranciercontext gekoppeld. Live prijsdata wordt gebruikt als telemetrie, niet als vervanging voor ontbrekende contractcomponenten.
+
+
+## v10.5.20
+NextEnergy-prijstelemetrie wordt nu ook historisch uit de kwartier-snapshots gelezen. Dit vormt de basis voor latere tijdgewogen en verbruikgewogen financiële analyse.
