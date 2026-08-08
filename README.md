@@ -1,16 +1,14 @@
-# EnergieProject v10.3.0 – Release Inbox Installer
+# EnergieProject v10.3.1 – Hardened Release Inbox Installer
 
-v10.3.0 bouwt voort op de goedgekeurde v10.2.0-basis en sluit aan op de inmiddels werkende QNAP-share `AI Projecten`, de actieve NAS-repository `EnergieProject` en GitHub-SSH via een repository deploy key. De iMac is niet meer nodig voor de 24/7 projectketen.
+v10.3.1 hardent de werkende NAS-releaseketen: volledige tar-backup/rollback, controle op tracked én untracked wijzigingen, expliciete teststatus en een harde eindcontrole dat lokale `main` en GitHub `main` exact gelijk zijn. De gecertificeerde productiekern blijft 9.4-core1.
 
 ## Nieuw
-- Werkelijke NAS-layout: `/share/Energie_NAS/EnergieProject`.
-- Release-inbox: `EnergieProject_Inbox/incoming`, met `processing`, `processed` en `failed`.
-- `tools/release_installer.sh` valideert ZIP-integriteit, verplichte bestanden en `MANIFEST.sha256`.
-- Installer weigert te werken bij een dirty Git-worktree of meerdere ZIPs tegelijk.
-- Voor iedere live vervanging wordt een tar.gz-herstelkopie gemaakt in `EnergieProject_Backups`.
-- `.git` blijft behouden; de release-worktree wordt gecontroleerd vervangen.
-- Bij test/commit/push-fouten wordt de Git-worktree teruggezet naar de vooraf vastgelegde commit.
-- Geslaagde release-ZIPs gaan naar `processed`; fouten naar `failed`.
+- Volledige tar-backup vóór iedere live vervanging en validatie dat de backup daadwerkelijk leesbaar is.
+- Volledige tar-rollback van de vorige worktree bij fouten vóór een bevestigde GitHub-push; `.git` blijft behouden.
+- Installer blokkeert op tracked én untracked lokale wijzigingen en wanneer lokale `main` niet exact gelijk is aan GitHub `main`.
+- ZIP-integriteit, verplichte bestanden, `MANIFEST.sha256`, post-installatiehashes en shellsyntax zijn verplichte controles.
+- Python/pytest wordt alleen uitgevoerd wanneer het op de host beschikbaar is; ontbrekende runtime wordt expliciet als `NIET UITGEVOERD` gelogd in plaats van stil overgeslagen.
+- Een geslaagde release wordt pas naar `processed` verplaatst nadat lokale HEAD en GitHub `main` dezelfde commit hebben en de repository clean is.
 - Productiekern blijft `9.4-core1`.
 
 De installer is bewust een host-side tool voor de Home Assistant Terminal/SSH-omgeving. Daarmee gebruikt hij de reeds werkende GitHub deploy key zonder die private sleutel in de Energie-app of op de SMB-share te hoeven opslaan.

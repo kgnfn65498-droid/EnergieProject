@@ -1,10 +1,13 @@
 # Changelog
 
+## 10.3.1
+- Release-inbox installer gehardend met volledige tar-rollback en strengere eindcontrole.
+- Geen functionele wijziging aan maandworkflow of rapportgeneratoren; productiekern blijft `9.4-core1`.
+
 ## 10.3.0
-- Nieuwe NAS-master en release-inbox paden vastgelegd.
-- Veilige host-side release-installer toegevoegd met staging, SHA256-validatie, backup, rollback en Git push.
-- iMac verwijderd als noodzakelijke schakel in de projectketen.
-- Productiekern 9.4-core1 ongewijzigd.
+- Release-inbox en NAS-master integratie toegevoegd.
+- Host-side installatiepad met staging, SHA256-validatie, backup en Git push.
+- Productiekern `9.4-core1` ongewijzigd.
 
 ## 10.2.0
 - Veilige NAS-migratievoorbereiding toegevoegd zonder automatische verplaatsingen of verwijderingen.

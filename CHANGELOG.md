@@ -1,5 +1,14 @@
 # Changelog
 
+## 10.3.1
+- Release-installer gehardend met volledige tar-gebaseerde rollback van de vorige worktree.
+- Installatie stopt bij tracked of untracked lokale wijzigingen en bij verschil tussen lokale `main` en GitHub `main`.
+- Pre-release backup wordt na aanmaak ook inhoudelijk als leesbaar tar-archief gevalideerd.
+- Ontbrekende Python/pytest wordt niet meer stil genegeerd: de teststatus wordt expliciet gelogd en deterministische ZIP/SHA256/bestands-/shellcontroles blijven verplicht.
+- Na push controleert de installer dat lokale HEAD en GitHub `main` exact dezelfde commit zijn en dat de repository clean is voordat de ZIP naar `processed` gaat.
+- Bij een onduidelijke pushfout wordt GitHub zelf gecontroleerd voordat rollback wordt gestart.
+- Productiekern `9.4-core1` blijft ongewijzigd.
+
 ## 10.3.0
 - Nieuwe NAS-master en release-inbox paden vastgelegd.
 - Veilige host-side release-installer toegevoegd met staging, SHA256-validatie, backup, rollback en Git push.
