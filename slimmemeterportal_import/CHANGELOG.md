@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.5.23
+- Verbruikgewogen NextEnergy-resultaten geïntegreerd in de financiële maandcontext.
+- Maanden met echte geobserveerde kwartierkosten krijgen `partial_observed`.
+- `months_partially_costable` bevat nu ook deze maanden.
+- Geobserveerde import-kWh, verbruikgewogen stroomprijs en variabele stroomkosten worden direct financieel beschikbaar.
+- Geen extrapolatie naar volledige maand en nog geen leverancier-all-in kosten.
+
 ## 10.5.22
 - Eerste echte verbruikgewogen financiële analyse toegevoegd.
 - NextEnergy-kwartierprijs wordt gekoppeld aan de delta van `sensor.p1_meter_energie_import` uit dezelfde NAS-snapshot.

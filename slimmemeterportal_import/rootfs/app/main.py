@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.22"
+APP_VERSION = "10.5.23"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -5016,6 +5016,7 @@ def _supplier_contract_context() -> dict[str, Any]:
             "supplier_markup_known": False,
             "export_compensation_known": False,
             "gas_supplier_formula_known": False,
+            "consumption_weighted_import_available": False,
             "all_in_ready": False,
         },
         "interpretation": (
@@ -5105,6 +5106,33 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         )
         if item.get("available")
     ]
+    weighted_by_month = {
+        str(item.get("month")): item
+        for item in supplier_context["monthly_consumption_weighted_electricity"]
+        if item.get("available")
+    }
+    for month in months:
+        weighted = weighted_by_month.get(str(month.get("month")))
+        if not weighted:
+            continue
+        financial = month.setdefault("financial_context", {})
+        financial["status"] = "partial_observed"
+        financial["observed_import_kwh"] = weighted.get("import_kwh_observed")
+        financial["observed_weighted_electricity_price_eur_per_kwh"] = weighted.get("weighted_average_eur_per_kwh")
+        financial["observed_variable_electricity_cost_eur"] = weighted.get("observed_import_cost_eur")
+        financial["nextenergy_weighted_import"] = {
+            key: weighted.get(key) for key in (
+                "matched_intervals", "first_snapshot", "last_snapshot",
+                "coverage", "quality", "transport"
+            )
+        }
+        note = "NextEnergy-verbruikgewogen kosten dekken alleen de beschikbare kwartiersnapshotperiode; niet extrapoleren naar een volledige maand."
+        limitations = financial.setdefault("limitations", [])
+        if note not in limitations:
+            limitations.append(note)
+
+    financial_months_partial = sorted(set(financial_months_partial) | set(weighted_by_month))
+    supplier_context["cost_model"]["consumption_weighted_import_available"] = bool(weighted_by_month)
 
     return {
         "schema": ANALYSIS_CONTEXT_SCHEMA,
@@ -9568,7 +9596,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.22",
+        "target_stable_release": "10.5.23",
     }
 
     summary = {
@@ -9600,7 +9628,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.22",
+        "target_stable_release": "10.5.23",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9667,7 +9695,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.22",
+        "Doelrelease: 10.5.23",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

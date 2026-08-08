@@ -46,3 +46,5 @@
 - v10.5.21: historische NextEnergy-prijsreader via NAS/MCP productiepad.
 
 - v10.5.22: verbruikgewogen NextEnergy-afnameprijs en geobserveerde importkosten.
+
+- v10.5.23: verbruikgewogen NextEnergy-kosten geïntegreerd in financiële maandstatus.

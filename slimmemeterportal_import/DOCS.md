@@ -644,3 +644,7 @@ De kwartier-snapshots blijven op de NAS. De add-on zoekt de NextEnergy-entiteit 
 
 ## v10.5.22
 Per kwartiersnapshot: positieve P1-importdelta × NextEnergy-prijs. Resultaat blijft `partial_observed_window` zolang niet de volledige maand is afgedekt.
+
+
+## v10.5.23
+Valide verbruikgewogen NextEnergy-waarnemingen geven de maand financiële status `partial_observed`; er wordt niet naar een volledige maand geëxtrapoleerd.
