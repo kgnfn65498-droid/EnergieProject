@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.5.28
+- De herstelde verbruikgewogen NextEnergy-keten uit 10.5.27 is nu voorzien van een expliciete prognosekwaliteitsdrempel.
+- `observed_coverage_days` en `projection_eligibility` toegevoegd per financiële maand.
+- Minimaal 7 dagen echte kwartierwaarnemingen vereist voordat een maand überhaupt prognosegeschikt wordt gemarkeerd.
+- Nog steeds geen automatische maand- of contractjaarextrapolatie; leverancier-all-in componenten ontbreken nog.
+- Supplier cost model toont voortaan `projection_ready_months` en de gehanteerde projection policy.
+
 ## 10.5.27
 - Runtimefout uit 10.5.26 hersteld: `timezone` wordt nu correct uit `datetime` geïmporteerd.
 - De 10.5.26-diagnostiek bewees dat zowel 307 prijs- als 307 P1-importsnapshots correct worden geladen; de MCP-reader zelf is dus goed.

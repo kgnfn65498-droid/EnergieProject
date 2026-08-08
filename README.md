@@ -1,4 +1,4 @@
-# EnergieProject v10.5.27
+# EnergieProject v10.5.28
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -83,3 +83,7 @@ De NAS/MCP-reader gebruikt nu de echte toolnamen `search_files` en `read_text_fi
 
 ## v10.5.27
 Herstelt de ontbrekende `timezone`-import die in 10.5.26 pas na succesvol laden van de 307+307 snapshots zichtbaar werd.
+
+
+## v10.5.28
+Financiële run-rates krijgen nu een harde kwaliteitsdrempel: pas vanaf zeven dagen echte waarneming wordt een maand prognosegeschikt gemarkeerd. Er wordt nog niet automatisch geëxtrapoleerd.

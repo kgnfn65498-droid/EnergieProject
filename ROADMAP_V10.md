@@ -56,3 +56,5 @@
 - v10.5.26: structureel herstel MCP snapshotreader met echte toolnamen en permanente diagnostiek.
 
 - v10.5.27: runtimefix timezone na bewezen succesvolle MCP snapshotreader.
+
+- v10.5.28: prognosekwaliteitsdrempel op echte NextEnergy/P1-waarnemingen; geen voortijdige extrapolatie.

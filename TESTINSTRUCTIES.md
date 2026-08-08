@@ -1,22 +1,22 @@
-# Testinstructies v10.5.27
-
+# Testinstructies v10.5.28
 1. ZIP rechtstreeks in `EnergieProject_Inbox/incoming`.
 2. Wacht op `processed`.
-3. Update Home Assistant naar 10.5.27 en herstart de add-on één keer.
+3. Update Home Assistant naar 10.5.28 en herstart de add-on één keer.
 4. Klik **Download analysedata** en stuur het JSON-bestand.
 
-Verwacht voor 2026_08:
-- diagnostiek: `price_snapshots_found = 307` of hoger
-- diagnostiek: `import_snapshots_found = 307` of hoger
-- `reader_status = weighted_ok`
-- `monthly_consumption_weighted_electricity` bevat augustus
-- `matched_intervals > 0`
-- `observed_window_hours > 0`
-- `observed_daily_import_run_rate_kwh > 0`
-- `observed_daily_variable_cost_run_rate_eur > 0`
-- augustus `financial_context.status = partial_observed`
-- `months_partially_costable` bevat `2026_08`
+Verwacht nu:
+- augustus blijft `partial_observed`
+- gewogen NextEnergy-reeks blijft beschikbaar
+- `observed_coverage_days` is ongeveer 3,18 dagen
+- `projection_eligibility.eligible = false`
+- reden = `insufficient_observation_window`
+- `projection_ready_months = []`
+- minimum = 7 dagen
+- automatische maand- en contractjaarextrapolatie blijven `false`
 - `ready_for_all_in_costs = false`
+
+Dit is bewust: de huidige 76,25 uur is nog te kort voor een betrouwbare prognose.
+Geen Terminal of handmatige Git-acties.
 
 Juli-EPEX blijft `gedeeltelijk` t/m 2026-07-29.
 Gebruik GEEN Home Assistant Terminal.

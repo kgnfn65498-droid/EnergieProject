@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.27"
+APP_VERSION = "10.5.28"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -5106,6 +5106,8 @@ def _supplier_contract_context() -> dict[str, Any]:
             "export_compensation_known": False,
             "gas_supplier_formula_known": False,
             "consumption_weighted_import_available": False,
+            "projection_ready_months": [],
+            "projection_policy": {"minimum_observed_days": 7.0, "automatic_month_extrapolation": False, "automatic_contract_year_extrapolation": False},
             "all_in_ready": False,
         },
         "interpretation": (
@@ -5213,6 +5215,19 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         financial["observed_window_hours"] = weighted.get("observed_window_hours")
         financial["observed_daily_import_run_rate_kwh"] = weighted.get("observed_daily_import_run_rate_kwh")
         financial["observed_daily_variable_cost_run_rate_eur"] = weighted.get("observed_daily_variable_cost_run_rate_eur")
+        observed_hours = weighted.get("observed_window_hours")
+        coverage_days = (float(observed_hours) / 24.0) if isinstance(observed_hours, (int, float)) else None
+        financial["observed_coverage_days"] = _round_metric(coverage_days) if coverage_days is not None else None
+        financial["projection_eligibility"] = {
+            "eligible": bool(coverage_days is not None and coverage_days >= 7.0),
+            "minimum_observed_days": 7.0,
+            "observed_days": _round_metric(coverage_days) if coverage_days is not None else None,
+            "reason": (
+                "minimum_observation_window_met"
+                if coverage_days is not None and coverage_days >= 7.0
+                else "insufficient_observation_window"
+            ),
+        }
         financial["nextenergy_weighted_import"] = {
             key: weighted.get(key) for key in (
                 "matched_intervals", "first_snapshot", "last_snapshot",
@@ -5226,6 +5241,19 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
 
     financial_months_partial = sorted(set(financial_months_partial) | set(weighted_by_month))
     supplier_context["cost_model"]["consumption_weighted_import_available"] = bool(weighted_by_month)
+    projection_months = []
+    for month in months:
+        financial = month.get("financial_context") or {}
+        eligibility = financial.get("projection_eligibility") or {}
+        if eligibility.get("eligible"):
+            projection_months.append(str(month.get("month")))
+    supplier_context["cost_model"]["projection_ready_months"] = projection_months
+    supplier_context["cost_model"]["projection_policy"] = {
+        "minimum_observed_days": 7.0,
+        "automatic_month_extrapolation": False,
+        "automatic_contract_year_extrapolation": False,
+        "reason": "run-rate is observational until minimum coverage and supplier all-in components are available",
+    }
 
     return {
         "schema": ANALYSIS_CONTEXT_SCHEMA,
@@ -9689,7 +9717,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.27",
+        "target_stable_release": "10.5.28",
     }
 
     summary = {
@@ -9721,7 +9749,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.27",
+        "target_stable_release": "10.5.28",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9788,7 +9816,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.27",
+        "Doelrelease: 10.5.28",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

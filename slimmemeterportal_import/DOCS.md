@@ -664,3 +664,7 @@ De kwartierreader gebruikt `search_files` en `read_text_file`, exact zoals de En
 
 ## v10.5.27
 De gewogen reader berekent de geobserveerde tijdsduur met timezone-aware UTC-datetimes; `timezone` is nu expliciet geïmporteerd.
+
+
+## v10.5.28
+`projection_eligibility` voorkomt dat een korte meetperiode als betrouwbare maand- of jaarprognose wordt behandeld. Drempel: 7 dagen.
