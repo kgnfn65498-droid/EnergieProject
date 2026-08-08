@@ -7,6 +7,7 @@
 - v10.5.3: publisherlogging, persistente status en automatische UI-status bewezen.
 - v10.5.4: definitieve end-to-end productietest zonder Terminal.
 - v10.5.5: eerste conversatie-/analysebasis met gestandaardiseerde maand-, kwartaal- en jaarcontext.
+- v10.5.6: analysebasis bruikbaar gemaakt in de productieconsole met sneloverzicht, download en expliciete datakwaliteit.
 
 ## Vervolg v10.5
 - Analysecontext stapsgewijs uitbreiden met alleen bewezen bruikbare historische financiële/prijscontext.

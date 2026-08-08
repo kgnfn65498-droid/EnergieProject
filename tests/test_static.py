@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "10.5.5"
+    assert cfg_version == app_version == "10.5.6"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "10.5.5"' in config
+    assert 'version: "10.5.6"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "10.5.5"' in config
-    assert 'APP_VERSION = "10.5.5"' in main
+    assert 'version: "10.5.6"' in config
+    assert 'APP_VERSION = "10.5.6"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.5"' in source
+    assert 'APP_VERSION = "10.5.6"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2433,7 +2433,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.5"' in source
+    assert 'APP_VERSION = "10.5.6"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -2534,7 +2534,7 @@ def test_v1054_is_end_to_end_release_chain_proof():
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     instructions = (ROOT / "TESTINSTRUCTIES.md").read_text(encoding="utf-8")
     main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert "10.5.5" in changelog
+    assert "10.5.6" in changelog
     assert "incoming -> QNAP processed -> automatische HA GitHub-publicatie -> Home Assistant update" in changelog
     assert "Gebruik GEEN Home Assistant Terminal." in instructions
     assert "Gebruik GEEN handmatige Git-commit of Git-push." in instructions
@@ -2548,7 +2548,7 @@ def test_v1055_analysis_context_present():
     assert 'ANALYSIS_CONTEXT_SCHEMA = "energie_analysis_context_v1"' in source
     assert "def build_analysis_context(" in source
     assert 'path.endswith("/analysis-context")' in source
-    assert '>Analysecontext</a>' in source
+    assert 'analysecontext</a>' in source.lower()
 
 
 def test_v1055_analysis_context_is_read_only_sidecar():
@@ -2565,4 +2565,21 @@ def test_v1055_analysis_context_marks_period_completeness():
     source = MAIN.read_text(encoding="utf-8")
     assert 'year_entry["complete_calendar_year"] = len(year_items) == 12' in source
     assert 'q_entry["complete_quarter"] = len(quarter_items) == 3' in source
-    assert '"production_source": production_source if production_kwh > 0 else "not_available"' in source
+    assert '"production_source": production_source' in source
+
+
+def test_v1056_analysis_download_and_top_overview_present():
+    source = MAIN.read_text(encoding="utf-8")
+    assert "Sneloverzicht analyse" in source
+    assert "Download analysedata" in source
+    assert 'path.endswith("/download-analysis-data")' in source
+    assert 'filename="Energie_analyse_' in source
+
+
+def test_v1056_missing_analysis_values_are_null_and_coverage_is_explicit():
+    source = MAIN.read_text(encoding="utf-8")
+    assert '"missing_is_null": True' in source
+    assert '"metric_month_coverage": coverage' in source
+    assert 'solar_balance_status = "inconsistent_period_coverage"' in source
+    assert 'direct_solar_kwh = None' in source
+    assert 'house_use_kwh = None' in source

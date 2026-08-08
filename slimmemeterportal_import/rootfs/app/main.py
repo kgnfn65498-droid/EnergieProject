@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.5"
+APP_VERSION = "10.5.6"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4172,7 +4172,7 @@ def next_run(options: Options) -> datetime:
 MONTH_INPUT_ROOT = OUTPUT_ROOT / "01_Input"
 
 
-# v10.5.5: gestandaardiseerde, read-only analysecontext op basis van de reeds
+# v10.5.6: gestandaardiseerde, read-only analysecontext op basis van de reeds
 # opgebouwde maandmappen. Deze laag verandert de maandworkflow niet en schrijft
 # geen brondata terug; hij maakt kwartaal- en jaaranalyse machineleesbaar.
 ANALYSIS_CONTEXT_SCHEMA = "energie_analysis_context_v1"
@@ -4185,35 +4185,55 @@ def _round_metric(value: float) -> float:
 def _month_energy_metrics(month_key: str) -> dict[str, Any]:
     parse_month_key(month_key)
     folder = MONTH_INPUT_ROOT / month_key
-    p1e_rows = read_csv_rows(folder / "P1e.csv")
-    p1g_rows = read_csv_rows(folder / "P1g.csv")
-    enphase_rows = read_csv_rows(folder / "Enphase.csv")
+    p1e_path = folder / "P1e.csv"
+    p1g_path = folder / "P1g.csv"
+    enphase_path = folder / "Enphase.csv"
+    p1e_rows = read_csv_rows(p1e_path)
+    p1g_rows = read_csv_rows(p1g_path)
+    enphase_rows = read_csv_rows(enphase_path)
+
+    has_p1e = p1e_path.is_file() and bool(p1e_rows)
+    has_p1g = p1g_path.is_file() and bool(p1g_rows)
+    has_enphase = enphase_path.is_file() and bool(enphase_rows)
 
     import_kwh = cumulative_delta(
         p1e_rows,
         ("total_power_import_kwh", "energy_import_kwh", "import_kwh", "meter_reading_import_kwh"),
-    )
+    ) if has_p1e else None
     export_kwh = cumulative_delta(
         p1e_rows,
         ("total_power_export_kwh", "energy_export_kwh", "export_kwh", "meter_reading_export_kwh"),
-    )
-    gas_m3 = cumulative_delta(p1g_rows, ("total_gas_m3", "gas_m3", "meter_reading_gas_m3"))
+    ) if has_p1e else None
+    gas_m3 = cumulative_delta(p1g_rows, ("total_gas_m3", "gas_m3", "meter_reading_gas_m3")) if has_p1g else None
     production_kwh = cumulative_delta(
         enphase_rows,
         ("energy_kwh", "lifetime_energy_kwh", "production_kwh", "value_kwh", "value"),
-    )
-    production_source = "enphase"
-    if production_kwh <= 0 and export_kwh > 0:
-        # Zelfde conservatieve fallback als de bestaande rapportadapter: bruikbaar
-        # voor analyse, maar expliciet gelabeld zodat dit niet als gemeten opwek
-        # wordt geïnterpreteerd.
+    ) if has_enphase else None
+
+    production_source = "enphase" if has_enphase else "not_available"
+    if production_kwh is None and export_kwh is not None and export_kwh > 0:
         production_kwh = export_kwh
         production_source = "export_fallback"
 
-    direct_solar_kwh = max(0.0, production_kwh - export_kwh)
-    house_use_kwh = max(0.0, import_kwh + direct_solar_kwh)
-    self_use_pct = (direct_solar_kwh / production_kwh * 100.0) if production_kwh else 0.0
-    self_supply_pct = (direct_solar_kwh / house_use_kwh * 100.0) if house_use_kwh else 0.0
+    # Afgeleide zonne-KPI's zijn alleen betrouwbaar wanneer productie en
+    # teruglevering dezelfde periode representeren. Een productie lager dan
+    # teruglevering is fysiek onmogelijk voor een gelijk meetvenster en wijst
+    # dus op onvolledige/asynchrone brondekking. In dat geval: onbekend, geen 0.
+    solar_balance_status = "not_available"
+    direct_solar_kwh = None
+    house_use_kwh = None
+    self_use_pct = None
+    self_supply_pct = None
+    if production_kwh is not None and export_kwh is not None and import_kwh is not None:
+        if production_kwh + 1e-6 >= export_kwh:
+            solar_balance_status = "ok"
+            direct_solar_kwh = max(0.0, production_kwh - export_kwh)
+            house_use_kwh = max(0.0, import_kwh + direct_solar_kwh)
+            self_use_pct = (direct_solar_kwh / production_kwh * 100.0) if production_kwh > 0 else None
+            self_supply_pct = (direct_solar_kwh / house_use_kwh * 100.0) if house_use_kwh > 0 else None
+        else:
+            solar_balance_status = "inconsistent_period_coverage"
+
     validation_path = folder / "month_input_validation.json"
     validation: dict[str, Any] = {}
     try:
@@ -4228,25 +4248,31 @@ def _month_energy_metrics(month_key: str) -> dict[str, Any]:
             ("EPEX electricity", "EPEX stroom.csv"), ("EPEX gas", "EPEX gas.csv"),
         ) if (folder / file_name).is_file()
     ]
+
+    def metric(value: float | None) -> float | None:
+        return _round_metric(value) if value is not None else None
+
     return {
         "month": month_key,
         "year": int(month_key[:4]),
         "quarter": (int(month_key[5:7]) - 1) // 3 + 1,
         "metrics": {
-            "grid_import_kwh": _round_metric(import_kwh),
-            "grid_export_kwh": _round_metric(export_kwh),
-            "net_grid_kwh": _round_metric(import_kwh - export_kwh),
-            "gas_m3": _round_metric(gas_m3),
-            "solar_production_kwh": _round_metric(production_kwh),
-            "direct_solar_use_kwh": _round_metric(direct_solar_kwh),
-            "house_use_kwh": _round_metric(house_use_kwh),
-            "self_use_pct": _round_metric(self_use_pct),
-            "self_supply_pct": _round_metric(self_supply_pct),
+            "grid_import_kwh": metric(import_kwh),
+            "grid_export_kwh": metric(export_kwh),
+            "net_grid_kwh": metric((import_kwh - export_kwh) if import_kwh is not None and export_kwh is not None else None),
+            "gas_m3": metric(gas_m3),
+            "solar_production_kwh": metric(production_kwh),
+            "direct_solar_use_kwh": metric(direct_solar_kwh),
+            "house_use_kwh": metric(house_use_kwh),
+            "self_use_pct": metric(self_use_pct),
+            "self_supply_pct": metric(self_supply_pct),
         },
         "quality": {
             "month_input_validation": validation.get("status") or "not_available",
-            "production_source": production_source if production_kwh > 0 else "not_available",
+            "production_source": production_source,
+            "solar_balance_status": solar_balance_status,
             "available_sources": available_sources,
+            "missing_is_null": True,
         },
     }
 
@@ -4256,18 +4282,27 @@ def _aggregate_analysis_period(items: list[dict[str, Any]]) -> dict[str, Any]:
         "grid_import_kwh", "grid_export_kwh", "net_grid_kwh", "gas_m3",
         "solar_production_kwh", "direct_solar_use_kwh", "house_use_kwh",
     )
-    totals = {
-        key: _round_metric(sum(float((item.get("metrics") or {}).get(key) or 0.0) for item in items))
-        for key in additive
-    }
+    totals: dict[str, float | None] = {}
+    coverage: dict[str, int] = {}
+    for key in additive:
+        values = [
+            float((item.get("metrics") or {}).get(key))
+            for item in items
+            if (item.get("metrics") or {}).get(key) is not None
+        ]
+        coverage[key] = len(values)
+        totals[key] = _round_metric(sum(values)) if values else None
+
     solar = totals["solar_production_kwh"]
     house = totals["house_use_kwh"]
-    totals["self_use_pct"] = _round_metric(totals["direct_solar_use_kwh"] / solar * 100.0) if solar else 0.0
-    totals["self_supply_pct"] = _round_metric(totals["direct_solar_use_kwh"] / house * 100.0) if house else 0.0
+    direct = totals["direct_solar_use_kwh"]
+    totals["self_use_pct"] = _round_metric(direct / solar * 100.0) if direct is not None and solar not in (None, 0) else None
+    totals["self_supply_pct"] = _round_metric(direct / house * 100.0) if direct is not None and house not in (None, 0) else None
     return {
         "months_present": [str(item.get("month")) for item in items],
         "month_count": len(items),
         "metrics": totals,
+        "metric_month_coverage": coverage,
     }
 
 
@@ -4305,6 +4340,17 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             q_entry["complete_quarter"] = len(quarter_items) == 3
             quarters.append(q_entry)
 
+    warnings: list[str] = []
+    no_source_months = [item["month"] for item in months if not (item.get("quality") or {}).get("available_sources")]
+    inconsistent_months = [
+        item["month"] for item in months
+        if (item.get("quality") or {}).get("solar_balance_status") == "inconsistent_period_coverage"
+    ]
+    if no_source_months:
+        warnings.append("Geen bruikbare bronbestanden: " + ", ".join(no_source_months))
+    if inconsistent_months:
+        warnings.append("Zonne-KPI's niet berekend wegens ongelijke brondekking: " + ", ".join(inconsistent_months))
+
     return {
         "schema": ANALYSIS_CONTEXT_SCHEMA,
         "version": APP_VERSION,
@@ -4314,20 +4360,43 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "first_month": months[0]["month"] if months else None,
             "last_month": months[-1]["month"] if months else None,
         },
+        "summary": {
+            "months": len(months),
+            "quarters": len(quarters),
+            "years": len(years),
+            "warnings": warnings,
+        },
         "definitions": {
             "grid_import_kwh": "Elektriciteit van het net volgens P1e.",
             "grid_export_kwh": "Teruglevering aan het net volgens P1e.",
             "net_grid_kwh": "grid_import_kwh minus grid_export_kwh.",
             "gas_m3": "Gasverbruik volgens P1g.",
             "solar_production_kwh": "Enphase-opwek; bij ontbrekende Enphase alleen expliciet gemarkeerde export_fallback.",
-            "self_use_pct": "Direct eigen zonnegebruik gedeeld door zonneproductie.",
-            "self_supply_pct": "Direct eigen zonnegebruik gedeeld door berekend huishoudelijk elektriciteitsgebruik.",
+            "self_use_pct": "Direct eigen zonnegebruik gedeeld door zonneproductie; null als brondekking dit niet betrouwbaar toelaat.",
+            "self_supply_pct": "Direct eigen zonnegebruik gedeeld door berekend huishoudelijk elektriciteitsgebruik; null als brondekking dit niet betrouwbaar toelaat.",
         },
         "months": months,
         "quarters": quarters,
         "years": years,
     }
 
+
+def analysis_overview(context: dict[str, Any]) -> dict[str, Any]:
+    summary = context.get("summary") or {}
+    history = context.get("history_span") or {}
+    latest = (context.get("months") or [])[-1] if context.get("months") else {}
+    quality = latest.get("quality") or {}
+    warnings = summary.get("warnings") or []
+    return {
+        "history": f"{history.get('first_month') or '—'} t/m {history.get('last_month') or '—'}",
+        "months": summary.get("months", 0),
+        "quarters": summary.get("quarters", 0),
+        "years": summary.get("years", 0),
+        "latest_month": latest.get("month") or "—",
+        "latest_sources": ", ".join(quality.get("available_sources") or []) or "geen",
+        "quality": "Waarschuwing" if warnings else "OK",
+        "warning": warnings[0] if warnings else "Analysecontext beschikbaar",
+    }
 
 def parse_month_key(value: str) -> tuple[int, int]:
     if not re.fullmatch(r"\d{4}_(0[1-9]|1[0-2])", value):
@@ -8726,7 +8795,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.5",
+        "target_stable_release": "10.5.6",
     }
 
     summary = {
@@ -8758,8 +8827,8 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.5",
-        "note": "v10.5.5 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
+        "target_stable_release": "10.5.6",
+        "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
     generated = {
@@ -8825,7 +8894,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.5",
+        "Doelrelease: 10.5.6",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
@@ -8933,6 +9002,9 @@ def html_page() -> bytes:
         for item in health.get("checks") or []
     ) or "<li><span>Nog geen gezondheidscontrole</span></li>"
     log_month = str(workflow.get("month") or last_run.get("month") or "").strip()
+
+    analysis_context = build_analysis_context()
+    analysis_top = analysis_overview(analysis_context)
 
     history_rows = []
     for item in history:
@@ -9161,6 +9233,15 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 </div>
 </div>
 
+<div class="card"><h2>Sneloverzicht analyse</h2>
+<div class="grid">
+  <div class="metric"><small>Historie</small><strong>{esc(analysis_top.get('history'))}</strong><small>{esc(analysis_top.get('months'))} maand(en) · {esc(analysis_top.get('quarters'))} kwartaal(en) · {esc(analysis_top.get('years'))} jaar/jaren</small></div>
+  <div class="metric"><small>Laatste analysemaand</small><strong>{esc(analysis_top.get('latest_month'))}</strong><small>Bronnen: {esc(analysis_top.get('latest_sources'))}</small></div>
+  <div class="metric"><small>Datakwaliteit</small><strong><span class="pill {'warn' if analysis_top.get('quality') == 'Waarschuwing' else 'ok'}">{esc(analysis_top.get('quality'))}</span></strong><small>{esc(analysis_top.get('warning'))}</small></div>
+  <div class="metric"><small>Analysedata</small><strong>Direct beschikbaar</strong><p><a class="button-link" href="download-analysis-data">Download analysedata</a></p><small><a href="analysis-context">Bekijk technische analysecontext</a></small></div>
+</div>
+</div>
+
 <div class="card"><h2>Actuele voortgang</h2>
 <div><strong id="progress-message">{esc(visual_progress.get('step') or 'Geen actieve workflow')}</strong></div>
 <div class="progress"><span id="progress-bar" class="{'running' if visual_progress.get('running') else ''}"></span></div>
@@ -9377,7 +9458,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <form method="post" action="report-service-check"><button type="submit">Controleer rapportservice</button></form>
 <form method="post" action="run-report-generation"><button type="submit">Genereer compleet maandrapport</button></form>
 </details>
-<p class="links"><a href="analysis-context">Analysecontext</a> · <a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="workflow-lock-status">Workflowstatus</a> · <a href="operation-status">Operationele status</a> · <a href="health-dashboard">Gezondheidsdashboard</a> · <a href="health">Healthcheck</a></p>
+<p class="links"><a href="analysis-context">Technische analysecontext</a> · <a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="workflow-lock-status">Workflowstatus</a> · <a href="operation-status">Operationele status</a> · <a href="health-dashboard">Gezondheidsdashboard</a> · <a href="health">Healthcheck</a></p>
 <p class="hint">API-key en algemene importplanning staan op het tabblad <strong>Configuratie</strong>. De automatische maandafsluiting kan vanaf v7.6 ook hierboven worden ingesteld.</p>
 </div>
 <script>
@@ -9968,6 +10049,18 @@ class Handler(BaseHTTPRequestHandler):
                 indent=2,
             ).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/download-analysis-data") or path == "/download-analysis-data":
+            try:
+                body = json.dumps(build_analysis_context(), ensure_ascii=False, indent=2).encode("utf-8")
+                self.send_body(
+                    HTTPStatus.OK,
+                    body,
+                    "application/json; charset=utf-8",
+                    disposition=f'attachment; filename="Energie_analyse_{datetime.now(TZ).strftime("%Y%m%d_%H%M%S")}.json"',
+                )
+            except Exception as exc:
+                body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, body, "application/json; charset=utf-8")
         elif path.endswith("/analysis-context") or path == "/analysis-context":
             query = parse_qs(parsed.query)
             year_raw = (query.get("year") or [""])[0].strip()

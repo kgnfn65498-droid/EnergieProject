@@ -575,6 +575,10 @@ De operationele console bevat **Download diagnosepakket**. Deze download bundelt
 
 `samenvatting.txt` maakt expliciet onderscheid tussen de actieve softwareversie en de release waarin de ongewijzigde productiekern oorspronkelijk is gecertificeerd. Zo is zichtbaar wanneer hetzelfde geldige kerncertificaat veilig wordt hergebruikt.
 
+## Versie 10.5.6 — sneloverzicht, download en datakwaliteit
+
+De operationele console toont direct bovenaan een **Sneloverzicht analyse** met historie, laatste analysemaand en datakwaliteit. De knop **Download analysedata** levert dezelfde read-only analysecontext als JSON-bestand. Ontbrekende bronwaarden worden als `null` gemarkeerd. Wanneer Enphase-opwek lager is dan P1-teruglevering binnen een maandrecord, worden afgeleide zonne-KPI's niet geforceerd berekend maar gemarkeerd met `solar_balance_status: inconsistent_period_coverage`. Kwartaal- en jaaraggregaties tonen per KPI `metric_month_coverage`.
+
 ## Versie 10.5.5 — gestandaardiseerde analysecontext
 
 De operationele console bevat de link `Analysecontext`. Het endpoint `/analysis-context` leest uitsluitend bestaande maandmappen onder `/config/output/01_Input/YYYY_MM` en retourneert schema `energie_analysis_context_v1` met maand-, kwartaal- en kalenderjaaraggregaties. De context schrijft geen brondata terug en wijzigt de maandworkflow niet. Onvolledige kwartalen en kalenderjaren worden expliciet gemarkeerd. Met `?year=YYYY` kan de context tot één kalenderjaar worden beperkt.

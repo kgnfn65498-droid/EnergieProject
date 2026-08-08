@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.5.6
+- Sneloverzicht analyse bovenaan toegevoegd.
+- Downloadknop voor analysedata toegevoegd.
+- Ontbrekende analysewaarden worden `null` in plaats van `0.0`.
+- Inconsistente zonne-brondekking blokkeert afgeleide zonne-KPI's en wordt expliciet gemarkeerd.
+- Productiekern 9.4-core1 en releaseketen ongewijzigd.
+
 ## 10.5.5
 - Read-only `analysis-context` endpoint toegevoegd voor gestandaardiseerde maand-, kwartaal- en jaaranalyse uit bestaande maandinput.
 - Bronkwaliteit en onvolledige perioden worden expliciet in de JSON-context opgenomen.

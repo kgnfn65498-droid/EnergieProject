@@ -1,6 +1,6 @@
-# EnergieProject v10.5.5
+# EnergieProject v10.5.6
 
-v10.5.5 bouwt voort op de bewezen stabiele v10.5.4-productiebasis.
+v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
 Deze release voegt de eerste echte stap van de v10.5 conversatie-/analysebasis toe: een gestandaardiseerde, read-only analysecontext uit de reeds aanwezige maanddata. Via `analysis-context` zijn maand-, kwartaal- en kalenderjaarwaarden machineleesbaar beschikbaar, inclusief kwaliteitsmetadata en markering van onvolledige perioden.
 
