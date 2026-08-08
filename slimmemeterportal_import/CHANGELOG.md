@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.0.0
+- Stable Production Release.
+- Promoteert de goedgekeurde v9.9.0 Release Candidate zonder wijziging van productiekern `9.4-core1`.
+- Diagnosemetadata staat op `stable`; bestaande productiecertificering blijft herbruikbaar.
+- Geen functionele wijziging aan workflow, scheduler, retry/finalization, Recovery, Monitoring, Audittrail of rapportgeneratoren.
+
 ## 9.9.0
 - Release Candidate voor v10.0.0.
 - Diagnosepakket bevat expliciete releasefase en doelrelease.

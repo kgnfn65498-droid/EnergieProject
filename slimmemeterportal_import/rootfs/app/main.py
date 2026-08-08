@@ -52,7 +52,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "9.9.0"
+APP_VERSION = "10.0.0"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -8213,7 +8213,7 @@ def build_test_package() -> bytes:
         "scope": "technische releasecriteria uit diagnosepakket; geen vervanging voor inhoudelijke rapportbeoordeling",
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
-        "release_stage": "release_candidate",
+        "release_stage": "stable",
         "target_stable_release": "10.0.0",
     }
 
@@ -8241,9 +8241,9 @@ def build_test_package() -> bytes:
         "source_status": state.get("workflow_sources") or {},
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
-        "release_stage": "release_candidate",
+        "release_stage": "stable",
         "target_stable_release": "10.0.0",
-        "note": "v9.9.0 is de release candidate voor v10.0.0; productiekern 9.4-core1 is ongewijzigd.",
+        "note": "v10.0.0 is de eerste stabiele productierelease; productiekern 9.4-core1 is ongewijzigd en gevalideerd.",
     }
 
     generated = {
@@ -8305,7 +8305,7 @@ def build_test_package() -> bytes:
         "============================",
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
-        "Releasefase: Release Candidate",
+        "Releasefase: Stable",
         "Doelrelease: 10.0.0",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",

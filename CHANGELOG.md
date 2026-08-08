@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.0.0
+- Eerste stabiele productierelease op basis van de volledig gevalideerde v9.9.0 Release Candidate.
+- Productiekern `9.4-core1` blijft ongewijzigd; geen nieuwe maandafsluitingstest nodig voor deze promotie.
+- Diagnosepakket rapporteert `Releasefase: Stable` en automatische GO/NO-GO blijft leidend voor technische releasevalidatie.
+- Recovery, Monitoring, Audittrail, scheduler, certificaatvalidatie en gezondheidsdashboard blijven onderdeel van de productiecontrole.
+- Geen functionele wijziging aan maandworkflow, rapportgeneratoren of bronimport.
+
 ## 9.9.0
 - Release Candidate voor v10.0.0 op basis van de goedgekeurde v9.8.0-productiebasis.
 - Diagnosepakket vermeldt expliciet `Releasefase: Release Candidate` en `Doelrelease: 10.0.0`.
