@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "10.1.0"
+    assert cfg_version == app_version == "10.2.0"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "10.1.0"' in config
+    assert 'version: "10.2.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "10.1.0"' in config
-    assert 'APP_VERSION = "10.1.0"' in main
+    assert 'version: "10.2.0"' in config
+    assert 'APP_VERSION = "10.2.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.1.0"' in source
+    assert 'APP_VERSION = "10.2.0"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2405,4 +2405,36 @@ def test_v101_chat_transfer_and_recovery_guide_present():
 
 def test_v101_does_not_change_certified_production_core():
     source = MAIN.read_text(encoding="utf-8")
+    assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
+
+
+def test_v102_nas_migration_inventory_present():
+    source = MAIN.read_text(encoding="utf-8")
+    assert 'def nas_migration_snapshot' in source
+    assert 'LEGACY_NAS_DIRECTORIES' in source
+    assert '"read_only_inventory": True' in source
+    assert '"moves_performed": 0' in source
+    assert '"deletes_performed": 0' in source
+    assert '"imac_source_untouched": True' in source
+
+def test_v102_release_inbox_validation_is_non_installing():
+    source = MAIN.read_text(encoding="utf-8")
+    assert 'NAS_RELEASE_INBOX = NAS_SHARE_ROOT / "Releases_Inbox"' in source
+    assert 'def release_inbox_snapshot' in source
+    assert 'archive.testzip() is None' in source
+    assert 'Installatie blijft in v10.2 bewust uitgeschakeld' in source
+    section = source[source.index('def release_inbox_snapshot'):source.index('def nas_migration_snapshot')]
+    assert '.extract(' not in section
+    assert '.extractall(' not in section
+
+def test_v102_diagnostic_package_contains_migration_status():
+    source = MAIN.read_text(encoding="utf-8")
+    block = source[source.index('def build_test_package'):source.index('def html_page')]
+    assert '"nas_migration_status.json": migration' in block
+    assert '"release_inbox_status.json": migration.get("release_inbox")' in block
+    assert 'NAS migratiestatus:' in block
+
+def test_v102_core_remains_unchanged():
+    source = MAIN.read_text(encoding="utf-8")
+    assert 'APP_VERSION = "10.2.0"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source

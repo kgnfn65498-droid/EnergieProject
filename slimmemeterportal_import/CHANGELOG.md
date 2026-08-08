@@ -1,5 +1,17 @@
 # Changelog
 
+## 10.2.0
+- Veilige NAS-migratievoorbereiding toegevoegd zonder automatische verplaatsingen of verwijderingen.
+- Oude projectstructuur (`00_Config` t/m `99_Archief`) wordt automatisch herkend zodra `Energie_NAS` in Home Assistant is gekoppeld.
+- Nieuwe v10-doelstructuur wordt read-only geïnventariseerd: `Releases_Inbox`, `Releases_Archief`, `Data`, `Rapporten`, `Project`, `Recovery` en `Archief`.
+- Nieuwe release-inboxcontrole valideert ZIP-integriteit en leest `VERSIE.txt` zonder ZIP-bestanden uit te pakken of te installeren.
+- Nieuwe GUI-kaart **NAS migratie & release-inbox** toont migratiestatus, oude mappen en inboxstatus.
+- Diagnosepakket bevat `nas_migration_status.json` en `release_inbox_status.json`.
+- Technische endpoint `/migration-status` toegevoegd voor volledige machineleesbare inventaris.
+- iMac-bron blijft expliciet onaangeroerd; migratie voert in v10.2 exact 0 moves en 0 deletes uit.
+- Roadmap aangepast: gecontroleerde migratie en ZIP-verwerking volgen pas nadat deze inventaris in Home Assistant is gevalideerd.
+- Productiekern `9.4-core1` en maandworkflow blijven ongewijzigd.
+
 ## 10.1.0
 - 24/7 infrastructuurcontrole voor `/share/Energie_NAS`.
 - Automatische maand-sidecarback-up naar QNAP na een geslaagde volledige workflow.

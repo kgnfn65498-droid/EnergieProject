@@ -52,7 +52,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.1.0"
+APP_VERSION = "10.2.0"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -64,6 +64,30 @@ NAS_SHARE_ROOT = Path("/share/Energie_NAS")
 PROJECT_BACKUP_ROOT = NAS_SHARE_ROOT / "EnergieProject_Backups"
 PROJECT_BACKUP_RETENTION = 24
 PROJECT_BACKUP_PREFIX = "EnergieProject_maandbackup"
+
+# v10.2: veilige NAS-migratievoorbereiding. Er wordt in deze release niets
+# automatisch verplaatst of verwijderd. De app inventariseert de oude structuur,
+# controleert de voorgestelde 24/7-layout en valideert ZIP-bestanden in de release-inbox.
+NAS_RELEASE_INBOX = NAS_SHARE_ROOT / "Releases_Inbox"
+NAS_RELEASE_ARCHIVE = NAS_SHARE_ROOT / "Releases_Archief"
+NAS_DATA_ROOT = NAS_SHARE_ROOT / "Data"
+NAS_REPORTS_ROOT = NAS_SHARE_ROOT / "Rapporten"
+NAS_PROJECT_ROOT = NAS_SHARE_ROOT / "Project"
+NAS_RECOVERY_ROOT = NAS_SHARE_ROOT / "Recovery"
+NAS_ARCHIVE_ROOT = NAS_SHARE_ROOT / "Archief"
+NAS_V10_LAYOUT = {
+    "Releases_Inbox": NAS_RELEASE_INBOX,
+    "Releases_Archief": NAS_RELEASE_ARCHIVE,
+    "Data": NAS_DATA_ROOT,
+    "Rapporten": NAS_REPORTS_ROOT,
+    "Project": NAS_PROJECT_ROOT,
+    "Recovery": NAS_RECOVERY_ROOT,
+    "Archief": NAS_ARCHIVE_ROOT,
+}
+LEGACY_NAS_DIRECTORIES = (
+    "00_Config", "01_Input", "02_Output", "03_Systeem",
+    "04_Rapportages", "05_Maanddata", "99_Archief",
+)
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -6339,6 +6363,114 @@ def infrastructure_snapshot() -> dict[str, Any]:
     return result
 
 
+def _release_version_from_zip(path: Path) -> str | None:
+    """Lees uitsluitend de versie uit een release-ZIP; pak niets uit en schrijf niets."""
+    try:
+        with zipfile.ZipFile(path, "r") as archive:
+            names = set(archive.namelist())
+            candidates = [name for name in names if name == "VERSIE.txt" or name.endswith("/VERSIE.txt")]
+            if not candidates:
+                return None
+            value = archive.read(sorted(candidates, key=len)[0]).decode("utf-8", errors="replace").strip()
+            return value or None
+    except (OSError, zipfile.BadZipFile):
+        return None
+
+
+def release_inbox_snapshot() -> dict[str, Any]:
+    """Inventariseer en valideer de release-inbox zonder een release te installeren."""
+    result: dict[str, Any] = {
+        "checked_at": datetime.now(TZ).isoformat(),
+        "path": str(NAS_RELEASE_INBOX),
+        "available": NAS_RELEASE_INBOX.is_dir(),
+        "zip_count": 0,
+        "latest": None,
+        "releases": [],
+        "status": "not_ready",
+        "message": "Release-inbox bestaat nog niet.",
+    }
+    if not NAS_RELEASE_INBOX.is_dir():
+        return result
+    releases: list[dict[str, Any]] = []
+    try:
+        zips = sorted(NAS_RELEASE_INBOX.glob("*.zip"), key=lambda item: item.stat().st_mtime, reverse=True)
+    except OSError as exc:
+        result["status"] = "error"
+        result["message"] = f"Release-inbox kon niet worden gelezen: {exc}"
+        return result
+    for path in zips[:20]:
+        item: dict[str, Any] = {
+            "name": path.name,
+            "bytes": path.stat().st_size,
+            "version": _release_version_from_zip(path),
+            "zip_valid": False,
+        }
+        try:
+            with zipfile.ZipFile(path, "r") as archive:
+                item["zip_valid"] = archive.testzip() is None
+        except (OSError, zipfile.BadZipFile):
+            item["zip_valid"] = False
+        item["candidate_valid"] = bool(item["zip_valid"] and item["version"])
+        releases.append(item)
+    result["releases"] = releases
+    result["zip_count"] = len(zips)
+    result["latest"] = releases[0] if releases else None
+    if not releases:
+        result["status"] = "empty"
+        result["message"] = "Release-inbox is beschikbaar en leeg; er hoeft niets verwerkt te worden."
+    elif releases[0].get("candidate_valid"):
+        result["status"] = "candidate_ready"
+        result["message"] = f"Nieuwste ZIP is technisch leesbaar: {releases[0].get('name')}. Installatie blijft in v10.2 bewust uitgeschakeld."
+    else:
+        result["status"] = "warning"
+        result["message"] = "De nieuwste ZIP in de release-inbox is geen geldige EnergieProject-release."
+    return result
+
+
+def nas_migration_snapshot() -> dict[str, Any]:
+    """Maak een read-only migratie-inventaris van oud NAS-project naar v10-layout."""
+    infra = infrastructure_snapshot()
+    legacy = {name: (NAS_SHARE_ROOT / name).is_dir() for name in LEGACY_NAS_DIRECTORIES}
+    proposed = {name: path.is_dir() for name, path in NAS_V10_LAYOUT.items()}
+    inbox = release_inbox_snapshot()
+    found_legacy = [name for name, exists in legacy.items() if exists]
+    existing_v10 = [name for name, exists in proposed.items() if exists]
+    status = "setup_required"
+    message = infra.get("message") or "QNAP-share nog niet beschikbaar."
+    if infra.get("status") == "ok":
+        if found_legacy and not existing_v10:
+            status = "legacy_detected"
+            message = "Oude Energie-map herkend. Migratie kan veilig worden voorbereid; v10.2 verplaatst of verwijdert nog niets."
+        elif found_legacy and existing_v10:
+            status = "transition"
+            message = "Oude en nieuwe NAS-structuur bestaan naast elkaar. Geen bestanden worden automatisch verplaatst."
+        elif existing_v10:
+            status = "v10_layout_detected"
+            message = "v10-doelstructuur is aanwezig. Bestaande data blijft ongemoeid totdat migratie expliciet is vrijgegeven."
+        else:
+            status = "share_ready"
+            message = "QNAP-share is schrijfbaar; projectstructuur moet nog worden voorbereid."
+    return {
+        "version": APP_VERSION,
+        "checked_at": datetime.now(TZ).isoformat(),
+        "status": status,
+        "message": message,
+        "source_root": str(NAS_SHARE_ROOT),
+        "legacy_directories": legacy,
+        "legacy_found": found_legacy,
+        "proposed_layout": {name: {"path": str(NAS_V10_LAYOUT[name]), "exists": exists} for name, exists in proposed.items()},
+        "v10_directories_found": existing_v10,
+        "release_inbox": inbox,
+        "safety": {
+            "read_only_inventory": True,
+            "moves_performed": 0,
+            "deletes_performed": 0,
+            "imac_source_untouched": True,
+        },
+        "next_step": "Koppel eerst Energie_NAS in Home Assistant als de share nog ontbreekt; daarna kan een gecontroleerde migratie met hashes worden uitgevoerd.",
+    }
+
+
 def _backup_runtime_paths(month_key: str) -> list[tuple[Path, str]]:
     """Selecteer herstelrelevante runtime-data; options.json/geheimen worden nooit opgenomen."""
     paths: list[tuple[Path, str]] = []
@@ -7200,6 +7332,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
         "version": APP_VERSION,
         "generated_at": datetime.now(TZ).isoformat(),
         "infrastructure": infrastructure_snapshot(),
+        "nas_migration": nas_migration_snapshot(),
         "workflow": {
             "status": state.get("workflow_lock_status"),
             "month": state.get("workflow_lock_month"),
@@ -8405,6 +8538,7 @@ def build_test_package() -> bytes:
     recovery_status = str(recovery.get("status") or "unknown")
     audit_integrity = str((audit.get("validation") or {}).get("status") or "unknown")
     infrastructure = op.get("infrastructure") or infrastructure_snapshot()
+    migration = nas_migration_snapshot()
     scheduler_enabled = bool((op.get("automatic_month_close") or {}).get("enabled"))
     scheduler_effective = bool((op.get("automatic_month_close") or {}).get("scheduler_effective"))
 
@@ -8433,7 +8567,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.1.0",
+        "target_stable_release": "10.2.0",
     }
 
     summary = {
@@ -8459,12 +8593,14 @@ def build_test_package() -> bytes:
         "scheduler_effective": scheduler_effective,
         "source_status": state.get("workflow_sources") or {},
         "infrastructure": infrastructure,
+        "nas_migration": migration,
+        "release_inbox": migration.get("release_inbox"),
         "last_project_backup": state.get("last_project_backup"),
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.1.0",
-        "note": "v10.1.0 voegt 24/7 infrastructuurcontrole en sidecarback-up toe; de gecertificeerde productiekern 9.4-core1 blijft inhoudelijk ongewijzigd.",
+        "target_stable_release": "10.2.0",
+        "note": "v10.2.0 inventariseert veilig de oude NAS-structuur en release-inbox; er worden geen projectbestanden verplaatst of verwijderd en productiekern 9.4-core1 blijft ongewijzigd.",
     }
 
     generated = {
@@ -8477,6 +8613,8 @@ def build_test_package() -> bytes:
         "recovery_snapshot.json": recovery,
         "audit_validation.json": audit.get("validation") or {},
         "infrastructure_status.json": infrastructure,
+        "nas_migration_status.json": migration,
+        "release_inbox_status.json": migration.get("release_inbox") or {},
     }
 
     files = [
@@ -8528,7 +8666,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.1.0",
+        "Doelrelease: 10.2.0",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
@@ -8544,6 +8682,8 @@ def build_test_package() -> bytes:
         f"Audittrail: {summary.get('audit_integrity') or '—'}; records={summary.get('audit_records', 0)}",
         f"Scheduler actief: {'JA' if summary.get('scheduler_effective') else 'NEE'}",
         f"QNAP infrastructuur: {infrastructure.get('status')} - {infrastructure.get('message')}",
+        f"NAS migratiestatus: {migration.get('status')} - {migration.get('message')}",
+        f"Release-inbox: {(migration.get('release_inbox') or {}).get('status')} - {(migration.get('release_inbox') or {}).get('message')}",
         f"Laatste projectback-up: {(summary.get('last_project_backup') or {}).get('status') or 'nog geen'}",
         f"Niet geslaagde technische criteria: {', '.join(failed_criteria) if failed_criteria else 'geen'}",
         "",
@@ -8906,6 +9046,17 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 </div>
 <p class="hint">{esc((op.get('infrastructure') or {}).get('message') or '')}</p>
 <p class="hint">Voor externe 24/7 opslag koppel je in Home Assistant éénmalig de QNAP als netwerklocatie van type <strong>Share</strong> met naam <strong>Energie_NAS</strong>. Daarna schrijft de app na iedere geslaagde maandworkflow automatisch een gecontroleerde sidecarback-up weg; de iMac is niet nodig.</p>
+</div>
+
+<div class="card"><h2>NAS migratie &amp; release-inbox v{APP_VERSION}</h2>
+<div class="grid">
+<div class="metric"><small>Migratiestatus</small><strong><span class="pill {status_class((op.get('nas_migration') or {}).get('status'))}">{esc((op.get('nas_migration') or {}).get('status') or 'onbekend')}</span></strong></div>
+<div class="metric"><small>Oude mappen gevonden</small><strong>{esc(len((op.get('nas_migration') or {}).get('legacy_found') or []))}</strong></div>
+<div class="metric"><small>Release-inbox</small><strong>{esc(((op.get('nas_migration') or {}).get('release_inbox') or {}).get('status') or 'niet beschikbaar')}</strong></div>
+</div>
+<p class="hint">{esc((op.get('nas_migration') or {}).get('message') or '')}</p>
+<p class="hint">v10.2 voert alleen een inventaris uit: <strong>0 verplaatsingen, 0 verwijderingen</strong>. De iMac-bron blijft onaangeroerd. Een ZIP in <code>Releases_Inbox</code> wordt alleen technisch gecontroleerd en nog niet automatisch geïnstalleerd.</p>
+<p><a href="migration-status">Technische migratiestatus</a></p>
 </div>
 
 <div class="card"><h2>Automatische maandafsluiting</h2>
@@ -9478,6 +9629,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
         elif path.endswith("/infrastructure-status") or path == "/infrastructure-status":
             body = json.dumps(infrastructure_snapshot(), ensure_ascii=False, indent=2).encode("utf-8")
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/migration-status") or path == "/migration-status":
+            body = json.dumps(nas_migration_snapshot(), ensure_ascii=False, indent=2).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
         elif path.endswith("/download-chat-transfer") or path == "/download-chat-transfer":
             try:

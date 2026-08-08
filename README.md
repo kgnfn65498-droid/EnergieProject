@@ -1,6 +1,6 @@
-# EnergieProject v10.1.0 – 24/7 Automation Foundation
+# EnergieProject v10.2.0 – NAS Migration Readiness
 
-v10.1.0 bouwt voort op de stabiele v10.0.0-productiebasis en maakt de eerste stap naar een volledig 24/7 autonoom Energieproject: QNAP-opslagcontrole, automatische maand-sidecarback-up, noodherstelhandleiding en een downloadbare chat-overdracht. De gecertificeerde productiekern `9.4-core1` blijft ongewijzigd.
+v10.2.0 bouwt voort op de goedgekeurde v10.1.0-basis en brengt de bestaande QNAP-projectstructuur en de toekomstige 24/7-structuur gecontroleerd in kaart. Deze release verplaatst of verwijdert niets. Ook een ZIP in `Releases_Inbox` wordt alleen gevalideerd; automatische installatie volgt pas na een geslaagde infrastructuurtest. De gecertificeerde productiekern `9.4-core1` blijft ongewijzigd.
 
 # Energie Home Assistant Apps
 
@@ -21,7 +21,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 10.1.0
+- SlimmeMeterPortal Import 10.2.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 

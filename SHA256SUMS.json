@@ -1,5 +1,6 @@
 {
-  "version": "10.1.0",
+  "version": "10.2.0",
+  "file_count": 76,
   "files": [
     {
       "path": ".gitignore",
@@ -7,9 +8,34 @@
       "sha256": "f10529b220b514ca72c66fd592c80ec5b3dea6a0a49f2658d80617824c5aa5e7"
     },
     {
+      "path": ".pytest_cache/.gitignore",
+      "bytes": 37,
+      "sha256": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd"
+    },
+    {
+      "path": ".pytest_cache/CACHEDIR.TAG",
+      "bytes": 191,
+      "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4"
+    },
+    {
+      "path": ".pytest_cache/README.md",
+      "bytes": 302,
+      "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad"
+    },
+    {
+      "path": ".pytest_cache/v/cache/lastfailed",
+      "bytes": 2,
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    },
+    {
+      "path": ".pytest_cache/v/cache/nodeids",
+      "bytes": 26064,
+      "sha256": "c743bde0f26a8bda357c8ef1ecc2581f73e328d10333491a854c7ae69be29c79"
+    },
+    {
       "path": "CHANGELOG.md",
-      "bytes": 35222,
-      "sha256": "394d714f761af1e3095ac103b99c9a1b2bdbc97cd8c2d9d2a215641d74aca997"
+      "bytes": 36333,
+      "sha256": "3410d8b947316fc3fa48bf021d3a149ae64fd0557f4696681d05665aeddfce42"
     },
     {
       "path": "INSTALL.md",
@@ -28,28 +54,28 @@
     },
     {
       "path": "PROJECT_AFSPRAKEN.md",
-      "bytes": 1403,
-      "sha256": "346f047648350bace511c620e64e40833adb5522c87098361b900b85a956aa50"
+      "bytes": 1880,
+      "sha256": "8fdbfdc4bad21983ab19088c407d242f71201e7d77508534622d1ab61f6b51ee"
     },
     {
       "path": "README.md",
-      "bytes": 5267,
-      "sha256": "72bc1ea70c2a752b0b74d68d9affc06949e77788b9229194f7e6fff0b5579e4d"
+      "bytes": 5348,
+      "sha256": "6bf8f73fb9ea22d91b8ae8eccd72981b51cfe9dacbdf34192bedc471ee4cdc15"
     },
     {
       "path": "ROADMAP_V10.md",
-      "bytes": 817,
-      "sha256": "3328923e8d6a286edbe8bc166acf4410ef643a37d3ea8c3e5d6df03603393c6f"
+      "bytes": 1207,
+      "sha256": "028f10f22c9dddc92b90fc2e6be9f8fb1619cdb2ae3ebcd48707d13bf4b6f748"
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "bytes": 1029,
-      "sha256": "422bf5d8adb5952074b3cdfe402d361ecb22f462a7ea6831b41a0168ff739eb4"
+      "bytes": 808,
+      "sha256": "c0af2c6d4f667dd0a423bf32c2be27278e3f6c2edc49ba8f65c7ef672a190d16"
     },
     {
       "path": "VERSIE.txt",
       "bytes": 7,
-      "sha256": "08bc77bbbe197549458d69ce6f4e89c2b61e4b3a88115d730cae6842baec57b0"
+      "sha256": "cf966a5d3bfdb4c3dab146c0b12a22b85a30aa449ed010a5ee3cf04ddeb5302e"
     },
     {
       "path": "repository.yaml",
@@ -58,8 +84,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "bytes": 33885,
-      "sha256": "5674d7185a156cf5920bfca45b15d1be7b8c2342c79e0bf437b38126bf01721a"
+      "bytes": 34996,
+      "sha256": "f68cf74f2c063d00a9f74c412c38d6c06be317d1bc7bcc2814823e5e4f6e0fa6"
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -79,12 +105,12 @@
     {
       "path": "slimmemeterportal_import/config.yaml",
       "bytes": 5431,
-      "sha256": "75a72e5cc405f663c5684a9bfcdb39c40e119a572b959702e85ddf80b3a99dc3"
+      "sha256": "eb7ca981025b111aa58730a605814d1de8add616f51f2dc3e10f56f373f99183"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "bytes": 461939,
-      "sha256": "60d73f10efb5d674e0da36a9e1d7fac52f411d3118cd04ea7fff96015febbb0c"
+      "bytes": 469801,
+      "sha256": "e75c8fd3aed2eb24dc1185263ae821ca5a45d4d86dc89efe3459c1318ef842bc"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -353,8 +379,8 @@
     },
     {
       "path": "tests/test_static.py",
-      "bytes": 111675,
-      "sha256": "4c0a6ecdec5fc65fe800c01dba97229a84fa8d53df5fc3cd4fd41900add32b99"
+      "bytes": 113182,
+      "sha256": "cfa3ff2955692963fbab1a61e40a7803cba01bcc07ed2414a6cdb6b95fcd7b06"
     }
   ]
 }
