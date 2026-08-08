@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.2"
+APP_VERSION = "10.5.3"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -8569,7 +8569,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.2",
+        "target_stable_release": "10.5.3",
     }
 
     summary = {
@@ -8601,7 +8601,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.2",
+        "target_stable_release": "10.5.3",
         "note": "v10.4.5 gebruikt self-safe installer- en watcherprocessen buiten de live worktree; release-inbox, backup, rollback en GitHub-controles blijven actief; productiekern 9.4-core1 blijft ongewijzigd.",
     }
 
@@ -8668,7 +8668,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.2",
+        "Doelrelease: 10.5.3",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
@@ -9000,7 +9000,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
   <div class="metric"><small>Laatste maand</small><strong id="last-month">{esc(last_run.get('month') or 'Nog geen')}</strong></div>
   <div class="metric"><small>Laatste run</small><strong><span id="last-run-status" class="pill {status_class(last_run.get('status'))}">{esc(last_run.get('status') or 'Nog geen')}</span></strong></div>
   <div class="metric"><small>Automatische maandafsluiting</small><strong class="auto-status"><span id="auto-close-top-status" class="pill {'ok' if auto_close.get('enabled') else 'neutral'}">{'Aan' if auto_close.get('enabled') else 'Uit'}</span><small id="auto-close-top-detail">{('dag ' + esc(auto_close.get('day')) + ' · ' + esc(auto_close.get('hour')) + ':00 · retry ' + esc(auto_close.get('retry_hours')) + 'u') if auto_close.get('enabled') else 'Scheduler niet actief'}</small></strong>  <div class="metric"><small>Releaseketen</small><strong><span class="pill ok">Automatisch</span></strong><small class="test-detail">QNAP ZIP-only · watcher 5 s · installatie automatisch</small></div>
-  <div class="metric"><small>HA-publicatie</small><strong><span id="github-publish-pill" class="pill warn">Configureren</span></strong><small id="github-publish-detail" class="test-detail">Automatische GitHub-publicatie wordt door Home Assistant uitgevoerd</small><button class="secondary" type="button" onclick="loadGithubPublisher()">Toon publicatiesleutel</button><pre id="github-public-key" style="display:none;white-space:pre-wrap;word-break:break-all;margin-top:8px"></pre></div>
+  <div class="metric"><small>HA-publicatie</small><strong><span id="github-publish-pill" class="pill warn">Configureren</span></strong><small id="github-publish-detail" class="test-detail">Automatische GitHub-publicatie wordt door Home Assistant uitgevoerd</small><button class="secondary" type="button" onclick="refreshGithubPublisherStatus(true)">Toon publicatiesleutel</button><pre id="github-public-key" style="display:none;white-space:pre-wrap;word-break:break-all;margin-top:8px"></pre></div>
 </div>
 </div>
 
@@ -9515,6 +9515,44 @@ async function loadGithubPublisher(){{
     detail.textContent='Status ophalen mislukt: '+e;
   }}
 }}
+
+async function refreshGithubPublisherStatus(showKey=false){{
+  const pill=document.getElementById('github-publish-pill');
+  const detail=document.getElementById('github-publish-detail');
+  const key=document.getElementById('github-public-key');
+  try{{
+    const r=await fetch('./api/github-publisher/status',{{cache:'no-store'}});
+    const d=await r.json();
+    if(d.enabled && d.remote_reachable){{
+      pill.textContent='Automatisch';
+      pill.className='pill ok';
+      const last=d.last_publication||{{}};
+      detail.textContent=last.published ? ('GitHub-publicatie actief · laatste publicatie: '+(last.local_version||'gereed')) : (d.message||'GitHub bereikbaar; publicatiegereed');
+    }}else if(d.enabled && d.key_ready){{
+      pill.textContent='Wacht op GitHub';
+      pill.className='pill warn';
+      detail.textContent=d.message||'Publisher staat aan maar GitHub is nog niet bereikbaar/geautoriseerd.';
+    }}else if(d.key_ready){{
+      pill.textContent='Configureren';
+      pill.className='pill warn';
+      detail.textContent='Publicatiesleutel gereed; automatische publicatie staat nog uit.';
+    }}else{{
+      pill.textContent='Niet gereed';
+      pill.className='pill warn';
+      detail.textContent=d.message||'Publicatiesleutel kon niet worden gemaakt.';
+    }}
+    if(showKey && d.public_key){{
+      key.style.display='block';
+      key.textContent=d.public_key;
+    }}
+  }}catch(e){{
+    detail.textContent='GitHub-publicatiestatus ophalen mislukt: '+e;
+  }}
+}}
+window.addEventListener('load',()=>{{
+  refreshGithubPublisherStatus(false);
+  setInterval(()=>refreshGithubPublisherStatus(false),15000);
+}});
 </script>
 </main></body></html>""".encode("utf-8")
 
@@ -9617,11 +9655,19 @@ def github_publication_status(options=None):
             result["message"] = "GitHub bereikbaar; publicatiegereed"
         elif enabled:
             result["message"] = f"GitHub nog niet geautoriseerd: {err or out}"
+    try:
+        if GITHUB_PUBLISH_STATE.exists():
+            saved = json.loads(GITHUB_PUBLISH_STATE.read_text(encoding="utf-8"))
+            if isinstance(saved, dict):
+                result["last_publication"] = saved
+    except Exception:
+        pass
     return result
 
 
 def publish_github_release(options=None):
     options = options or {}
+    LOGGER.info("GitHub-publicatie: statuscontrole gestart.")
     status = github_publication_status(options)
     if not bool(options.get("github_publication_enabled", False)):
         return {**status, "published": False, "message": "Automatische GitHub-publicatie staat uit"}
@@ -9669,23 +9715,55 @@ def publish_github_release(options=None):
     return result
 
 
+def _write_github_publish_state(payload):
+    try:
+        GITHUB_PUBLISH_STATE.parent.mkdir(parents=True, exist_ok=True)
+        GITHUB_PUBLISH_STATE.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        LOGGER.exception("GitHub-publisherstatus kon niet worden opgeslagen.")
+
+
 def _github_publication_loop(stop_event):
     last_seen = ""
-    while not stop_event.wait(5):
+    LOGGER.info("GitHub-publisherthread gestart.")
+    while not stop_event.wait(2):
         try:
             options = _publisher_options()
+            enabled = bool(options.get("github_publication_enabled", False))
             poll = max(5, min(300, int(options.get("github_publication_poll_seconds", 15) or 15)))
-            if bool(options.get("github_publication_enabled", False)):
+            LOGGER.info(
+                "GitHub-publishercontrole: enabled=%s; project=%s; processed=%s",
+                enabled,
+                NAS_PROJECT_ROOT.exists(),
+                (NAS_RELEASE_ROOT / "processed").exists(),
+            )
+            if enabled:
                 version_path = NAS_PROJECT_ROOT / "VERSIE.txt"
                 version = version_path.read_text(encoding="utf-8").strip() if version_path.exists() else ""
                 processed = NAS_RELEASE_ROOT / "processed" / f"EnergieProject_v{version}.zip" if version else None
-                if version and processed and processed.exists() and version != last_seen:
+                if not version:
+                    LOGGER.warning("GitHub-publisher: VERSIE.txt ontbreekt of is leeg.")
+                elif not processed or not processed.exists():
+                    LOGGER.info("GitHub-publisher: release %s nog niet in processed.", version)
+                elif version != last_seen:
+                    LOGGER.info("GitHub-publisher: publicatiepoging voor v%s gestart.", version)
                     result = publish_github_release(options)
+                    _write_github_publish_state(result)
+                    LOGGER.info(
+                        "GitHub-publisherresultaat v%s: published=%s; message=%s",
+                        version,
+                        result.get("published"),
+                        result.get("message"),
+                    )
                     if result.get("published"):
                         last_seen = version
             if stop_event.wait(poll):
                 return
         except Exception:
+            LOGGER.exception("GitHub-publishercontrole mislukt.")
             if stop_event.wait(15):
                 return
 
@@ -10641,6 +10719,13 @@ def main() -> None:
 
     threading.Thread(target=startup_self_test, daemon=True).start()
     try:
+        publisher_options = _publisher_options()
+        LOGGER.info(
+            "GitHub-publisher startup: enabled=%s; repository=%s; branch=%s",
+            bool(publisher_options.get("github_publication_enabled", False)),
+            publisher_options.get("github_repository_ssh", ""),
+            publisher_options.get("github_branch", "main"),
+        )
         publisher_thread = threading.Thread(target=_github_publication_loop, args=(STOP,), daemon=True, name="github-publisher")
         publisher_thread.start()
         server.serve_forever()

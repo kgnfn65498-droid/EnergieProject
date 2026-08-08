@@ -1,19 +1,13 @@
-# Testinstructies v10.5.2
+# Testinstructies v10.5.3
 
-## Eenmalige overgang
-v10.5.2 moet nog één keer via de bestaande Home Assistant Git-route naar GitHub worden gepubliceerd, omdat v10.5.1 de automatische publisher nog niet bevat.
-
-## Na installatie
-1. Open de Energieproject-console.
-2. Klik bij `HA-publicatie` op `Toon publicatiesleutel`.
-3. Kopieer de `ssh-ed25519 ...` sleutel.
-4. Open GitHub > EnergieProject > Settings > Deploy keys > Add deploy key.
-5. Plak de sleutel, geef hem een herkenbare naam en vink `Allow write access` aan.
-6. Zet in de add-onconfiguratie `github_publication_enabled` aan.
-7. Herstart de add-on.
-8. Klik opnieuw `Toon publicatiesleutel`; status moet `Automatisch` / `GitHub bereikbaar` worden.
-
-## Definitieve praktijktest
-9. De opvolgende release hoeft daarna alleen nog naar `EnergieProject_Inbox/incoming`.
-10. QNAP installeert, Home Assistant publiceert automatisch naar GitHub en HA ziet vervolgens de update.
-11. Geen Terminal/SSH meer voor normale releases.
+1. Plaats `EnergieProject_v10.5.3.zip` in `EnergieProject_Inbox/incoming`.
+2. Wacht tot de ZIP in `processed` staat.
+3. Publiceer v10.5.3 nog één keer via de bestaande handmatige Home Assistant Git-route, omdat de automatische publisher van v10.5.2 nog niet aantoonbaar werkte.
+4. Installeer v10.5.3 in Home Assistant.
+5. Controleer direct na herstart het add-onlog. Verwacht minimaal:
+   - `GitHub-publisher startup: enabled=True`
+   - `GitHub-publisherthread gestart.`
+   - `GitHub-publishercontrole: enabled=True`
+   - daarna een publicatiepoging of melding dat de release al verwerkt is.
+6. Open de Energieproject-console. De statuskaart `HA-publicatie` moet zichzelf binnen 15 seconden actualiseren zonder op de knop te hoeven klikken.
+7. Als de status `Automatisch` wordt, bouw/test daarna v10.5.4 uitsluitend via `incoming`; v10.5.4 is de definitieve end-to-end test zonder Terminal.
