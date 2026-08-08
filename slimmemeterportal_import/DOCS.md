@@ -594,3 +594,9 @@ De analysecontext leest de bestaande EPEX-v6 historie rechtstreeks uit `/share/E
 
 ## Versie 10.5.9 — EPEX mountdetectie
 De reader detecteert of `NAS_PROJECT_ROOT` direct naar `05_Maanddata` wijst of naar de volledige projectroot. `resolved_path` maakt de keuze controleerbaar.
+
+## Versie 10.5.10 — feitelijke Energie_NAS root
+De productiegegevens staan direct onder de Home Assistant share `Energie_NAS`. Voor EPEX is de primaire bron daarom `/share/Energie_NAS/05_Maanddata/EPEX`. Een kandidaat wordt alleen geaccepteerd wanneer `EPEX_index.csv` daar werkelijk bestaat.
+
+## Versie 10.5.11 — race-safe releaseketen
+`release_watcher.sh` gebruikt `.watcher.lock` als atomische singleton-claim. Het PID-bestand blijft alleen statusinformatie. `release_installer.sh` verplaatst een ZIP uit `processing` pas naar `failed` wanneer deze minimaal 600 seconden oud is. Daardoor kan een gelijktijdige cronstart een actieve release niet meer kapen.

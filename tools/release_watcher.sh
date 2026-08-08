@@ -14,6 +14,7 @@ INCOMING="$INBOX/incoming"
 LOGDIR="$INBOX/logs"
 INSTALLER_SOURCE="$PROJECT/tools/release_installer.sh"
 PIDFILE="$INBOX/.watcher.pid"
+WATCHER_LOCK="$INBOX/.watcher.lock"
 STATUSFILE="$INBOX/latest_release_status.txt"
 INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"
 
@@ -64,6 +65,7 @@ case "${1:-run}" in
     echo "NIET ACTIEF"; exit 1;;
   stop)
     if [ -f "$PIDFILE" ]; then kill "$(cat "$PIDFILE")" 2>/dev/null || true; rm -f "$PIDFILE"; fi
+    rmdir "$WATCHER_LOCK" 2>/dev/null || true
     echo "GESTOPT"; exit 0;;
   once)
     run_installer; exit $?;;
@@ -71,11 +73,22 @@ case "${1:-run}" in
   *) echo "Gebruik: $0 [run|once|status|stop]" >&2; exit 2;;
 esac
 
-if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+# Atomische singleton-claim. Een PID-bestand alleen is niet voldoende:
+# twee cronstarts kunnen tegelijk controleren voordat een van beide het PID schrijft.
+if ! mkdir "$WATCHER_LOCK" 2>/dev/null; then
   exit 0
 fi
-echo $$ > "$PIDFILE"
-trap 'rm -f "$PIDFILE"' EXIT INT TERM
+
+# Vanaf hier is deze watcher de enige eigenaar. Ruim een eventueel oud PID-bestand op
+# en publiceer pas daarna het actuele PID.
+rm -f "$PIDFILE" 2>/dev/null || true
+printf '%s\n' "$$" > "$PIDFILE"
+
+cleanup_watcher(){
+  rm -f "$PIDFILE" 2>/dev/null || true
+  rmdir "$WATCHER_LOCK" 2>/dev/null || true
+}
+trap 'cleanup_watcher' EXIT INT TERM
 log "Release watcher gestart; interval=${INTERVAL}s"
 [ -f "$STATUSFILE" ] || write_status "WATCHER_ACTIVE" "interval=${INTERVAL}s"
 

@@ -16,6 +16,7 @@ PROCESSED="$INBOX/processed"
 FAILED="$INBOX/failed"
 BACKUPS="$SHARE/EnergieProject_Backups"
 LOCK="$INBOX/.installer.lock"
+PROCESSING_STALE_SECONDS="${ENERGIE_PROCESSING_STALE_SECONDS:-600}"
 REQUIRED="README.md INSTALL.md CHANGELOG.md MANIFEST.sha256 SHA256SUMS.json repository.yaml VERSIE.txt"
 
 # Safety rule: never run the live installer from inside the worktree that it replaces.
@@ -111,14 +112,22 @@ mkdir -p "$INCOMING" "$PROCESSING" "$PROCESSED" "$FAILED" "$BACKUPS"
 mkdir "$LOCK" 2>/dev/null || { log "FOUT: installer is al actief"; exit 1; }
 log "FASE 1/8: inboxcontrole"
 
-# A ZIP left in processing while no installer lock existed is an orphan from a
-# previously interrupted/failed run. Quarantine it before accepting a new release.
+# Een processing-ZIP is niet automatisch verweesd. Een tweede watcher kan enkele
+# seconden later starten terwijl de eerste installer de ZIP al heeft geclaimd.
+# Alleen duidelijk oude processing-ZIP's worden in quarantaine gezet.
+now_epoch="$(date +%s)"
 set -- "$PROCESSING"/*.zip
 if [ -e "$1" ]; then
   for orphan in "$PROCESSING"/*.zip; do
     [ -e "$orphan" ] || continue
-    log "HERSTEL: verweesde processing-ZIP naar failed: $(basename "$orphan")"
-    mv "$orphan" "$FAILED/" || fail "verweesde processing-ZIP kon niet naar failed"
+    modified_epoch="$(date -r "$orphan" +%s 2>/dev/null || echo "$now_epoch")"
+    age_seconds=$((now_epoch - modified_epoch))
+    if [ "$age_seconds" -ge "$PROCESSING_STALE_SECONDS" ]; then
+      log "HERSTEL: oude processing-ZIP (${age_seconds}s) naar failed: $(basename "$orphan")"
+      mv "$orphan" "$FAILED/" || fail "oude processing-ZIP kon niet naar failed"
+    else
+      log "WACHT: processing-ZIP is actief/recent (${age_seconds}s): $(basename "$orphan")"
+    fi
   done
 fi
 

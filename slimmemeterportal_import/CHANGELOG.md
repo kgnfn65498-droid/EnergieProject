@@ -1,5 +1,20 @@
 # Changelog
 
+## 10.5.11
+- Verhelpt de race condition waardoor meerdere QNAP release-watchers tegelijk dezelfde ZIP konden detecteren.
+- De watcher gebruikt nu een atomische directory-lock (`.watcher.lock`) in plaats van alleen een niet-atomische PID-controle.
+- Een ZIP in `processing` wordt niet meer direct als verweesd naar `failed` verplaatst; alleen processing-ZIP's ouder dan 10 minuten worden automatisch in quarantaine gezet.
+- Hiermee wordt voorkomen dat een tweede watcher een ZIP wegneemt terwijl de eerste installer hem nog valideert of uitpakt.
+- De EPEX-correctie uit v10.5.10 blijft volledig behouden.
+- Geen wijziging aan productiekern `9.4-core1`, maandworkflow of scheduler.
+
+## 10.5.10
+- Corrigeert de EPEX-bronlocatie op basis van de feitelijke Home Assistant netwerkshare: `/share/Energie_NAS/05_Maanddata/EPEX`.
+- De reader controleert `EPEX_index.csv` voordat een kandidaatpad als geldig wordt gebruikt.
+- Legacy locaties onder `EnergieProject` blijven als fallback ondersteund.
+- `resolved_path` blijft in analysedata zichtbaar voor productiecontrole.
+- Geen wijziging aan productiekern, maandworkflow, scheduler of automatische releaseketen.
+
 ## 10.5.9
 - Corrigeert de EPEX-padresolutie voor Home Assistant: ondersteunt zowel een mount die direct op `05_Maanddata` staat als een mount op de volledige projectroot.
 - `price_context.resolved_path` toegevoegd zodat de werkelijk gebruikte productiebron direct controleerbaar is.

@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.9"
+APP_VERSION = "10.5.11"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4183,14 +4183,19 @@ def _round_metric(value: float) -> float:
 
 
 def _resolve_epex_history_root() -> Path:
-    """Vind EPEX onder zowel de HA-projectmount als de volledige NAS-projectroot."""
+    """Vind EPEX in de feitelijke Home Assistant share en in legacy projectpaden."""
     candidates = (
-        NAS_PROJECT_ROOT / "EPEX",
+        NAS_SHARE_ROOT / "05_Maanddata" / "EPEX",
+        NAS_SHARE_ROOT / "EPEX",
         NAS_PROJECT_ROOT / "05_Maanddata" / "EPEX",
+        NAS_PROJECT_ROOT / "EPEX",
     )
     for candidate in candidates:
         if (candidate / "EPEX_index.csv").is_file():
             return candidate
+    # Geen bestaand pad stilzwijgend als geldig behandelen.
+    # Het eerste pad is de productie-layout van Energie_NAS en wordt alleen
+    # als diagnostische resolved_path teruggegeven.
     return candidates[0]
 
 
@@ -4496,7 +4501,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "solar_production_kwh": "Enphase-opwek; bij ontbrekende Enphase alleen expliciet gemarkeerde export_fallback.",
             "self_use_pct": "Direct eigen zonnegebruik gedeeld door zonneproductie; null als brondekking dit niet betrouwbaar toelaat.",
             "self_supply_pct": "Direct eigen zonnegebruik gedeeld door berekend huishoudelijk elektriciteitsgebruik; null als brondekking dit niet betrouwbaar toelaat.",
-            "price_context": "Historische EPEX-v6 prijscontext. De reader detecteert automatisch of de Home Assistant-mount direct op 05_Maanddata staat of op de projectroot. De hoofdstatistiek gebruikt prijs_incl_btw_en_eb en is geen leverancier-all-in prijs.",
+            "price_context": "Historische EPEX-v6 prijscontext. De reader zoekt eerst in de feitelijke Home Assistant share `/share/Energie_NAS/05_Maanddata/EPEX` en ondersteunt daarnaast legacy projectpaden. De hoofdstatistiek gebruikt prijs_incl_btw_en_eb en is geen leverancier-all-in prijs.",
         },
         "months": months,
         "quarters": quarters,
@@ -8918,7 +8923,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.9",
+        "target_stable_release": "10.5.11",
     }
 
     summary = {
@@ -8950,7 +8955,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.9",
+        "target_stable_release": "10.5.11",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9017,7 +9022,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.9",
+        "Doelrelease: 10.5.11",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

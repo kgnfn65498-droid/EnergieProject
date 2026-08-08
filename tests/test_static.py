@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "10.5.9"
+    assert cfg_version == app_version == "10.5.11"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "10.5.9"' in config
+    assert 'version: "10.5.11"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "10.5.9"' in config
-    assert 'APP_VERSION = "10.5.9"' in main
+    assert 'version: "10.5.11"' in config
+    assert 'APP_VERSION = "10.5.11"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.9"' in source
+    assert 'APP_VERSION = "10.5.11"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2433,7 +2433,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.9"' in source
+    assert 'APP_VERSION = "10.5.11"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -2610,3 +2610,32 @@ def test_v1059_epex_mount_resolution_is_visible():
     assert "def _resolve_epex_history_root()" in source
     assert '"resolved_path": str(EPEX_HISTORY_ROOT)' in source
     assert 'candidate / "EPEX_index.csv"' in source
+
+def test_v10510_epex_uses_actual_share_root_first():
+    source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    expected = 'NAS_SHARE_ROOT / "05_Maanddata" / "EPEX"'
+    assert expected in source
+    assert source.index(expected) < source.index('NAS_PROJECT_ROOT / "05_Maanddata" / "EPEX"')
+    assert 'candidate / "EPEX_index.csv"' in source
+    assert '"resolved_path": str(EPEX_HISTORY_ROOT)' in source
+
+def test_v10511_watcher_uses_atomic_singleton_lock():
+    source = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
+    assert 'WATCHER_LOCK="$INBOX/.watcher.lock"' in source
+    assert 'if ! mkdir "$WATCHER_LOCK" 2>/dev/null; then' in source
+    assert 'rmdir "$WATCHER_LOCK"' in source
+    assert source.index('mkdir "$WATCHER_LOCK"') < source.index("printf '%s\\n' \"$$\" > \"$PIDFILE\"")
+
+
+def test_v10511_recent_processing_zip_is_not_quarantined():
+    source = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    assert 'PROCESSING_STALE_SECONDS="${ENERGIE_PROCESSING_STALE_SECONDS:-600}"' in source
+    assert 'if [ "$age_seconds" -ge "$PROCESSING_STALE_SECONDS" ]; then' in source
+    assert 'WACHT: processing-ZIP is actief/recent' in source
+    assert 'HERSTEL: oude processing-ZIP' in source
+
+
+def test_v10511_keeps_epex_10510_fix():
+    source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'NAS_SHARE_ROOT / "05_Maanddata" / "EPEX"' in source
+    assert '"resolved_path": str(EPEX_HISTORY_ROOT)' in source

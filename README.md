@@ -1,4 +1,4 @@
-# EnergieProject v10.5.9
+# EnergieProject v10.5.11
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -17,3 +17,9 @@ De historische analyse leest EPEX nu uit de echte projectbron `05_Maanddata/EPEX
 
 ## v10.5.9
 EPEX-pad wordt nu automatisch opgelost voor de daadwerkelijke Home Assistant NAS-mount; het gebruikte pad staat in `price_context.resolved_path`.
+
+## v10.5.10
+EPEX leest nu primair uit de echte `Energie_NAS/05_Maanddata/EPEX` productieboom.
+
+## v10.5.11
+De automatische QNAP-releaseketen is race-safe gemaakt met een atomisch watcher-lock. Recente ZIP's in `processing` worden niet meer ten onrechte als verweesd naar `failed` verplaatst.

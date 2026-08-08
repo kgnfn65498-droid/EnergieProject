@@ -20,3 +20,7 @@
 - v10.5.8: EPEX-analyse gekoppeld aan de echte productiebron `05_Maanddata/EPEX`, inclusief dekking en bronhiaten.
 
 - v10.5.9: EPEX-padresolutie robuust gemaakt voor de Home Assistant-projectmount en zichtbaar gemaakt in analysedata.
+
+- v10.5.10: EPEX gekoppeld aan de feitelijke Energie_NAS-root (`05_Maanddata/EPEX`).
+
+- v10.5.11: release-watcher race condition opgelost met atomische singleton-lock en veilige processing-quarantaine.
