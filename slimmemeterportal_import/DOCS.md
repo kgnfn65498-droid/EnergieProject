@@ -628,3 +628,7 @@ De release-watcher kan in `energie-release-watcher` draaien op `python:3.12-slim
 
 ## Versie 10.5.18 — financiële analysebasis
 `financial_context` rekent alleen met dezelfde-maand meetdata en EPEX. Exportvergoeding, leveranciersopslag, vaste kosten en all-in kosten volgen pas na contractkoppeling.
+
+
+## Versie 10.5.19 — NextEnergy-koppeling
+De analysecontext bevat bekende contractmetadata en leest de ingestelde NextEnergy-prijsentiteit live uit Home Assistant. Onbekende contractcomponenten worden niet geschat.

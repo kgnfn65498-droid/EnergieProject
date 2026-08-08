@@ -1,5 +1,13 @@
 # Changelog
 
+## 10.5.19
+- NextEnergy-contractcontext toegevoegd aan de analysecontext.
+- Bekende contractgegevens vastgelegd: start 15-07-2026, dynamische stroom, variabel gas, voorschot €150, opzegtermijn 5 werkdagen.
+- Live NextEnergy-stroomprijs wordt via de bestaande Home Assistant-entiteit uitgelezen en als prijstelemetrie gerapporteerd.
+- `financial_status` toont nu of live leverancier-prijstelemetrie verbonden is.
+- Leveranciersopslag, vaste kosten, terugleververgoeding en gasformule blijven bewust onbekend totdat officiële contractwaarden zijn gekoppeld.
+- Sneloverzicht toont NextEnergy direct bovenaan.
+
 ## 10.5.18
 - Eerste echte financiële analyse-laag toegevoegd.
 - Marktvariabele stroom- en gaskosten worden alleen berekend wanneer meetdata en EPEX-prijsdata voor dezelfde maand beschikbaar zijn.

@@ -1,4 +1,4 @@
-# EnergieProject v10.5.18
+# EnergieProject v10.5.19
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -47,3 +47,7 @@ De release-watcher is voorbereid als eigen Container Station-service. Daarmee be
 
 ## v10.5.18
 Eerste conservatieve financiële analysebasis: alleen kosten bij bewezen overlap van meet- en prijsdata; geen verzonnen terugleververgoeding of leverancier-all-in bedrag.
+
+
+## v10.5.19
+NextEnergy is nu als leveranciercontext gekoppeld. Live prijsdata wordt gebruikt als telemetrie, niet als vervanging voor ontbrekende contractcomponenten.

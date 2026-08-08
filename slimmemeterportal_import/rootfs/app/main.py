@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.18"
+APP_VERSION = "10.5.19"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4683,6 +4683,58 @@ def _aggregate_analysis_period(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _supplier_contract_context() -> dict[str, Any]:
+    """Bekende contractcontext + live NextEnergy-prijstelemetrie zonder bedragen te verzinnen."""
+    contract = {
+        "supplier": "NextEnergy",
+        "contract_start": "2026-07-15",
+        "electricity_pricing": "dynamic",
+        "gas_pricing": "variable",
+        "monthly_advance_eur": 150.0,
+        "termination_notice_workdays": 5,
+    }
+    live = {
+        "available": False,
+        "entity_id": None,
+        "price_eur_per_kwh": None,
+        "unit": None,
+        "last_updated": None,
+        "error": None,
+    }
+    try:
+        options = Options.load()
+        entity_id = str(options.nextenergy_entity_id or "").strip()
+        live["entity_id"] = entity_id or None
+        if entity_id:
+            entity = home_assistant_entity(entity_id)
+            attrs = entity.get("attributes") or {}
+            live.update({
+                "available": True,
+                "price_eur_per_kwh": _round_metric(normalized_entity_value(entity)),
+                "unit": attrs.get("unit_of_measurement"),
+                "last_updated": entity.get("last_updated"),
+            })
+    except Exception as exc:
+        live["error"] = str(exc)
+
+    return {
+        "contract": contract,
+        "live_electricity_price": live,
+        "cost_model": {
+            "supplier_fixed_costs_known": False,
+            "supplier_markup_known": False,
+            "export_compensation_known": False,
+            "gas_supplier_formula_known": False,
+            "all_in_ready": False,
+        },
+        "interpretation": (
+            "Live NextEnergy-prijs is alleen referentie voor actuele dynamische stroomprijs. "
+            "Maandkosten worden pas leverancier-all-in wanneer opslag, vaste kosten, "
+            "terugleververgoeding en gasformule officieel zijn gekoppeld."
+        ),
+    }
+
+
 def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     months: list[dict[str, Any]] = []
     if MONTH_INPUT_ROOT.is_dir():
@@ -4742,6 +4794,10 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         item["month"] for item in months
         if (item.get("financial_context") or {}).get("status") == "partial"
     ]
+    supplier_context = _supplier_contract_context()
+    supplier_live_connected = bool(
+        (supplier_context.get("live_electricity_price") or {}).get("available")
+    )
 
     return {
         "schema": ANALYSIS_CONTEXT_SCHEMA,
@@ -4755,10 +4811,12 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         "financial_status": {
             "months_fully_costable": financial_months_available,
             "months_partially_costable": financial_months_partial,
+            "supplier_live_price_connected": supplier_live_connected,
             "supplier_contract_costs_connected": False,
             "export_credit_connected": False,
             "ready_for_all_in_costs": False,
         },
+        "supplier_context": supplier_context,
         "scope": {"year_filter": year, "month_count": len(months)},
         "history_span": {
             "first_month": months[0]["month"] if months else None,
@@ -4778,6 +4836,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "solar_production_kwh": "Enphase-opwek; bij ontbrekende Enphase alleen expliciet gemarkeerde export_fallback.",
             "self_use_pct": "Direct eigen zonnegebruik gedeeld door zonneproductie; null als brondekking dit niet betrouwbaar toelaat.",
             "self_supply_pct": "Direct eigen zonnegebruik gedeeld door berekend huishoudelijk elektriciteitsgebruik; null als brondekking dit niet betrouwbaar toelaat.",
+            "supplier_context": "Bekende NextEnergy-contractmetadata plus live Home Assistant-prijstelemetrie; nog geen leverancier-all-in kostmodel.",
             "price_context": "Historische EPEX-v6 prijscontext. De reader zoekt eerst in de feitelijke Home Assistant share `/share/Energie_NAS/05_Maanddata/EPEX` en ondersteunt daarnaast legacy projectpaden. De hoofdstatistiek gebruikt prijs_incl_btw_en_eb en is geen leverancier-all-in prijs.",
         },
         "months": months,
@@ -9200,7 +9259,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.18",
+        "target_stable_release": "10.5.19",
     }
 
     summary = {
@@ -9232,7 +9291,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.18",
+        "target_stable_release": "10.5.19",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9299,7 +9358,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.18",
+        "Doelrelease: 10.5.19",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
@@ -9643,6 +9702,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
   <div class="metric"><small>Historie</small><strong>{esc(analysis_top.get('history'))}</strong><small>{esc(analysis_top.get('months'))} maand(en) · {esc(analysis_top.get('quarters'))} kwartaal(en) · {esc(analysis_top.get('years'))} jaar/jaren</small></div>
   <div class="metric"><small>Laatste analysemaand</small><strong>{esc(analysis_top.get('latest_month'))}</strong><small>Bronnen: {esc(analysis_top.get('latest_sources'))}</small></div>
   <div class="metric"><small>Datakwaliteit</small><strong><span class="pill {'warn' if analysis_top.get('quality') == 'Waarschuwing' else 'ok'}">{esc(analysis_top.get('quality'))}</span></strong><small>{esc(analysis_top.get('warning'))}</small></div>
+  <div class="metric"><small>Leverancier</small><strong>NextEnergy</strong><small>Dynamische stroom · variabel gas · voorschot €150</small></div>
   <div class="metric"><small>Analysedata</small><strong>Direct beschikbaar</strong><p><a class="button-link" href="download-analysis-data">Download analysedata</a></p><small><a href="analysis-context">Bekijk technische analysecontext</a></small></div>
 </div>
 </div>

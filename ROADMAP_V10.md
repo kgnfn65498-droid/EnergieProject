@@ -38,3 +38,5 @@
 - v10.5.17: release-watcher als zelfstandige auto-restart Container Station-service.
 
 - v10.5.18: eerste financiële context met dekkinggestuurde marktvariabele kosten.
+
+- v10.5.19: NextEnergy-contractcontext en live leverancier-prijstelemetrie.
