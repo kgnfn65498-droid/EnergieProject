@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.4.2
+- Stabiliteits-/praktijktest van de automatische release-watcher.
+- Deze release is bewust klein: geen functionele wijziging aan installer/watcher ten opzichte van v10.4.1.
+- Doel: bewijzen dat uitsluitend het plaatsen van deze ZIP in `EnergieProject_Inbox/incoming` voldoende is voor detectie, validatie, herstelbackup, installatie, Git commit/push, eindcontrole en archivering.
+- Home Assistant app-versie verhoogd naar 10.4.2 zodat na succesvolle GitHub-publicatie ook de normale Home Assistant-updateflow kan worden gecontroleerd.
+- Productiekern `9.4-core1` blijft ongewijzigd.
+
 ## 10.4.1
 - Structurele fix: release-installer verplaatst zichzelf eerst naar `/tmp` wanneer hij vanuit de live worktree wordt gestart.
 - `WORKTREE_REPLACED` wordt vóór het leegmaken gezet, zodat ook een fout tijdens verwijderen direct de gevalideerde tar-backup terugzet.

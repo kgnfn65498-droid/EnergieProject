@@ -1,29 +1,30 @@
-# Roadmap v10+
+# Roadmap v10.x
 
-## v10.1 — 24/7 infrastructuurfundament
-QNAP-opslagcontrole, automatische maand-sidecarback-up, noodherstelhandleiding en chat-overdracht.
+## Afgerond
+- **v10.1–v10.3.1:** 24/7 NAS/GitHub-fundament, release-inbox, validatie, volledige herstelbackup, rollback en automatische GitHub-push.
+- **v10.4.1:** self-safe installer/watcher buiten de live worktree.
+- **v10.4.2:** end-to-end praktijktest: alleen ZIP in `incoming`, geen Terminal-installatiecommando.
 
-## v10.2 — NAS migratievoorbereiding
-Oude NAS-structuur veilig inventariseren, toekomstige 24/7-layout vastleggen en `Releases_Inbox` technisch valideren. Geen automatische verplaatsingen of installatie.
+## Eerstvolgende stabilisatie
+- Watcher na Home Assistant/Terminal-add-on restart of reboot automatisch terug laten komen en status/health zichtbaar maken.
+- Git-committeridentiteit netjes vastleggen en `.DS_Store` uit release-inbox weren.
+- Automatische releaseflow voorzien van compacte statusmelding/diagnose.
 
-## v10.3 — Gecontroleerde migratie en ZIP-verwerking
-Nieuwe NAS-structuur aanmaken, bestanden met hashes migreren, release-ZIP gecontroleerd verwerken en rollback bewijzen.
+## Daarna
+### Voorspellende context
+Weerdata en circa 14-daagse verwachting automatisch ophalen/historiseren en gebruiken voor proactieve energiecontext.
 
-## v10.4 — Voorspellende context
-Weerdata/14-daagse verwachting en dynamische prijsdata automatisch ophalen en historiseren.
+### Dynamische prijzen
+Next Energy en andere relevante dynamische prijsbronnen, inclusief morgenprijzen wanneer beschikbaar, automatisch ophalen/historiseren.
 
-## v10.5 — Dynamisch mobiel dashboard
-Eén mobiele dashboardpagina die relevante inzichten automatisch prioriteert.
+### Mobiel dynamisch dashboard
+Eén telefoonvriendelijke dashboardpagina die automatisch bepaalt welke inzichten nu relevant zijn.
 
-## v10.6 — Financiële regie
-Termijnbedrag, jaarprognose, werkelijke kosten, bandbreedte/betrouwbaarheid en investeringsscenario's.
+### Financiële regie
+Termijnbedrag, jaarprognose, werkelijke kosten, historische jaren, betrouwbaarheid/bandbreedte en investeringsscenario's.
 
-## v10.7 — Conversatie-/analysebasis
-Gestandaardiseerde historische analysecontext voor kwartaal-/jaarvergelijkingen en grafieken.
+### Conversatie-/analysebasis
+Gestandaardiseerde historische analysecontext voor kwartaal-/jaarvergelijkingen, grafieken en rapportgeneratie vanuit gewone taal.
 
-## v11 — Proactieve energieassistent
-Zelf relevante markt-, prijs-, weer- en besparingsontwikkelingen signaleren en onderbouwde acties voorstellen.
-
-## v10.4.1
-- Self-safe installer/watcher: uitvoering buiten live worktree.
-- Eerst handmatig installeren vanuit v10.3.1; daarna watcher starten en automatische verwerking met een volgende release bewijzen.
+### Proactieve energieassistent
+Zelf relevante markt-, prijs-, weer- en besparingsontwikkelingen signaleren en onderbouwde acties voorstellen, met focus op lagere maandlasten en rendabele opties.

@@ -1,13 +1,16 @@
-# EnergieProject v10.4.1 – Self-safe Release Watcher
+# EnergieProject v10.4.2 – Automatic Watcher Proof
 
-v10.4.1 herstelt het uitvoeringsprobleem uit v10.4.0: installer en watcher draaien voortaan vanuit `/tmp` en nooit vanuit de worktree die tijdens een release wordt vervangen. De gecertificeerde productiekern blijft `9.4-core1`.
+v10.4.2 is de eerste release die bedoeld is om **zonder enig Terminal-commando** door de reeds draaiende v10.4.1 release-watcher te worden verwerkt.
 
-## Nieuw
-- Installer kopieert zichzelf automatisch naar `/tmp` wanneer hij vanuit `EnergieProject/tools` wordt gestart.
-- Rollbackstatus wordt vóór het leegmaken van de worktree geactiveerd; ook een fout tijdens verwijderen triggert daardoor volledige tar-rollback.
-- Watcher kopieert zichzelf naar `/tmp` en gebruikt per release een tijdelijke installer-kopie.
-- Hierdoor kunnen `tools/` en de rest van de worktree veilig worden vervangen zonder dat het actieve installatieproces zijn eigen script blokkeert.
-- ZIP-integriteit, SHA256, verplichte bestanden, GitHub-sync, backupvalidatie en eindcontrole blijven verplicht.
-- Productiekern blijft `9.4-core1`.
+## Doel van deze release
+- ZIP uitsluitend plaatsen in `AI Projecten/EnergieProject_Inbox/incoming`.
+- De watcher moet hem binnen circa 30 seconden zelf detecteren.
+- Daarna moeten ZIP-validatie, SHA256-controle, repositorycontrole, herstelbackup, installatie, Git commit/push, GitHub-eindcontrole en verplaatsing naar `processed` automatisch verlopen.
+- Geen functionele wijziging aan de release-installer of watcher zelf; hierdoor is v10.4.2 een zuivere end-to-end praktijktest van de in v10.4.1 geïnstalleerde automatisering.
+- Home Assistant app-versie is 10.4.2, zodat na succesvolle verwerking ook de normale Home Assistant-updateknop kan worden gecontroleerd.
+- Gecertificeerde productiekern blijft `9.4-core1`.
 
-De installer is bewust een host-side tool voor de Home Assistant Terminal/SSH-omgeving. Daarmee gebruikt hij de reeds werkende GitHub deploy key zonder die private sleutel in de Energie-app of op de SMB-share te hoeven opslaan.
+## Succescriterium
+Zonder Terminalinvoer verschijnt v10.4.2 op GitHub `main`, verdwijnt de ZIP uit `incoming` en staat deze in `processed`.
+
+Als dit stabiel is, wordt de verdere v10.x-roadmap in een nieuwe chat voortgezet met de actuele NAS/GitHub-basis en de afspraken uit `NEXT_CHAT_V7.md`.

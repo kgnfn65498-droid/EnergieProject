@@ -1,5 +1,10 @@
 # Changelog
 
+## 10.4.2
+- Praktijktest voor volledig automatische releaseverwerking door de reeds draaiende NAS release-watcher.
+- Geen wijziging aan productiekern `9.4-core1`; release-installer en watcher blijven functioneel gelijk aan de bewezen v10.4.1-basis.
+- Versie-update maakt zichtbaar of ZIP-detectie, validatie, backup, installatie, GitHub-push en archivering zonder Terminal-commando verlopen.
+
 ## 10.4.1
 
 - Automatische NAS release watcher toegevoegd.
