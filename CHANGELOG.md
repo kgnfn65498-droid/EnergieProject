@@ -1,5 +1,10 @@
 # Changelog
 
+## 10.5.27
+- Runtimefout uit 10.5.26 hersteld: `timezone` wordt nu correct uit `datetime` geïmporteerd.
+- De 10.5.26-diagnostiek bewees dat zowel 307 prijs- als 307 P1-importsnapshots correct worden geladen; de MCP-reader zelf is dus goed.
+- Verbruikgewogen berekening en run-rate kunnen nu na `series_loaded` daadwerkelijk worden afgerond.
+
 ## 10.5.26
 - Oorzaak van de lege verbruikgewogen reeks vastgesteld en hersteld.
 - Werkelijke Energie MCP-toolnamen gebruikt: `search_files` en `read_text_file`.

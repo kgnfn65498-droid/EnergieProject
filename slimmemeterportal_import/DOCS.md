@@ -660,3 +660,7 @@ De financiële kwartierreader gebruikt primair `list_files` + `read_text` via re
 
 ## v10.5.26
 De kwartierreader gebruikt `search_files` en `read_text_file`, exact zoals de Energie MCP ze aanbiedt.
+
+
+## v10.5.27
+De gewogen reader berekent de geobserveerde tijdsduur met timezone-aware UTC-datetimes; `timezone` is nu expliciet geïmporteerd.

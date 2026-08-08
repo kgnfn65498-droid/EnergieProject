@@ -54,3 +54,5 @@
 - v10.5.25: robuuste volledige-JSON kwartierreader + regressieherstel gewogen NextEnergy-analyse.
 
 - v10.5.26: structureel herstel MCP snapshotreader met echte toolnamen en permanente diagnostiek.
+
+- v10.5.27: runtimefix timezone na bewezen succesvolle MCP snapshotreader.

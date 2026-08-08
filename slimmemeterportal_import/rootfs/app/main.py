@@ -25,7 +25,7 @@ import zipfile
 from calendar import monthrange
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.26"
+APP_VERSION = "10.5.27"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -9689,7 +9689,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.26",
+        "target_stable_release": "10.5.27",
     }
 
     summary = {
@@ -9721,7 +9721,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.26",
+        "target_stable_release": "10.5.27",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9788,7 +9788,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.26",
+        "Doelrelease: 10.5.27",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
