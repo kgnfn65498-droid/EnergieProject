@@ -1,4 +1,4 @@
-# EnergieProject v10.5.8
+# EnergieProject v10.5.9
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -13,3 +13,7 @@ De analysecontext bevat nu ook read-only historische EPEX-prijscontext per maand
 
 ## v10.5.8
 De historische analyse leest EPEX nu uit de echte projectbron `05_Maanddata/EPEX`, inclusief de volledigheidsstatus uit `EPEX_index.csv`.
+
+
+## v10.5.9
+EPEX-pad wordt nu automatisch opgelost voor de daadwerkelijke Home Assistant NAS-mount; het gebruikte pad staat in `price_context.resolved_path`.

@@ -18,3 +18,5 @@
 - v11: proactieve energieassistent op basis van de gevalideerde analysecontext.
 
 - v10.5.8: EPEX-analyse gekoppeld aan de echte productiebron `05_Maanddata/EPEX`, inclusief dekking en bronhiaten.
+
+- v10.5.9: EPEX-padresolutie robuust gemaakt voor de Home Assistant-projectmount en zichtbaar gemaakt in analysedata.

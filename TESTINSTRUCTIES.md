@@ -1,9 +1,16 @@
-# Testinstructies v10.5.8
+# Testinstructies v10.5.9
 
-1. Plaats `EnergieProject_v10.5.8.zip` in `EnergieProject_Inbox/incoming`.
-2. Laat de automatische keten verwerken en installeer v10.5.8 via **Bijwerken**.
-3. Herstart daarna één keer **SlimmeMeterPortal Import** zodat de nieuwe Python-code zeker actief is. Gebruik GEEN Home Assistant Terminal. Gebruik GEEN handmatige Git-commit of Git-push.
-4. Open **Energieproject** en controleer bovenaan versie `10.5.8`, workflow `idle`, releaseketen `Automatisch` en HA-publicatie `Automatisch`.
-5. Klik **Download analysedata** en stuur alleen het gedownloade JSON-bestand terug.
+1. Plaats `EnergieProject_v10.5.9.zip` in `EnergieProject_Inbox/incoming`.
+2. Installeer via de normale automatische Home Assistant-update.
+3. Herstart daarna één keer **SlimmeMeterPortal Import**. Gebruik GEEN Home Assistant Terminal. Gebruik GEEN handmatige Git-commit of Git-push.
+4. Controleer bovenaan versie `10.5.9` en workflow `idle`.
+5. Klik **Download analysedata** en stuur alleen het JSON-bestand terug.
 
-Verwacht voor juli 2026: EPEX stroom en gas beschikbaar, met dekking `gedeeltelijk` t/m 2026-07-29. Augustus mag nog `not_available` zijn zolang daar geen EPEX-maandbestand voor bestaat. Geen maandworkflow starten.
+Verwacht voor juli 2026:
+- `price_context.coverage.status = "gedeeltelijk"`
+- `last_date = "2026-07-29"`
+- stroom `available = true`, 2784 observaties, frequentie `kwartier`
+- gas `available = true`, 696 observaties, frequentie `uur`
+- `resolved_path` toont het werkelijk gebruikte EPEX-pad.
+
+Geen maandworkflow starten.
