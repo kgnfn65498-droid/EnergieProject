@@ -1,11 +1,9 @@
 # Changelog EnergieProject
 
-## 10.5.3
-- GitHub-publisher in Home Assistant hardened en volledig observeerbaar gemaakt.
-- Startup logt nu expliciet of `github_publication_enabled` werkelijk is ingelezen.
-- Publisherthread logt start, iedere controle, ontbrekende `processed`-release, publicatiepoging en resultaat.
-- Fouten worden niet meer stil ingeslikt maar met traceback in het add-onlog geschreven.
-- Laatste publisherresultaat wordt persistent opgeslagen in `github_publication_state.json`.
-- HA-console ververst de GitHub-publicatiestatus automatisch bij openen en iedere 15 seconden.
-- De statuskaart kan nu onderscheid maken tussen `Configureren`, `Wacht op GitHub` en `Automatisch`.
-- Geen wijzigingen aan productiekern `9.4-core1`, maandworkflow of rapportgeneratoren.
+## 10.5.4
+- End-to-end productietest van de volledige releaseketen.
+- Geen functionele wijzigingen aan maandworkflow, scheduler, importlogica of rapportgeneratoren.
+- Geen wijziging aan productiekern `9.4-core1`.
+- Doel van deze release:
+  `incoming -> QNAP processed -> automatische HA GitHub-publicatie -> Home Assistant update`.
+- v10.5.4 mag niet handmatig via Terminal of GitHub worden gepubliceerd; daarmee wordt de automatische keten daadwerkelijk bewezen.

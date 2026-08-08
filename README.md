@@ -1,7 +1,9 @@
-# EnergieProject v10.5.3
+# EnergieProject v10.5.4
 
-Diagnostische en robuustheidsrelease voor de Home Assistant GitHub-publisher.
+v10.5.4 is de definitieve end-to-end productietest van de automatische releaseketen.
 
-Deze versie verandert geen energieworkflow. Het doel is één ding: aantoonbaar maken dat de reeds geconfigureerde publisher start, de HA-opties leest en fouten/resultaten zichtbaar maakt. De console ververst de publisherstatus automatisch.
+Er zijn bewust geen nieuwe functionele wijzigingen toegevoegd. Deze release bewijst uitsluitend dat de volledige keten zelfstandig werkt:
+
+`incoming -> processed -> GitHub -> Home Assistant update`
 
 Productiekern: `9.4-core1`.

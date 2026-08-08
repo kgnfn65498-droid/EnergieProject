@@ -1,13 +1,22 @@
-# Testinstructies v10.5.3
+# Testinstructies v10.5.4
 
-1. Plaats `EnergieProject_v10.5.3.zip` in `EnergieProject_Inbox/incoming`.
-2. Wacht tot de ZIP in `processed` staat.
-3. Publiceer v10.5.3 nog één keer via de bestaande handmatige Home Assistant Git-route, omdat de automatische publisher van v10.5.2 nog niet aantoonbaar werkte.
-4. Installeer v10.5.3 in Home Assistant.
-5. Controleer direct na herstart het add-onlog. Verwacht minimaal:
-   - `GitHub-publisher startup: enabled=True`
-   - `GitHub-publisherthread gestart.`
-   - `GitHub-publishercontrole: enabled=True`
-   - daarna een publicatiepoging of melding dat de release al verwerkt is.
-6. Open de Energieproject-console. De statuskaart `HA-publicatie` moet zichzelf binnen 15 seconden actualiseren zonder op de knop te hoeven klikken.
-7. Als de status `Automatisch` wordt, bouw/test daarna v10.5.4 uitsluitend via `incoming`; v10.5.4 is de definitieve end-to-end test zonder Terminal.
+## Definitieve releaseketentest
+1. Plaats uitsluitend `EnergieProject_v10.5.4.zip` in `EnergieProject_Inbox/incoming`.
+2. Gebruik GEEN Home Assistant Terminal.
+3. Gebruik GEEN handmatige Git-commit of Git-push.
+4. Wacht tot de ZIP automatisch in `processed` staat.
+5. Wacht daarna maximaal circa 1 minuut op de Home Assistant GitHub-publisher.
+6. Open de Energieproject-console en controleer:
+   - `HA-publicatie` = `Automatisch`;
+   - laatste publicatie = `10.5.4`.
+7. Controleer vervolgens in Home Assistant of v10.5.4 als add-onupdate verschijnt.
+8. Installeer v10.5.4 via de normale knop `Bijwerken`.
+9. Controleer na de update:
+   - versie = `10.5.4`;
+   - workflow = `idle`;
+   - laatste run = `completed`;
+   - releaseketen = `Automatisch`;
+   - HA-publicatie = `Automatisch`.
+
+## Geslaagd criterium
+De test is alleen geslaagd wanneer stap 1 t/m 9 zonder Terminal, handmatige Git-commit of handmatige Git-push zijn uitgevoerd.
