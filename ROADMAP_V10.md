@@ -36,3 +36,5 @@
 - v10.5.16: EPEX bronbereikbaarheid en maandbeschikbaarheid expliciet gescheiden.
 
 - v10.5.17: release-watcher als zelfstandige auto-restart Container Station-service.
+
+- v10.5.18: eerste financiële context met dekkinggestuurde marktvariabele kosten.

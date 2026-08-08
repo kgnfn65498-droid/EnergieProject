@@ -624,3 +624,7 @@ Een werkende MCP-route zonder maandbestand wordt `source_found=true` + `coverage
 
 ## Versie 10.5.17 — Container Station watcher
 De release-watcher kan in `energie-release-watcher` draaien op `python:3.12-slim`, een image die al voor het Energieplatform wordt gebruikt. De volledige `AI Projecten`-share wordt als `/energy` gemount. Heartbeat-locking voorkomt dubbele host/container-watchers en Container Station herstart het watcherproces automatisch.
+
+
+## Versie 10.5.18 — financiële analysebasis
+`financial_context` rekent alleen met dezelfde-maand meetdata en EPEX. Exportvergoeding, leveranciersopslag, vaste kosten en all-in kosten volgen pas na contractkoppeling.

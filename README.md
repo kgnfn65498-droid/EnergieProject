@@ -1,4 +1,4 @@
-# EnergieProject v10.5.17
+# EnergieProject v10.5.18
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -43,3 +43,7 @@ EPEX-diagnostiek scheidt bronbereikbaarheid van maandbeschikbaarheid.
 
 ## v10.5.17
 De release-watcher is voorbereid als eigen Container Station-service. Daarmee bewaakt Container Station het proces en herstart het automatisch. De vier bestaande Energie-containers worden niet gewijzigd.
+
+
+## v10.5.18
+Eerste conservatieve financiële analysebasis: alleen kosten bij bewezen overlap van meet- en prijsdata; geen verzonnen terugleververgoeding of leverancier-all-in bedrag.

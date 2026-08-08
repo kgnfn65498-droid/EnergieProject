@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.17"
+APP_VERSION = "10.5.18"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4573,7 +4573,7 @@ def _month_energy_metrics(month_key: str) -> dict[str, Any]:
     def metric(value: float | None) -> float | None:
         return _round_metric(value) if value is not None else None
 
-    return {
+    result = {
         "month": month_key,
         "year": int(month_key[:4]),
         "quarter": (int(month_key[5:7]) - 1) // 3 + 1,
@@ -4596,6 +4596,61 @@ def _month_energy_metrics(month_key: str) -> dict[str, Any]:
             "available_sources": available_sources,
             "missing_is_null": True,
         },
+    }
+    result["financial_context"] = _financial_month_context(result)
+    return result
+
+
+def _financial_month_context(item: dict[str, Any]) -> dict[str, Any]:
+    """Conservatieve financiële laag op bewezen maanddekking."""
+    metrics = item.get("metrics") or {}
+    prices = item.get("price_context") or {}
+    electricity_price = (prices.get("electricity") or {}).get("average")
+    gas_price = (prices.get("gas") or {}).get("average")
+    grid_import = metrics.get("grid_import_kwh")
+    gas_m3 = metrics.get("gas_m3")
+
+    electricity_cost = (
+        _round_metric(float(grid_import) * float(electricity_price))
+        if grid_import is not None and electricity_price is not None else None
+    )
+    gas_cost = (
+        _round_metric(float(gas_m3) * float(gas_price))
+        if gas_m3 is not None and gas_price is not None else None
+    )
+    market_total = (
+        _round_metric(sum(v for v in (electricity_cost, gas_cost) if v is not None))
+        if electricity_cost is not None or gas_cost is not None else None
+    )
+
+    missing = []
+    for name, value in (
+        ("grid_import_kwh", grid_import),
+        ("electricity_price", electricity_price),
+        ("gas_m3", gas_m3),
+        ("gas_price", gas_price),
+    ):
+        if value is None:
+            missing.append(name)
+
+    return {
+        "status": "available" if not missing else ("partial" if market_total is not None else "not_available"),
+        "market_variable_cost_estimate_eur": market_total,
+        "electricity_import_cost_estimate_eur": electricity_cost,
+        "gas_cost_estimate_eur": gas_cost,
+        "grid_export_credit_eur": None,
+        "supplier_all_in_cost_eur": None,
+        "missing_inputs": missing,
+        "basis": {
+            "electricity": "grid_import_kwh × EPEX gemiddelde prijs_incl_btw_en_eb",
+            "gas": "gas_m3 × EPEX gemiddelde prijs_incl_btw_en_eb",
+            "export": "niet berekend zonder contractuele terugleververgoeding",
+        },
+        "limitations": [
+            "Geen leveranciersopslag of vaste kosten opgenomen.",
+            "Geen terugleververgoeding afgeleid uit afnameprijs.",
+            "Alleen bruikbaar wanneer verbruik en prijsdata dezelfde kalendermaand afdekken.",
+        ],
     }
 
 
@@ -4679,6 +4734,14 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         or (item.get("price_context") or {}).get("gas", {}).get("available")
     ]
     epex_source_reachable = any(bool((item.get("price_context") or {}).get("source_found")) for item in months)
+    financial_months_available = [
+        item["month"] for item in months
+        if (item.get("financial_context") or {}).get("status") == "available"
+    ]
+    financial_months_partial = [
+        item["month"] for item in months
+        if (item.get("financial_context") or {}).get("status") == "partial"
+    ]
 
     return {
         "schema": ANALYSIS_CONTEXT_SCHEMA,
@@ -4688,6 +4751,13 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "epex_source_reachable": epex_source_reachable,
             "months_with_price_data": epex_months_available,
             "latest_month_with_price_data": epex_months_available[-1] if epex_months_available else None,
+        },
+        "financial_status": {
+            "months_fully_costable": financial_months_available,
+            "months_partially_costable": financial_months_partial,
+            "supplier_contract_costs_connected": False,
+            "export_credit_connected": False,
+            "ready_for_all_in_costs": False,
         },
         "scope": {"year_filter": year, "month_count": len(months)},
         "history_span": {
@@ -9130,7 +9200,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.17",
+        "target_stable_release": "10.5.18",
     }
 
     summary = {
@@ -9162,7 +9232,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.17",
+        "target_stable_release": "10.5.18",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9229,7 +9299,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.17",
+        "Doelrelease: 10.5.18",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

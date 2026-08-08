@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.5.18
+- Eerste echte financiële analyse-laag toegevoegd.
+- Marktvariabele stroom- en gaskosten worden alleen berekend wanneer meetdata en EPEX-prijsdata voor dezelfde maand beschikbaar zijn.
+- Terugleververgoeding, leveranciersopslag, vaste kosten en all-in kosten blijven expliciet leeg totdat contractdata officieel is gekoppeld.
+- `financial_status` toont direct welke maanden financieel berekenbaar zijn.
+- Release-watchercontainer uit v10.5.17 blijft ongewijzigd.
+
 ## 10.5.17
 - Release-watcher kan nu als aparte Container Station-container `energie-release-watcher` draaien met `restart=unless-stopped`.
 - Nieuwe gedeelde heartbeat maakt singleton-detectie betrouwbaar tussen QNAP-hostprocessen en Docker PID-namespaces.

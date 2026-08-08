@@ -1,20 +1,16 @@
-# Testinstructies v10.5.17
+# Testinstructies v10.5.18
 
-## Eenmalige overgang
-1. Laat mislukte v10.5.16 in `failed` staan.
-2. Plaats `EnergieProject_v10.5.17.ready` volledig in `EnergieProject_Inbox/incoming`.
-3. Hernoem pas na volledig kopiëren `.ready` naar `.zip`.
-4. Omdat de huidige losse watcher gestopt is, start deze overgang één laatste keer via de bestaande watcher/installer.
-5. Na succesvolle installatie van 10.5.17 voer één keer uit:
-   `sh "/share/AI Projecten/EnergieProject/tools/bootstrap_release_watcher_container.sh"`
-6. Daarna moet in Container Station een vijfde groene container staan: `energie-release-watcher`.
+1. Zet `EnergieProject_v10.5.18.zip` rechtstreeks in `EnergieProject_Inbox/incoming`.
+2. Geen Terminal, geen hernoemen, geen tussenextensie.
+3. Controleer automatische verwerking naar `processed`.
+4. Installeer 10.5.18 in Home Assistant en herstart SlimmeMeterPortal Import één keer.
+5. Klik **Download analysedata** en stuur het JSON-bestand.
 
-Vanaf daarna:
-- alleen een normale `.zip` in `incoming`;
-- geen Terminal voor releases;
-- geen `.ready`;
-- geen watcher-PID/lock handelingen.
+Verwacht:
+- `financial_status` staat bovenaan;
+- juli heeft EPEX maar geen bruikbare P1-maanddata en krijgt dus geen geforceerde kosten;
+- augustus heeft meetdata maar nog geen EPEX-maandbestand en krijgt dus geen geforceerde kosten;
+- terugleververgoeding en supplier all-in blijven `null`;
+- juli-EPEX blijft `gedeeltelijk` t/m 2026-07-29.
 
 Gebruik GEEN Home Assistant Terminal. Gebruik GEEN handmatige Git-commit of Git-push.
-
-Na installatie blijft juli-EPEX `gedeeltelijk` t/m 2026-07-29; dat is de bekende brondekking.
