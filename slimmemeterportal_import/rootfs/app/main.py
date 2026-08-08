@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.24"
+APP_VERSION = "10.5.25"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4750,41 +4750,117 @@ def _aggregate_analysis_period(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _ha_month_entity_snapshot_series(month_key: str, entity_id: str) -> list[dict[str, Any]]:
-    """Lees één HA-entiteit per kwartiersnapshot via de read-only Energie MCP."""
+    """Lees HA-entiteit robuust uit volledige kwartiersnapshotbestanden via read-only MCP."""
     path = f"01_Input/{month_key}/HomeAssistant/QuarterHour"
-    result = _mcp_call_project_tool(
-        "search_content",
-        {"query": f'"entity_id": "{entity_id}",', "path": path,
-         "case_sensitive": True, "max_results": 500, "context_lines": 3},
+    files_result = _mcp_call_project_tool(
+        "list_files",
+        {"path": path, "pattern": "home_assistant_quarter_*.json", "recursive": False},
         timeout=12.0,
     )
-    series = []
-    if not isinstance(result, dict):
-        return series
-    for match in result.get("matches") or []:
-        if not isinstance(match, dict):
-            continue
-        path_value = str(match.get("path") or "")
-        file_match = re.search(r'home_assistant_quarter_(\d{8}T\d{6}Z)\.json$', path_value)
+    file_paths: list[str] = []
+    if isinstance(files_result, dict):
+        for key in ("files", "items", "results"):
+            items = files_result.get(key)
+            if isinstance(items, list):
+                for item in items:
+                    if isinstance(item, str):
+                        file_paths.append(item)
+                    elif isinstance(item, dict):
+                        candidate = item.get("path") or item.get("relative_path") or item.get("name")
+                        if isinstance(candidate, str):
+                            file_paths.append(candidate)
+    elif isinstance(files_result, list):
+        for item in files_result:
+            if isinstance(item, str):
+                file_paths.append(item)
+            elif isinstance(item, dict):
+                candidate = item.get("path") or item.get("relative_path") or item.get("name")
+                if isinstance(candidate, str):
+                    file_paths.append(candidate)
+
+    series: list[dict[str, Any]] = []
+    for candidate in sorted(set(file_paths)):
+        full_path = candidate if candidate.startswith("01_Input/") else f"{path}/{candidate.rsplit('/',1)[-1]}"
+        file_match = re.search(r'home_assistant_quarter_(\d{8}T\d{6}Z)\.json$', full_path)
         if not file_match:
             continue
-        value = None
-        lines = [match.get("matching_text")] + [
-            item.get("text") for item in (match.get("context") or []) if isinstance(item, dict)
-        ]
-        for line in lines:
-            if not isinstance(line, str):
+        content_result = _mcp_call_project_tool(
+            "read_text",
+            {"path": full_path},
+            timeout=8.0,
+        )
+        raw = None
+        if isinstance(content_result, str):
+            raw = content_result
+        elif isinstance(content_result, dict):
+            for key in ("content", "text", "data"):
+                if isinstance(content_result.get(key), str):
+                    raw = content_result[key]
+                    break
+        if not raw:
+            continue
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            continue
+        entities = payload.get("entities") if isinstance(payload, dict) else None
+        if not isinstance(entities, list):
+            continue
+        for entity in entities:
+            if not isinstance(entity, dict) or entity.get("entity_id") != entity_id:
                 continue
-            m = re.search(r'"state"\s*:\s*"([-+]?\d+(?:[.,]\d+)?)"', line)
-            if m:
+            try:
+                value = float(str(entity.get("state")).replace(",", "."))
+            except (TypeError, ValueError):
+                break
+            series.append({
+                "snapshot_timestamp": file_match.group(1),
+                "entity_timestamp": entity.get("last_updated") or entity.get("last_changed"),
+                "value": value,
+            })
+            break
+
+    # Compatibiliteitsfallback voor MCP-servers zonder list_files/read_text resultaatvorm.
+    if not series:
+        search_result = _mcp_call_project_tool(
+            "search_content",
+            {"query": entity_id, "path": path, "case_sensitive": True,
+             "max_results": 500, "context_lines": 8},
+            timeout=12.0,
+        )
+        if isinstance(search_result, dict):
+            for match in search_result.get("matches") or []:
+                if not isinstance(match, dict):
+                    continue
+                path_value = str(match.get("path") or "")
+                file_match = re.search(r'home_assistant_quarter_(\d{8}T\d{6}Z)\.json$', path_value)
+                if not file_match:
+                    continue
+                lines = []
+                if isinstance(match.get("matching_text"), str):
+                    lines.append(match["matching_text"])
+                for ctx in match.get("context") or []:
+                    if isinstance(ctx, dict) and isinstance(ctx.get("text"), str):
+                        lines.append(ctx["text"])
+                joined = "\n".join(lines)
+                # Entityblok begrenzen zodat een state van een buur-entiteit niet wordt gekoppeld.
+                pos = joined.find(entity_id)
+                if pos < 0:
+                    continue
+                window = joined[pos:pos+1200]
+                m = re.search(r'"state"\s*:\s*"([-+]?\d+(?:[.,]\d+)?)"', window)
+                if not m:
+                    continue
                 try:
-                    value = float(m.group(1).replace(",", "."))
+                    value=float(m.group(1).replace(",", "."))
                 except ValueError:
-                    pass
-        if value is not None:
-            series.append({"snapshot_timestamp": file_match.group(1), "value": value})
-    series.sort(key=lambda x: x["snapshot_timestamp"])
-    return series
+                    continue
+                series.append({"snapshot_timestamp": file_match.group(1), "entity_timestamp": None, "value": value})
+
+    dedup={item["snapshot_timestamp"]: item for item in series}
+    return [dedup[key] for key in sorted(dedup)]
+
+
 
 
 def _nextenergy_consumption_weighted_month(month_key: str) -> dict[str, Any]:
@@ -4806,6 +4882,8 @@ def _nextenergy_consumption_weighted_month(month_key: str) -> dict[str, Any]:
             return output
         prices = _ha_month_entity_snapshot_series(month_key, price_entity)
         imports = _ha_month_entity_snapshot_series(month_key, output["import_entity_id"])
+        output["price_snapshots_found"] = len(prices)
+        output["import_snapshots_found"] = len(imports)
         p = {x["snapshot_timestamp"]: x["value"] for x in prices}
         e = {x["snapshot_timestamp"]: x["value"] for x in imports}
         common = sorted(set(p) & set(e))
@@ -9607,7 +9685,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.24",
+        "target_stable_release": "10.5.25",
     }
 
     summary = {
@@ -9639,7 +9717,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.24",
+        "target_stable_release": "10.5.25",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9706,7 +9784,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.24",
+        "Doelrelease: 10.5.25",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

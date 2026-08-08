@@ -1,4 +1,4 @@
-# EnergieProject v10.5.24
+# EnergieProject v10.5.25
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -71,3 +71,7 @@ De bewezen verbruikgewogen NextEnergy-kosten zijn nu onderdeel van de financiël
 
 ## v10.5.24
 De financiële analyse kent nu naast geobserveerde kosten ook de exacte meetduur en dag-run-rate, zonder die als volledige maandprognose te misbruiken.
+
+
+## v10.5.25
+De kwartierreader is robuuster gemaakt: volledige snapshot-JSON via MCP is nu leidend. Daarmee wordt de regressie waarbij de gewogen reeks in 10.5.24 leeg werd structureel aangepakt.

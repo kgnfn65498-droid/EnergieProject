@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.5.25
+- Regressie uit 10.5.24 hersteld: verbruikgewogen NextEnergy-reader leest snapshots nu primair als volledig JSON-bestand via MCP.
+- `search_content` blijft alleen compatibiliteitsfallback; contextregels worden niet meer blind als entiteitsstate geïnterpreteerd.
+- Diagnostiek toegevoegd: aantallen gevonden prijs- en importsnapshots.
+- Run-rate uit 10.5.24 blijft behouden zodra de robuuste reader geldige gekoppelde intervallen levert.
+
 ## 10.5.24
 - Verbruikgewogen financiële waarneming uitgebreid met exacte geobserveerde tijdsduur.
 - Veilige dag-run-rate toegevoegd voor import-kWh en variabele stroomkosten.

@@ -652,3 +652,7 @@ Valide verbruikgewogen NextEnergy-waarnemingen geven de maand financiële status
 
 ## v10.5.24
 De verbruikgewogen deelperiode rapporteert nu `observed_window_hours`, dagelijkse import-run-rate en dagelijkse variabele-kosten-run-rate. Dit zijn observatiekengetallen, geen maandprognose.
+
+
+## v10.5.25
+De financiële kwartierreader gebruikt primair `list_files` + `read_text` via read-only MCP en parseert daarna het volledige JSON-document. `search_content` is uitsluitend fallback.

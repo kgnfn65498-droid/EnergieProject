@@ -50,3 +50,5 @@
 - v10.5.23: verbruikgewogen NextEnergy-kosten geïntegreerd in financiële maandstatus.
 
 - v10.5.24: geobserveerde financiële run-rate en meetduur als basis voor betrouwbare prognoses.
+
+- v10.5.25: robuuste volledige-JSON kwartierreader + regressieherstel gewogen NextEnergy-analyse.
