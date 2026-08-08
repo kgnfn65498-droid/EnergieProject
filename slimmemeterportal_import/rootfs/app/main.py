@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.4"
+APP_VERSION = "10.5.5"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4170,6 +4170,163 @@ def next_run(options: Options) -> datetime:
 
 
 MONTH_INPUT_ROOT = OUTPUT_ROOT / "01_Input"
+
+
+# v10.5.5: gestandaardiseerde, read-only analysecontext op basis van de reeds
+# opgebouwde maandmappen. Deze laag verandert de maandworkflow niet en schrijft
+# geen brondata terug; hij maakt kwartaal- en jaaranalyse machineleesbaar.
+ANALYSIS_CONTEXT_SCHEMA = "energie_analysis_context_v1"
+
+
+def _round_metric(value: float) -> float:
+    return round(float(value), 3)
+
+
+def _month_energy_metrics(month_key: str) -> dict[str, Any]:
+    parse_month_key(month_key)
+    folder = MONTH_INPUT_ROOT / month_key
+    p1e_rows = read_csv_rows(folder / "P1e.csv")
+    p1g_rows = read_csv_rows(folder / "P1g.csv")
+    enphase_rows = read_csv_rows(folder / "Enphase.csv")
+
+    import_kwh = cumulative_delta(
+        p1e_rows,
+        ("total_power_import_kwh", "energy_import_kwh", "import_kwh", "meter_reading_import_kwh"),
+    )
+    export_kwh = cumulative_delta(
+        p1e_rows,
+        ("total_power_export_kwh", "energy_export_kwh", "export_kwh", "meter_reading_export_kwh"),
+    )
+    gas_m3 = cumulative_delta(p1g_rows, ("total_gas_m3", "gas_m3", "meter_reading_gas_m3"))
+    production_kwh = cumulative_delta(
+        enphase_rows,
+        ("energy_kwh", "lifetime_energy_kwh", "production_kwh", "value_kwh", "value"),
+    )
+    production_source = "enphase"
+    if production_kwh <= 0 and export_kwh > 0:
+        # Zelfde conservatieve fallback als de bestaande rapportadapter: bruikbaar
+        # voor analyse, maar expliciet gelabeld zodat dit niet als gemeten opwek
+        # wordt geïnterpreteerd.
+        production_kwh = export_kwh
+        production_source = "export_fallback"
+
+    direct_solar_kwh = max(0.0, production_kwh - export_kwh)
+    house_use_kwh = max(0.0, import_kwh + direct_solar_kwh)
+    self_use_pct = (direct_solar_kwh / production_kwh * 100.0) if production_kwh else 0.0
+    self_supply_pct = (direct_solar_kwh / house_use_kwh * 100.0) if house_use_kwh else 0.0
+    validation_path = folder / "month_input_validation.json"
+    validation: dict[str, Any] = {}
+    try:
+        if validation_path.is_file():
+            validation = json.loads(validation_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        validation = {"status": "unreadable"}
+
+    available_sources = [
+        name for name, file_name in (
+            ("P1e", "P1e.csv"), ("P1g", "P1g.csv"), ("Enphase", "Enphase.csv"),
+            ("EPEX electricity", "EPEX stroom.csv"), ("EPEX gas", "EPEX gas.csv"),
+        ) if (folder / file_name).is_file()
+    ]
+    return {
+        "month": month_key,
+        "year": int(month_key[:4]),
+        "quarter": (int(month_key[5:7]) - 1) // 3 + 1,
+        "metrics": {
+            "grid_import_kwh": _round_metric(import_kwh),
+            "grid_export_kwh": _round_metric(export_kwh),
+            "net_grid_kwh": _round_metric(import_kwh - export_kwh),
+            "gas_m3": _round_metric(gas_m3),
+            "solar_production_kwh": _round_metric(production_kwh),
+            "direct_solar_use_kwh": _round_metric(direct_solar_kwh),
+            "house_use_kwh": _round_metric(house_use_kwh),
+            "self_use_pct": _round_metric(self_use_pct),
+            "self_supply_pct": _round_metric(self_supply_pct),
+        },
+        "quality": {
+            "month_input_validation": validation.get("status") or "not_available",
+            "production_source": production_source if production_kwh > 0 else "not_available",
+            "available_sources": available_sources,
+        },
+    }
+
+
+def _aggregate_analysis_period(items: list[dict[str, Any]]) -> dict[str, Any]:
+    additive = (
+        "grid_import_kwh", "grid_export_kwh", "net_grid_kwh", "gas_m3",
+        "solar_production_kwh", "direct_solar_use_kwh", "house_use_kwh",
+    )
+    totals = {
+        key: _round_metric(sum(float((item.get("metrics") or {}).get(key) or 0.0) for item in items))
+        for key in additive
+    }
+    solar = totals["solar_production_kwh"]
+    house = totals["house_use_kwh"]
+    totals["self_use_pct"] = _round_metric(totals["direct_solar_use_kwh"] / solar * 100.0) if solar else 0.0
+    totals["self_supply_pct"] = _round_metric(totals["direct_solar_use_kwh"] / house * 100.0) if house else 0.0
+    return {
+        "months_present": [str(item.get("month")) for item in items],
+        "month_count": len(items),
+        "metrics": totals,
+    }
+
+
+def build_analysis_context(year: int | None = None) -> dict[str, Any]:
+    months: list[dict[str, Any]] = []
+    if MONTH_INPUT_ROOT.is_dir():
+        for folder in sorted(MONTH_INPUT_ROOT.iterdir()):
+            if not folder.is_dir() or not re.fullmatch(r"\d{4}_\d{2}", folder.name):
+                continue
+            if year is not None and int(folder.name[:4]) != year:
+                continue
+            try:
+                months.append(_month_energy_metrics(folder.name))
+            except Exception as exc:
+                months.append({
+                    "month": folder.name,
+                    "year": int(folder.name[:4]),
+                    "quarter": (int(folder.name[5:7]) - 1) // 3 + 1,
+                    "metrics": {},
+                    "quality": {"status": "error", "error": str(exc)},
+                })
+
+    quarters: list[dict[str, Any]] = []
+    years: list[dict[str, Any]] = []
+    for yr in sorted({int(item["year"]) for item in months}):
+        year_items = [item for item in months if int(item["year"]) == yr]
+        year_entry = {"year": yr, **_aggregate_analysis_period(year_items)}
+        year_entry["complete_calendar_year"] = len(year_items) == 12
+        years.append(year_entry)
+        for quarter in range(1, 5):
+            quarter_items = [item for item in year_items if int(item["quarter"]) == quarter]
+            if not quarter_items:
+                continue
+            q_entry = {"year": yr, "quarter": quarter, **_aggregate_analysis_period(quarter_items)}
+            q_entry["complete_quarter"] = len(quarter_items) == 3
+            quarters.append(q_entry)
+
+    return {
+        "schema": ANALYSIS_CONTEXT_SCHEMA,
+        "version": APP_VERSION,
+        "generated_at": datetime.now(TZ).isoformat(),
+        "scope": {"year_filter": year, "month_count": len(months)},
+        "history_span": {
+            "first_month": months[0]["month"] if months else None,
+            "last_month": months[-1]["month"] if months else None,
+        },
+        "definitions": {
+            "grid_import_kwh": "Elektriciteit van het net volgens P1e.",
+            "grid_export_kwh": "Teruglevering aan het net volgens P1e.",
+            "net_grid_kwh": "grid_import_kwh minus grid_export_kwh.",
+            "gas_m3": "Gasverbruik volgens P1g.",
+            "solar_production_kwh": "Enphase-opwek; bij ontbrekende Enphase alleen expliciet gemarkeerde export_fallback.",
+            "self_use_pct": "Direct eigen zonnegebruik gedeeld door zonneproductie.",
+            "self_supply_pct": "Direct eigen zonnegebruik gedeeld door berekend huishoudelijk elektriciteitsgebruik.",
+        },
+        "months": months,
+        "quarters": quarters,
+        "years": years,
+    }
 
 
 def parse_month_key(value: str) -> tuple[int, int]:
@@ -8569,7 +8726,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.4",
+        "target_stable_release": "10.5.5",
     }
 
     summary = {
@@ -8601,8 +8758,8 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.4",
-        "note": "v10.4.5 gebruikt self-safe installer- en watcherprocessen buiten de live worktree; release-inbox, backup, rollback en GitHub-controles blijven actief; productiekern 9.4-core1 blijft ongewijzigd.",
+        "target_stable_release": "10.5.5",
+        "note": "v10.5.5 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
     generated = {
@@ -8668,7 +8825,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.4",
+        "Doelrelease: 10.5.5",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
@@ -9220,7 +9377,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <form method="post" action="report-service-check"><button type="submit">Controleer rapportservice</button></form>
 <form method="post" action="run-report-generation"><button type="submit">Genereer compleet maandrapport</button></form>
 </details>
-<p class="links"><a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="workflow-lock-status">Workflowstatus</a> · <a href="operation-status">Operationele status</a> · <a href="health-dashboard">Gezondheidsdashboard</a> · <a href="health">Healthcheck</a></p>
+<p class="links"><a href="analysis-context">Analysecontext</a> · <a href="status.json">Technische status</a> · <a href="report-generation-status">Rapportstatus</a> · <a href="workflow-audit-status">Eindcontrole</a> · <a href="workflow-summary">Samenvatting</a> · <a href="workflow-lock-status">Workflowstatus</a> · <a href="operation-status">Operationele status</a> · <a href="health-dashboard">Gezondheidsdashboard</a> · <a href="health">Healthcheck</a></p>
 <p class="hint">API-key en algemene importplanning staan op het tabblad <strong>Configuratie</strong>. De automatische maandafsluiting kan vanaf v7.6 ook hierboven worden ingesteld.</p>
 </div>
 <script>
@@ -9811,6 +9968,18 @@ class Handler(BaseHTTPRequestHandler):
                 indent=2,
             ).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/analysis-context") or path == "/analysis-context":
+            query = parse_qs(parsed.query)
+            year_raw = (query.get("year") or [""])[0].strip()
+            try:
+                year_filter = int(year_raw) if year_raw else None
+                if year_filter is not None and not 2000 <= year_filter <= 2100:
+                    raise ValueError("Jaar buiten geldig bereik.")
+                body = json.dumps(build_analysis_context(year_filter), ensure_ascii=False, indent=2).encode("utf-8")
+                self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+            except Exception as exc:
+                body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.BAD_REQUEST, body, "application/json; charset=utf-8")
         elif path.endswith("/workflow-lock-status") or path == "/workflow-lock-status":
             state = persist_normalized_status(Options.load())
             body = json.dumps({

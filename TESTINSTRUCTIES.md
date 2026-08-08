@@ -1,22 +1,24 @@
-# Testinstructies v10.5.4
+# Testinstructies v10.5.5
 
-## Definitieve releaseketentest
-1. Plaats uitsluitend `EnergieProject_v10.5.4.zip` in `EnergieProject_Inbox/incoming`.
-2. Gebruik GEEN Home Assistant Terminal.
-3. Gebruik GEEN handmatige Git-commit of Git-push.
-4. Wacht tot de ZIP automatisch in `processed` staat.
-5. Wacht daarna maximaal circa 1 minuut op de Home Assistant GitHub-publisher.
-6. Open de Energieproject-console en controleer:
-   - `HA-publicatie` = `Automatisch`;
-   - laatste publicatie = `10.5.4`.
-7. Controleer vervolgens in Home Assistant of v10.5.4 als add-onupdate verschijnt.
-8. Installeer v10.5.4 via de normale knop `Bijwerken`.
-9. Controleer na de update:
-   - versie = `10.5.4`;
-   - workflow = `idle`;
-   - laatste run = `completed`;
-   - releaseketen = `Automatisch`;
-   - HA-publicatie = `Automatisch`.
+## Installatie via de bewezen automatische releaseketen
+**Gebruik GEEN Home Assistant Terminal. Gebruik GEEN handmatige Git-commit of Git-push.** De normale automatische route is verplicht.
 
-## Geslaagd criterium
-De test is alleen geslaagd wanneer stap 1 t/m 9 zonder Terminal, handmatige Git-commit of handmatige Git-push zijn uitgevoerd.
+1. Plaats uitsluitend `EnergieProject_v10.5.5.zip` in `EnergieProject_Inbox/incoming`.
+2. Wacht tot QNAP de ZIP automatisch naar `processed` heeft verplaatst.
+3. Controleer in de Energieproject-console dat `HA-publicatie` nog **Automatisch** is en dat laatste publicatie `10.5.5` wordt.
+4. Installeer daarna v10.5.5 via de normale Home Assistant-knop **Bijwerken**.
+
+## Functionele test v10.5.5
+5. Open na de update de add-on **SlimmeMeterPortal Import** en daarna de console **Energieproject**.
+6. Controleer bovenaan dat versie `10.5.5` draait en dat Workflow `idle`/normaal blijft.
+7. Scroll naar **Diagnostiek en beheer**. Onderaan de kaart staat nu de link **Analysecontext**.
+8. Klik **Analysecontext**. Er moet een JSON-pagina openen met bovenaan:
+   - `schema: energie_analysis_context_v1`;
+   - `version: 10.5.5`;
+   - `scope`;
+   - `history_span`;
+   - `months`, `quarters` en `years`.
+9. Controleer dat de bekende beschikbare maand(en) onder `months` voorkomen en dat dezelfde periode ook in `quarters` en `years` is geaggregeerd. Een onvolledig kwartaal/jaar moet `complete_quarter: false` of `complete_calendar_year: false` tonen.
+10. Ga terug naar de console. Er hoeft voor deze versie **geen maandworkflow of automatische productietest** gestart te worden, omdat productiekern `9.4-core1` niet is gewijzigd.
+
+Stuur daarna één screenshot van de bovenkant van de geopende `Analysecontext`-JSON en één screenshot waarop `months`/`quarters` zichtbaar zijn.

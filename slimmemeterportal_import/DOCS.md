@@ -574,3 +574,7 @@ De operationele console bevat **Download diagnosepakket**. Deze download bundelt
 ## Diagnosepakket vanaf v9.8
 
 `samenvatting.txt` maakt expliciet onderscheid tussen de actieve softwareversie en de release waarin de ongewijzigde productiekern oorspronkelijk is gecertificeerd. Zo is zichtbaar wanneer hetzelfde geldige kerncertificaat veilig wordt hergebruikt.
+
+## Versie 10.5.5 — gestandaardiseerde analysecontext
+
+De operationele console bevat de link `Analysecontext`. Het endpoint `/analysis-context` leest uitsluitend bestaande maandmappen onder `/config/output/01_Input/YYYY_MM` en retourneert schema `energie_analysis_context_v1` met maand-, kwartaal- en kalenderjaaraggregaties. De context schrijft geen brondata terug en wijzigt de maandworkflow niet. Onvolledige kwartalen en kalenderjaren worden expliciet gemarkeerd. Met `?year=YYYY` kan de context tot één kalenderjaar worden beperkt.

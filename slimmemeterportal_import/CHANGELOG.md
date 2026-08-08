@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.5.5
+- Read-only `analysis-context` endpoint toegevoegd voor gestandaardiseerde maand-, kwartaal- en jaaranalyse uit bestaande maandinput.
+- Bronkwaliteit en onvolledige perioden worden expliciet in de JSON-context opgenomen.
+- Link `Analysecontext` toegevoegd aan de operationele console.
+- Productiekern `9.4-core1` en bestaande productie-/releaseketen blijven ongewijzigd.
+
 ## 10.4.5
 - QNAP-veilige release-installatie zonder metadata-/timestamp-preservering.
 - Preflight controleert schrijven, normaal kopiëren en verwijderen vóór de worktree wordt vervangen.
