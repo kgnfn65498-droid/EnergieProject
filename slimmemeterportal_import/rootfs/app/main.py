@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.28"
+APP_VERSION = "10.5.29"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -5107,6 +5107,7 @@ def _supplier_contract_context() -> dict[str, Any]:
             "gas_supplier_formula_known": False,
             "consumption_weighted_import_available": False,
             "projection_ready_months": [],
+            "projection_observation_status": [],
             "projection_policy": {"minimum_observed_days": 7.0, "automatic_month_extrapolation": False, "automatic_contract_year_extrapolation": False},
             "all_in_ready": False,
         },
@@ -5218,13 +5219,25 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         observed_hours = weighted.get("observed_window_hours")
         coverage_days = (float(observed_hours) / 24.0) if isinstance(observed_hours, (int, float)) else None
         financial["observed_coverage_days"] = _round_metric(coverage_days) if coverage_days is not None else None
+        minimum_days = 7.0
+        observed_days = _round_metric(coverage_days) if coverage_days is not None else None
+        progress_pct = (
+            min(100.0, max(0.0, (float(coverage_days) / minimum_days) * 100.0))
+            if coverage_days is not None else 0.0
+        )
+        remaining_days = (
+            max(0.0, minimum_days - float(coverage_days))
+            if coverage_days is not None else minimum_days
+        )
         financial["projection_eligibility"] = {
-            "eligible": bool(coverage_days is not None and coverage_days >= 7.0),
-            "minimum_observed_days": 7.0,
-            "observed_days": _round_metric(coverage_days) if coverage_days is not None else None,
+            "eligible": bool(coverage_days is not None and coverage_days >= minimum_days),
+            "minimum_observed_days": minimum_days,
+            "observed_days": observed_days,
+            "coverage_progress_pct": round(progress_pct, 1),
+            "remaining_observation_days": _round_metric(remaining_days),
             "reason": (
                 "minimum_observation_window_met"
-                if coverage_days is not None and coverage_days >= 7.0
+                if coverage_days is not None and coverage_days >= minimum_days
                 else "insufficient_observation_window"
             ),
         }
@@ -5248,6 +5261,14 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         if eligibility.get("eligible"):
             projection_months.append(str(month.get("month")))
     supplier_context["cost_model"]["projection_ready_months"] = projection_months
+    supplier_context["cost_model"]["projection_observation_status"] = [
+        {
+            "month": str(month.get("month")),
+            **((month.get("financial_context") or {}).get("projection_eligibility") or {}),
+        }
+        for month in months
+        if (month.get("financial_context") or {}).get("projection_eligibility")
+    ]
     supplier_context["cost_model"]["projection_policy"] = {
         "minimum_observed_days": 7.0,
         "automatic_month_extrapolation": False,
@@ -9717,7 +9738,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.28",
+        "target_stable_release": "10.5.29",
     }
 
     summary = {
@@ -9749,7 +9770,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.28",
+        "target_stable_release": "10.5.29",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9816,7 +9837,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.28",
+        "Doelrelease: 10.5.29",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

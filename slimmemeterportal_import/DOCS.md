@@ -668,3 +668,7 @@ De gewogen reader berekent de geobserveerde tijdsduur met timezone-aware UTC-dat
 
 ## v10.5.28
 `projection_eligibility` voorkomt dat een korte meetperiode als betrouwbare maand- of jaarprognose wordt behandeld. Drempel: 7 dagen.
+
+
+## v10.5.29
+`coverage_progress_pct` en `remaining_observation_days` maken zichtbaar wanneer voldoende echte data beschikbaar komt voor de volgende prognosestap.

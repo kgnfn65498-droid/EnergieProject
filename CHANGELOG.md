@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.5.29
+- Prognosekwaliteitsdrempel uit 10.5.28 uitgebreid met voortgangsmeting.
+- Per maand worden `coverage_progress_pct` en `remaining_observation_days` gerapporteerd.
+- Supplier cost model bevat een compacte `projection_observation_status`.
+- Nog steeds geen voortijdige extrapolatie: pas na minimaal 7 waargenomen dagen wordt de maand prognosegeschikt.
+
 ## 10.5.28
 - De herstelde verbruikgewogen NextEnergy-keten uit 10.5.27 is nu voorzien van een expliciete prognosekwaliteitsdrempel.
 - `observed_coverage_days` en `projection_eligibility` toegevoegd per financiële maand.

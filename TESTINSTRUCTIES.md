@@ -1,22 +1,19 @@
-# Testinstructies v10.5.28
+# Testinstructies v10.5.29
 1. ZIP rechtstreeks in `EnergieProject_Inbox/incoming`.
 2. Wacht op `processed`.
-3. Update Home Assistant naar 10.5.28 en herstart de add-on één keer.
+3. Update Home Assistant naar 10.5.29 en herstart de add-on één keer.
 4. Klik **Download analysedata** en stuur het JSON-bestand.
 
-Verwacht nu:
-- augustus blijft `partial_observed`
-- gewogen NextEnergy-reeks blijft beschikbaar
-- `observed_coverage_days` is ongeveer 3,18 dagen
+Verwacht voor augustus:
+- gewogen analyse blijft `weighted_ok`
+- `observed_coverage_days` is circa 3,2 dagen
 - `projection_eligibility.eligible = false`
-- reden = `insufficient_observation_window`
+- `coverage_progress_pct` is circa 45–50%
+- `remaining_observation_days` is circa 3,8 dagen
+- `projection_observation_status` bevat `2026_08`
 - `projection_ready_months = []`
-- minimum = 7 dagen
-- automatische maand- en contractjaarextrapolatie blijven `false`
+- geen automatische maand- of contractjaarextrapolatie
 - `ready_for_all_in_costs = false`
-
-Dit is bewust: de huidige 76,25 uur is nog te kort voor een betrouwbare prognose.
-Geen Terminal of handmatige Git-acties.
 
 Juli-EPEX blijft `gedeeltelijk` t/m 2026-07-29.
 Gebruik GEEN Home Assistant Terminal.

@@ -1,4 +1,4 @@
-# EnergieProject v10.5.28
+# EnergieProject v10.5.29
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -87,3 +87,7 @@ Herstelt de ontbrekende `timezone`-import die in 10.5.26 pas na succesvol laden 
 
 ## v10.5.28
 Financiële run-rates krijgen nu een harde kwaliteitsdrempel: pas vanaf zeven dagen echte waarneming wordt een maand prognosegeschikt gemarkeerd. Er wordt nog niet automatisch geëxtrapoleerd.
+
+
+## v10.5.29
+De financiële analyse toont nu hoe ver de echte meetdekking richting de 7-dagendrempel is gevorderd, zonder al te extrapoleren.

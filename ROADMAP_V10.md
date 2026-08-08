@@ -58,3 +58,5 @@
 - v10.5.27: runtimefix timezone na bewezen succesvolle MCP snapshotreader.
 
 - v10.5.28: prognosekwaliteitsdrempel op echte NextEnergy/P1-waarnemingen; geen voortijdige extrapolatie.
+
+- v10.5.29: meetdekking/prognosegereedheid als expliciete voortgangs-KPI.
