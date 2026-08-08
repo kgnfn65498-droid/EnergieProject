@@ -1,9 +1,7 @@
-# EnergieProject v10.5.1
+# EnergieProject v10.5.2
 
-Tweede Home Assistant-release na stabilisatie van de automatische QNAP-releaseketen.
+v10.5.2 sluit de ontbrekende schakel tussen automatische QNAP-installatie en Home Assistant updates.
 
-v10.5.1 maakt in de operationele console expliciet onderscheid tussen:
-- automatische installatie op de QNAP;
-- publicatie naar GitHub die nodig is voordat Home Assistant een nieuwe add-onversie kan aanbieden.
+Home Assistant verzorgt voortaan de GitHub-publicatie met een eigen persistente ED25519 Deploy Key. De QNAP blijft alleen verantwoordelijk voor veilige ZIP-installatie, backup en rollback.
 
 Productiekern: `9.4-core1`.

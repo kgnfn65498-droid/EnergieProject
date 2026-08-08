@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "10.5.1"
+version: "10.5.2"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -89,6 +89,10 @@ options:
   automatic_month_close_hour: 4
   automatic_month_close_retry_hours: 6
   operation_history_months: 12
+  github_publication_enabled: false
+  github_repository_ssh: "git@github.com:kgnfn65498-droid/EnergieProject.git"
+  github_branch: "main"
+  github_publication_poll_seconds: 15
 schema:
   api_key: password
   run_on_start: bool
@@ -164,3 +168,7 @@ schema:
   automatic_month_close_hour: "int(0,23)"
   automatic_month_close_retry_hours: "int(1,48)"
   operation_history_months: "int(1,60)"
+  github_publication_enabled: bool
+  github_repository_ssh: str
+  github_branch: str
+  github_publication_poll_seconds: "int(5,300)"

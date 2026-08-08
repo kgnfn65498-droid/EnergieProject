@@ -5,6 +5,7 @@ import csv
 import html
 import io
 import json
+import subprocess
 import logging
 import os
 import random
@@ -52,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.1"
+APP_VERSION = "10.5.2"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -70,6 +71,12 @@ PROJECT_BACKUP_PREFIX = "EnergieProject_maandbackup"
 # EnergieProject_Inbox/incoming en doorlopen processing -> processed/failed.
 NAS_PROJECT_ROOT = NAS_SHARE_ROOT / "EnergieProject"
 NAS_RELEASE_ROOT = NAS_SHARE_ROOT / "EnergieProject_Inbox"
+
+GITHUB_PUBLISH_DIR = Path("/config/github_publisher")
+GITHUB_PRIVATE_KEY = GITHUB_PUBLISH_DIR / "id_ed25519"
+GITHUB_PUBLIC_KEY = GITHUB_PUBLISH_DIR / "id_ed25519.pub"
+GITHUB_KNOWN_HOSTS = GITHUB_PUBLISH_DIR / "known_hosts"
+GITHUB_PUBLISH_STATE = Path("/config/output/github_publication_state.json")
 NAS_RELEASE_INBOX = NAS_RELEASE_ROOT / "incoming"
 NAS_RELEASE_PROCESSING = NAS_RELEASE_ROOT / "processing"
 NAS_RELEASE_ARCHIVE = NAS_RELEASE_ROOT / "processed"
@@ -8562,7 +8569,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.1",
+        "target_stable_release": "10.5.2",
     }
 
     summary = {
@@ -8594,7 +8601,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.1",
+        "target_stable_release": "10.5.2",
         "note": "v10.4.5 gebruikt self-safe installer- en watcherprocessen buiten de live worktree; release-inbox, backup, rollback en GitHub-controles blijven actief; productiekern 9.4-core1 blijft ongewijzigd.",
     }
 
@@ -8661,7 +8668,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.1",
+        "Doelrelease: 10.5.2",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
@@ -8993,7 +9000,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
   <div class="metric"><small>Laatste maand</small><strong id="last-month">{esc(last_run.get('month') or 'Nog geen')}</strong></div>
   <div class="metric"><small>Laatste run</small><strong><span id="last-run-status" class="pill {status_class(last_run.get('status'))}">{esc(last_run.get('status') or 'Nog geen')}</span></strong></div>
   <div class="metric"><small>Automatische maandafsluiting</small><strong class="auto-status"><span id="auto-close-top-status" class="pill {'ok' if auto_close.get('enabled') else 'neutral'}">{'Aan' if auto_close.get('enabled') else 'Uit'}</span><small id="auto-close-top-detail">{('dag ' + esc(auto_close.get('day')) + ' · ' + esc(auto_close.get('hour')) + ':00 · retry ' + esc(auto_close.get('retry_hours')) + 'u') if auto_close.get('enabled') else 'Scheduler niet actief'}</small></strong>  <div class="metric"><small>Releaseketen</small><strong><span class="pill ok">Automatisch</span></strong><small class="test-detail">QNAP ZIP-only · watcher 5 s · installatie automatisch</small></div>
-  <div class="metric"><small>HA-publicatie</small><strong><span class="pill warn">GitHub vereist</span></strong><small class="test-detail">Home Assistant update volgt na publicatie van de release naar GitHub</small></div>
+  <div class="metric"><small>HA-publicatie</small><strong><span id="github-publish-pill" class="pill warn">Configureren</span></strong><small id="github-publish-detail" class="test-detail">Automatische GitHub-publicatie wordt door Home Assistant uitgevoerd</small><button class="secondary" type="button" onclick="loadGithubPublisher()">Toon publicatiesleutel</button><pre id="github-public-key" style="display:none;white-space:pre-wrap;word-break:break-all;margin-top:8px"></pre></div>
 </div>
 </div>
 
@@ -9479,11 +9486,208 @@ document.querySelectorAll('form[action="start-month-workflow"],form[action="resu
 refreshStatus();
 // v7.0.1 compatibiliteitsreferentie: setInterval(refreshStatus,5000)
 setInterval(refreshStatus,2500);
+
+async function loadGithubPublisher(){{
+  const pill=document.getElementById('github-publish-pill');
+  const detail=document.getElementById('github-publish-detail');
+  const key=document.getElementById('github-public-key');
+  try{{
+    const r=await fetch('./api/github-publisher/status',{{cache:'no-store'}});
+    const d=await r.json();
+    if(d.enabled && d.remote_reachable){{
+      pill.textContent='Automatisch';
+      pill.className='pill ok';
+      detail.textContent=d.message || 'GitHub-publicatie gereed';
+    }}else if(d.key_ready){{
+      pill.textContent='Sleutel gereed';
+      pill.className='pill warn';
+      detail.textContent=d.message || 'Voeg de sleutel eenmalig als write-enabled Deploy Key toe in GitHub en zet github_publication_enabled aan.';
+    }}else{{
+      pill.textContent='Niet gereed';
+      pill.className='pill warn';
+      detail.textContent=d.message || 'Publicatiesleutel kon niet worden gemaakt.';
+    }}
+    if(d.public_key){{
+      key.style.display='block';
+      key.textContent=d.public_key;
+    }}
+  }}catch(e){{
+    detail.textContent='Status ophalen mislukt: '+e;
+  }}
+}}
 </script>
 </main></body></html>""".encode("utf-8")
 
 
 ALLOWED_HTTP_CLIENTS = {"172.30.32.2", "127.0.0.1", "::1"}
+
+
+
+def _publisher_options():
+    path = Path("/data/options.json")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _run_cmd(args, *, cwd=None, env=None, timeout=30):
+    proc = subprocess.run(
+        args,
+        cwd=str(cwd) if cwd else None,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+    return proc.returncode, proc.stdout.strip(), proc.stderr.strip()
+
+
+def _ensure_github_key():
+    GITHUB_PUBLISH_DIR.mkdir(parents=True, exist_ok=True)
+    if not GITHUB_PRIVATE_KEY.exists() or not GITHUB_PUBLIC_KEY.exists():
+        rc, out, err = _run_cmd(
+            ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C",
+             "EnergieProject Home Assistant publisher", "-f", str(GITHUB_PRIVATE_KEY)],
+            timeout=30,
+        )
+        if rc != 0:
+            return {"ok": False, "message": f"SSH-sleutel maken mislukt: {err or out}", "public_key": ""}
+    try:
+        GITHUB_PRIVATE_KEY.chmod(0o600)
+        GITHUB_PUBLIC_KEY.chmod(0o644)
+    except Exception:
+        pass
+    if not GITHUB_KNOWN_HOSTS.exists():
+        rc, out, err = _run_cmd(["ssh-keyscan", "-t", "ed25519", "github.com"], timeout=20)
+        if rc == 0 and out:
+            GITHUB_KNOWN_HOSTS.write_text(out + "\n", encoding="utf-8")
+    pub = GITHUB_PUBLIC_KEY.read_text(encoding="utf-8").strip() if GITHUB_PUBLIC_KEY.exists() else ""
+    return {
+        "ok": bool(pub),
+        "message": "GitHub publicatiesleutel gereed" if pub else "Publicatiesleutel ontbreekt",
+        "public_key": pub,
+    }
+
+
+def _github_git_env():
+    env = dict(os.environ)
+    env["GIT_SSH_COMMAND"] = (
+        f"ssh -i {GITHUB_PRIVATE_KEY} "
+        f"-o IdentitiesOnly=yes "
+        f"-o UserKnownHostsFile={GITHUB_KNOWN_HOSTS} "
+        f"-o StrictHostKeyChecking=yes "
+        f"-o BatchMode=yes"
+    )
+    return env
+
+
+def github_publication_status(options=None):
+    options = options or {}
+    key = _ensure_github_key()
+    repo = str(options.get("github_repository_ssh") or "git@github.com:kgnfn65498-droid/EnergieProject.git")
+    branch = str(options.get("github_branch") or "main")
+    enabled = bool(options.get("github_publication_enabled", False))
+    result = {
+        "enabled": enabled,
+        "repository": repo,
+        "branch": branch,
+        "key_ready": bool(key.get("ok")),
+        "public_key": key.get("public_key", ""),
+        "remote_reachable": False,
+        "message": key.get("message", ""),
+    }
+    try:
+        result["local_version"] = (NAS_PROJECT_ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
+    except Exception:
+        result["local_version"] = ""
+    if key.get("ok") and NAS_PROJECT_ROOT.exists():
+        rc, out, err = _run_cmd(
+            ["git", "-c", f"safe.directory={NAS_PROJECT_ROOT}", "ls-remote", repo, f"refs/heads/{branch}"],
+            cwd=NAS_PROJECT_ROOT,
+            env=_github_git_env(),
+            timeout=20,
+        )
+        result["remote_reachable"] = rc == 0
+        result["remote_head"] = out.split()[0] if rc == 0 and out else ""
+        if rc == 0:
+            result["message"] = "GitHub bereikbaar; publicatiegereed"
+        elif enabled:
+            result["message"] = f"GitHub nog niet geautoriseerd: {err or out}"
+    return result
+
+
+def publish_github_release(options=None):
+    options = options or {}
+    status = github_publication_status(options)
+    if not bool(options.get("github_publication_enabled", False)):
+        return {**status, "published": False, "message": "Automatische GitHub-publicatie staat uit"}
+    if not status.get("key_ready") or not NAS_PROJECT_ROOT.exists():
+        return {**status, "published": False}
+    repo = str(options.get("github_repository_ssh") or status["repository"])
+    branch = str(options.get("github_branch") or "main")
+    env = _github_git_env()
+
+    for cmd in (
+        ["git", "-c", f"safe.directory={NAS_PROJECT_ROOT}", "remote", "set-url", "origin", repo],
+        ["git", "-c", f"safe.directory={NAS_PROJECT_ROOT}", "add", "-A"],
+    ):
+        rc, out, err = _run_cmd(cmd, cwd=NAS_PROJECT_ROOT, env=env, timeout=30)
+        if rc != 0:
+            return {**status, "published": False, "message": f"Git-publicatievoorbereiding mislukt: {err or out}"}
+
+    rc, out, err = _run_cmd(
+        ["git", "-c", f"safe.directory={NAS_PROJECT_ROOT}", "diff", "--cached", "--quiet"],
+        cwd=NAS_PROJECT_ROOT, env=env, timeout=20,
+    )
+    if rc == 1:
+        version = status.get("local_version") or "onbekend"
+        rc2, out2, err2 = _run_cmd(
+            ["git", "-c", f"safe.directory={NAS_PROJECT_ROOT}",
+             "-c", "user.name=EnergieProject Publisher",
+             "-c", "user.email=energieproject@local",
+             "commit", "-m", f"v{version}: automatic Home Assistant publication"],
+            cwd=NAS_PROJECT_ROOT, env=env, timeout=60,
+        )
+        if rc2 != 0:
+            return {**status, "published": False, "message": f"Commit mislukt: {err2 or out2}"}
+
+    rc, out, err = _run_cmd(
+        ["git", "-c", f"safe.directory={NAS_PROJECT_ROOT}", "push", "origin", f"HEAD:{branch}"],
+        cwd=NAS_PROJECT_ROOT, env=env, timeout=120,
+    )
+    result = {**status, "published": rc == 0, "push_output": out, "push_error": err}
+    result["message"] = "GitHub-publicatie geslaagd" if rc == 0 else f"GitHub-publicatie mislukt: {err or out}"
+    try:
+        GITHUB_PUBLISH_STATE.parent.mkdir(parents=True, exist_ok=True)
+        GITHUB_PUBLISH_STATE.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    except Exception:
+        pass
+    return result
+
+
+def _github_publication_loop(stop_event):
+    last_seen = ""
+    while not stop_event.wait(5):
+        try:
+            options = _publisher_options()
+            poll = max(5, min(300, int(options.get("github_publication_poll_seconds", 15) or 15)))
+            if bool(options.get("github_publication_enabled", False)):
+                version_path = NAS_PROJECT_ROOT / "VERSIE.txt"
+                version = version_path.read_text(encoding="utf-8").strip() if version_path.exists() else ""
+                processed = NAS_RELEASE_ROOT / "processed" / f"EnergieProject_v{version}.zip" if version else None
+                if version and processed and processed.exists() and version != last_seen:
+                    result = publish_github_release(options)
+                    if result.get("published"):
+                        last_seen = version
+            if stop_event.wait(poll):
+                return
+        except Exception:
+            if stop_event.wait(15):
+                return
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -9513,6 +9717,10 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
+        if self.path.startswith("/api/github-publisher/status"):
+            body = json.dumps(github_publication_status(_publisher_options()), ensure_ascii=False, indent=2).encode("utf-8")
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+            return
         if not self._client_allowed():
             self.send_body(HTTPStatus.FORBIDDEN, b"Forbidden", "text/plain")
             return
@@ -10433,6 +10641,8 @@ def main() -> None:
 
     threading.Thread(target=startup_self_test, daemon=True).start()
     try:
+        publisher_thread = threading.Thread(target=_github_publication_loop, args=(STOP,), daemon=True, name="github-publisher")
+        publisher_thread.start()
         server.serve_forever()
     finally:
         STOP.set()
