@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "10.5.0"
+    assert cfg_version == app_version == "10.5.1"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "10.5.0"' in config
+    assert 'version: "10.5.1"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "10.5.0"' in config
-    assert 'APP_VERSION = "10.5.0"' in main
+    assert 'version: "10.5.1"' in config
+    assert 'APP_VERSION = "10.5.1"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.0"' in source
+    assert 'APP_VERSION = "10.5.1"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2433,7 +2433,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.0"' in source
+    assert 'APP_VERSION = "10.5.1"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -2492,5 +2492,13 @@ def test_release_installer_schedules_watcher_refresh():
 def test_v1050_shows_release_chain_in_ha_console():
     main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
     assert "<small>Releaseketen</small>" in main
-    assert "QNAP ZIP-only · watcher 5 s · Terminal niet vereist" in main
+    assert "QNAP ZIP-only · watcher 5 s · installatie automatisch" in main
     assert 'class="pill ok">Automatisch</span>' in main
+
+
+def test_v1051_shows_ha_publication_status():
+    main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "<small>HA-publicatie</small>" in main
+    assert "GitHub vereist" in main
+    assert "Home Assistant update volgt na publicatie van de release naar GitHub" in main
+    assert "QNAP ZIP-only · watcher 5 s · installatie automatisch" in main

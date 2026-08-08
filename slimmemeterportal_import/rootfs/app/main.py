@@ -52,7 +52,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.0"
+APP_VERSION = "10.5.1"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -8562,7 +8562,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.0",
+        "target_stable_release": "10.5.1",
     }
 
     summary = {
@@ -8594,7 +8594,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.0",
+        "target_stable_release": "10.5.1",
         "note": "v10.4.5 gebruikt self-safe installer- en watcherprocessen buiten de live worktree; release-inbox, backup, rollback en GitHub-controles blijven actief; productiekern 9.4-core1 blijft ongewijzigd.",
     }
 
@@ -8661,7 +8661,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.0",
+        "Doelrelease: 10.5.1",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
@@ -8992,7 +8992,8 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
   <div class="metric"><small>Workflow</small><strong><span id="workflow-status" class="pill {status_class(workflow.get('status'))}">{esc(workflow.get('status') or 'onbekend')}</span></strong></div>
   <div class="metric"><small>Laatste maand</small><strong id="last-month">{esc(last_run.get('month') or 'Nog geen')}</strong></div>
   <div class="metric"><small>Laatste run</small><strong><span id="last-run-status" class="pill {status_class(last_run.get('status'))}">{esc(last_run.get('status') or 'Nog geen')}</span></strong></div>
-  <div class="metric"><small>Automatische maandafsluiting</small><strong class="auto-status"><span id="auto-close-top-status" class="pill {'ok' if auto_close.get('enabled') else 'neutral'}">{'Aan' if auto_close.get('enabled') else 'Uit'}</span><small id="auto-close-top-detail">{('dag ' + esc(auto_close.get('day')) + ' · ' + esc(auto_close.get('hour')) + ':00 · retry ' + esc(auto_close.get('retry_hours')) + 'u') if auto_close.get('enabled') else 'Scheduler niet actief'}</small></strong>  <div class="metric"><small>Releaseketen</small><strong><span class="pill ok">Automatisch</span></strong><small class="test-detail">QNAP ZIP-only · watcher 5 s · Terminal niet vereist</small></div>
+  <div class="metric"><small>Automatische maandafsluiting</small><strong class="auto-status"><span id="auto-close-top-status" class="pill {'ok' if auto_close.get('enabled') else 'neutral'}">{'Aan' if auto_close.get('enabled') else 'Uit'}</span><small id="auto-close-top-detail">{('dag ' + esc(auto_close.get('day')) + ' · ' + esc(auto_close.get('hour')) + ':00 · retry ' + esc(auto_close.get('retry_hours')) + 'u') if auto_close.get('enabled') else 'Scheduler niet actief'}</small></strong>  <div class="metric"><small>Releaseketen</small><strong><span class="pill ok">Automatisch</span></strong><small class="test-detail">QNAP ZIP-only · watcher 5 s · installatie automatisch</small></div>
+  <div class="metric"><small>HA-publicatie</small><strong><span class="pill warn">GitHub vereist</span></strong><small class="test-detail">Home Assistant update volgt na publicatie van de release naar GitHub</small></div>
 </div>
 </div>
 

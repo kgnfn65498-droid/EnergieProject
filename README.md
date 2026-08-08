@@ -1,7 +1,9 @@
-# EnergieProject v10.5.0
+# EnergieProject v10.5.1
 
-Eerste Home Assistant-release na afronding van de automatische QNAP-release-infrastructuur.
+Tweede Home Assistant-release na stabilisatie van de automatische QNAP-releaseketen.
 
-De operationele console toont nu expliciet dat de releaseketen automatisch draait via QNAP ZIP-only verwerking met een watcherinterval van vijf seconden en zonder Terminal als normale vereiste.
+v10.5.1 maakt in de operationele console expliciet onderscheid tussen:
+- automatische installatie op de QNAP;
+- publicatie naar GitHub die nodig is voordat Home Assistant een nieuwe add-onversie kan aanbieden.
 
 Productiekern: `9.4-core1`.
