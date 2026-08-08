@@ -1,6 +1,6 @@
-# EnergieProject v10.0.0 – Stable Production Release
+# EnergieProject v10.1.0 – 24/7 Automation Foundation
 
-v10.0.0 is de eerste stabiele productierelease van de gevalideerde Home Assistant/SlimmeMeterPortal-platformlaag. De gecertificeerde productiekern `9.4-core1` blijft ongewijzigd en herbruikbaar; v10.0.0 promoveert de geslaagde v9.9.0 Release Candidate naar productie.
+v10.1.0 bouwt voort op de stabiele v10.0.0-productiebasis en maakt de eerste stap naar een volledig 24/7 autonoom Energieproject: QNAP-opslagcontrole, automatische maand-sidecarback-up, noodherstelhandleiding en een downloadbare chat-overdracht. De gecertificeerde productiekern `9.4-core1` blijft ongewijzigd.
 
 # Energie Home Assistant Apps
 
@@ -21,7 +21,7 @@ Voeg deze openbare repository toe in Home Assistant:
 
 ## Beschikbaar
 
-- SlimmeMeterPortal Import 10.0.0
+- SlimmeMeterPortal Import 10.1.0
 
 Zie `INSTALL.md` en de documentatie in de app-map.
 

@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "10.0.0"
+    assert cfg_version == app_version == "10.1.0"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "10.0.0"' in config
+    assert 'version: "10.1.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "10.0.0"' in config
-    assert 'APP_VERSION = "10.0.0"' in main
+    assert 'version: "10.1.0"' in config
+    assert 'APP_VERSION = "10.1.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.0.0"' in source
+    assert 'APP_VERSION = "10.1.0"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2387,3 +2387,22 @@ def test_v970_diagnostic_summary_labels_are_unambiguous():
     assert 'core_certificate_reused' in source
     assert 'core_certificate_origin_release' in source
     assert 'Bevat <strong>beoordeling.json</strong>' in source
+
+
+def test_v101_infrastructure_foundation_present():
+    source = MAIN.read_text(encoding="utf-8")
+    assert 'NAS_SHARE_ROOT = Path("/share/Energie_NAS")' in source
+    assert 'def infrastructure_snapshot' in source
+    assert 'def create_project_backup' in source
+    assert 'PROJECT_BACKUP_RETENTION = 24' in source
+    assert 'options.json' in source and 'nooit' in source
+
+def test_v101_chat_transfer_and_recovery_guide_present():
+    source = MAIN.read_text(encoding="utf-8")
+    assert 'def build_chat_transfer_package' in source
+    assert 'download-chat-transfer' in source
+    assert 'def build_emergency_recovery_guide' in source
+
+def test_v101_does_not_change_certified_production_core():
+    source = MAIN.read_text(encoding="utf-8")
+    assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source

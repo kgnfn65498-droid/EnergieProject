@@ -1,5 +1,14 @@
 # Changelog
 
+## 10.1.0
+- 24/7 infrastructuurcontrole voor `/share/Energie_NAS`.
+- Automatische maand-sidecarback-up naar QNAP na een geslaagde volledige workflow.
+- Maximaal 24 back-ups met automatische opschoning.
+- Diagnosepakket uitgebreid met infrastructuurstatus.
+- Downloadbare chat-overdracht en actuele noodherstelhandleiding toegevoegd.
+- API-sleutels/options.json worden nooit in projectback-ups opgenomen.
+- Productiekern `9.4-core1` ongewijzigd.
+
 ## 10.0.0
 - Stable Production Release.
 - Promoteert de goedgekeurde v9.9.0 Release Candidate zonder wijziging van productiekern `9.4-core1`.

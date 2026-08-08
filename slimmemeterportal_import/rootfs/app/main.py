@@ -52,10 +52,18 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.0.0"
+APP_VERSION = "10.1.0"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
+
+# v10.1: 24/7 infrastructuurfundament. Home Assistant kan een QNAP-share
+# via Instellingen > Systeem > Opslag als type Share koppelen. Een share met
+# naam Energie_NAS verschijnt voor apps onder /share/Energie_NAS.
+NAS_SHARE_ROOT = Path("/share/Energie_NAS")
+PROJECT_BACKUP_ROOT = NAS_SHARE_ROOT / "EnergieProject_Backups"
+PROJECT_BACKUP_RETENTION = 24
+PROJECT_BACKUP_PREFIX = "EnergieProject_maandbackup"
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -6205,6 +6213,13 @@ def run_full_month_workflow(
     update_state(**state_updates)
     persist_normalized_status(options)
 
+    # v10.1 sidecar: een QNAP-back-up mag de bewezen maandworkflow nooit laten falen.
+    # Wanneer de QNAP-share nog niet is gekoppeld wordt dit expliciet als setup_required
+    # gerapporteerd, maar de maandworkflow blijft inhoudelijk ongewijzigd.
+    if status in {"completed", "completed_warning"}:
+        backup_result = create_project_backup(month_key, trigger=trigger)
+        update_state(last_project_backup=backup_result)
+
     try:
         if options.workflow_notify_home_assistant:
             if status in {"completed", "completed_warning"}:
@@ -6281,6 +6296,208 @@ def run_full_month_workflow(
     return result
 
 
+
+
+def infrastructure_snapshot() -> dict[str, Any]:
+    """Controleer de 24/7 opslagketen zonder brondata te wijzigen."""
+    share_root = Path("/share")
+    result: dict[str, Any] = {
+        "version": APP_VERSION,
+        "checked_at": datetime.now(TZ).isoformat(),
+        "share_root": str(share_root),
+        "nas_share_root": str(NAS_SHARE_ROOT),
+        "backup_root": str(PROJECT_BACKUP_ROOT),
+        "share_available": share_root.is_dir(),
+        "nas_share_available": NAS_SHARE_ROOT.is_dir(),
+        "nas_writable": False,
+        "backup_ready": False,
+        "last_backup": load_state().get("last_project_backup"),
+        "message": "",
+    }
+    if not result["share_available"]:
+        result["message"] = "Home Assistant /share is niet beschikbaar."
+        result["status"] = "error"
+        return result
+    if not result["nas_share_available"]:
+        result["message"] = (
+            "QNAP-share Energie_NAS is nog niet gekoppeld als Home Assistant netwerklocatie type Share."
+        )
+        result["status"] = "setup_required"
+        return result
+    try:
+        PROJECT_BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
+        probe = PROJECT_BACKUP_ROOT / ".energieproject_write_test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        result["nas_writable"] = True
+        result["backup_ready"] = True
+        result["status"] = "ok"
+        result["message"] = "QNAP-opslag is 24/7 bereikbaar en schrijfbaar."
+    except OSError as exc:
+        result["status"] = "error"
+        result["message"] = f"QNAP-opslag is gevonden maar niet schrijfbaar: {exc}"
+    return result
+
+
+def _backup_runtime_paths(month_key: str) -> list[tuple[Path, str]]:
+    """Selecteer herstelrelevante runtime-data; options.json/geheimen worden nooit opgenomen."""
+    paths: list[tuple[Path, str]] = []
+    month_dir = OUTPUT_ROOT / month_key
+    if month_dir.is_dir():
+        paths.append((month_dir, f"output/{month_key}"))
+    workflow_dir = workflow_result_dir(month_key)
+    if workflow_dir.is_dir():
+        paths.append((workflow_dir, f"output/workflow_results/{month_key}"))
+    for src, arcname in [
+        (STATE_PATH, "runtime/state.json"),
+        (AUTO_CLOSE_UI_OPTIONS_PATH, "runtime/automatic_month_close.json"),
+        (PRODUCTION_CERTIFICATE_PATH, "runtime/production_certificate.json"),
+        (PRODUCTION_CERTIFICATE_HISTORY_PATH, "runtime/production_certificate_history.jsonl"),
+        (AUDIT_TRAIL_PATH, "runtime/audit_trail.jsonl"),
+        (RECOVERY_STATE_PATH, "runtime/recovery_state.json"),
+        (RECOVERY_HISTORY_PATH, "runtime/recovery_history.jsonl"),
+        (MONITORING_STATE_PATH, "runtime/monitoring_state.json"),
+        (MONITORING_HISTORY_PATH, "runtime/monitoring_history.jsonl"),
+        (AUTOMATIC_RUN_LEDGER_PATH, "runtime/automatic_run_history.jsonl"),
+        (AUTOMATIC_COMPLETION_MARKERS_PATH, "runtime/automatic_completed_months.json"),
+        (AUTOMATIC_RETRY_STATE_PATH, "runtime/automatic_retry_state.json"),
+    ]:
+        if src.is_file():
+            paths.append((src, arcname))
+    return paths
+
+
+def _write_path_to_archive(archive: zipfile.ZipFile, src: Path, arcname: str) -> None:
+    if src.is_file():
+        archive.write(src, arcname=arcname)
+        return
+    if src.is_dir():
+        for child in sorted(src.rglob("*")):
+            if child.is_file():
+                archive.write(child, arcname=str(Path(arcname) / child.relative_to(src)))
+
+
+def _prune_project_backups() -> list[str]:
+    if not PROJECT_BACKUP_ROOT.is_dir():
+        return []
+    backups = sorted(
+        PROJECT_BACKUP_ROOT.glob(f"{PROJECT_BACKUP_PREFIX}_*.zip"),
+        key=lambda item: item.stat().st_mtime,
+        reverse=True,
+    )
+    removed: list[str] = []
+    for old in backups[PROJECT_BACKUP_RETENTION:]:
+        try:
+            old.unlink()
+            removed.append(old.name)
+        except OSError:
+            LOGGER.warning("Oude projectback-up kon niet worden verwijderd: %s", old)
+    return removed
+
+
+def create_project_backup(month_key: str, *, trigger: str) -> dict[str, Any]:
+    """Maak na een geslaagde maandworkflow een gecontroleerde QNAP-sidecarback-up."""
+    infra = infrastructure_snapshot()
+    if not infra.get("backup_ready"):
+        result = {
+            "status": "skipped",
+            "created_at": datetime.now(TZ).isoformat(),
+            "month": month_key,
+            "trigger": trigger,
+            "reason": infra.get("message"),
+            "backup_root": str(PROJECT_BACKUP_ROOT),
+        }
+        update_state(last_project_backup=result)
+        return result
+    created = datetime.now(TZ)
+    filename = f"{PROJECT_BACKUP_PREFIX}_{month_key}_v{APP_VERSION}_{created:%Y%m%dT%H%M%S}.zip"
+    target = PROJECT_BACKUP_ROOT / filename
+    temp = target.with_suffix(".zip.tmp")
+    info = {
+        "schema": 1,
+        "release_version": APP_VERSION,
+        "production_core_revision": PRODUCTION_CORE_REVISION,
+        "month": month_key,
+        "trigger": trigger,
+        "created_at": created.isoformat(),
+        "restore_note": "Broncode komt uit GitHub; deze back-up bevat herstelrelevante runtime- en maanddata, nooit options.json/API-sleutels.",
+    }
+    emergency = build_emergency_recovery_guide().encode("utf-8")
+    try:
+        with zipfile.ZipFile(temp, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("BACKUP_INFO.json", json.dumps(info, ensure_ascii=False, indent=2))
+            archive.writestr("NOODHERSTEL.md", emergency)
+            for src, arcname in _backup_runtime_paths(month_key):
+                _write_path_to_archive(archive, src, arcname)
+        temp.replace(target)
+        digest = sha256_file(target)
+        removed = _prune_project_backups()
+        result = {
+            "status": "ok",
+            "created_at": created.isoformat(),
+            "month": month_key,
+            "trigger": trigger,
+            "path": str(target),
+            "bytes": target.stat().st_size,
+            "sha256": digest,
+            "retention": PROJECT_BACKUP_RETENTION,
+            "removed": removed,
+        }
+        update_state(last_project_backup=result)
+        append_workflow_log(month_key, "info", "Projectback-up naar QNAP opgeslagen", path=str(target), sha256=digest)
+        return result
+    except Exception as exc:
+        temp.unlink(missing_ok=True)
+        result = {
+            "status": "error",
+            "created_at": datetime.now(TZ).isoformat(),
+            "month": month_key,
+            "trigger": trigger,
+            "error": str(exc),
+            "backup_root": str(PROJECT_BACKUP_ROOT),
+        }
+        update_state(last_project_backup=result)
+        append_workflow_log(month_key, "warning", "Projectback-up naar QNAP mislukt", error=str(exc))
+        return result
+
+
+def build_emergency_recovery_guide() -> str:
+    return f"""# Energieproject - noodherstel\n\nVersie: {APP_VERSION}\n\n## Doel\nDeze handleiding is uitsluitend voor een echte crash of vervanging van Home Assistant. Normaal dagelijks beheer gebeurt automatisch.\n\n## Herstel in het kort\n1. Herstel Home Assistant eerst met de normale Home Assistant back-up vanaf de externe QNAP-back-uplocatie.\n2. Voeg daarna de GitHub-repository `https://github.com/kgnfn65498-droid/EnergieProject` toe en installeer SlimmeMeterPortal Import.\n3. Controleer in Home Assistant bij Instellingen > Systeem > Opslag dat de QNAP-share met naam `Energie_NAS` gekoppeld is als type Share.\n4. Start de app en download het diagnosepakket. GO + health 100% betekent dat de operationele keten hersteld is.\n5. Alleen wanneer maanddata ontbreken, gebruik je de nieuwste `EnergieProject_maandbackup_*.zip` uit `EnergieProject_Backups` om de ontbrekende runtime-/maanddata terug te zetten.\n\n## Belangrijk\n- API-sleutels staan bewust niet in projectback-ups. Home Assistant/appconfiguratie hoort via de normale Home Assistant back-up terug te komen.\n- Broncode staat in GitHub; maand- en runtimegegevens staan in de QNAP-sidecarback-ups.\n- Voer geen terminalcommando's uit zolang bovenstaande UI-route beschikbaar is.\n"""
+
+
+def build_chat_transfer_package() -> bytes:
+    """Maak een compacte nieuwe-chat overdracht met afspraken, roadmap en actuele status."""
+    options = Options.load()
+    op = operation_status(options)
+    health = health_dashboard(options)
+    infra = infrastructure_snapshot()
+    certificate = validate_production_certificate()
+    agreements = f"""# Vaste ontwikkelafspraken Energieproject\n\n- Actieve release: {APP_VERSION}; productiekern: {PRODUCTION_CORE_REVISION}.\n- Als de gebruiker zegt `bouw X.Y`, bouw dan daadwerkelijk de volgende complete productieversie op de vorige geteste versie.\n- Lever bij iedere build: ZIP, changelog, kopieerbare committekst en testinstructies onderaan.\n- Wacht na iedere versie op de Home Assistant-testresultaten voordat je verder bouwt.\n- Vermijd herhaalde handmatige teststappen: terugkerende controles automatiseren en in het diagnosepakket opnemen.\n- Normaal testen via één diagnosepakket; screenshots alleen bij visuele of interactieve problemen.\n- De iMac mag weken uitstaan en mag geen noodzakelijke schakel in de productieketen zijn.\n- Productiedata, maandverwerking en back-ups moeten 24/7 via Home Assistant/QNAP kunnen doorlopen.\n- Recovery Manager blijft primair bedoeld voor calamiteiten/crash recovery; noodherstel moet met een korte actuele handleiding kunnen.\n- Bij een trage/volle chat: maak een nieuwe-chat overdracht met status, roadmap, afspraken en open acties.\n- Bespreek grote architectuurkeuzes bij voorkeur in een korte spraaksessie voordat ze worden gebouwd.\n- Einddoel: de gebruiker stelt in gewone taal analysevragen; data-inname, opslag, validatie, back-up en voorbereiding verlopen automatisch.\n- Financiële analyse moet termijnbedrag, werkelijke kosten, historische data, terugverdientijd en marktopties kritisch bewaken; geen ongefundeerde gok.\n- Toekomstige analyse omvat weersverwachting, dynamische energieprijzen en proactieve energiebesparings-/investeringssignalen.\n"""
+    roadmap = """# Roadmap vanaf v10.1\n\n## v10.1 - 24/7 infrastructuurfundament\nQNAP-opslagcontrole, automatische maandback-up, noodherstelhandleiding en chat-overdracht.\n\n## v10.2 - Voorspellende context\nWeerdata/verwachting en prijsdata automatisch verzamelen en historiseren.\n\n## v10.3 - Dynamisch dashboard\nEén mobiele dashboardpagina die zelf de relevante inzichten prioriteert.\n\n## v10.4 - Financiële regie\nTermijnbedrag, jaarprognose, werkelijke kosten, bandbreedte/betrouwbaarheid en investeringsscenario's.\n\n## v10.5 - Conversatie-/analysebasis\nGestandaardiseerde analysecontext zodat vragen over kwartalen/jaren direct uit historische data beantwoord kunnen worden.\n\n## v11 - Proactieve energieassistent\nZelf relevante markt-, prijs-, weer- en besparingsontwikkelingen signaleren en onderbouwde acties voorstellen.\n"""
+    start = f"""# Start nieuwe chat - Energieproject\n\nLees eerst alle bestanden in dit overdrachtspakket.\n\nActuele softwareversie: {APP_VERSION}\nProductiekern: {PRODUCTION_CORE_REVISION}\nHealthscore: {health.get('score')}\nProductiecertificaat geldig: {bool(certificate.get('valid'))}\nInfrastructuurstatus: {infra.get('status')} - {infra.get('message')}\n\nGa daarna verder vanaf de openstaande roadmap. Vraag niet opnieuw naar afspraken die in PROJECT_AFSPRAKEN.md staan.\n"""
+    status = {
+        "version": APP_VERSION,
+        "production_core_revision": PRODUCTION_CORE_REVISION,
+        "generated_at": datetime.now(TZ).isoformat(),
+        "operation_status": op,
+        "health": health,
+        "infrastructure": infra,
+        "certificate": certificate,
+    }
+    entries = {
+        "NIEUWE_CHAT_START.md": start.encode("utf-8"),
+        "PROJECT_AFSPRAKEN.md": agreements.encode("utf-8"),
+        "ROADMAP_V10.md": roadmap.encode("utf-8"),
+        "NOODHERSTEL.md": build_emergency_recovery_guide().encode("utf-8"),
+        "PROJECT_STATUS.json": json.dumps(status, ensure_ascii=False, indent=2, default=str).encode("utf-8"),
+    }
+    sha = "\n".join(f"{hashlib.sha256(entries[name]).hexdigest()}  {name}" for name in sorted(entries)) + "\n"
+    entries["SHA256SUMS.txt"] = sha.encode("utf-8")
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name in sorted(entries):
+            archive.writestr(name, entries[name])
+    return buffer.getvalue()
 
 def historical_month_allowed(month_key: str) -> str:
     """Validate and normalize a YYYY_MM month selected by the operator."""
@@ -6982,6 +7199,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
     return {
         "version": APP_VERSION,
         "generated_at": datetime.now(TZ).isoformat(),
+        "infrastructure": infrastructure_snapshot(),
         "workflow": {
             "status": state.get("workflow_lock_status"),
             "month": state.get("workflow_lock_month"),
@@ -8186,6 +8404,7 @@ def build_test_package() -> bytes:
     monitoring_pending = int(monitoring.get("pending_points", monitoring.get("attention_points", 0)) or 0)
     recovery_status = str(recovery.get("status") or "unknown")
     audit_integrity = str((audit.get("validation") or {}).get("status") or "unknown")
+    infrastructure = op.get("infrastructure") or infrastructure_snapshot()
     scheduler_enabled = bool((op.get("automatic_month_close") or {}).get("enabled"))
     scheduler_effective = bool((op.get("automatic_month_close") or {}).get("scheduler_effective"))
 
@@ -8214,7 +8433,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.0.0",
+        "target_stable_release": "10.1.0",
     }
 
     summary = {
@@ -8239,11 +8458,13 @@ def build_test_package() -> bytes:
         "scheduler_enabled": scheduler_enabled,
         "scheduler_effective": scheduler_effective,
         "source_status": state.get("workflow_sources") or {},
+        "infrastructure": infrastructure,
+        "last_project_backup": state.get("last_project_backup"),
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.0.0",
-        "note": "v10.0.0 is de eerste stabiele productierelease; productiekern 9.4-core1 is ongewijzigd en gevalideerd.",
+        "target_stable_release": "10.1.0",
+        "note": "v10.1.0 voegt 24/7 infrastructuurcontrole en sidecarback-up toe; de gecertificeerde productiekern 9.4-core1 blijft inhoudelijk ongewijzigd.",
     }
 
     generated = {
@@ -8255,6 +8476,7 @@ def build_test_package() -> bytes:
         "monitoring_snapshot.json": monitoring,
         "recovery_snapshot.json": recovery,
         "audit_validation.json": audit.get("validation") or {},
+        "infrastructure_status.json": infrastructure,
     }
 
     files = [
@@ -8306,7 +8528,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.0.0",
+        "Doelrelease: 10.1.0",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
@@ -8321,6 +8543,8 @@ def build_test_package() -> bytes:
         f"Recovery: {summary.get('recovery_status') or '—'}; herstelacties={summary.get('recovery_actions', 0)}",
         f"Audittrail: {summary.get('audit_integrity') or '—'}; records={summary.get('audit_records', 0)}",
         f"Scheduler actief: {'JA' if summary.get('scheduler_effective') else 'NEE'}",
+        f"QNAP infrastructuur: {infrastructure.get('status')} - {infrastructure.get('message')}",
+        f"Laatste projectback-up: {(summary.get('last_project_backup') or {}).get('status') or 'nog geen'}",
         f"Niet geslaagde technische criteria: {', '.join(failed_criteria) if failed_criteria else 'geen'}",
         "",
         "Beoordeling",
@@ -8669,9 +8893,19 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 </div>
 <p class="hint">Het productiecertificaat wordt automatisch gegenereerd uit een geslaagde productietest van exact deze versie, continu op integriteit gecontroleerd en kan veilig uit bestaand hard testbewijs worden hersteld.</p>
 <div class="recovery-row"><strong>Automatisch herstel</strong> <span id="automatic-recovery-status" class="pill {status_class(recovery_status)}">{esc(recovery_label)}</span><div id="automatic-recovery-detail" class="hint">{esc(recovery_detail)}</div></div>
-<p><a class="button-link" href="download-diagnostic-package">Download diagnosepakket</a></p>
+<p><a class="button-link" href="download-diagnostic-package">Download diagnosepakket</a> <a class="button-link secondary" href="download-chat-transfer">Download chat-overdracht</a></p>
 <p class="hint">Bevat <strong>beoordeling.json</strong> met automatische technische GO/NO-GO en toont expliciet of het geldige kerncertificaat uit een eerdere release wordt hergebruikt.</p>
 <p class="hint">Eén ZIP met samenvatting, SHA-256-controle en de status- en bewijsbestanden die nodig zijn om deze release goed of af te keuren. Bevat geen API-key of options.json.</p>
+</div>
+
+<div class="card"><h2>24/7 infrastructuur v{APP_VERSION}</h2>
+<div class="grid">
+<div class="metric"><small>QNAP-share</small><strong><span class="pill {status_class((op.get('infrastructure') or {}).get('status'))}">{esc((op.get('infrastructure') or {}).get('status') or 'onbekend')}</span></strong></div>
+<div class="metric"><small>Back-updoel</small><strong>{esc((op.get('infrastructure') or {}).get('backup_root') or PROJECT_BACKUP_ROOT)}</strong></div>
+<div class="metric"><small>Laatste projectback-up</small><strong>{esc(((op.get('infrastructure') or {}).get('last_backup') or {}).get('status') or 'nog geen')}</strong></div>
+</div>
+<p class="hint">{esc((op.get('infrastructure') or {}).get('message') or '')}</p>
+<p class="hint">Voor externe 24/7 opslag koppel je in Home Assistant éénmalig de QNAP als netwerklocatie van type <strong>Share</strong> met naam <strong>Energie_NAS</strong>. Daarna schrijft de app na iedere geslaagde maandworkflow automatisch een gecontroleerde sidecarback-up weg; de iMac is niet nodig.</p>
 </div>
 
 <div class="card"><h2>Automatische maandafsluiting</h2>
@@ -9242,6 +9476,19 @@ class Handler(BaseHTTPRequestHandler):
                 "installation_ready": state.get("installation_ready"),
             }).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/infrastructure-status") or path == "/infrastructure-status":
+            body = json.dumps(infrastructure_snapshot(), ensure_ascii=False, indent=2).encode("utf-8")
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/download-chat-transfer") or path == "/download-chat-transfer":
+            try:
+                body = build_chat_transfer_package()
+                self.send_body(
+                    HTTPStatus.OK, body, "application/zip",
+                    f'attachment; filename="Energieproject_chat_overdracht_v{APP_VERSION}.zip"',
+                )
+            except Exception as exc:
+                LOGGER.exception("Chat-overdracht kon niet worden gebouwd.")
+                self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc).encode("utf-8", errors="replace"), "text/plain; charset=utf-8")
         elif path.endswith("/download-diagnostic-package") or path == "/download-diagnostic-package" or path.endswith("/download-test-package") or path == "/download-test-package":
             try:
                 body = build_test_package()

@@ -1,5 +1,17 @@
 # Changelog
 
+## 10.1.0
+- 24/7 infrastructuurfundament toegevoegd; de iMac is geen noodzakelijke schakel meer voor maanddata of projectback-ups.
+- Nieuwe QNAP-opslagcontrole voor een Home Assistant netwerkshare met naam `Energie_NAS` onder `/share/Energie_NAS`.
+- Na iedere geslaagde volledige maandworkflow wordt, zodra de QNAP-share beschikbaar is, automatisch een sidecarback-up naar `EnergieProject_Backups` geschreven.
+- Projectback-ups bevatten herstelrelevante maand-/runtimegegevens en SHA-256, maar nooit `options.json` of API-sleutels.
+- Automatische retentie houdt maximaal 24 projectback-ups aan.
+- Nieuwe UI-kaart **24/7 infrastructuur** toont QNAP-bereikbaarheid, back-updoel en laatste back-upstatus.
+- Diagnosepakket bevat nu ook `infrastructure_status.json` en de laatste projectback-upstatus.
+- Nieuwe knop **Download chat-overdracht** maakt een ZIP met nieuwe-chat startbestand, vaste ontwikkelafspraken, roadmap, noodherstelhandleiding en actuele projectstatus.
+- `NOODHERSTEL.md`, `PROJECT_AFSPRAKEN.md` en `ROADMAP_V10.md` toegevoegd aan de release.
+- De bestaande maandworkflowuitkomst, scheduler, retry, certificering en rapportgeneratoren blijven inhoudelijk ongewijzigd; productiekern blijft `9.4-core1`.
+
 ## 10.0.0
 - Eerste stabiele productierelease op basis van de volledig gevalideerde v9.9.0 Release Candidate.
 - Productiekern `9.4-core1` blijft ongewijzigd; geen nieuwe maandafsluitingstest nodig voor deze promotie.
