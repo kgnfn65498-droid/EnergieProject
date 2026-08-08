@@ -1,4 +1,4 @@
-# EnergieProject v10.5.25
+# EnergieProject v10.5.26
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -75,3 +75,7 @@ De financiële analyse kent nu naast geobserveerde kosten ook de exacte meetduur
 
 ## v10.5.25
 De kwartierreader is robuuster gemaakt: volledige snapshot-JSON via MCP is nu leidend. Daarmee wordt de regressie waarbij de gewogen reeks in 10.5.24 leeg werd structureel aangepakt.
+
+
+## v10.5.26
+De NAS/MCP-reader gebruikt nu de echte toolnamen `search_files` en `read_text_file` en leest `matches` correct uit.

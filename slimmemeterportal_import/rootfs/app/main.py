@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.25"
+APP_VERSION = "10.5.26"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4753,22 +4753,21 @@ def _ha_month_entity_snapshot_series(month_key: str, entity_id: str) -> list[dic
     """Lees HA-entiteit robuust uit volledige kwartiersnapshotbestanden via read-only MCP."""
     path = f"01_Input/{month_key}/HomeAssistant/QuarterHour"
     files_result = _mcp_call_project_tool(
-        "list_files",
-        {"path": path, "pattern": "home_assistant_quarter_*.json", "recursive": False},
+        "search_files",
+        {"path": path, "pattern": "home_assistant_quarter_*.json", "max_results": 500},
         timeout=12.0,
     )
     file_paths: list[str] = []
     if isinstance(files_result, dict):
-        for key in ("files", "items", "results"):
-            items = files_result.get(key)
-            if isinstance(items, list):
-                for item in items:
-                    if isinstance(item, str):
-                        file_paths.append(item)
-                    elif isinstance(item, dict):
-                        candidate = item.get("path") or item.get("relative_path") or item.get("name")
-                        if isinstance(candidate, str):
-                            file_paths.append(candidate)
+        items = files_result.get("matches")
+        if isinstance(items, list):
+            for item in items:
+                if isinstance(item, str):
+                    file_paths.append(item)
+                elif isinstance(item, dict):
+                    candidate = item.get("path") or item.get("name")
+                    if isinstance(candidate, str):
+                        file_paths.append(candidate)
     elif isinstance(files_result, list):
         for item in files_result:
             if isinstance(item, str):
@@ -4785,7 +4784,7 @@ def _ha_month_entity_snapshot_series(month_key: str, entity_id: str) -> list[dic
         if not file_match:
             continue
         content_result = _mcp_call_project_tool(
-            "read_text",
+            "read_text_file",
             {"path": full_path},
             timeout=8.0,
         )
@@ -4872,18 +4871,21 @@ def _nextenergy_consumption_weighted_month(month_key: str) -> dict[str, Any]:
         "matched_intervals": 0, "import_kwh_observed": None,
         "weighted_average_eur_per_kwh": None, "observed_import_cost_eur": None,
         "first_snapshot": None, "last_snapshot": None,
-        "coverage": "not_available", "transport": "mcp_search_content_read_only",
+        "coverage": "not_available", "transport": "mcp_search_files_read_text_file",
         "quality": "not_available",
+        "reader_status": "not_started",
     }
     try:
         price_entity = str(Options.load().nextenergy_entity_id or "").strip()
         output["price_entity_id"] = price_entity or None
         if not price_entity:
             return output
+        output["reader_status"] = "reading"
         prices = _ha_month_entity_snapshot_series(month_key, price_entity)
         imports = _ha_month_entity_snapshot_series(month_key, output["import_entity_id"])
         output["price_snapshots_found"] = len(prices)
         output["import_snapshots_found"] = len(imports)
+        output["reader_status"] = "series_loaded"
         p = {x["snapshot_timestamp"]: x["value"] for x in prices}
         e = {x["snapshot_timestamp"]: x["value"] for x in imports}
         common = sorted(set(p) & set(e))
@@ -4920,6 +4922,7 @@ def _nextenergy_consumption_weighted_month(month_key: str) -> dict[str, Any]:
             "observed_daily_variable_cost_run_rate_eur": round(daily_cost, 2) if daily_cost is not None else None,
             "coverage": "partial_observed_window",
             "quality": "consumption_weighted_observed",
+            "reader_status": "weighted_ok",
         })
         return output
     except Exception as exc:
@@ -5185,12 +5188,13 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         item for item in supplier_price_history if item.get("available")
     ]
     supplier_context["monthly_electricity_price_telemetry"] = supplier_price_history
+    weighted_attempts = [
+        _nextenergy_consumption_weighted_month(str(month.get("month")))
+        for month in months
+    ]
+    supplier_context["monthly_consumption_weighted_electricity_diagnostics"] = weighted_attempts
     supplier_context["monthly_consumption_weighted_electricity"] = [
-        item for item in (
-            _nextenergy_consumption_weighted_month(str(month.get("month")))
-            for month in months
-        )
-        if item.get("available")
+        item for item in weighted_attempts if item.get("available")
     ]
     weighted_by_month = {
         str(item.get("month")): item
@@ -9685,7 +9689,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.25",
+        "target_stable_release": "10.5.26",
     }
 
     summary = {
@@ -9717,7 +9721,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.25",
+        "target_stable_release": "10.5.26",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9784,7 +9788,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.25",
+        "Doelrelease: 10.5.26",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

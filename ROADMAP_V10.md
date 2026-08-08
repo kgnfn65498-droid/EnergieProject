@@ -52,3 +52,5 @@
 - v10.5.24: geobserveerde financiële run-rate en meetduur als basis voor betrouwbare prognoses.
 
 - v10.5.25: robuuste volledige-JSON kwartierreader + regressieherstel gewogen NextEnergy-analyse.
+
+- v10.5.26: structureel herstel MCP snapshotreader met echte toolnamen en permanente diagnostiek.

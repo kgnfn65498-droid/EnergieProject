@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.5.26
+- Oorzaak van de lege verbruikgewogen reeks vastgesteld en hersteld.
+- Werkelijke Energie MCP-toolnamen gebruikt: `search_files` en `read_text_file`.
+- `search_files`-response wordt correct uit `matches` gelezen.
+- Verbruikgewogen diagnostiek wordt altijd geëxporteerd, ook als de berekening niet beschikbaar is.
+- Reader-status en aantallen prijs/importsnapshots maken regressies direct zichtbaar.
+
 ## 10.5.25
 - Regressie uit 10.5.24 hersteld: verbruikgewogen NextEnergy-reader leest snapshots nu primair als volledig JSON-bestand via MCP.
 - `search_content` blijft alleen compatibiliteitsfallback; contextregels worden niet meer blind als entiteitsstate geïnterpreteerd.

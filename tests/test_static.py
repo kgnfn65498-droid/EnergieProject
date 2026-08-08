@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "10.5.25"
+    assert cfg_version == app_version == "10.5.26"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "10.5.25"' in config
+    assert 'version: "10.5.26"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "10.5.25"' in config
-    assert 'APP_VERSION = "10.5.25"' in main
+    assert 'version: "10.5.26"' in config
+    assert 'APP_VERSION = "10.5.26"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.25"' in source
+    assert 'APP_VERSION = "10.5.26"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2433,7 +2433,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.25"' in source
+    assert 'APP_VERSION = "10.5.26"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -2777,8 +2777,17 @@ def test_v10524_observed_financial_run_rate():
 
 def test_v10525_full_json_snapshot_reader_and_diagnostics():
     source=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert '"list_files"' in source
-    assert '"read_text"' in source
+    assert '"search_files"' in source
+    assert '"read_text_file"' in source
     assert '"price_snapshots_found"' in source
     assert '"import_snapshots_found"' in source
     assert "json.loads(raw)" in source
+
+def test_v10526_uses_real_mcp_snapshot_tools_and_exports_diagnostics():
+    source=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"search_files"' in source
+    assert '"read_text_file"' in source
+    assert 'files_result.get("matches")' in source
+    assert '"monthly_consumption_weighted_electricity_diagnostics"' in source
+    assert '"reader_status"' in source
+    assert '"mcp_search_files_read_text_file"' in source

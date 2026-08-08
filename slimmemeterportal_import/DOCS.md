@@ -656,3 +656,7 @@ De verbruikgewogen deelperiode rapporteert nu `observed_window_hours`, dagelijks
 
 ## v10.5.25
 De financiële kwartierreader gebruikt primair `list_files` + `read_text` via read-only MCP en parseert daarna het volledige JSON-document. `search_content` is uitsluitend fallback.
+
+
+## v10.5.26
+De kwartierreader gebruikt `search_files` en `read_text_file`, exact zoals de Energie MCP ze aanbiedt.
