@@ -44,3 +44,5 @@
 - v10.5.20: historische NextEnergy-prijsreeks uit Home Assistant kwartier-snapshots.
 
 - v10.5.21: historische NextEnergy-prijsreader via NAS/MCP productiepad.
+
+- v10.5.22: verbruikgewogen NextEnergy-afnameprijs en geobserveerde importkosten.

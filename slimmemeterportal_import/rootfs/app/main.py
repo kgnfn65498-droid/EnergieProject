@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.21"
+APP_VERSION = "10.5.22"
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -4749,6 +4749,98 @@ def _aggregate_analysis_period(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _ha_month_entity_snapshot_series(month_key: str, entity_id: str) -> list[dict[str, Any]]:
+    """Lees één HA-entiteit per kwartiersnapshot via de read-only Energie MCP."""
+    path = f"01_Input/{month_key}/HomeAssistant/QuarterHour"
+    result = _mcp_call_project_tool(
+        "search_content",
+        {"query": f'"entity_id": "{entity_id}",', "path": path,
+         "case_sensitive": True, "max_results": 500, "context_lines": 3},
+        timeout=12.0,
+    )
+    series = []
+    if not isinstance(result, dict):
+        return series
+    for match in result.get("matches") or []:
+        if not isinstance(match, dict):
+            continue
+        path_value = str(match.get("path") or "")
+        file_match = re.search(r'home_assistant_quarter_(\d{8}T\d{6}Z)\.json$', path_value)
+        if not file_match:
+            continue
+        value = None
+        lines = [match.get("matching_text")] + [
+            item.get("text") for item in (match.get("context") or []) if isinstance(item, dict)
+        ]
+        for line in lines:
+            if not isinstance(line, str):
+                continue
+            m = re.search(r'"state"\s*:\s*"([-+]?\d+(?:[.,]\d+)?)"', line)
+            if m:
+                try:
+                    value = float(m.group(1).replace(",", "."))
+                except ValueError:
+                    pass
+        if value is not None:
+            series.append({"snapshot_timestamp": file_match.group(1), "value": value})
+    series.sort(key=lambda x: x["snapshot_timestamp"])
+    return series
+
+
+def _nextenergy_consumption_weighted_month(month_key: str) -> dict[str, Any]:
+    """Koppel P1-importdelta's aan de NextEnergy-prijs uit dezelfde snapshots."""
+    output = {
+        "month": month_key, "available": False,
+        "price_entity_id": None,
+        "import_entity_id": "sensor.p1_meter_energie_import",
+        "matched_intervals": 0, "import_kwh_observed": None,
+        "weighted_average_eur_per_kwh": None, "observed_import_cost_eur": None,
+        "first_snapshot": None, "last_snapshot": None,
+        "coverage": "not_available", "transport": "mcp_search_content_read_only",
+        "quality": "not_available",
+    }
+    try:
+        price_entity = str(Options.load().nextenergy_entity_id or "").strip()
+        output["price_entity_id"] = price_entity or None
+        if not price_entity:
+            return output
+        prices = _ha_month_entity_snapshot_series(month_key, price_entity)
+        imports = _ha_month_entity_snapshot_series(month_key, output["import_entity_id"])
+        p = {x["snapshot_timestamp"]: x["value"] for x in prices}
+        e = {x["snapshot_timestamp"]: x["value"] for x in imports}
+        common = sorted(set(p) & set(e))
+        if len(common) < 2:
+            return output
+        prev = e[common[0]]
+        kwh = cost = 0.0
+        used = []
+        for stamp in common[1:]:
+            current = e[stamp]
+            delta = current - prev
+            prev = current
+            if delta <= 0:
+                continue
+            kwh += delta
+            cost += delta * p[stamp]
+            used.append(stamp)
+        if not used or kwh <= 0:
+            return output
+        output.update({
+            "available": True,
+            "matched_intervals": len(used),
+            "import_kwh_observed": _round_metric(kwh),
+            "weighted_average_eur_per_kwh": _round_metric(cost / kwh),
+            "observed_import_cost_eur": round(cost, 2),
+            "first_snapshot": used[0], "last_snapshot": used[-1],
+            "coverage": "partial_observed_window",
+            "quality": "consumption_weighted_observed",
+        })
+        return output
+    except Exception as exc:
+        output["quality"] = "error"; output["error"] = str(exc)
+        return output
+
+
 def _nextenergy_month_telemetry(month_key: str) -> dict[str, Any]:
     """Historische NextEnergy-prijsobservaties: NAS/MCP eerst, lokale fallback daarna."""
     result = {
@@ -5006,6 +5098,13 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         item for item in supplier_price_history if item.get("available")
     ]
     supplier_context["monthly_electricity_price_telemetry"] = supplier_price_history
+    supplier_context["monthly_consumption_weighted_electricity"] = [
+        item for item in (
+            _nextenergy_consumption_weighted_month(str(month.get("month")))
+            for month in months
+        )
+        if item.get("available")
+    ]
 
     return {
         "schema": ANALYSIS_CONTEXT_SCHEMA,
@@ -5046,7 +5145,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "solar_production_kwh": "Enphase-opwek; bij ontbrekende Enphase alleen expliciet gemarkeerde export_fallback.",
             "self_use_pct": "Direct eigen zonnegebruik gedeeld door zonneproductie; null als brondekking dit niet betrouwbaar toelaat.",
             "self_supply_pct": "Direct eigen zonnegebruik gedeeld door berekend huishoudelijk elektriciteitsgebruik; null als brondekking dit niet betrouwbaar toelaat.",
-            "supplier_context": "Bekende NextEnergy-contractmetadata plus live en historische Home Assistant-prijstelemetrie; historische gemiddelden zijn ongewogen prijsobservaties en nog geen verbruikgewogen maandkosten.",
+            "supplier_context": "Bekende NextEnergy-contractmetadata plus live en historische Home Assistant-prijstelemetrie. Over beschikbare kwartiersnapshots wordt ook een werkelijk verbruikgewogen afnameprijs berekend uit P1-importdelta × NextEnergy-prijs; dit blijft gedeeltelijke dekking en nog geen leverancier-all-in maandbedrag.",
             "price_context": "Historische EPEX-v6 prijscontext. De reader zoekt eerst in de feitelijke Home Assistant share `/share/Energie_NAS/05_Maanddata/EPEX` en ondersteunt daarnaast legacy projectpaden. De hoofdstatistiek gebruikt prijs_incl_btw_en_eb en is geen leverancier-all-in prijs.",
         },
         "months": months,
@@ -9469,7 +9568,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.21",
+        "target_stable_release": "10.5.22",
     }
 
     summary = {
@@ -9501,7 +9600,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.21",
+        "target_stable_release": "10.5.22",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9568,7 +9667,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.21",
+        "Doelrelease: 10.5.22",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

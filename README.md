@@ -1,4 +1,4 @@
-# EnergieProject v10.5.21
+# EnergieProject v10.5.22
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -59,3 +59,7 @@ NextEnergy-prijstelemetrie wordt nu ook historisch uit de kwartier-snapshots gel
 
 ## v10.5.21
 De historische NextEnergy-prijsreader gebruikt nu de werkelijke NAS-bron via de read-only Energie MCP. Daarmee wordt de eerder lege historische prijsreeks beschikbaar zonder bestanden te dupliceren.
+
+
+## v10.5.22
+P1-importdelta's worden nu gekoppeld aan de NextEnergy-prijs uit dezelfde kwartiersnapshots voor een echte verbruikgewogen prijs.

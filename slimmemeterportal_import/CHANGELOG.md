@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.5.22
+- Eerste echte verbruikgewogen financiële analyse toegevoegd.
+- NextEnergy-kwartierprijs wordt gekoppeld aan de delta van `sensor.p1_meter_energie_import` uit dezelfde NAS-snapshot.
+- Levert geobserveerde import-kWh, verbruikgewogen EUR/kWh en geobserveerde importkosten.
+- Dekking blijft expliciet `partial_observed_window`; nog geen volledig leverancier-all-in maandbedrag.
+
 ## 10.5.21
 - Historische NextEnergy-reader gecorrigeerd voor de werkelijke NAS-opslaglocatie.
 - Home Assistant leest kwartier-snapshots nu read-only via Energie MCP `search_content` uit `01_Input/YYYY_MM/HomeAssistant/QuarterHour`.

@@ -640,3 +640,7 @@ De analysecontext bevat bekende contractmetadata en leest de ingestelde NextEner
 
 ## Versie 10.5.21 — NAS/MCP historische prijsreader
 De kwartier-snapshots blijven op de NAS. De add-on zoekt de NextEnergy-entiteit via MCP `search_content`, parseert de state uit de contextregels en gebruikt de snapshotnaam als timestampfallback.
+
+
+## v10.5.22
+Per kwartiersnapshot: positieve P1-importdelta × NextEnergy-prijs. Resultaat blijft `partial_observed_window` zolang niet de volledige maand is afgedekt.
