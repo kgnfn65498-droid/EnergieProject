@@ -1,14 +1,14 @@
-# Testinstructies v13.2.0
+# Testinstructies v13.3.0
 
-1. Plaats `EnergieProject_v13.2.0.zip` in `EnergieProject_Inbox/incoming`.
+1. Plaats `EnergieProject_v13.3.0.zip` in `EnergieProject_Inbox/incoming`.
 2. Wacht op `processed`.
-3. Update Home Assistant naar 13.2.0.
-4. Controleer GUI/Ingress.
-5. Download Analyse-export en release-diagnose.
-6. Controleer `production_consolidation.v13_official_report_render_contract.status = active`.
-7. Controleer dat ontbrekende financiële waarden niet als 0 worden behandeld.
-8. De huidige observatiegate mag nog niet passeren zolang minder dan 7 dagen beschikbaar zijn.
-9. Leverancier-all-in blijft geblokkeerd zolang officiële NextEnergy-contractcomponenten ontbreken.
+3. Controleer het Home Assistant updatevenster: de nieuwste release 13.3.0 moet bovenaan staan.
+4. Update naar 13.3.0.
+5. Controleer GUI/Ingress.
+6. Download Analyse-export en release-diagnose.
+7. Controleer `production_consolidation.v13_completion_gate`.
+8. Verwacht `release_status = v13_complete_external_data_gates_remain`.
+9. Observatie- en officiële NextEnergy-contractgates blijven verplicht.
 10. EPEX blijft uitsluitend referentie.
 11. Historische EPEX juli 2026 blijft gedeeltelijk: brondata loopt t/m 2026-07-29.
 
