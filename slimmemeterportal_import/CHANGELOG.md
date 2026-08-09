@@ -1,8 +1,8 @@
 # Changelog
 
-## 16.3.0
-- v16 financiële rapportuitvoer afgerond als guarded productie-baseline.
-- Outputcontract, runtime-activatie en publicatievalidatie zijn geconsolideerd.
-- Prognose blijft automatisch afhankelijk van minimaal 7 waargenomen dagen.
-- Leverancier-all-in blijft afhankelijk van officiële NextEnergy-contractwaarden.
-- Geblokkeerde waarden blijven `Niet beschikbaar`; EPEX blijft uitsluitend referentie.
+## 17.0.0
+- Start v17: gevalideerde financiële runtime-status wordt voorbereid voor concrete kostenbesparingsbeslissingen.
+- Voorschotadvies blijft €150 als referentiecontext gebruiken en wordt alleen publiceerbaar na prognose- én leverancier-all-in-validatie.
+- Alleen drie expliciete uitkomsten zijn toegestaan: voorschot lager, passend of hoger.
+- Validatie-candidates en EPEX mogen geen leveranciersbeslissing sturen.
+- Geblokkeerde beslissingen blijven `Niet beschikbaar`.
