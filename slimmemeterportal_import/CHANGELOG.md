@@ -1,5 +1,14 @@
 # Changelog
 
+## 10.6.0
+- Financiële prognose-engine geactiveerd als productiefunctionaliteit bovenop de bewezen v10.5.39-bouwblokken.
+- Na minimaal 7 waargenomen dagen publiceert `financial_projection` een echte 30-dagenprognose voor import en verbruiksgewogen variabele NextEnergy-stroomkosten.
+- Indien officiële vaste leverancierskosten en opslag beschikbaar zijn, worden deze afzonderlijk toegevoegd aan de 30-dagen leverancier-stroomprognose.
+- Leverancier-all-in blijft bewust `null` zolang vaste kosten, opslag, terugleververgoeding of gasformule niet volledig gevalideerd zijn; ontbrekende contractwaarden worden nooit verzonnen.
+- EPEX blijft expliciet markt-/referentieprijs en wordt niet als leverancier-all-in gepresenteerd.
+- `projection_engine.stage` staat nu op `production_active`; resterende all-in afhankelijkheden worden dynamisch gerapporteerd.
+- Bestaande GUI, Ingress, release-watcher, GitHub-publicatie, diagnose-downloads, maandworkflow, rapportgeneratoren en herstelvoorzieningen zijn behouden.
+
 ## 10.5.39
 - Kritieke GUI-regressie opgelost in `build_analysis_context()`: de maandlus gebruikt nu de geldige `month`-context in plaats van de niet-bestaande variabele `item`.
 - Hierdoor crasht de Home Assistant Ingress/Web UI niet meer met `NameError: name 'item' is not defined`.

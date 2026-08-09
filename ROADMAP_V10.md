@@ -77,3 +77,6 @@
 
 - v10.5.37: zichtbare rapportpagina in Home Assistant GUI hersteld.
 - Nog gepland tot v10.6.0: v10.5.39 consolidatie/acceptatie → v10.6.0 financiële productierelease.
+
+- v10.6.0: financiële 30-dagen productieprognose geactiveerd achter de 7-dagen kwaliteitsgate; leverancier-all-in blijft contract-gated.
+- Resterend tot v11.0: 4 productiestappen gepland: v10.6.1 contract/all-in validatie, v10.7 prognose-engine verdieping, v10.8 officiële rapportgenerator-integratie, v10.9 eindvalidatie/consolidatie.

@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.39"
+APP_VERSION = "10.6.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5614,6 +5614,58 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             ),
             "supplier_all_in_projection": False,
         }
+        # v10.6.0: productiematige 30-dagenprognose. Alleen publiceren na de
+        # bewezen 7-dagengate. Leverancier-all-in blijft afzonderlijk geblokkeerd
+        # totdat alle officiële contractcomponenten daadwerkelijk bekend zijn.
+        projected_import_30d = (
+            _round_metric(float(weighted.get("observed_daily_import_run_rate_kwh")) * 30.0)
+            if eligible and isinstance(weighted.get("observed_daily_import_run_rate_kwh"), (int, float))
+            else None
+        )
+        projected_variable_cost_30d = (
+            round(float(weighted.get("observed_daily_variable_cost_run_rate_eur")) * 30.0, 2)
+            if eligible and isinstance(weighted.get("observed_daily_variable_cost_run_rate_eur"), (int, float))
+            else None
+        )
+        projected_markup_30d = (
+            round(float(projected_import_30d) * float(contract_costs.get("supplier_markup_eur_per_kwh")), 2)
+            if isinstance(projected_import_30d, (int, float))
+            and isinstance(contract_costs.get("supplier_markup_eur_per_kwh"), (int, float))
+            else None
+        )
+        projected_fixed_30d = (
+            round(float(contract_costs.get("supplier_fixed_costs_eur_per_month")), 2)
+            if eligible and isinstance(contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float))
+            else None
+        )
+        projected_supplier_electricity_30d = (
+            round(float(projected_variable_cost_30d) + float(projected_markup_30d) + float(projected_fixed_30d), 2)
+            if all(isinstance(value, (int, float)) for value in (projected_variable_cost_30d, projected_markup_30d, projected_fixed_30d))
+            else None
+        )
+        financial["financial_projection"] = {
+            "engine_version": "10.6.0",
+            "status": "published" if eligible else "blocked_insufficient_observation",
+            "quality_gate_passed": eligible,
+            "minimum_observed_days": minimum_days,
+            "basis": "observed_consumption_weighted_nextenergy_run_rate",
+            "projected_30d_import_kwh": projected_import_30d,
+            "projected_30d_variable_electricity_cost_eur": projected_variable_cost_30d,
+            "projected_30d_supplier_markup_eur": projected_markup_30d,
+            "projected_30d_fixed_delivery_eur": projected_fixed_30d,
+            "projected_30d_supplier_electricity_cost_eur": projected_supplier_electricity_30d,
+            "monthly_advance_eur": monthly_advance,
+            "projected_variable_cost_vs_advance_gap_eur": (
+                round(float(monthly_advance) - float(projected_variable_cost_30d), 2)
+                if isinstance(monthly_advance, (int, float))
+                and isinstance(projected_variable_cost_30d, (int, float))
+                else None
+            ),
+            "supplier_all_in_projection_eur": None,
+            "supplier_all_in": False,
+            "epex_is_reference_only": True,
+            "note": "EPEX is markt-/referentieprijs en wordt niet als leverancier-all-in prijs gepresenteerd.",
+        }
         financial["nextenergy_weighted_import"] = {
             key: weighted.get(key) for key in (
                 "matched_intervals", "first_snapshot", "last_snapshot",
@@ -5643,18 +5695,26 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "gas_supplier_formula_known",
         )
     )
+    missing_all_in_dependencies = [
+        key for key in (
+            "supplier_fixed_costs", "supplier_markup",
+            "export_compensation", "gas_supplier_formula",
+        )
+        if not {
+            "supplier_fixed_costs": bool(supplier_context["cost_model"].get("supplier_fixed_costs_known")),
+            "supplier_markup": bool(supplier_context["cost_model"].get("supplier_markup_known")),
+            "export_compensation": bool(supplier_context["cost_model"].get("export_compensation_known")),
+            "gas_supplier_formula": bool(supplier_context["cost_model"].get("gas_supplier_formula_known")),
+        }[key]
+    ]
     supplier_context["cost_model"]["projection_engine"] = {
-        "stage": "prepared_gated",
+        "stage": "production_active",
+        "engine_version": "10.6.0",
         "target_release": "10.6",
         "thirty_day_variable_projection_logic_ready": True,
         "supplier_all_in_projection_ready": bool(supplier_components_ready and projection_months),
         "activation_requires_observed_days": 7.0,
-        "remaining_all_in_dependencies": [
-            "supplier_fixed_costs",
-            "supplier_markup",
-            "export_compensation",
-            "gas_supplier_formula",
-        ],
+        "remaining_all_in_dependencies": missing_all_in_dependencies,
     }
     readiness_components = {
         "weighted_electricity_import": bool(weighted_by_month),
