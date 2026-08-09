@@ -1,9 +1,9 @@
 # Changelog
 
-## 15.1.0
-- Officiële rapportgeneratorvelden expliciet gekoppeld aan de guarded financiële productiecontext.
-- Pagina 1 management/KPI-velden gebruiken gevalideerde decision-support.
-- Pagina 2 prognosevelden gebruiken `financial_projection` en `projection_detail`.
-- Maandtermijnadvies blijft achter de recommendation-publicatiegate.
-- Ontbrekende waarden blijven `Niet beschikbaar`; nooit automatische nulwaarden.
+## 15.2.0
+- Renderbeveiliging toegevoegd voor officiële financiële rapportvelden.
+- Prognosewaarden verschijnen pas nadat de 7-dagen kwaliteitsgate is geslaagd.
+- Leverancier-all-in en voorschotvergelijking verschijnen pas na officiële contractvalidatie.
+- Validatie-candidates worden nooit als financiële prognose gepubliceerd.
+- Geblokkeerde waarden blijven `Niet beschikbaar`; nulsubstitutie is verboden.
 - EPEX blijft uitsluitend markt-/referentieprijs.
