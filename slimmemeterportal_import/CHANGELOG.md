@@ -1,8 +1,7 @@
 # Changelog
 
-## 17.2.0
-- Publicatiegate toegevoegd voor concrete kostenbesparingsaanbevelingen.
-- Een advies verschijnt alleen wanneer recommendation_publishable waar is én beslissing, verschilbedrag, aanbevolen voorschot en adviessterkte allemaal beschikbaar zijn.
-- Gedeeltelijke aanbevelingen zijn verboden.
-- Blokkeerreden blijft herleidbaar naar de bestaande decision-supportlaag.
-- Publicatie opent automatisch zodra alle runtime-gates geldig zijn.
+## 17.3.0
+- v17 financiële kostenbesparingsketen formeel afgerond.
+- Beslisuitvoer, aanbevelingscontract en runtime-publicatiegate als één guarded productie-baseline geconsolideerd.
+- Geen gedeeltelijke aanbevelingen, candidates of EPEX-waarden mogen als leverancieradvies worden gepubliceerd.
+- Externe gates blijven automatisch actief: minimaal 7 waargenomen dagen en officiële NextEnergy-contractcomponenten.
