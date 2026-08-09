@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.34"
+APP_VERSION = "10.5.35"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5138,6 +5138,7 @@ def load_nextenergy_contract_costs() -> dict[str, Any]:
         "supplier_fixed_costs_eur_per_month": None,
         "supplier_markup_eur_per_kwh": None,
         "export_compensation_eur_per_kwh": None,
+        "export_compensation_formula": None,
         "gas_supplier_formula": None,
         "validation_errors": [],
     }
@@ -5178,6 +5179,28 @@ def load_nextenergy_contract_costs() -> dict[str, Any]:
                 errors.append(f"{field}_must_be_non_negative_number_or_null")
                 value = None
         result[field] = value
+
+    export_formula = raw.get("export_compensation_formula")
+    if export_formula is not None and not isinstance(export_formula, dict):
+        errors.append("export_compensation_formula_must_be_object_or_null")
+        export_formula = None
+    if isinstance(export_formula, dict):
+        allowed_export = {"type", "markup_eur_per_kwh", "bonus_factor", "notes"}
+        unknown_export = sorted(set(export_formula) - allowed_export)
+        if unknown_export:
+            errors.append("export_compensation_formula_unknown_fields:" + ",".join(unknown_export))
+        formula_type = export_formula.get("type")
+        if formula_type not in (None, "market_price_minus_markup"):
+            errors.append("export_compensation_formula.type_unsupported")
+        for key in ("markup_eur_per_kwh", "bonus_factor"):
+            value = export_formula.get(key)
+            if value is not None and (
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or value < 0
+            ):
+                errors.append(f"export_compensation_formula.{key}_must_be_non_negative_number_or_null")
+    result["export_compensation_formula"] = export_formula
 
     gas_formula = raw.get("gas_supplier_formula")
     if gas_formula is not None and not isinstance(gas_formula, dict):
@@ -5221,8 +5244,9 @@ def apply_nextenergy_contract_costs(supplier_context: dict[str, Any]) -> None:
     model["supplier_markup_known"] = isinstance(
         contract_costs.get("supplier_markup_eur_per_kwh"), (int, float)
     )
-    model["export_compensation_known"] = isinstance(
-        contract_costs.get("export_compensation_eur_per_kwh"), (int, float)
+    model["export_compensation_known"] = (
+        isinstance(contract_costs.get("export_compensation_eur_per_kwh"), (int, float))
+        or isinstance(contract_costs.get("export_compensation_formula"), dict)
     )
     model["gas_supplier_formula_known"] = isinstance(
         contract_costs.get("gas_supplier_formula"), dict
@@ -5370,12 +5394,75 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             and isinstance(candidate_variable_cost_30d, (int, float))
             else None
         )
+        contract_costs = supplier_context.get("contract_costs") or {}
+        observed_supplier_markup = (
+            round(float(weighted.get("import_kwh_observed")) * float(contract_costs.get("supplier_markup_eur_per_kwh")), 2)
+            if isinstance(weighted.get("import_kwh_observed"), (int, float))
+            and isinstance(contract_costs.get("supplier_markup_eur_per_kwh"), (int, float))
+            else None
+        )
+        observed_fixed_prorated = (
+            round(float(contract_costs.get("supplier_fixed_costs_eur_per_month")) * min(1.0, float(coverage_days) / 30.0), 2)
+            if isinstance(contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float))
+            and coverage_days is not None
+            else None
+        )
+        observed_supplier_electricity_cost = (
+            round(
+                float(weighted.get("observed_import_cost_eur"))
+                + float(observed_supplier_markup or 0.0)
+                + float(observed_fixed_prorated or 0.0),
+                2,
+            )
+            if isinstance(weighted.get("observed_import_cost_eur"), (int, float))
+            and isinstance(contract_costs.get("supplier_markup_eur_per_kwh"), (int, float))
+            and isinstance(contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float))
+            else None
+        )
+        financial["observed_supplier_component_costs"] = {
+            "available": observed_supplier_electricity_cost is not None,
+            "scope": "electricity_observed_window_only",
+            "market_variable_cost_eur": weighted.get("observed_import_cost_eur"),
+            "supplier_markup_cost_eur": observed_supplier_markup,
+            "fixed_delivery_cost_prorated_eur": observed_fixed_prorated,
+            "observed_supplier_electricity_cost_eur": observed_supplier_electricity_cost,
+            "gas_included": False,
+            "export_credit_included": False,
+            "network_costs_included": False,
+            "supplier_all_in": False,
+        }
+
         financial["projection_candidate_validation"] = {
             "publishable": eligible,
             "quality_gate_passed": eligible,
             "basis": "observed_daily_run_rate",
             "candidate_30d_import_kwh": candidate_import_30d,
             "candidate_30d_variable_electricity_cost_eur": candidate_variable_cost_30d,
+            "candidate_30d_supplier_markup_eur": (
+                round(float(candidate_import_30d) * float(contract_costs.get("supplier_markup_eur_per_kwh")), 2)
+                if isinstance(candidate_import_30d, (int, float))
+                and isinstance(contract_costs.get("supplier_markup_eur_per_kwh"), (int, float))
+                else None
+            ),
+            "candidate_30d_fixed_delivery_eur": (
+                contract_costs.get("supplier_fixed_costs_eur_per_month")
+                if isinstance(contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float))
+                else None
+            ),
+            "candidate_30d_supplier_electricity_cost_eur": (
+                round(
+                    float(candidate_variable_cost_30d)
+                    + float(candidate_import_30d) * float(contract_costs.get("supplier_markup_eur_per_kwh"))
+                    + float(contract_costs.get("supplier_fixed_costs_eur_per_month")),
+                    2,
+                )
+                if isinstance(candidate_variable_cost_30d, (int, float))
+                and isinstance(candidate_import_30d, (int, float))
+                and isinstance(contract_costs.get("supplier_markup_eur_per_kwh"), (int, float))
+                and isinstance(contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float))
+                else None
+            ),
+            "supplier_electricity_projection_scope": "electricity_only_not_all_in",
             "monthly_advance_eur": monthly_advance,
             "candidate_variable_cost_vs_advance_gap_eur": advance_gap,
             "advance_comparison_scope": "variable_electricity_only_not_all_in",
@@ -5416,11 +5503,20 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         if eligibility.get("eligible"):
             projection_months.append(str(month.get("month")))
     supplier_context["cost_model"]["projection_ready_months"] = projection_months
+    supplier_components_ready = all(
+        bool(supplier_context["cost_model"].get(key))
+        for key in (
+            "supplier_fixed_costs_known",
+            "supplier_markup_known",
+            "export_compensation_known",
+            "gas_supplier_formula_known",
+        )
+    )
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "prepared_gated",
         "target_release": "10.6",
         "thirty_day_variable_projection_logic_ready": True,
-        "supplier_all_in_projection_ready": False,
+        "supplier_all_in_projection_ready": bool(supplier_components_ready and projection_months),
         "activation_requires_observed_days": 7.0,
         "remaining_all_in_dependencies": [
             "supplier_fixed_costs",
@@ -5458,6 +5554,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "zolang leverancier-, teruglever- en gascomponenten ontbreken."
         ),
     }
+    supplier_context["cost_model"]["all_in_ready"] = bool(supplier_components_ready and projection_months)
     supplier_context["cost_model"]["projection_observation_status"] = [
         {
             "month": str(month.get("month")),
@@ -5488,9 +5585,9 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "supplier_live_price_connected": supplier_live_connected,
             "supplier_price_history_connected": bool(supplier_price_history),
             "supplier_price_history_transport": (supplier_price_history[0].get("transport") if supplier_price_history else None),
-            "supplier_contract_costs_connected": False,
-            "export_credit_connected": False,
-            "ready_for_all_in_costs": False,
+            "supplier_contract_costs_connected": bool((supplier_context.get("contract_costs") or {}).get("valid")),
+            "export_credit_connected": bool(supplier_context["cost_model"].get("export_compensation_known")),
+            "ready_for_all_in_costs": bool(supplier_context["cost_model"].get("all_in_ready")),
         },
         "supplier_context": supplier_context,
         "scope": {"year_filter": year, "month_count": len(months)},
@@ -10112,7 +10209,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.34",
+        "target_stable_release": "10.5.35",
     }
 
     summary = {
@@ -10144,7 +10241,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.34",
+        "target_stable_release": "10.5.35",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -10211,7 +10308,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.34",
+        "Doelrelease: 10.5.35",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",

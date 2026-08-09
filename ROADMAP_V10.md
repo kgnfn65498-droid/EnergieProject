@@ -70,3 +70,5 @@
 - v10.5.33: financiële readiness-matrix + veilige voorschotcontext richting v10.6.
 
 - v10.5.34: gevalideerde contractkosten-ingangslaag voor vaste kosten, opslag, terugleververgoeding en gasformule.
+
+- v10.5.35: daadwerkelijke leveranciercomponentberekening + dynamische terugleverformule voorbereid.

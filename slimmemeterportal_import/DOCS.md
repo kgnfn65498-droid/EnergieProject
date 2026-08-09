@@ -702,3 +702,9 @@ Ondersteunde velden:
 - `gas_supplier_formula`
 
 Alle velden mogen `null` zijn. Alleen expliciet ingevulde en valide waarden worden geactiveerd.
+
+
+## v10.5.35 — leveranciercomponenten
+Wanneer `supplier_fixed_costs_eur_per_month` en `supplier_markup_eur_per_kwh` valide zijn, wordt over de waargenomen stroomperiode een leverancier-stroomkost opgebouwd uit marktvariabele kosten + opslag + geprorateerde vaste leveringskosten.
+
+`export_compensation_formula` ondersteunt `type: market_price_minus_markup` met optionele `markup_eur_per_kwh` en `bonus_factor`.

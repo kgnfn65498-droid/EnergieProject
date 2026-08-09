@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "10.5.34"
+    assert cfg_version == app_version == "10.5.35"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "10.5.34"' in config
+    assert 'version: "10.5.35"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "10.5.34"' in config
-    assert 'APP_VERSION = "10.5.34"' in main
+    assert 'version: "10.5.35"' in config
+    assert 'APP_VERSION = "10.5.35"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.34"' in source
+    assert 'APP_VERSION = "10.5.35"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2433,7 +2433,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.34"' in source
+    assert 'APP_VERSION = "10.5.35"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -2725,8 +2725,9 @@ def test_v10518_financial_context_is_conservative():
     assert "def _financial_month_context" in source
     assert '"grid_export_credit_eur": None' in source
     assert '"supplier_all_in_cost_eur": None' in source
-    assert '"supplier_contract_costs_connected": False' in source
-    assert '"ready_for_all_in_costs": False' in source
+    assert '"supplier_contract_costs_connected": bool' in source
+    assert '"ready_for_all_in_costs": bool' in source
+    assert '"supplier_all_in_cost_eur": None' in source
     assert "Geen terugleververgoeding afgeleid uit afnameprijs." in source
 
 def test_v10519_supplier_context_present():
@@ -2867,3 +2868,13 @@ def test_v10534_contract_cost_layer_is_explicit_and_non_assumptive():
     assert '"gas_supplier_formula": None' in source
     assert 'contract_costs_file_not_found' in source
     assert (ROOT/"00_Config/nextenergy_contract_costs.example.json").is_file()
+
+def test_v10535_supplier_component_calculation_and_dynamic_export_schema():
+    source=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"export_compensation_formula": None' in source
+    assert 'market_price_minus_markup' in source
+    assert '"observed_supplier_component_costs"' in source
+    assert '"candidate_30d_supplier_electricity_cost_eur"' in source
+    assert '"electricity_only_not_all_in"' in source
+    assert '"supplier_contract_costs_connected": bool' in source
+    assert '"ready_for_all_in_costs": bool' in source

@@ -1,5 +1,13 @@
 # Changelog
 
+## 10.5.35
+- Contractkostenlaag uitgebreid met echte berekeningslogica voor leveranciercomponenten.
+- Bij geldige vaste leveringskosten + opslag wordt een waargenomen leverancier-stroomkost berekend over exact dezelfde meetperiode.
+- 30-dagen kandidaatprojectie bevat afzonderlijk marktprijs, opslag, vaste leveringskosten en leverancier-stroomtotaal.
+- Alle leverancierberekeningen blijven expliciet `electricity_only_not_all_in`: gas, teruglevering en netbeheerkosten worden niet stilzwijgend meegerekend.
+- Dynamische teruglevering wordt ondersteund via `export_compensation_formula` met type `market_price_minus_markup`; een vast bedrag blijft ondersteund.
+- `financial_status` schakelt contractkosten/export/readiness voortaan dynamisch op basis van gevalideerde contractconfiguratie en de 7-dagenkwaliteitsgate.
+
 ## 10.5.34
 - Veilige NextEnergy-contractkostenlaag toegevoegd richting v10.6.
 - Nieuwe optionele bron: `00_Config/nextenergy_contract_costs.json`.
