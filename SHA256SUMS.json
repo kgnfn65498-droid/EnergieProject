@@ -1,5 +1,5 @@
 {
-  "version": "14.0.0",
+  "version": "14.1.0",
   "files": [
     {
       "path": ".gitignore",
@@ -13,8 +13,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "b8519692dda9b776227230c19f198bc466a062ce4083d3b31f4860c5e2bc2587",
-      "size": 31648
+      "sha256": "3838faee7f8fe9e6a6ded502b8a3b03b70cd57861f67dae5ce762e2b05f68ba0",
+      "size": 32357
     },
     {
       "path": "INSTALL.md",
@@ -48,12 +48,12 @@
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "sha256": "dd543a8f52d7ad31bcaeb743945d04df6a7addaa9d64de01b00ea95a11047877",
-      "size": 854
+      "sha256": "f2a286660aa57f1ef00554f13c9170fe0083e42872d4be8e73dec88a65e25e5e",
+      "size": 784
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "c72bbdeda99714db1c8024d3311da4aef3c0db3b9b9f11455a7cfe10d5e9aba3",
+      "sha256": "844f1040d2f083c3e62c13e3c816cc08b242799911401a004ed65ed00dc8a006",
       "size": 7
     },
     {
@@ -63,7 +63,7 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "6cc698e0e4200ea789e72ef7fdb7ce170a8c64f96de88423ee3eb6a65d3a2e74",
+      "sha256": "287f8b0d5f99b3d1a5a00ae405d2e1aae057863227e8a73e222cf24da1a1aa3b",
       "size": 56935
     },
     {
@@ -83,13 +83,13 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "d9ba756516982148f3a4c53ff7d2bf5358852ec35abde705bc07e4a7b8db61a3",
+      "sha256": "8e24ac80ce22671ce676cfc335736a0c97c7928af4f9bbdf4ecdc68afbfb1c3a",
       "size": 5740
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "6b900545f07aa2653ce69612dd9a6fc9677ddc658cd5090f73d96785afca49cf",
-      "size": 594632
+      "sha256": "3a823b2b5efff711d7e9378885a1d36533cdf72e2a557fc0d8f1bf0108e440e1",
+      "size": 595349
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -358,8 +358,8 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "72f43033221d5f6528eeaf76ee657d15a392c8ac090e652fc8fbf1a49096f189",
-      "size": 147781
+      "sha256": "81817c69d34da0392045918421a10544844445261a96d005f3ff84b84c12d681",
+      "size": 148380
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
