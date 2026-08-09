@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "12.1.0"
+APP_VERSION = "12.2.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1574,7 +1574,7 @@ def build_report_adapter_data(
         "gas_total": round(gas_m3 * 12, 1),
     })
 
-    # v12.1.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
+    # v12.2.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
     # financiële waarden. Voorbeeldtarieven uit het generatorpakket mogen nooit
     # als echte leverancierskosten in een productierapport terechtkomen.
     observed_variable = financial_context.get("observed_variable_electricity_cost_eur")
@@ -5521,6 +5521,8 @@ def build_cost_saving_decision_support(
         "decision": None,
         "projected_monthly_difference_eur": None,
         "recommended_advance_eur": None,
+        "recommendation_strength": None,
+        "safety_margin_pct": 5.0,
         "reason": None,
     }
 
@@ -5546,6 +5548,13 @@ def build_cost_saving_decision_support(
         result["decision"] = "keep_current_advance"
 
     result["reason"] = "validated_supplier_all_in_projection"
+    absolute_gap = abs(difference)
+    if absolute_gap < 15.0:
+        result["recommendation_strength"] = "hold"
+    elif absolute_gap < 30.0:
+        result["recommendation_strength"] = "moderate"
+    else:
+        result["recommendation_strength"] = "strong"
     return result
 
 
@@ -5828,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "12.1.0",
+            "engine_version": "12.2.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5875,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "12.1.0",
+            "engine_version": "12.2.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5936,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "12.1.0",
+        "engine_version": "12.2.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
