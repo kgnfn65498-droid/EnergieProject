@@ -1,8 +1,7 @@
 # Changelog
 
-## 18.0.0
-- Start v18: financiële explainability- en auditlaag toegevoegd bovenop de afgeronde v17-besparingsketen.
-- Toekomstige financiële aanbevelingen moeten niet alleen veilig zijn, maar ook expliciet uitleggen waarom een advies wel of niet gepubliceerd wordt.
-- Uitleg omvat beslissing, reden, basis, verschilbedrag, aanbevolen voorschot, adviessterkte, datakwaliteit en geblokkeerde afhankelijkheden.
-- Candidate-waarden mogen uitsluitend als uitleg/context dienen en nooit de beslissing sturen.
-- EPEX blijft uitsluitend markt-/referentieprijs; ontbrekende contractwaarden worden nooit aangenomen.
+## 18.1.0
+- Runtime-uitleglaag toegevoegd bovenop het v18 explainability-contract.
+- Geblokkeerde financiële adviezen krijgen een concrete, menselijk leesbare reden.
+- Blokkerende afhankelijkheden worden in vaste volgorde beoordeeld.
+- Candidate-data blijft uitsluitend context en mag geen aanbeveling sturen.

@@ -1,17 +1,15 @@
-# Testinstructies v18.0.0
+# Testinstructies v18.1.0
 
-1. Plaats `EnergieProject_v18.0.0.zip` in `EnergieProject_Inbox/incoming`.
-2. Wacht op `processed`.
-3. Controleer dat Home Assistant alleen releasetext 18.0.0 toont.
-4. Update naar 18.0.0 en controleer GUI/Ingress.
-5. Download Analyse-export en release-diagnose.
-6. Controleer `production_consolidation.v18_financial_explainability_contract.status = financial_explainability_contract_active`.
-7. De huidige observatie is circa 4,146/7 dagen; financieel advies moet daarom nog geblokkeerd blijven.
-8. De explainability-laag moet zowel geblokkeerde als toekomstige publiceerbare adviezen kunnen verklaren.
-9. Candidate-waarden mogen alleen uitleg/context zijn en mogen geen beslissing sturen.
-10. Leverancier-all-in blijft geblokkeerd zolang de vier officiële NextEnergy-contractcomponenten ontbreken.
-11. EPEX blijft uitsluitend markt-/referentieprijs.
-12. Historische EPEX juli 2026 blijft gedeeltelijk: brondata loopt t/m 2026-07-29.
+1. Plaats `EnergieProject_v18.1.0.zip` in `EnergieProject_Inbox/incoming` en wacht op `processed`.
+2. Update in Home Assistant en controleer GUI/Ingress.
+3. Download Analyse-export en release-diagnose.
+4. Controleer `production_consolidation.v18_financial_explanation_runtime.status = financial_explanation_runtime_active`.
+5. Onder 7 waargenomen dagen moet de uitleg melden dat nog onvoldoende waarnemingsdagen beschikbaar zijn.
+6. Supplier-all-in en contractcomponenten blijven afzonderlijke gates.
+7. Candidate-data mag alleen context zijn en mag geen aanbeveling sturen.
+8. EPEX blijft uitsluitend markt-/referentieprijs.
+9. Ontbrekende financiële waarden blijven `Niet beschikbaar`.
+10. Historische EPEX juli 2026 blijft gedeeltelijk: brondata loopt t/m 2026-07-29.
 
 Gebruik GEEN Home Assistant Terminal.
 Gebruik GEEN handmatige Git-commit of Git-push.
