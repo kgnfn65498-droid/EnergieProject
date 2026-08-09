@@ -708,3 +708,15 @@ Alle velden mogen `null` zijn. Alleen expliciet ingevulde en valide waarden word
 Wanneer `supplier_fixed_costs_eur_per_month` en `supplier_markup_eur_per_kwh` valide zijn, wordt over de waargenomen stroomperiode een leverancier-stroomkost opgebouwd uit marktvariabele kosten + opslag + geprorateerde vaste leveringskosten.
 
 `export_compensation_formula` ondersteunt `type: market_price_minus_markup` met optionele `markup_eur_per_kwh` en `bonus_factor`.
+
+
+## v10.5.36 — contractformules
+Teruglevering:
+- vast: `export_compensation_eur_per_kwh`
+- dynamisch: `export_compensation_formula.type = market_price_minus_markup`
+
+Gas:
+- vast: `gas_supplier_formula.type = fixed`
+- marktprijs plus opslag: `gas_supplier_formula.type = market_price_plus_markup`
+
+Zonder valide contractregel wordt geen bedrag berekend.

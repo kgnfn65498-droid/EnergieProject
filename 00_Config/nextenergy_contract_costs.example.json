@@ -10,7 +10,8 @@
     "Laat onbekende waarden null.",
     "De software gebruikt geen aannames of standaardtarieven.",
     "gas_supplier_formula ondersteunt later: type, fixed_eur_per_m3, markup_eur_per_m3, notes.",
-    "Voor dynamische teruglevering kan export_compensation_formula type market_price_minus_markup gebruiken; vul alleen contractueel bevestigde waarden in."
+    "Voor dynamische teruglevering kan export_compensation_formula type market_price_minus_markup gebruiken; vul alleen contractueel bevestigde waarden in.",
+    "gas_supplier_formula.type ondersteunt fixed of market_price_plus_markup; onbekende contractformules blijven geblokkeerd."
   ],
   "export_compensation_formula": null
 }

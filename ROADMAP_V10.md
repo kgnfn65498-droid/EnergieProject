@@ -72,3 +72,5 @@
 - v10.5.34: gevalideerde contractkosten-ingangslaag voor vaste kosten, opslag, terugleververgoeding en gasformule.
 
 - v10.5.35: daadwerkelijke leveranciercomponentberekening + dynamische terugleverformule voorbereid.
+
+- v10.5.36: contractformulemotor voor terugleververgoeding en gas, nog gated vóór all-in activatie.

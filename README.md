@@ -1,4 +1,4 @@
-# EnergieProject v10.5.35
+# EnergieProject v10.5.36
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -115,3 +115,7 @@ Officiële NextEnergy-contractcomponenten kunnen nu veilig via een apart configu
 
 ## v10.5.35
 De contractkostenlaag rekent nu daadwerkelijk met gevalideerde leveranciercomponenten zodra die beschikbaar zijn, maar houdt stroom, gas, teruglevering en netbeheer gescheiden zolang het totaal niet compleet is.
+
+
+## v10.5.36
+Veilige contractformulemotor voor teruglevering en gas toegevoegd. Zonder officiële contractwaarden blijft de uitkomst null met een expliciete blokkadereden.

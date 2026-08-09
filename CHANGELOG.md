@@ -1,5 +1,13 @@
 # Changelog
 
+## 10.5.36
+- Contractformulemotor toegevoegd voor terugleververgoeding en gas.
+- Teruglevering ondersteunt een expliciet vast contracttarief of `market_price_minus_markup`.
+- Gas ondersteunt expliciet `fixed` of `market_price_plus_markup`.
+- Formules rekenen uitsluitend met gevalideerde contractwaarden; ontbrekende of onbekende waarden leveren `null` plus reden op.
+- Per maand is `contract_formula_preview` toegevoegd zodat analyse/diagnose direct laat zien waarom export- of gaskosten wel/niet berekenbaar zijn.
+- Formule-uitkomsten worden nog niet stilzwijgend in leverancier-all-in opgenomen; activatie blijft gated richting v10.6.
+
 ## 10.5.35
 - Contractkostenlaag uitgebreid met echte berekeningslogica voor leveranciercomponenten.
 - Bij geldige vaste leveringskosten + opslag wordt een waargenomen leverancier-stroomkost berekend over exact dezelfde meetperiode.

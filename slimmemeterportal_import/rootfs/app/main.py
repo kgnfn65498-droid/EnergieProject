@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.35"
+APP_VERSION = "10.5.36"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5211,6 +5211,8 @@ def load_nextenergy_contract_costs() -> dict[str, Any]:
         unknown = sorted(set(gas_formula) - allowed)
         if unknown:
             errors.append("gas_supplier_formula_unknown_fields:" + ",".join(unknown))
+        if gas_formula.get("type") not in (None, "fixed", "market_price_plus_markup"):
+            errors.append("gas_supplier_formula.type_unsupported")
         for key in ("fixed_eur_per_m3", "markup_eur_per_m3"):
             value = gas_formula.get(key)
             if value is not None and (
@@ -5251,6 +5253,116 @@ def apply_nextenergy_contract_costs(supplier_context: dict[str, Any]) -> None:
     model["gas_supplier_formula_known"] = isinstance(
         contract_costs.get("gas_supplier_formula"), dict
     )
+
+
+
+def calculate_export_compensation(
+    export_kwh: float | None,
+    market_price_eur_per_kwh: float | None,
+    contract_costs: dict[str, Any],
+) -> dict[str, Any]:
+    """Bereken alleen met expliciet gevalideerde contractregels; anders null."""
+    result = {
+        "available": False,
+        "export_kwh": export_kwh,
+        "market_price_eur_per_kwh": market_price_eur_per_kwh,
+        "compensation_eur": None,
+        "effective_compensation_eur_per_kwh": None,
+        "method": None,
+        "reason": None,
+    }
+    if not isinstance(export_kwh, (int, float)) or export_kwh < 0:
+        result["reason"] = "export_kwh_not_available"
+        return result
+
+    flat = contract_costs.get("export_compensation_eur_per_kwh")
+    if isinstance(flat, (int, float)):
+        result["available"] = True
+        result["method"] = "flat_contract_rate"
+        result["effective_compensation_eur_per_kwh"] = round(float(flat), 6)
+        result["compensation_eur"] = round(float(export_kwh) * float(flat), 2)
+        return result
+
+    formula = contract_costs.get("export_compensation_formula")
+    if not isinstance(formula, dict):
+        result["reason"] = "export_compensation_contract_rule_not_available"
+        return result
+    if formula.get("type") != "market_price_minus_markup":
+        result["reason"] = "export_compensation_formula_unsupported"
+        return result
+    if not isinstance(market_price_eur_per_kwh, (int, float)):
+        result["reason"] = "market_price_not_available"
+        return result
+
+    markup = formula.get("markup_eur_per_kwh")
+    bonus_factor = formula.get("bonus_factor")
+    if markup is None:
+        markup = 0.0
+    if bonus_factor is None:
+        bonus_factor = 1.0
+    if not isinstance(markup, (int, float)) or not isinstance(bonus_factor, (int, float)):
+        result["reason"] = "export_compensation_formula_incomplete"
+        return result
+
+    effective = (float(market_price_eur_per_kwh) - float(markup)) * float(bonus_factor)
+    result["available"] = True
+    result["method"] = "market_price_minus_markup"
+    result["effective_compensation_eur_per_kwh"] = round(effective, 6)
+    result["compensation_eur"] = round(float(export_kwh) * effective, 2)
+    return result
+
+
+def calculate_gas_supplier_cost(
+    gas_m3: float | None,
+    market_price_eur_per_m3: float | None,
+    contract_costs: dict[str, Any],
+) -> dict[str, Any]:
+    """Gasberekening blijft geblokkeerd zonder expliciete contractformule."""
+    result = {
+        "available": False,
+        "gas_m3": gas_m3,
+        "market_price_eur_per_m3": market_price_eur_per_m3,
+        "supplier_gas_cost_eur": None,
+        "effective_price_eur_per_m3": None,
+        "method": None,
+        "reason": None,
+    }
+    if not isinstance(gas_m3, (int, float)) or gas_m3 < 0:
+        result["reason"] = "gas_m3_not_available"
+        return result
+    formula = contract_costs.get("gas_supplier_formula")
+    if not isinstance(formula, dict):
+        result["reason"] = "gas_supplier_formula_not_available"
+        return result
+
+    formula_type = formula.get("type")
+    fixed = formula.get("fixed_eur_per_m3")
+    markup = formula.get("markup_eur_per_m3")
+
+    if formula_type == "fixed":
+        if not isinstance(fixed, (int, float)):
+            result["reason"] = "gas_fixed_rate_not_available"
+            return result
+        effective = float(fixed)
+    elif formula_type == "market_price_plus_markup":
+        if not isinstance(market_price_eur_per_m3, (int, float)):
+            result["reason"] = "gas_market_price_not_available"
+            return result
+        if markup is None:
+            markup = 0.0
+        if not isinstance(markup, (int, float)):
+            result["reason"] = "gas_markup_invalid"
+            return result
+        effective = float(market_price_eur_per_m3) + float(markup)
+    else:
+        result["reason"] = "gas_supplier_formula_unsupported"
+        return result
+
+    result["available"] = True
+    result["method"] = formula_type
+    result["effective_price_eur_per_m3"] = round(effective, 6)
+    result["supplier_gas_cost_eur"] = round(float(gas_m3) * effective, 2)
+    return result
 
 
 def build_analysis_context(year: int | None = None) -> dict[str, Any]:
@@ -5419,6 +5531,25 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             and isinstance(contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float))
             else None
         )
+        month_metrics = item.get("metrics") or {}
+        price_context = item.get("price_context") or {}
+        electricity_price_context = price_context.get("electricity") or {}
+        gas_price_context = price_context.get("gas") or {}
+        financial["contract_formula_preview"] = {
+            "export": calculate_export_compensation(
+                month_metrics.get("grid_export_kwh"),
+                electricity_price_context.get("average"),
+                contract_costs,
+            ),
+            "gas": calculate_gas_supplier_cost(
+                month_metrics.get("gas_m3"),
+                gas_price_context.get("average"),
+                contract_costs,
+            ),
+            "scope": "validated_contract_rules_only",
+            "included_in_supplier_all_in": False,
+        }
+
         financial["observed_supplier_component_costs"] = {
             "available": observed_supplier_electricity_cost is not None,
             "scope": "electricity_observed_window_only",
@@ -10209,7 +10340,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.35",
+        "target_stable_release": "10.5.36",
     }
 
     summary = {
@@ -10241,7 +10372,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.35",
+        "target_stable_release": "10.5.36",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -10308,7 +10439,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.35",
+        "Doelrelease: 10.5.36",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
