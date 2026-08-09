@@ -1,5 +1,10 @@
 # Changelog
 
+## 10.7.0
+- Production forecast detail: calendar-month run-rate and guarded ±15% variable-electricity scenario band.
+- No supplier-all-in assumptions; existing 7-day gate remains authoritative.
+
+
 ## 10.6.1
 - Expliciete contract/all-in-validatielaag toegevoegd bovenop de bewezen v10.6.0 financiële engine.
 - `supplier_context.contract_validation` rapporteert per vereiste officiële NextEnergy-component of deze werkelijk aanwezig en gevalideerd is.

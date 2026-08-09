@@ -1,12 +1,12 @@
 # Changelog
 
-## 10.6.1
-- Expliciete contract/all-in-validatielaag toegevoegd bovenop de bewezen v10.6.0 financiële engine.
-- `supplier_context.contract_validation` rapporteert per vereiste officiële NextEnergy-component of deze werkelijk aanwezig en gevalideerd is.
-- Ontbrekende vaste kosten, leveranciersopslag, terugleververgoeding en gasformule blijven expliciet geblokkeerd; er worden geen tarieven of contractwaarden aangenomen.
-- Nieuwe machineleesbare status bevat `missing_components`, componenttelling, validatiefouten en `all_required_components_present`.
-- Financiële prognose-engine blijft achter dezelfde 7-dagen kwaliteitsgate; EPEX blijft uitsluitend markt-/referentieprijs.
-- Bestaande GUI, Ingress, release-watcher, GitHub-publicatie, diagnose-downloads, maandworkflow, rapportgeneratoren en herstelvoorzieningen zijn behouden.
+## v10.7.0
+- Prognose-engine verdiept met kalendermaand-run-rate na de bestaande 7-dagen kwaliteitsgate.
+- 30-dagen variabele elektriciteitsprognose krijgt een expliciete ±15% bandbreedte voor scenarioanalyse.
+- Nieuwe projection_detail-output blijft strikt elektriciteit-only en nooit leverancier-all-in zonder officiële contractcomponenten.
+- EPEX blijft uitsluitend markt-/referentieprijs.
+- Bestaande GUI, watcher, GitHub-publicatie, diagnoses, maandworkflow, herstel en rapportgeneratoren behouden.
+
 
 ## 10.6.0
 - Financiële prognose-engine geactiveerd als productiefunctionaliteit bovenop de bewezen v10.5.39-bouwblokken.

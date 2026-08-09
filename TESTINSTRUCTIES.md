@@ -1,17 +1,22 @@
-# Testinstructies v10.6.1
+# Testinstructies v10.7.0
 
-1. Zet `EnergieProject_v10.6.1.zip` in `EnergieProject_Inbox/incoming`.
-2. Laat de QNAP release-watcher de release verwerken.
-3. Installeer v10.6.1 in Home Assistant; alleen herstarten wanneer HA dat zelf vraagt.
-4. Open de Web UI en controleer versie **10.6.1**.
+1. Plaats `EnergieProject_v10.7.0.zip` in `EnergieProject_Inbox/incoming`.
+2. Controleer dat de QNAP watcher de release verwerkt en archiveert.
+3. Installeer/update add-on 10.7.0 in Home Assistant.
+4. Open de GUI/Ingress en controleer dat deze normaal werkt.
 5. Voer **Analyse-export** uit.
-6. Controleer in de JSON `supplier_context.contract_validation`:
-   - `policy = official_contract_values_only_no_assumptions`;
-   - ontbrekende officiële contractcomponenten staan in `missing_components`;
-   - `all_required_components_present = false` zolang het echte contractbestand ontbreekt/onvolledig is.
-7. Controleer dat `financial_projection.engine_version = 10.6.1`, de 7-dagen gate behouden blijft en EPEX alleen referentie is.
-8. Download release-diagnose en stuur analyse-JSON + diagnose-ZIP terug.
+6. Download **release-diagnose**.
+7. Controleer in de analyse:
+   - `version` en `financial_projection.engine_version` = `10.7.0`;
+   - `projection_detail` aanwezig is;
+   - vóór 7 waargenomen dagen de status `blocked_insufficient_observation` blijft en prognosewaarden `null` blijven;
+   - na de 7-dagengate kalendermaand-run-rate en de 30d low/base/high-band worden gepubliceerd;
+   - `supplier_all_in` false blijft zolang officiële contractcomponenten ontbreken;
+   - `epex_is_reference_only` true blijft.
+8. Stuur analyse-JSON en release-diagnose terug. Bij geldige HA-validatie kan v10.8.0 autonoom worden gebouwd.
 
-Historische regressievoorwaarden: Gebruik GEEN Home Assistant Terminal. EPEX juli 2026 mag volgens de bestaande bronstatus gedeeltelijk zijn.
-Gebruik GEEN handmatige Git-commit of Git-push.
-Bestaande EPEX-juli validatie: gedeeltelijk t/m 2026-07-29 is toegestaan.
+## Committekst
+`v10.7.0 - deepen guarded financial forecast with calendar run-rate and scenario band`
+
+## Resterend tot v11.0
+Na v10.7.0: **2 productiestappen** — v10.8 officiële rapportgenerator-integratie, v10.9 eindvalidatie/consolidatie.

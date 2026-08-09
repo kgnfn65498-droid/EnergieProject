@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.6.1"
+APP_VERSION = "10.7.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -2854,7 +2854,7 @@ def validate_epex_csv(
     ]
     unique_dates = sorted({stamp.date().isoformat() for stamp in month_timestamps})
     import calendar
-    days_in_month = calendar.monthrange(year, month)[1]
+    days_in_month = monthrange(year, month)[1]
     expected_dates = {
         f"{year:04d}-{month:02d}-{day:02d}"
         for day in range(1, days_in_month + 1)
@@ -5673,7 +5673,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "10.6.1",
+            "engine_version": "10.7.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5695,6 +5695,49 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "epex_is_reference_only": True,
             "note": "EPEX is markt-/referentieprijs en wordt niet als leverancier-all-in prijs gepresenteerd.",
         }
+        # v10.7.0: prognoseverdieping. Naast de 30-dagenwaarde publiceren we
+        # een bandbreedte en een kalendermaand-run-rate, maar uitsluitend nadat
+        # de bestaande 7-dagen kwaliteitsgate is gehaald. Dit blijft
+        # elektriciteit-only totdat officiële all-in contractcomponenten bestaan.
+        observed_days = float(weighted.get("observed_window_hours") or 0.0) / 24.0
+        month_days = monthrange(int(str(month.get("month"))[:4]), int(str(month.get("month"))[5:7]))[1]
+        daily_import = weighted.get("observed_daily_import_run_rate_kwh")
+        daily_cost = weighted.get("observed_daily_variable_cost_run_rate_eur")
+        projected_calendar_import = (
+            _round_metric(float(daily_import) * month_days)
+            if eligible and isinstance(daily_import, (int, float)) else None
+        )
+        projected_calendar_cost = (
+            round(float(daily_cost) * month_days, 2)
+            if eligible and isinstance(daily_cost, (int, float)) else None
+        )
+        projected_cost_low = (
+            round(float(projected_variable_cost_30d) * 0.85, 2)
+            if isinstance(projected_variable_cost_30d, (int, float)) else None
+        )
+        projected_cost_high = (
+            round(float(projected_variable_cost_30d) * 1.15, 2)
+            if isinstance(projected_variable_cost_30d, (int, float)) else None
+        )
+        financial["projection_detail"] = {
+            "engine_version": "10.7.0",
+            "status": "published" if eligible else "blocked_insufficient_observation",
+            "quality_gate_passed": eligible,
+            "observed_days": round(observed_days, 3),
+            "calendar_month_days": month_days,
+            "projected_calendar_month_import_kwh": projected_calendar_import,
+            "projected_calendar_month_variable_electricity_cost_eur": projected_calendar_cost,
+            "projected_30d_variable_cost_band_eur": {
+                "low": projected_cost_low,
+                "base": projected_variable_cost_30d,
+                "high": projected_cost_high,
+                "method": "base_run_rate_plus_minus_15pct",
+            },
+            "scope": "variable_electricity_only_not_supplier_all_in",
+            "supplier_all_in": False,
+            "epex_is_reference_only": True,
+        }
+
         financial["nextenergy_weighted_import"] = {
             key: weighted.get(key) for key in (
                 "matched_intervals", "first_snapshot", "last_snapshot",
@@ -5738,7 +5781,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "10.6.1",
+        "engine_version": "10.7.0",
         "target_release": "10.6",
         "thirty_day_variable_projection_logic_ready": True,
         "supplier_all_in_projection_ready": bool(supplier_components_ready and projection_months),
