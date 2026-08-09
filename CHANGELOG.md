@@ -1,13 +1,19 @@
 # Changelog
 
-## v15.0.0 — officiële rapportgenerator productiecontext
+## v15.1.0 — officiële rapportgenerator veldcontracten
+
+- Legt de bron en publicatiegate per financieel rapportveld expliciet vast.
+- Behoudt de 7-dagen observatiegate en officiële NextEnergy-contractgate.
+- Voorkomt dat rapportgeneratoren eigen financiële aannames of nulwaarden introduceren.
+
+## v15.1.0 — officiële rapportgenerator productiecontext
 
 - Eén guarded financiële productiecontext voor alle officiële rapportgeneratoren.
 - Pagina 1 managementsamenvatting/KPI's en pagina 2 financiële simulatie/prognose/maandtermijncontrole gebruiken de gevalideerde financiële bronlaag.
 - Pagina's 3–13 kunnen dezelfde context gebruiken zonder eigen financiële aannames.
 - 7-dagengate, officiële NextEnergy-contractgate en EPEX-referentiebeleid blijven intact.
 
-## v15.0.0 — v14 eindconsolidatie en opgeschoonde HA-releaseweergave
+## v15.1.0 — v14 eindconsolidatie en opgeschoonde HA-releaseweergave
 
 - Laatste geplande v14-productiestap.
 - Home Assistant add-on changelog bevat voortaan uitsluitend de actuele release.
@@ -16,7 +22,7 @@
 - EPEX blijft uitsluitend markt-/referentieprijs.
 - Bestaande GUI, Ingress, watcher, GitHub-publicatie, maandworkflow, diagnoses en herstelvoorzieningen blijven behouden.
 
-## v15.0.0 — financiële rapportpublicatie-gates
+## v15.1.0 — financiële rapportpublicatie-gates
 
 - Voegt expliciete publicatie-gates toe tussen de gevalideerde financiële context en de officiële rapportvelden.
 - Prognosevelden worden alleen publiceerbaar na de 7-dagen kwaliteitsgate.
@@ -26,7 +32,7 @@
 - EPEX kan niet als leverancier-all-in worden gepubliceerd.
 - Bestaande GUI, Ingress, watcher, publicatie, maandworkflow, diagnoses en herstelvoorzieningen blijven behouden.
 
-## v15.0.0 — financiële rapportvelden gekoppeld aan gevalideerde bronnen
+## v15.1.0 — financiële rapportvelden gekoppeld aan gevalideerde bronnen
 
 - Koppelt management-financiële KPI's expliciet aan de guarded decision-supportlaag.
 - Koppelt pagina 2 prognosevelden aan `financial_projection` en `projection_detail`.
@@ -37,7 +43,7 @@
 - EPEX blijft uitsluitend markt-/referentieprijs.
 - Bestaande GUI, Ingress, watcher, publicatie, maandworkflow, diagnoses en herstelvoorzieningen blijven behouden.
 
-## v15.0.0 — officiële rapportgeneratoren geactiveerd op guarded financiële context
+## v15.1.0 — officiële rapportgeneratoren geactiveerd op guarded financiële context
 
 - Start v14 vanaf de volledig gevalideerde v13.3.0 productie-baseline.
 - Activeert de officiële rapportgenerator-koppeling voor management-KPI's, financiële simulatie, jaarprognose en maandtermijncontrole.
@@ -48,7 +54,7 @@
 - EPEX blijft uitsluitend markt-/referentieprijs.
 - Bestaande GUI, Ingress, watcher, GitHub-publicatie, maandworkflow, diagnoses en herstelvoorzieningen blijven behouden.
 
-## v15.0.0 — v13 eindconsolidatie
+## v15.1.0 — v13 eindconsolidatie
 
 - Consolideert de guarded financiële rapportageketen als productie-baseline.
 - Home Assistant releaseweergave is voortaan bedoeld voor uitsluitend de nieuwste release.
@@ -56,7 +62,7 @@
 - Ontbrekende financiële waarden blijven `Niet beschikbaar` en worden nooit als nul aangenomen.
 - EPEX blijft uitsluitend markt-/referentieprijs.
 
-## v15.0.0 — officiële financiële rapport-rendercontracten
+## v15.1.0 — officiële financiële rapport-rendercontracten
 
 - Bouwt voort op de in Home Assistant gevalideerde v13.1.1 hotfix.
 - Legt voor de officiële rapportgeneratoren expliciet vast hoe financiële velden worden gerenderd.
@@ -68,14 +74,14 @@
 - EPEX mag nooit als leverancier-all-in worden gelabeld.
 - GUI, watcher, GitHub-publicatie, maandworkflow, diagnoses en herstelvoorzieningen blijven behouden.
 
-## v15.0.0 — GUI runtime hotfix
+## v15.1.0 — GUI runtime hotfix
 
 - Herstelt de Home Assistant GUI/Ingress-crash uit v13.1.0.
 - Oorzaak: twee Python dictionaries gebruikten JSON `false` in plaats van Python `False`.
 - Corrigeert `zero_substitution_for_missing_financial_data` en `epex_supplier_all_in_allowed`.
 - Financiële logica en rapportagebeleid blijven verder ongewijzigd.
 
-## v15.0.0 — guarded financiële rapportveld-policy
+## v15.1.0 — guarded financiële rapportveld-policy
 
 - Bouwt voort op de in Home Assistant gevalideerde v13.0.0.
 - Legt per financieel rapportveld expliciet vast welke gate vereist is.
@@ -86,7 +92,7 @@
 - EPEX mag niet als leverancier-all-in bron worden gebruikt.
 - Alle bestaande productievoorzieningen blijven behouden.
 
-## v15.0.0 — officiële rapportage financiële handoff
+## v15.1.0 — officiële rapportage financiële handoff
 
 - Start v13 vanaf de volledig gevalideerde v12.3.0.
 - Verbindt de guarded financiële beslislaag expliciet met de officiële rapportageketen.
@@ -97,7 +103,7 @@
 - EPEX blijft uitsluitend markt-/referentieprijs en nooit leverancier-all-in.
 - Bestaande GUI, watcher, GitHub-publicatie, maandworkflow, diagnose- en herstelvoorzieningen blijven behouden.
 
-## v15.0.0 — v12 eindconsolidatie
+## v15.1.0 — v12 eindconsolidatie
 
 - Laatste geplande v12-productiestap, voortbouwend op de in Home Assistant gevalideerde v12.2.0.
 - Voegt een machine-leesbare `v12_completion_gate` toe.
@@ -108,7 +114,7 @@
 - Geen ontbrekende contractwaarden worden aangenomen; EPEX blijft uitsluitend referentie.
 - GUI, watcher, GitHub-publicatie, maandworkflow, diagnoses en herstelketen blijven behouden.
 
-## v15.0.0 — adviessterkte en financiële veiligheidsmarge
+## v15.1.0 — adviessterkte en financiële veiligheidsmarge
 
 - Bouwt voort op de in Home Assistant gevalideerde v12.1.0.
 - Voegt `recommendation_strength` toe: hold, moderate of strong.
@@ -118,7 +124,7 @@
 - Geen contractwaarden worden verzonnen; EPEX blijft referentie.
 - Bestaande GUI, watcher, rapportgeneratoren, maandworkflow en herstelketen blijven behouden.
 
-## v15.0.0 — financiële beslislogica en voorschotadvies
+## v15.1.0 — financiële beslislogica en voorschotadvies
 
 - Voegt echte kostenbesparingsbeslislogica toe bovenop de gevalideerde v12.0.0 productiebasis.
 - Advies wordt uitsluitend gepubliceerd wanneer de 7-dagen kwaliteitsgate is gehaald, alle officiële contractcomponenten geldig zijn en leverancier-all-in beschikbaar is.
@@ -129,7 +135,7 @@
 - EPEX blijft uitsluitend referentieprijs.
 - Bestaande GUI, watcher, rapportgeneratoren, maandworkflow en herstelketen blijven behouden.
 
-## v15.0.0 — financiële beslisondersteuning productie-baseline
+## v15.1.0 — financiële beslisondersteuning productie-baseline
 
 - Start v12 vanaf de volledig gevalideerde v11.3.0.
 - Voegt een expliciete beslisondersteuningslaag toe bovenop analyse, prognose en officiële rapportgeneratoren.
@@ -139,7 +145,7 @@
 - Geen ontbrekende contractwaarden worden aangenomen; EPEX blijft uitsluitend referentie.
 - Bestaande GUI, watcher, maandworkflow, diagnose- en herstelketen blijven behouden.
 
-## v15.0.0 — v11 eindconsolidatie
+## v15.1.0 — v11 eindconsolidatie
 
 - Laatste geplande v11-productiestap.
 - Voegt een expliciete machine-leesbare v11 completion gate toe.
@@ -148,7 +154,7 @@
 - Geen contractwaarden worden ingevuld of afgeleid.
 - Geen wijziging aan bewezen GUI, watcher, maandworkflow, GitHub-publicatie of herstelketen.
 
-## v15.0.0 — guarded report-readiness
+## v15.1.0 — guarded report-readiness
 
 - Bouwt voort op de gevalideerde v11.1.0.
 - Maakt de productiestatus van de officiële rapportgeneratoren expliciet in de analyse-audit.
@@ -157,7 +163,7 @@
 - Ontbrekende financiële waarden blijven zichtbaar als niet beschikbaar en worden niet verzonnen.
 - Geen wijziging aan watcher, GUI/Ingress, automatische maandworkflow of herstelketen.
 
-## v15.0.0 — automatische prognose-activatie
+## v15.1.0 — automatische prognose-activatie
 
 - Bouwt voort op de gevalideerde v11.0.0 productie-baseline.
 - Legt expliciet vast dat de 30-daagse prognose automatisch activeert zodra de bestaande 7-dagen kwaliteitsgrens wordt gehaald.
@@ -166,7 +172,7 @@
 - Verouderde interne target-release 10.6 bijgewerkt naar 11.1.
 - Geen wijziging aan watcher, GUI/Ingress, maandworkflow of herstelketen.
 
-## v15.0.0 — financiële & rapportage productie-baseline
+## v15.1.0 — financiële & rapportage productie-baseline
 
 - Start hoofdversie 11 vanaf de volledig gevalideerde v10.9.1 op Home Assistant 2026.8.2.
 - Consolideert de financiële analyse, prognose-engine en officiële rapportkoppeling als productie-baseline.
@@ -175,14 +181,14 @@
 - EPEX blijft uitsluitend markt-/referentieprijs.
 - Geen wijziging aan de bewezen watcher-, GitHub-, maandworkflow-, diagnose- of herstelketen.
 
-## v15.0.0 — GUI runtime hotfix
+## v15.1.0 — GUI runtime hotfix
 
 - Herstelt de Home Assistant GUI/Ingress-crash uit v10.9.0.
 - Oorzaak: `production_consolidation` verwees naar een niet-bestaande constante `MINIMUM_PROJECTION_OBSERVED_DAYS`.
 - Gebruikt nu de bestaande gevalideerde kwaliteitsgrens van 7.0 dagen zonder nieuwe afhankelijkheid.
 - Financiële logica en rapportintegratie blijven ongewijzigd.
 
-## v15.0.0 — productieconsolidatie financiële keten
+## v15.1.0 — productieconsolidatie financiële keten
 
 - Consolideert de gevalideerde financiële analyse-, prognose- en rapportketen.
 - Voegt expliciete productie-readiness/auditstatus toe aan de analyse-export.
@@ -191,20 +197,20 @@
 - Behoudt officiële rapportintegratie uit 10.8.x, GUI, watcher, maandworkflow, diagnoses en herstelvoorzieningen.
 - Voorbereid als laatste 10.x productiestap vóór v11.0.
 
-## v15.0.0 — watcher checksum-manifest hotfix
+## v15.1.0 — watcher checksum-manifest hotfix
 
 - Herstelt verplicht `SHA256SUMS.json` dat in v10.8.1 ontbrak.
-- Release-identiteit overal 15.0.0.
+- Release-identiteit overal 15.1.0.
 - Functionele inhoud van de financiële rapportintegratie ongewijzigd.
 
-## v15.0.0 — release-identiteit hotfix
+## v15.1.0 — release-identiteit hotfix
 
 - Corrigeert de fout waardoor het v10.8.0-pakket intern nog als v10.7.0 werd gepubliceerd.
-- Add-on/config-versie, APP_VERSION en financiële engine-identiteit zijn nu consistent v15.0.0.
+- Add-on/config-versie, APP_VERSION en financiële engine-identiteit zijn nu consistent v15.1.0.
 - Functionaliteit van v10.8.0 blijft ongewijzigd: officiële financiële rapportintegratie en strikte contractgating.
 - Geen wijzigingen aan watcher, GUI, maandworkflow of herstelvoorzieningen.
 
-## v15.0.0 — officiële financiële rapportintegratie
+## v15.1.0 — officiële financiële rapportintegratie
 
 - Verbindt de gevalideerde financiële analyse met de bestaande officiële rapportgeneratoren.
 - Pagina 2 gebruikt geen financiële voorbeeldwaarden meer als productiedata.
