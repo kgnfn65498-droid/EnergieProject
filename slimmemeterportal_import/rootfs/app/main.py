@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "12.0.0"
+APP_VERSION = "12.1.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1574,7 +1574,7 @@ def build_report_adapter_data(
         "gas_total": round(gas_m3 * 12, 1),
     })
 
-    # v12.0.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
+    # v12.1.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
     # financiële waarden. Voorbeeldtarieven uit het generatorpakket mogen nooit
     # als echte leverancierskosten in een productierapport terechtkomen.
     observed_variable = financial_context.get("observed_variable_electricity_cost_eur")
@@ -5492,6 +5492,63 @@ def calculate_gas_supplier_cost(
     return result
 
 
+
+def build_cost_saving_decision_support(
+    *,
+    financial_projection: dict[str, Any],
+    contract_validation: dict[str, Any],
+    monthly_advance_eur: float,
+) -> dict[str, Any]:
+    quality_gate_passed = bool(financial_projection.get("quality_gate_passed"))
+    supplier_all_in = bool(financial_projection.get("supplier_all_in"))
+    supplier_all_in_projection = financial_projection.get("supplier_all_in_projection_eur")
+    all_contract_components_present = bool(contract_validation.get("all_required_components_present"))
+
+    recommendation_publishable = (
+        quality_gate_passed
+        and supplier_all_in
+        and all_contract_components_present
+        and isinstance(supplier_all_in_projection, (int, float))
+    )
+
+    result: dict[str, Any] = {
+        "objective": "energy_cost_saving",
+        "monthly_advance_eur": monthly_advance_eur,
+        "quality_gate_passed": quality_gate_passed,
+        "supplier_all_in_ready": supplier_all_in,
+        "contract_components_complete": all_contract_components_present,
+        "recommendation_publishable": recommendation_publishable,
+        "decision": None,
+        "projected_monthly_difference_eur": None,
+        "recommended_advance_eur": None,
+        "reason": None,
+    }
+
+    if not quality_gate_passed:
+        result["reason"] = "waiting_for_minimum_observation_quality"
+        return result
+    if not all_contract_components_present or not supplier_all_in:
+        result["reason"] = "waiting_for_official_supplier_all_in_contract_data"
+        return result
+    if not isinstance(supplier_all_in_projection, (int, float)):
+        result["reason"] = "supplier_all_in_projection_not_available"
+        return result
+
+    difference = round(float(monthly_advance_eur) - float(supplier_all_in_projection), 2)
+    result["projected_monthly_difference_eur"] = difference
+    result["recommended_advance_eur"] = round(max(0.0, float(supplier_all_in_projection) * 1.05), 2)
+
+    if difference >= 15.0:
+        result["decision"] = "advance_may_be_reduced"
+    elif difference <= -15.0:
+        result["decision"] = "advance_should_be_increased"
+    else:
+        result["decision"] = "keep_current_advance"
+
+    result["reason"] = "validated_supplier_all_in_projection"
+    return result
+
+
 def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     months: list[dict[str, Any]] = []
     if MONTH_INPUT_ROOT.is_dir():
@@ -5771,7 +5828,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "12.0.0",
+            "engine_version": "12.1.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5818,7 +5875,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "12.0.0",
+            "engine_version": "12.1.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5879,7 +5936,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "12.0.0",
+        "engine_version": "12.1.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -5932,6 +5989,17 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         "reason": "run-rate is observational until minimum coverage and supplier all-in components are available",
     }
 
+
+    latest_financial_projection = {}
+    if months:
+        latest_financial_projection = ((months[-1].get("financial_context") or {}).get("financial_projection") or {})
+    validated_contract = supplier_context.get("contract_validation") or {}
+    decision_support = build_cost_saving_decision_support(
+        financial_projection=latest_financial_projection,
+        contract_validation=validated_contract,
+        monthly_advance_eur=float((supplier_context.get("contract") or {}).get("monthly_advance_eur") or 150.0),
+    )
+
     return {
         "schema": ANALYSIS_CONTEXT_SCHEMA,
         "version": APP_VERSION,
@@ -5964,11 +6032,13 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "major_release": "11.0",
             "phase": "financial_reporting_production_baseline",
             "v12_decision_support": {
-                "objective": "energy_cost_saving",
+                **decision_support,
                 "financial_chain_dependency": "guarded_production_baseline",
-                "monthly_advance_eur": 150.0,
-                "decision_status": "waiting_for_projection_and_supplier_all_in_gates",
-                "recommendation_publishable": False,
+                "decision_status": (
+                    "decision_ready"
+                    if decision_support.get("recommendation_publishable")
+                    else "waiting_for_projection_and_supplier_all_in_gates"
+                ),
                 "no_assumed_contract_values": True,
                 "epex_reference_only": True,
             },
