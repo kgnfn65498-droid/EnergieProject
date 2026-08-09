@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "18.3.0"
+APP_VERSION = "19.0.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1574,7 +1574,7 @@ def build_report_adapter_data(
         "gas_total": round(gas_m3 * 12, 1),
     })
 
-    # v18.3.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
+    # v19.0.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
     # financiële waarden. Voorbeeldtarieven uit het generatorpakket mogen nooit
     # als echte leverancierskosten in een productierapport terechtkomen.
     observed_variable = financial_context.get("observed_variable_electricity_cost_eur")
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "18.3.0",
+            "engine_version": "19.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "18.3.0",
+            "engine_version": "19.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "18.3.0",
+        "engine_version": "19.0.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6040,6 +6040,36 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "status": "production_ready_guarded",
             "major_release": "11.0",
             "phase": "financial_reporting_production_baseline",
+            "v19_financial_report_decision_presentation": {
+                "objective": "present_guarded_financial_decisions_as_clear_report_ready_user_actions",
+                "source_decision": "v12_decision_support.decision",
+                "source_explanation": "v18_financial_explanation_runtime",
+                "monthly_advance_reference_eur": 150.0,
+                "presentation_states": [
+                    "blocked",
+                    "advance_can_be_lowered",
+                    "advance_is_appropriate",
+                    "advance_should_be_raised"
+                ],
+                "required_report_fields": [
+                    "decision_label",
+                    "reason",
+                    "projected_monthly_difference_eur",
+                    "recommended_advance_eur",
+                    "recommendation_strength",
+                    "data_quality_label"
+                ],
+                "blocked_decision_label": "Nog geen financieel advies",
+                "blocked_value_rendering": "Niet beschikbaar",
+                "publish_requires_complete_v17_recommendation": True,
+                "explanation_required": True,
+                "candidate_context_allowed": True,
+                "candidate_context_label": "Indicatief - nog niet publiceerbaar",
+                "candidate_context_may_drive_decision": False,
+                "epex_label": "Markt-/referentieprijs",
+                "epex_may_drive_supplier_decision": False,
+                "status": "financial_report_decision_presentation_active",
+            },
             "v18_completion_gate": {
                 "financial_explainability_contract": "ready_guarded",
                 "financial_explanation_runtime": "ready_guarded",
@@ -6133,7 +6163,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "candidate_values_publication": "forbidden",
                 "epex_policy": "reference_only",
                 "blocked_value_policy": "explicit_unavailable_never_zero",
-                "next_major_release": "18.3.0",
+                "next_major_release": "19.0.0",
                 "release_status": "v17_complete_external_data_gates_remain",
             },
             "v17_recommendation_publication_gate": {
@@ -6210,7 +6240,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "blocked_value_policy": "explicit_unavailable_never_zero",
                 "manual_override_allowed": False,
                 "epex_policy": "reference_only",
-                "next_major_release": "18.3.0",
+                "next_major_release": "19.0.0",
                 "release_status": "v16_complete_external_data_gates_remain",
             },
             "v16_output_runtime_validation": {
@@ -6278,7 +6308,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "validation_candidates_publication": "forbidden",
                 "missing_financial_values_policy": "explicit_unavailable_never_zero",
                 "epex_policy": "reference_only",
-                "next_major_release": "18.3.0",
+                "next_major_release": "19.0.0",
                 "release_status": "v15_complete_external_data_gates_remain",
             },
             "v15_report_render_safety": {

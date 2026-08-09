@@ -1,8 +1,8 @@
 # Changelog
 
-## 18.3.0
-- v18 explainability- en auditketen formeel afgerond.
-- Explainability-contract, runtime-uitleg en rapport-handoff als één guarded productie-baseline geconsolideerd.
-- Geblokkeerde en toekomstige publiceerbare financiële adviezen moeten expliciet verklaarbaar blijven.
-- Candidate-data blijft uitsluitend informatief; EPEX uitsluitend markt-/referentieprijs.
-- Externe gates blijven actief: minimaal 7 waargenomen dagen en officiële NextEnergy-contractcomponenten.
+## 19.0.0
+- Start v19: guarded financiële beslissingen vertaald naar duidelijke rapportklare gebruikersacties.
+- Rapportuitvoer krijgt vaste presentatiestaten voor voorschot verlagen, behouden, verhogen of nog geen advies.
+- Elk toekomstig advies vereist een volledige v17-aanbeveling én de v18-uitlegcontext.
+- Geblokkeerde waarden blijven expliciet `Niet beschikbaar`.
+- Candidate-data blijft indicatief; EPEX blijft uitsluitend markt-/referentieprijs.
