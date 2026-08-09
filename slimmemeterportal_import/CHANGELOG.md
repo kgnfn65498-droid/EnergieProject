@@ -1,9 +1,10 @@
 # Changelog
 
-## 15.2.0
-- Renderbeveiliging toegevoegd voor officiële financiële rapportvelden.
-- Prognosewaarden verschijnen pas nadat de 7-dagen kwaliteitsgate is geslaagd.
-- Leverancier-all-in en voorschotvergelijking verschijnen pas na officiële contractvalidatie.
-- Validatie-candidates worden nooit als financiële prognose gepubliceerd.
-- Geblokkeerde waarden blijven `Niet beschikbaar`; nulsubstitutie is verboden.
+## 15.3.0
+- v15 officiële financiële rapportintegratie afgerond als guarded productie-baseline.
+- Rapportgenerator-context, veldcontracten en renderbeveiliging zijn geconsolideerd.
+- Prognose blijft automatisch achter de 7-dagen kwaliteitsgate.
+- Leverancier-all-in blijft afhankelijk van officiële NextEnergy-contractwaarden.
+- Validatie-candidates mogen niet als prognose worden gepubliceerd.
+- Ontbrekende waarden blijven `Niet beschikbaar`; nooit automatische nulwaarden.
 - EPEX blijft uitsluitend markt-/referentieprijs.

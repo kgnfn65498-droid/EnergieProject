@@ -1,5 +1,5 @@
 {
-  "version": "15.2.0",
+  "version": "15.3.0",
   "files": [
     {
       "path": ".gitignore",
@@ -13,8 +13,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "a114c43618add29e20cc59555212320ab52066fe25e0263295262e99ee873466",
-      "size": 34764
+      "sha256": "b97a8eeeb436e71d642581c50d89712d464266da9bdb42274fae80e36aa95b79",
+      "size": 35198
     },
     {
       "path": "INSTALL.md",
@@ -48,12 +48,12 @@
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "sha256": "62c49f2b0d0db673d9175ba4a6f1aa3c2c761aaa4ba1a64238b5a6ae5ee3baf0",
-      "size": 977
+      "sha256": "107b6f89a1c3dbb2918c2d39cd01b82d5ca4b359196a1513cc2e076f37a4278b",
+      "size": 983
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "a60d64d1829618ea9442646fc24fc2ad143a76611d19f2d7d82aff022e0daae9",
+      "sha256": "c36f9423b857f7132f85de72265467c012b8f151b2a0e53c6f345efe37c1c20b",
       "size": 7
     },
     {
@@ -63,8 +63,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "07df3b0eff75982593383befa0c4089ccd808d7b2bde2a45a9a7de1ce59c3aff",
-      "size": 475
+      "sha256": "1e4e3eea3b7d9e425bd00a8d138eeb22cc2a68a2406cf0f356cd897155c7debf",
+      "size": 542
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -83,13 +83,13 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "cf2a8c359fb6e75a3a57c9eb2bfb70e2b7160d5228cbcfbe54c1ba02a92109c4",
+      "sha256": "726a125578111bf6a4536736f62f81d6c295947e8416f9ecc4386cb5f608975f",
       "size": 5740
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "b96490457f853722cd8c3462ffe55427f3f3cda6c8f72f942a88cc992cc278db",
-      "size": 600125
+      "sha256": "4a6afd6c63430a30ea2d45c982c55f79c935318ab6d3fafd0e451e14393c4c68",
+      "size": 601168
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -358,8 +358,8 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "577bad6fe6443a09d47269779c5e671808b998614c1ead6480ac0dc2a1f47cec",
-      "size": 152705
+      "sha256": "40cd8d2b1b1f4f1b35ecdeb3288204796fa192e2ee711128ecac37db5ef6da62",
+      "size": 153524
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
