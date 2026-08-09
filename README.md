@@ -1,4 +1,4 @@
-# EnergieProject v10.5.30
+# EnergieProject v10.5.31
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -95,3 +95,7 @@ De financiële analyse toont nu hoe ver de echte meetdekking richting de 7-dagen
 
 ## v10.5.30
 De kern van de v10.6 prognose-engine staat nu klaar achter de 7-dagen kwaliteitsgate. Er worden vóór die drempel bewust geen projectiewaarden gepubliceerd.
+
+
+## v10.5.31
+De v10.6 financiële engine rapporteert nu per kostencomponent wat technisch gereed is en wat nog officiële leveranciersdata vereist.

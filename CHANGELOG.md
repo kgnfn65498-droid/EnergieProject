@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.5.31
+- v10.5.30 gevalideerd: de v10.6 prognose-engine staat correct `prepared_gated` en publiceert vóór 7 dagen geen voortijdige 30-dagenwaarden.
+- `component_readiness` toegevoegd aan de v10.6 financiële engine.
+- Reeds gereed: verbruikgewogen stroom, kwaliteitsgate en 30-dagen variabele projectielogica.
+- Nog expliciet open: leveranciersopslag, vaste leverancierskosten, terugleververgoeding en gasleveranciersformule.
+- Hiermee is de resterende route naar leverancier-all-in financiële analyse machineleesbaar en testbaar.
+
 ## 10.5.30
 - Voorbereiding op v10.6: de 30-dagen variabele-stroomprojectielogica is ingebouwd achter de bestaande 7-dagen kwaliteitsdrempel.
 - `projection_preview` blijft leeg zolang de observatiedrempel niet is gehaald.

@@ -676,3 +676,7 @@ De gewogen reader berekent de geobserveerde tijdsduur met timezone-aware UTC-dat
 
 ## v10.5.30
 `projection_preview` bevat pas 30-dagenwaarden wanneer `projection_eligibility.eligible=true`. All-in projecties blijven onafhankelijk geblokkeerd.
+
+
+## v10.5.31
+`projection_engine.component_readiness` onderscheidt technische gereedheid van nog ontbrekende officiële NextEnergy-contractcomponenten.

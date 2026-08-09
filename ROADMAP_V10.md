@@ -62,3 +62,5 @@
 - v10.5.29: meetdekking/prognosegereedheid als expliciete voortgangs-KPI.
 
 - v10.5.30: v10.6 30-dagen variabele-stroomprojectie voorbereid achter kwaliteitsgate.
+
+- v10.5.31: component-readiness voor v10.6 all-in financiële engine; resterende leverancierscomponenten expliciet gemaakt.
