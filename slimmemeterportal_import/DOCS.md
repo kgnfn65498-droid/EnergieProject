@@ -679,4 +679,10 @@ De gewogen reader berekent de geobserveerde tijdsduur met timezone-aware UTC-dat
 
 
 ## v10.5.31
-`projection_engine.component_readiness` onderscheidt technische gereedheid van nog ontbrekende officiële NextEnergy-contractcomponenten.
+`projection_candidate_validation` is uitsluitend validatie. `publishable=false` betekent: niet als financiële prognose gebruiken.
+
+
+## v10.5.32 — Release-diagnose
+`Download release-diagnose` maakt een kleine ZIP met watcherlog, release-locatie, publisherstatus, Git-lockstatus en backend-runtime.
+Oudere releases kunnen technisch worden opgevraagd met `download-release-diagnostics?version=10.5.31`.
+Deze bundel bevat bewust geen energiebrondata of secrets.

@@ -1,11 +1,18 @@
 # Changelog
 
+## 10.5.32
+- Nieuwe knop **Download release-diagnose** in de Web UI.
+- Release-diagnose werkt ook wanneer een release niet geslaagd is en bevat alleen relevante watcher-, publicatie- en runtimestatus.
+- Historische release-locaties uit `incoming`, `processing`, `processed` en `failed` worden meegenomen; via `?version=X.Y.Z` kan ook een oudere release gericht worden onderzocht.
+- `runtime_diagnostics` toont uptime, PID, actieve threads en backend-health zodat 0% CPU niet meer met 'app staat stil' wordt verward.
+- Stale `.git/index.lock` wordt alleen gerapporteerd, niet automatisch verwijderd.
+- Geen P1-, Enphase-, EPEX-, rapport-, token- of wachtwoorddata in de release-diagnose.
+
 ## 10.5.31
-- v10.5.30 gevalideerd: de v10.6 prognose-engine staat correct `prepared_gated` en publiceert vóór 7 dagen geen voortijdige 30-dagenwaarden.
-- `component_readiness` toegevoegd aan de v10.6 financiële engine.
-- Reeds gereed: verbruikgewogen stroom, kwaliteitsgate en 30-dagen variabele projectielogica.
-- Nog expliciet open: leveranciersopslag, vaste leverancierskosten, terugleververgoeding en gasleveranciersformule.
-- Hiermee is de resterende route naar leverancier-all-in financiële analyse machineleesbaar en testbaar.
+- v10.6-prognose-engine kan vóór het openen van de 7-dagengate intern worden gevalideerd.
+- `projection_candidate_validation` berekent kandidaat-30-dagenwaarden, maar markeert ze als niet-publiceerbaar zolang de kwaliteitsgate niet is gehaald.
+- Officiële `projection_preview` blijft onder zeven dagen geblokkeerd en `null`.
+- De vier resterende leverancier-all-in afhankelijkheden worden expliciet gerapporteerd.
 
 ## 10.5.30
 - Voorbereiding op v10.6: de 30-dagen variabele-stroomprojectielogica is ingebouwd achter de bestaande 7-dagen kwaliteitsdrempel.

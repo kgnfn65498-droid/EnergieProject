@@ -63,4 +63,6 @@
 
 - v10.5.30: v10.6 30-dagen variabele-stroomprojectie voorbereid achter kwaliteitsgate.
 
-- v10.5.31: component-readiness voor v10.6 all-in financiële engine; resterende leverancierscomponenten expliciet gemaakt.
+- v10.5.31: kandidaatprojectie voor validatie vóór gate-open; officiële prognose blijft geblokkeerd.
+
+- v10.5.32: release-/runtime-diagnostiek in Web UI; geen losse NAS/Container Station-logs meer nodig bij releaseproblemen.

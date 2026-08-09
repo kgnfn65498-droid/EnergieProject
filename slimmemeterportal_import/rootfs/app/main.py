@@ -53,7 +53,8 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.31"
+APP_VERSION = "10.5.32"
+APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
@@ -5107,7 +5108,7 @@ def _supplier_contract_context() -> dict[str, Any]:
             "gas_supplier_formula_known": False,
             "consumption_weighted_import_available": False,
             "projection_ready_months": [],
-            "projection_engine": {"stage": "prepared_gated", "target_release": "10.6", "thirty_day_variable_projection_logic_ready": True, "supplier_all_in_projection_ready": False, "activation_requires_observed_days": 7.0, "component_readiness": {"weighted_electricity_import": False, "observation_quality_gate": True, "thirty_day_variable_projection": True, "supplier_fixed_costs": False, "supplier_markup": False, "export_compensation": False, "gas_supplier_formula": False}},
+            "projection_engine": {"stage": "prepared_gated", "target_release": "10.6", "thirty_day_variable_projection_logic_ready": True, "supplier_all_in_projection_ready": False, "activation_requires_observed_days": 7.0},
             "projection_observation_status": [],
             "projection_policy": {"minimum_observed_days": 7.0, "automatic_month_extrapolation": False, "automatic_contract_year_extrapolation": False},
             "all_in_ready": False,
@@ -5244,6 +5245,24 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         }
         # 10.6-voorbereiding: berekenbare projectievelden bestaan al, maar worden
         # uitsluitend gevuld wanneer de kwaliteitsdrempel werkelijk gehaald is.
+        candidate_import_30d = (
+            _round_metric(float(weighted.get("observed_daily_import_run_rate_kwh")) * 30.0)
+            if isinstance(weighted.get("observed_daily_import_run_rate_kwh"), (int, float))
+            else None
+        )
+        candidate_variable_cost_30d = (
+            round(float(weighted.get("observed_daily_variable_cost_run_rate_eur")) * 30.0, 2)
+            if isinstance(weighted.get("observed_daily_variable_cost_run_rate_eur"), (int, float))
+            else None
+        )
+        financial["projection_candidate_validation"] = {
+            "publishable": eligible,
+            "quality_gate_passed": eligible,
+            "basis": "observed_daily_run_rate",
+            "candidate_30d_import_kwh": candidate_import_30d,
+            "candidate_30d_variable_electricity_cost_eur": candidate_variable_cost_30d,
+            "warning": None if eligible else "validation_only_not_a_financial_projection",
+        }
         financial["projection_preview"] = {
             "status": "eligible_not_all_in" if eligible else "blocked_insufficient_observation",
             "basis": "observed_daily_run_rate",
@@ -5285,15 +5304,12 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         "thirty_day_variable_projection_logic_ready": True,
         "supplier_all_in_projection_ready": False,
         "activation_requires_observed_days": 7.0,
-        "component_readiness": {
-            "weighted_electricity_import": True,
-            "observation_quality_gate": True,
-            "thirty_day_variable_projection": True,
-            "supplier_fixed_costs": bool(supplier_context["cost_model"].get("supplier_fixed_costs_known")),
-            "supplier_markup": bool(supplier_context["cost_model"].get("supplier_markup_known")),
-            "export_compensation": bool(supplier_context["cost_model"].get("export_compensation_known")),
-            "gas_supplier_formula": bool(supplier_context["cost_model"].get("gas_supplier_formula_known")),
-        },
+        "remaining_all_in_dependencies": [
+            "supplier_fixed_costs",
+            "supplier_markup",
+            "export_compensation",
+            "gas_supplier_formula",
+        ],
     }
     supplier_context["cost_model"]["projection_observation_status"] = [
         {
@@ -9715,6 +9731,183 @@ def zip_month(month_key: str) -> bytes:
     return buffer.getvalue()
 
 
+
+def _tail_text_file(path: Path, max_lines: int = 250, max_bytes: int = 256_000) -> list[str]:
+    """Lees alleen het einde van een tekstlog; geen brondata of geheimen."""
+    try:
+        if not path.is_file():
+            return []
+        data = path.read_bytes()
+        if len(data) > max_bytes:
+            data = data[-max_bytes:]
+        return data.decode("utf-8", errors="replace").splitlines()[-max_lines:]
+    except OSError:
+        return []
+
+
+def _release_versions_on_nas(limit: int = 12) -> list[dict[str, Any]]:
+    """Inventariseer recente releases in incoming/processing/processed/failed."""
+    items: list[dict[str, Any]] = []
+    for bucket in ("incoming", "processing", "processed", "failed"):
+        folder = NAS_RELEASE_ROOT / bucket
+        if not folder.is_dir():
+            continue
+        try:
+            paths = sorted(folder.glob("EnergieProject_v*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
+        except OSError:
+            continue
+        for path in paths[:limit]:
+            name = path.name
+            version = name.removeprefix("EnergieProject_v").removesuffix(".zip")
+            try:
+                mtime = datetime.fromtimestamp(path.stat().st_mtime, TZ).isoformat()
+                size = path.stat().st_size
+            except OSError:
+                mtime, size = None, None
+            items.append({
+                "version": version,
+                "bucket": bucket,
+                "name": name,
+                "modified_at": mtime,
+                "bytes": size,
+            })
+    items.sort(key=lambda item: item.get("modified_at") or "", reverse=True)
+    return items[:limit]
+
+
+def runtime_diagnostics_snapshot() -> dict[str, Any]:
+    """Kleine runtime-health snapshot; bedoeld om 'draait maar doet niets' te beoordelen."""
+    now = datetime.now(TZ)
+    threads = []
+    for thread in threading.enumerate():
+        threads.append({
+            "name": thread.name,
+            "alive": thread.is_alive(),
+            "daemon": thread.daemon,
+        })
+    uptime_seconds = max(0, int((now - APP_PROCESS_STARTED_AT).total_seconds()))
+    state = load_state()
+    return {
+        "schema": "energie_runtime_diagnostics_v1",
+        "version": APP_VERSION,
+        "generated_at": now.isoformat(),
+        "process_started_at": APP_PROCESS_STARTED_AT.isoformat(),
+        "uptime_seconds": uptime_seconds,
+        "pid": os.getpid(),
+        "thread_count": len(threads),
+        "threads": threads,
+        "workflow_status": state.get("workflow_status") or state.get("status"),
+        "last_month": state.get("workflow_last_month") or state.get("last_month"),
+        "last_validation_status": state.get("last_validation_status"),
+        "last_integrity_status": state.get("last_integrity_status"),
+        "nas_share_available": NAS_SHARE_ROOT.is_dir(),
+        "release_root_available": NAS_RELEASE_ROOT.is_dir(),
+        "backend_alive": True,
+    }
+
+
+def release_diagnostics_snapshot(version: str | None = None) -> dict[str, Any]:
+    """Gerichte release-diagnose zonder energie-/maanddata."""
+    requested = (version or "").strip().lstrip("v")
+    project_version = ""
+    try:
+        project_version = (NAS_PROJECT_ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
+    except OSError:
+        pass
+
+    releases = _release_versions_on_nas(limit=20)
+    if not requested:
+        requested = project_version or APP_VERSION
+
+    locations = [item for item in releases if item.get("version") == requested]
+    latest_status_path = NAS_RELEASE_ROOT / "latest_release_status.txt"
+    watcher_log_path = NAS_RELEASE_ROOT / "logs" / "release_watcher.log"
+    publish_state: dict[str, Any] = {}
+    try:
+        if GITHUB_PUBLISH_STATE.is_file():
+            loaded = json.loads(GITHUB_PUBLISH_STATE.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                publish_state = loaded
+    except Exception:
+        publish_state = {"error": "publisher_state_unreadable"}
+
+    git_lock = NAS_PROJECT_ROOT / ".git" / "index.lock"
+    lock_info: dict[str, Any] = {"exists": git_lock.exists(), "path": str(git_lock)}
+    if git_lock.exists():
+        try:
+            stat = git_lock.stat()
+            lock_info.update({
+                "bytes": stat.st_size,
+                "modified_at": datetime.fromtimestamp(stat.st_mtime, TZ).isoformat(),
+                "age_seconds": max(0, int(datetime.now(TZ).timestamp() - stat.st_mtime)),
+            })
+        except OSError:
+            pass
+
+    watcher_lines = _tail_text_file(watcher_log_path, max_lines=400)
+    matching_watcher_lines = [line for line in watcher_lines if requested in line]
+    return {
+        "schema": "energie_release_diagnostics_v1",
+        "version": APP_VERSION,
+        "generated_at": datetime.now(TZ).isoformat(),
+        "requested_release": requested,
+        "installed_project_version": project_version or None,
+        "home_assistant_app_version": APP_VERSION,
+        "locations": locations,
+        "recent_releases": releases,
+        "latest_release_status": "\n".join(_tail_text_file(latest_status_path, max_lines=80)),
+        "watcher_log_available": watcher_log_path.is_file(),
+        "watcher_log_path": str(watcher_log_path),
+        "watcher_matching_lines": matching_watcher_lines[-150:],
+        "watcher_tail": watcher_lines[-200:],
+        "publisher_state": publish_state,
+        "git_index_lock": lock_info,
+        "runtime": runtime_diagnostics_snapshot(),
+    }
+
+
+def build_release_diagnostic_package(version: str | None = None) -> bytes:
+    """Kleine ZIP voor releaseproblemen; bevat bewust geen energiedata of secrets."""
+    snapshot = release_diagnostics_snapshot(version)
+    requested = snapshot.get("requested_release") or APP_VERSION
+    entries: dict[str, bytes] = {
+        "release_diagnostics.json": json.dumps(snapshot, ensure_ascii=False, indent=2, default=str).encode("utf-8"),
+        "runtime_diagnostics.json": json.dumps(snapshot["runtime"], ensure_ascii=False, indent=2, default=str).encode("utf-8"),
+        "watcher_relevant.log": ("\n".join(snapshot.get("watcher_matching_lines") or []) + "\n").encode("utf-8"),
+        "watcher_tail.log": ("\n".join(snapshot.get("watcher_tail") or []) + "\n").encode("utf-8"),
+    }
+    readme = (
+        "EnergieProject release-diagnose\n"
+        "================================\n"
+        f"Appversie: {APP_VERSION}\n"
+        f"Gevraagde release: {requested}\n"
+        "Doel: verklaren waarom een release in incoming/processing/failed/processed blijft "
+        "of niet bij Home Assistant aankomt.\n"
+        "Bevat geen P1-, Enphase-, EPEX-, maandrapport-, token- of wachtwoorddata.\n"
+    ).encode("utf-8")
+    entries["README.txt"] = readme
+
+    manifest = {
+        "schema": 1,
+        "generated_at": snapshot["generated_at"],
+        "requested_release": requested,
+        "files": [],
+    }
+    for name, data in entries.items():
+        manifest["files"].append({
+            "path": name,
+            "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        })
+    entries["MANIFEST.json"] = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8")
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, data in entries.items():
+            archive.writestr(name, data)
+    return buffer.getvalue()
+
+
 def build_test_package() -> bytes:
     """Bouw één diagnosepakket voor goed-/afkeuring zonder geheimen uit options.json."""
     options = Options.load()
@@ -9772,7 +9965,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.31",
+        "target_stable_release": "10.5.32",
     }
 
     summary = {
@@ -9804,7 +9997,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.31",
+        "target_stable_release": "10.5.32",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -9871,7 +10064,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.31",
+        "Doelrelease: 10.5.32",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
@@ -10217,6 +10410,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
   <div class="metric"><small>Datakwaliteit</small><strong><span class="pill {'warn' if analysis_top.get('quality') == 'Waarschuwing' else 'ok'}">{esc(analysis_top.get('quality'))}</span></strong><small>{esc(analysis_top.get('warning'))}</small></div>
   <div class="metric"><small>Leverancier</small><strong>NextEnergy</strong><small>Dynamische stroom · variabel gas · voorschot €150</small></div>
   <div class="metric"><small>Analysedata</small><strong>Direct beschikbaar</strong><p><a class="button-link" href="download-analysis-data">Download analysedata</a></p><small><a href="analysis-context">Bekijk technische analysecontext</a></small></div>
+<div class="metric"><small>Release-diagnose</small><strong>Ook bij mislukte release</strong><p><a class="button-link secondary" href="download-release-diagnostics">Download release-diagnose</a></p><small>Alleen watcher/publicatie/runtime; geen energiedata.</small></div>
 </div>
 </div>
 
@@ -10260,6 +10454,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 
 <div class="card"><h2>24/7 infrastructuur v{APP_VERSION}</h2>
 <div class="grid">
+<div class="metric"><small>Backend-runtime</small><strong><span class="pill ok">Actief</span></strong><p class="hint">Diagnose wordt live door backend gegenereerd; 0% CPU in Home Assistant kan normaal idle-gedrag zijn.</p></div>
 <div class="metric"><small>QNAP-share</small><strong><span class="pill {status_class((op.get('infrastructure') or {}).get('status'))}">{esc((op.get('infrastructure') or {}).get('status') or 'onbekend')}</span></strong></div>
 <div class="metric"><small>Back-updoel</small><strong>{esc((op.get('infrastructure') or {}).get('backup_root') or PROJECT_BACKUP_ROOT)}</strong></div>
 <div class="metric"><small>Laatste projectback-up</small><strong>{esc(((op.get('infrastructure') or {}).get('last_backup') or {}).get('status') or 'nog geen')}</strong></div>
@@ -11165,6 +11360,25 @@ class Handler(BaseHTTPRequestHandler):
                 )
             except Exception as exc:
                 LOGGER.exception("Chat-overdracht kon niet worden gebouwd.")
+                self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc).encode("utf-8", errors="replace"), "text/plain; charset=utf-8")
+        elif path.endswith("/runtime-diagnostics") or path == "/runtime-diagnostics":
+            body = json.dumps(runtime_diagnostics_snapshot(), ensure_ascii=False, indent=2).encode("utf-8")
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/release-diagnostics") or path == "/release-diagnostics":
+            version = (parse_qs(parsed.query).get("version") or [""])[0].strip()
+            body = json.dumps(release_diagnostics_snapshot(version), ensure_ascii=False, indent=2).encode("utf-8")
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/download-release-diagnostics") or path == "/download-release-diagnostics":
+            try:
+                version = (parse_qs(parsed.query).get("version") or [""])[0].strip()
+                body = build_release_diagnostic_package(version)
+                label = (version or APP_VERSION).replace("/", "_").replace("\\", "_")
+                self.send_body(
+                    HTTPStatus.OK, body, "application/zip",
+                    f'attachment; filename="EnergieProject_release_diagnose_v{label}.zip"',
+                )
+            except Exception as exc:
+                LOGGER.exception("Release-diagnose kon niet worden gebouwd.")
                 self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc).encode("utf-8", errors="replace"), "text/plain; charset=utf-8")
         elif path.endswith("/download-diagnostic-package") or path == "/download-diagnostic-package" or path.endswith("/download-test-package") or path == "/download-test-package":
             try:

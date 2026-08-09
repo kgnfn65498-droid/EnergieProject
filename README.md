@@ -1,4 +1,4 @@
-# EnergieProject v10.5.31
+# EnergieProject v10.5.32
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -98,4 +98,8 @@ De kern van de v10.6 prognose-engine staat nu klaar achter de 7-dagen kwaliteits
 
 
 ## v10.5.31
-De v10.6 financiële engine rapporteert nu per kostencomponent wat technisch gereed is en wat nog officiële leveranciersdata vereist.
+De 10.6-projectielogica kan nu tegen echte data worden gevalideerd zonder de 7-dagenbeveiliging te omzeilen.
+
+
+## v10.5.32
+De Web UI kan nu een compacte release-diagnose downloaden voor actuele én oudere mislukte releases, zonder energiedata of geheimen.

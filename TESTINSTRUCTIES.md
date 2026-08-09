@@ -1,19 +1,24 @@
-# Testinstructies v10.5.31
-1. ZIP rechtstreeks in `EnergieProject_Inbox/incoming`.
-2. Wacht op `processed`.
-3. Update Home Assistant naar 10.5.31 en herstart de add-on één keer.
-4. Klik **Download analysedata** en stuur het JSON-bestand.
+# Testinstructies v10.5.32
+
+1. Zet `EnergieProject_v10.5.32.zip` rechtstreeks in `EnergieProject_Inbox/incoming`.
+2. Wacht op automatische verwerking naar `processed`.
+3. Laat Home Assistant de update automatisch zien en installeer 10.5.32.
+4. Open de Web UI.
+5. Controleer dat **Download release-diagnose** zichtbaar is naast/onder **Download analysedata**.
+6. Download de release-diagnose en stuur die ZIP hier.
 
 Verwacht:
-- bestaande gewogen analyse blijft `weighted_ok`
-- `projection_engine.stage = prepared_gated`
-- `component_readiness.weighted_electricity_import = true`
-- `component_readiness.observation_quality_gate = true`
-- `component_readiness.thirty_day_variable_projection = true`
-- leveranciersopslag, vaste kosten, terugleververgoeding en gasformule blijven `false`
-- bij minder dan 7 dagen blijven 30-dagenprojectiewaarden `null`
-- `ready_for_all_in_costs = false`
+- Web UI toont versie 10.5.32.
+- Release-diagnose downloadt zonder Terminal/Container Station.
+- ZIP bevat `release_diagnostics.json`, `runtime_diagnostics.json`, `watcher_relevant.log`, `watcher_tail.log`, `README.txt` en `MANIFEST.json`.
+- `runtime_diagnostics.json` bevat `backend_alive=true`, uptime, PID en threads.
+- Diagnose bevat release-statussen uit incoming/processing/processed/failed indien beschikbaar.
+- Diagnose bevat geen P1-, Enphase-, EPEX-, rapport-, token- of wachtwoorddata.
+- `Download analysedata` blijft ongewijzigd werken.
+- Bestaande NextEnergy gewogen analyse blijft `weighted_ok`.
+- Geen Home Assistant Terminal nodig.
+- Geen handmatige Git-commit of Git-push nodig.
 
-Juli-EPEX blijft `gedeeltelijk` t/m 2026-07-29.
 Gebruik GEEN Home Assistant Terminal.
+Juli-EPEX blijft `gedeeltelijk` t/m 2026-07-29.
 Gebruik GEEN handmatige Git-commit of Git-push.

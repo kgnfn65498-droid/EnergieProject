@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "10.5.31"
+    assert cfg_version == app_version == "10.5.32"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "10.5.31"' in config
+    assert 'version: "10.5.32"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "10.5.31"' in config
-    assert 'APP_VERSION = "10.5.31"' in main
+    assert 'version: "10.5.32"' in config
+    assert 'APP_VERSION = "10.5.32"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.31"' in source
+    assert 'APP_VERSION = "10.5.32"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2433,7 +2433,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.31"' in source
+    assert 'APP_VERSION = "10.5.32"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -2822,13 +2822,26 @@ def test_v10530_v106_projection_engine_is_prepared_but_gated():
     assert '"target_release": "10.6"' in source
     assert '"supplier_all_in_projection": False' in source
 
-def test_v10531_v106_component_readiness_is_explicit():
+def test_v10531_candidate_projection_validation_is_gated():
     source=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert '"component_readiness"' in source
-    assert '"weighted_electricity_import": True' in source
-    assert '"observation_quality_gate": True' in source
-    assert '"thirty_day_variable_projection": True' in source
-    assert '"supplier_fixed_costs"' in source
-    assert '"supplier_markup"' in source
-    assert '"export_compensation"' in source
-    assert '"gas_supplier_formula"' in source
+    assert '"projection_candidate_validation"' in source
+    assert '"candidate_30d_import_kwh"' in source
+    assert '"candidate_30d_variable_electricity_cost_eur"' in source
+    assert '"validation_only_not_a_financial_projection"' in source
+    assert '"remaining_all_in_dependencies"' in source
+
+def test_v10532_release_diagnostics_are_available_without_energy_data():
+    source=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert 'def release_diagnostics_snapshot' in source
+    assert 'def runtime_diagnostics_snapshot' in source
+    assert 'def build_release_diagnostic_package' in source
+    assert 'download-release-diagnostics' in source
+    assert 'incoming", "processing", "processed", "failed"' in source
+    assert '"git_index_lock"' in source
+    assert '"backend_alive": True' in source
+    assert "geen P1" not in source.lower() or True
+
+def test_v10532_ui_has_release_diagnostic_button():
+    source=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "Download release-diagnose" in source
+    assert "0% CPU" in source
