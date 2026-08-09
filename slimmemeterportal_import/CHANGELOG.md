@@ -1,9 +1,8 @@
 # Changelog
 
-## 16.0.0
-- Start v16: officiële rapportuitvoer voorbereid op echte financiële waarden zodra externe datagates automatisch openen.
-- Prognose-uitvoer activeert uitsluitend na minimaal 7 waargenomen dagen.
-- Leverancier-all-in activeert uitsluitend na gevalideerde officiële NextEnergy-contractcomponenten.
-- Geen handmatige gate-override en geen validatie-candidates als rapportwaarde.
-- Ontbrekende waarden blijven `Niet beschikbaar`; nooit automatische nulwaarden.
-- EPEX blijft uitsluitend markt-/referentieprijs.
+## 16.1.0
+- Officiële rapportuitvoer direct gekoppeld aan de runtime-status van de financiële gates.
+- Prognose-uitvoer opent automatisch zodra `projection_eligibility.eligible` waar wordt.
+- Leverancier-all-in opent alleen wanneer alle officiële contractcomponenten gevalideerd zijn.
+- Voorschotadvies opent alleen wanneer de recommendation-gate publiceerbaar is.
+- Geblokkeerde uitvoer blijft `Niet beschikbaar`; geen handmatige override.
