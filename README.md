@@ -1,4 +1,4 @@
-# EnergieProject v10.5.36
+# EnergieProject v10.5.37
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -119,3 +119,7 @@ De contractkostenlaag rekent nu daadwerkelijk met gevalideerde leveranciercompon
 
 ## v10.5.36
 Veilige contractformulemotor voor teruglevering en gas toegevoegd. Zonder officiële contractwaarden blijft de uitkomst null met een expliciete blokkadereden.
+
+
+## v10.5.37
+De Home Assistant Web UI heeft nu een rechtstreeks zichtbare rapportpagina met status, output en rapportacties.

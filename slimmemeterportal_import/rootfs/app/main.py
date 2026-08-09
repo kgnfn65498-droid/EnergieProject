@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.36"
+APP_VERSION = "10.5.37"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -10340,7 +10340,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.36",
+        "target_stable_release": "10.5.37",
     }
 
     summary = {
@@ -10372,7 +10372,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.36",
+        "target_stable_release": "10.5.37",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -10439,7 +10439,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.36",
+        "Doelrelease: 10.5.37",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
@@ -10996,6 +10996,11 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <p class="hint">Bestaande 7.0.x-route blijft beschikbaar voor achterwaartse compatibiliteit.</p>
 <form method="post" action="run-full-month-workflow"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit" class="secondary">Verwerk maanddata (legacy)</button></form>
 </details>
+<div class="card">
+<h2>Rapportage</h2>
+<p>De rapportpagina is nu rechtstreeks zichtbaar in de Web UI.</p>
+<p><a class="button-link" href="reports">Open rapportpagina</a></p>
+</div>
 <details><summary>Rapportage en overdracht</summary>
 <form method="post" action="build-month-input"><button type="submit">Bouw maandmap</button></form>
 <form method="post" action="central-validation"><button type="submit">Voer centrale validatie uit</button></form>
@@ -11555,6 +11560,103 @@ def _github_publication_loop(stop_event):
                 return
 
 
+
+def render_reports_page() -> bytes:
+    """Echte zichtbare rapportpagina voor de Home Assistant Web UI."""
+    state = persist_normalized_status(Options.load())
+    esc = html.escape
+    status = state.get("report_generation_last_status") or "Nog niet gegenereerd"
+    month = state.get("report_generation_last_month") or "Nog geen"
+    started = state.get("report_generation_last_started") or "—"
+    finished = state.get("report_generation_last_finished") or "—"
+    error = state.get("report_generation_last_error")
+    output_status = state.get("report_output_last_status") or "Nog geen"
+    output_folder = state.get("report_output_last_folder") or "—"
+    output_files = state.get("report_output_last_files") or []
+    handoff_status = state.get("report_handoff_last_status") or "Nog geen"
+    handoff_month = state.get("report_handoff_last_month") or "—"
+    generator_status = state.get("report_generators_last_status") or state.get("report_runtime_last_status") or "Onbekend"
+
+    file_items = "".join(
+        f"<li><code>{esc(str(item))}</code></li>"
+        for item in output_files
+    ) or "<li>Nog geen rapportbestanden geregistreerd.</li>"
+
+    status_class = "ok" if str(status).lower() in {"completed", "ready", "ok"} else (
+        "bad" if str(status).lower() in {"failed", "error"} else "warn"
+    )
+    error_html = (
+        f'<div class="alert bad"><strong>Laatste fout</strong><br>{esc(str(error))}</div>'
+        if error else ""
+    )
+    body = f"""<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EnergieProject · Rapportage</title>
+<style>
+body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f6f8;color:#202124;margin:0}}
+.wrap{{max-width:1050px;margin:0 auto;padding:18px}}
+.header{{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}}
+.card{{background:white;border:1px solid #ddd;border-radius:14px;padding:16px;margin:14px 0;box-shadow:0 1px 3px rgba(0,0,0,.05)}}
+.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}}
+.metric{{border:1px solid #e2e5e9;border-radius:10px;padding:12px}}
+.metric small{{display:block;color:#6b7280;margin-bottom:4px}}
+.metric strong{{font-size:1.05rem}}
+.pill{{display:inline-block;padding:4px 9px;border-radius:999px;font-size:.9rem}}
+.ok{{background:#e8f5e9;color:#1b5e20}} .warn{{background:#fff8e1;color:#7a5200}} .bad{{background:#ffebee;color:#8b1e24}}
+button,.button{{display:inline-block;border:0;border-radius:9px;padding:10px 14px;background:#1667c5;color:white;text-decoration:none;font-weight:600;cursor:pointer}}
+.secondary{{background:#e9eef5;color:#1f2937}}
+form{{display:inline-block;margin:5px 5px 5px 0}}
+.alert{{padding:12px;border-radius:10px}}
+code{{word-break:break-word}}
+a{{color:#1667c5}}
+</style>
+</head>
+<body><div class="wrap">
+<div class="header">
+<div><h1>Rapportage</h1><div>Home Assistant · EnergieProject v{esc(APP_VERSION)}</div></div>
+<a class="button secondary" href="./">← Terug naar overzicht</a>
+</div>
+
+<div class="card">
+<h2>Rapportstatus</h2>
+<div class="grid">
+<div class="metric"><small>Status</small><strong><span class="pill {status_class}">{esc(str(status))}</span></strong></div>
+<div class="metric"><small>Maand</small><strong>{esc(str(month))}</strong></div>
+<div class="metric"><small>Gestart</small><strong>{esc(str(started))}</strong></div>
+<div class="metric"><small>Afgerond</small><strong>{esc(str(finished))}</strong></div>
+<div class="metric"><small>Overdracht</small><strong>{esc(str(handoff_status))}</strong><br><small>{esc(str(handoff_month))}</small></div>
+<div class="metric"><small>Generatoren</small><strong>{esc(str(generator_status))}</strong></div>
+</div>
+{error_html}
+</div>
+
+<div class="card">
+<h2>Rapportacties</h2>
+<p>Deze bediening gebruikt dezelfde bestaande productie-routes; de rapportfuncties zijn nu niet meer verborgen in een ingeklapt blok.</p>
+<form method="post" action="check-report-runtime"><button type="submit">Controleer rapportmodules</button></form>
+<form method="post" action="build-report-adapter"><button type="submit">Bouw rapportdata-adapter</button></form>
+<form method="post" action="install-report-generators"><button type="submit">Installeer officiële rapportgeneratoren</button></form>
+<form method="post" action="run-report-page1"><button type="submit">Test rapportgenerator pagina 1</button></form>
+<form method="post" action="report-service-check"><button type="submit">Controleer rapportservice</button></form>
+<form method="post" action="run-report-generation"><button type="submit">Genereer compleet maandrapport</button></form>
+</div>
+
+<div class="card">
+<h2>Laatste rapportuitvoer</h2>
+<div class="grid">
+<div class="metric"><small>Outputstatus</small><strong>{esc(str(output_status))}</strong></div>
+<div class="metric"><small>Outputmap</small><strong><code>{esc(str(output_folder))}</code></strong></div>
+</div>
+<ul>{file_items}</ul>
+<p><a href="report-generation-status">Technische rapportstatus (JSON)</a></p>
+</div>
+</div></body></html>"""
+    return body.encode("utf-8")
+
+
 class Handler(BaseHTTPRequestHandler):
     def _client_allowed(self) -> bool:
         return self.client_address[0] in ALLOWED_HTTP_CLIENTS
@@ -11655,6 +11757,12 @@ class Handler(BaseHTTPRequestHandler):
                 "error": state.get("workflow_audit_last_error"),
             }, ensure_ascii=False, indent=2).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/reports") or path == "/reports":
+            self.send_body(
+                HTTPStatus.OK,
+                render_reports_page(),
+                "text/html; charset=utf-8",
+            )
         elif path.endswith("/report-generation-status") or path == "/report-generation-status":
             state = persist_normalized_status(Options.load())
             body = json.dumps({

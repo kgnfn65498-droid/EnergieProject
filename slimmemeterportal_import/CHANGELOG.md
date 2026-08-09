@@ -1,5 +1,13 @@
 # Changelog
 
+## 10.5.37
+- Ontbrekende zichtbare rapportpagina in de Home Assistant Web UI opgelost.
+- Nieuwe route `reports` toegevoegd met een echte HTML-rapportpagina.
+- Hoofdscherm bevat nu een duidelijke knop **Open rapportpagina**.
+- Rapportstatus, maand, start/eindtijd, overdracht, generatorstatus, outputmap en laatste rapportbestanden zijn zichtbaar.
+- Bestaande rapportacties zijn rechtstreeks vanaf de rapportpagina beschikbaar.
+- De bestaande productie-routes en rapportgeneratorlogica zijn niet vervangen; alleen de GUI-ontsluiting is hersteld.
+
 ## 10.5.36
 - Contractformulemotor toegevoegd voor terugleververgoeding en gas.
 - Teruglevering ondersteunt een expliciet vast contracttarief of `market_price_minus_markup`.

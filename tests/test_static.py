@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "10.5.36"
+    assert cfg_version == app_version == "10.5.37"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "10.5.36"' in config
+    assert 'version: "10.5.37"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "10.5.36"' in config
-    assert 'APP_VERSION = "10.5.36"' in main
+    assert 'version: "10.5.37"' in config
+    assert 'APP_VERSION = "10.5.37"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.36"' in source
+    assert 'APP_VERSION = "10.5.37"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2433,7 +2433,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "10.5.36"' in source
+    assert 'APP_VERSION = "10.5.37"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -2889,3 +2889,13 @@ def test_v10536_contract_formula_engine_is_explicit_and_gated():
     assert '"included_in_supplier_all_in": False' in source
     assert '"export_compensation_contract_rule_not_available"' in source
     assert '"gas_supplier_formula_not_available"' in source
+
+def test_v10537_visible_report_page_is_exposed_in_gui():
+    source=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert "def render_reports_page" in source
+    assert 'href="reports"' in source
+    assert "Open rapportpagina" in source
+    assert 'path.endswith("/reports")' in source
+    assert "Rapportstatus" in source
+    assert "Laatste rapportuitvoer" in source
+    assert "Genereer compleet maandrapport" in source

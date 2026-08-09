@@ -720,3 +720,7 @@ Gas:
 - marktprijs plus opslag: `gas_supplier_formula.type = market_price_plus_markup`
 
 Zonder valide contractregel wordt geen bedrag berekend.
+
+
+## v10.5.37 — Rapportpagina
+Open vanuit het hoofdscherm **Open rapportpagina**. Route: `reports`. De pagina toont rapportstatus, generatorstatus, uitvoerbestanden en bestaande rapportacties.
