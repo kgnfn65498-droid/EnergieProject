@@ -1,6 +1,6 @@
 # Changelog
 
-## 11.2.0
+## 11.3.0
 - Production forecast detail: calendar-month run-rate and guarded ±15% variable-electricity scenario band.
 - No supplier-all-in assumptions; existing 7-day gate remains authoritative.
 
