@@ -1,8 +1,8 @@
 # Changelog
 
-## 17.0.0
-- Start v17: gevalideerde financiële runtime-status wordt voorbereid voor concrete kostenbesparingsbeslissingen.
-- Voorschotadvies blijft €150 als referentiecontext gebruiken en wordt alleen publiceerbaar na prognose- én leverancier-all-in-validatie.
-- Alleen drie expliciete uitkomsten zijn toegestaan: voorschot lager, passend of hoger.
+## 17.1.0
+- Concrete kostenbesparingsaanbevelingen gekoppeld aan de volledig gevalideerde financiële beslislaag.
+- Maandvoorschotadvies blijft geblokkeerd totdat prognosekwaliteit, leverancier-all-in en alle officiële contractcomponenten geldig zijn.
+- Mogelijke acties: maandvoorschot verlagen, behouden of verhogen.
+- Bedrag, nieuw voorschot en adviessterkte komen uitsluitend uit gevalideerde decision-supportvelden.
 - Validatie-candidates en EPEX mogen geen leveranciersbeslissing sturen.
-- Geblokkeerde beslissingen blijven `Niet beschikbaar`.
