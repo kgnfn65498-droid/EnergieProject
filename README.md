@@ -1,4 +1,4 @@
-# EnergieProject v10.5.32
+# EnergieProject v10.5.33
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -103,3 +103,7 @@ De 10.6-projectielogica kan nu tegen echte data worden gevalideerd zonder de 7-d
 
 ## v10.5.32
 De Web UI kan nu een compacte release-diagnose downloaden voor actuele én oudere mislukte releases, zonder energiedata of geheimen.
+
+
+## v10.5.33
+Financiële bouwstatus richting 10.6 wordt nu expliciet gemeten. De €150 maandtermijn wordt alleen vergeleken met de kandidaat variabele stroomkosten en nooit als all-in conclusie gebruikt.

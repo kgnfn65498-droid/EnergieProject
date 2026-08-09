@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.32"
+APP_VERSION = "10.5.33"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5110,6 +5110,7 @@ def _supplier_contract_context() -> dict[str, Any]:
             "projection_ready_months": [],
             "projection_engine": {"stage": "prepared_gated", "target_release": "10.6", "thirty_day_variable_projection_logic_ready": True, "supplier_all_in_projection_ready": False, "activation_requires_observed_days": 7.0},
             "projection_observation_status": [],
+            "financial_readiness": {"components": {}, "completed_components": 0, "total_components": 0, "progress_pct": 0.0, "decision_ready": False, "next_required_components": []},
             "projection_policy": {"minimum_observed_days": 7.0, "automatic_month_extrapolation": False, "automatic_contract_year_extrapolation": False},
             "all_in_ready": False,
         },
@@ -5255,12 +5256,22 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(weighted.get("observed_daily_variable_cost_run_rate_eur"), (int, float))
             else None
         )
+        monthly_advance = supplier_context.get("contract", {}).get("monthly_advance_eur")
+        advance_gap = (
+            round(float(monthly_advance) - float(candidate_variable_cost_30d), 2)
+            if isinstance(monthly_advance, (int, float))
+            and isinstance(candidate_variable_cost_30d, (int, float))
+            else None
+        )
         financial["projection_candidate_validation"] = {
             "publishable": eligible,
             "quality_gate_passed": eligible,
             "basis": "observed_daily_run_rate",
             "candidate_30d_import_kwh": candidate_import_30d,
             "candidate_30d_variable_electricity_cost_eur": candidate_variable_cost_30d,
+            "monthly_advance_eur": monthly_advance,
+            "candidate_variable_cost_vs_advance_gap_eur": advance_gap,
+            "advance_comparison_scope": "variable_electricity_only_not_all_in",
             "warning": None if eligible else "validation_only_not_a_financial_projection",
         }
         financial["projection_preview"] = {
@@ -5310,6 +5321,35 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "export_compensation",
             "gas_supplier_formula",
         ],
+    }
+    readiness_components = {
+        "weighted_electricity_import": bool(weighted_by_month),
+        "observation_quality_gate": bool(projection_months),
+        "thirty_day_variable_projection_logic": True,
+        "monthly_advance_context": isinstance(
+            supplier_context.get("contract", {}).get("monthly_advance_eur"), (int, float)
+        ),
+        "supplier_fixed_costs": bool(supplier_context["cost_model"].get("supplier_fixed_costs_known")),
+        "supplier_markup": bool(supplier_context["cost_model"].get("supplier_markup_known")),
+        "export_compensation": bool(supplier_context["cost_model"].get("export_compensation_known")),
+        "gas_supplier_formula": bool(supplier_context["cost_model"].get("gas_supplier_formula_known")),
+    }
+    completed = sum(1 for value in readiness_components.values() if value)
+    total = len(readiness_components)
+    supplier_context["cost_model"]["financial_readiness"] = {
+        "components": readiness_components,
+        "completed_components": completed,
+        "total_components": total,
+        "progress_pct": round((completed / total) * 100.0, 1) if total else 0.0,
+        "decision_ready": all(readiness_components.values()),
+        "next_required_components": [
+            key for key, value in readiness_components.items() if not value
+        ],
+        "note": (
+            "Voortgang betreft technische/contractuele bouwblokken. "
+            "Een vergelijking met het maandvoorschot is geen all-in kostenprognose "
+            "zolang leverancier-, teruglever- en gascomponenten ontbreken."
+        ),
     }
     supplier_context["cost_model"]["projection_observation_status"] = [
         {
@@ -9965,7 +10005,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.32",
+        "target_stable_release": "10.5.33",
     }
 
     summary = {
@@ -9997,7 +10037,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.32",
+        "target_stable_release": "10.5.33",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -10064,7 +10104,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.32",
+        "Doelrelease: 10.5.33",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
@@ -10409,6 +10449,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
   <div class="metric"><small>Laatste analysemaand</small><strong>{esc(analysis_top.get('latest_month'))}</strong><small>Bronnen: {esc(analysis_top.get('latest_sources'))}</small></div>
   <div class="metric"><small>Datakwaliteit</small><strong><span class="pill {'warn' if analysis_top.get('quality') == 'Waarschuwing' else 'ok'}">{esc(analysis_top.get('quality'))}</span></strong><small>{esc(analysis_top.get('warning'))}</small></div>
   <div class="metric"><small>Leverancier</small><strong>NextEnergy</strong><small>Dynamische stroom · variabel gas · voorschot €150</small></div>
+<div class="metric"><small>Financiële bouwstatus</small><strong>Richting 10.6</strong><p class="hint">Verbruikgewogen stroom + prognose-engine aanwezig. All-in blijft geblokkeerd tot vaste kosten, opslag, terugleververgoeding en gasformule zijn gekoppeld.</p></div>
   <div class="metric"><small>Analysedata</small><strong>Direct beschikbaar</strong><p><a class="button-link" href="download-analysis-data">Download analysedata</a></p><small><a href="analysis-context">Bekijk technische analysecontext</a></small></div>
 <div class="metric"><small>Release-diagnose</small><strong>Ook bij mislukte release</strong><p><a class="button-link secondary" href="download-release-diagnostics">Download release-diagnose</a></p><small>Alleen watcher/publicatie/runtime; geen energiedata.</small></div>
 </div>

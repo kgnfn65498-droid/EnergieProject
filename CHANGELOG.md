@@ -1,5 +1,13 @@
 # Changelog
 
+## 10.5.33
+- Financiële gereedheidsmatrix toegevoegd richting v10.6.
+- Technische/contractuele bouwblokken worden expliciet als gereed/niet-gereed gerapporteerd.
+- `financial_readiness.progress_pct` en `next_required_components` maken zichtbaar wat nog ontbreekt.
+- Kandidaat-30-dagen variabele stroomkosten worden nu naast het maandvoorschot van €150 gezet, uitsluitend als context.
+- De vergelijking met het voorschot is expliciet gemarkeerd als `variable_electricity_only_not_all_in`; er wordt dus geen onterechte all-in conclusie getrokken.
+- All-in blijft geblokkeerd tot vaste leverancierskosten, opslag, terugleververgoeding en gasformule zijn gekoppeld.
+
 ## 10.5.32
 - Nieuwe knop **Download release-diagnose** in de Web UI.
 - Release-diagnose werkt ook wanneer een release niet geslaagd is en bevat alleen relevante watcher-, publicatie- en runtimestatus.

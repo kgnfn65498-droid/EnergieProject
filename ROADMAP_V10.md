@@ -66,3 +66,5 @@
 - v10.5.31: kandidaatprojectie voor validatie vóór gate-open; officiële prognose blijft geblokkeerd.
 
 - v10.5.32: release-/runtime-diagnostiek in Web UI; geen losse NAS/Container Station-logs meer nodig bij releaseproblemen.
+
+- v10.5.33: financiële readiness-matrix + veilige voorschotcontext richting v10.6.

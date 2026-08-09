@@ -686,3 +686,7 @@ De gewogen reader berekent de geobserveerde tijdsduur met timezone-aware UTC-dat
 `Download release-diagnose` maakt een kleine ZIP met watcherlog, release-locatie, publisherstatus, Git-lockstatus en backend-runtime.
 Oudere releases kunnen technisch worden opgevraagd met `download-release-diagnostics?version=10.5.31`.
 Deze bundel bevat bewust geen energiebrondata of secrets.
+
+
+## v10.5.33 — Financiële readiness
+`financial_readiness` rapporteert welke bouwblokken gereed zijn. `candidate_variable_cost_vs_advance_gap_eur` vergelijkt alleen variabele stroomkosten met het maandvoorschot en is nadrukkelijk geen all-in prognose.

@@ -1,24 +1,22 @@
-# Testinstructies v10.5.32
+# Testinstructies v10.5.33
 
-1. Zet `EnergieProject_v10.5.32.zip` rechtstreeks in `EnergieProject_Inbox/incoming`.
+1. Zet `EnergieProject_v10.5.33.zip` rechtstreeks in `EnergieProject_Inbox/incoming`.
 2. Wacht op automatische verwerking naar `processed`.
-3. Laat Home Assistant de update automatisch zien en installeer 10.5.32.
-4. Open de Web UI.
-5. Controleer dat **Download release-diagnose** zichtbaar is naast/onder **Download analysedata**.
-6. Download de release-diagnose en stuur die ZIP hier.
+3. Installeer de Home Assistant-update naar 10.5.33.
+4. Download **analysedata** en **release-diagnose** en stuur beide hier.
 
 Verwacht:
-- Web UI toont versie 10.5.32.
-- Release-diagnose downloadt zonder Terminal/Container Station.
-- ZIP bevat `release_diagnostics.json`, `runtime_diagnostics.json`, `watcher_relevant.log`, `watcher_tail.log`, `README.txt` en `MANIFEST.json`.
-- `runtime_diagnostics.json` bevat `backend_alive=true`, uptime, PID en threads.
-- Diagnose bevat release-statussen uit incoming/processing/processed/failed indien beschikbaar.
-- Diagnose bevat geen P1-, Enphase-, EPEX-, rapport-, token- of wachtwoorddata.
-- `Download analysedata` blijft ongewijzigd werken.
-- Bestaande NextEnergy gewogen analyse blijft `weighted_ok`.
-- Geen Home Assistant Terminal nodig.
-- Geen handmatige Git-commit of Git-push nodig.
+- versie 10.5.33;
+- gewogen NextEnergy-analyse blijft `weighted_ok`;
+- `financial_readiness` is aanwezig;
+- `financial_readiness.progress_pct` is groter dan 0 maar `decision_ready=false`;
+- `next_required_components` noemt minimaal vaste leverancierskosten, opslag, terugleververgoeding en gasformule;
+- kandidaat 30-dagen variabele stroomkosten blijven beschikbaar voor validatie;
+- `monthly_advance_eur = 150.0`;
+- `advance_comparison_scope = variable_electricity_only_not_all_in`;
+- geen leverancier-all-in prognose zolang contractcomponenten ontbreken;
+- release-diagnose blijft zonder Terminal werken.
 
-Gebruik GEEN Home Assistant Terminal.
 Juli-EPEX blijft `gedeeltelijk` t/m 2026-07-29.
+Gebruik GEEN Home Assistant Terminal.
 Gebruik GEEN handmatige Git-commit of Git-push.
