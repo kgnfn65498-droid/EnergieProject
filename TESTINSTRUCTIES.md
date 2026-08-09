@@ -1,18 +1,16 @@
-# Testinstructies v14.3.0
+# Testinstructies v15.0.0
 
-1. Plaats `EnergieProject_v14.3.0.zip` in `EnergieProject_Inbox/incoming`.
+1. Plaats `EnergieProject_v15.0.0.zip` in `EnergieProject_Inbox/incoming`.
 2. Wacht op `processed`.
-3. Open vóór installatie het Home Assistant-updatevenster.
-4. Controleer dat daar alleen release **14.3.0** staat en geen oude releaseblokken meer zichtbaar zijn.
-5. Update Home Assistant naar 14.3.0.
-6. Controleer GUI/Ingress.
-7. Download Analyse-export en release-diagnose.
-8. Controleer `production_consolidation.v14_completion_gate`.
-9. Verwacht `release_status = v14_complete_external_data_gates_remain`.
-10. Zolang minder dan 7 dagen beschikbaar zijn, blijven prognosevelden geblokkeerd.
-11. Leverancier-all-in blijft geblokkeerd zolang officiële NextEnergy-contractcomponenten ontbreken.
-12. EPEX blijft uitsluitend referentie.
-13. Historische EPEX juli 2026 blijft gedeeltelijk: brondata loopt t/m 2026-07-29.
+3. Controleer vóór installatie dat Home Assistant alleen releasetext 15.0.0 toont.
+4. Update naar 15.0.0 en controleer GUI/Ingress.
+5. Download Analyse-export en release-diagnose.
+6. Controleer `production_consolidation.v15_official_report_production_context.status = official_report_production_context_active`.
+7. Prognoses blijven geblokkeerd zolang minder dan 7 waargenomen dagen beschikbaar zijn.
+8. Leverancier-all-in blijft geblokkeerd zolang officiële NextEnergy-contractcomponenten ontbreken.
+9. Ontbrekende financiële waarden blijven `Niet beschikbaar`; nooit 0.
+10. EPEX blijft uitsluitend referentie.
+11. Historische EPEX juli 2026 blijft gedeeltelijk: brondata loopt t/m 2026-07-29.
 
 Gebruik GEEN Home Assistant Terminal.
 Gebruik GEEN handmatige Git-commit of Git-push.
