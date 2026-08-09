@@ -21,8 +21,15 @@ MUTED = HexColor('#6A7B8D')
 
 
 def euro(v):
+    if not isinstance(v, (int, float)):
+        return "Niet beschikbaar"
     s = f"{abs(v):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
     return ('- ' if v < 0 else '') + '€ ' + s
+
+def tariff(v, unit):
+    if not isinstance(v, (int, float)):
+        return "Niet beschikbaar"
+    return f"€ {v:.3f} {unit}".replace('.', ',')
 
 
 def txt(c, x, y, s, size=6.2, color=TEXT, font='Helvetica', align='left'):
@@ -218,7 +225,7 @@ def build(data, out):
     left1=colw*.49
     panel(c,margin,y4,left1,ch); panel(c,margin+left1+gap,y4,colw-left1-gap,ch)
     txt(c,margin+10,y4+ch-14,'Kostenoverzicht (t/m juli)',5.8,TEXT,'Helvetica-Bold')
-    cc=data['costs']; items=[('Stroomkosten',cc['electricity']),('Terugleververgoeding',-cc['feed_in_compensation']),('Netto stroomkosten',cc['electricity']+cc['feed_in_compensation']),('Gaskosten',cc['gas']),('Vaste kosten / netbeheer',cc['grid_costs'])]
+    cc=data['costs']; items=[('Stroomkosten',cc['electricity']),('Terugleververgoeding',-cc['feed_in_compensation']),('Netto stroomkosten',(cc['electricity'] + cc['feed_in_compensation']) if isinstance(cc.get('electricity'), (int,float)) and isinstance(cc.get('feed_in_compensation'), (int,float)) else None),('Gaskosten',cc['gas']),('Vaste kosten / netbeheer',cc['grid_costs'])]
     for i,(lab,val) in enumerate(items):
         yy=y4+ch-28-i*8.6
         txt(c,margin+10,yy,lab,4.25); txt(c,margin+left1-8,yy,euro(val) if i<4 else 'apart op nota',4.25,TEXT,'Helvetica-Bold','right')
@@ -229,7 +236,7 @@ def build(data, out):
     for i,(lab,val,u) in enumerate(tariffs):
         yy=y4+ch-39-i*8.2
         txt(c,x2+10,yy,lab,4.35)
-        txt(c,margin+colw-8,yy,f"€ {val:.3f} {u}".replace('.',','),4.35,TEXT,'Helvetica-Bold','right')
+        txt(c,margin+colw-8,yy,tariff(val,u),4.35,TEXT,'Helvetica-Bold','right')
     yy=y4+ch-39-len(tariffs)*8.2
     txt(c,x2+10,yy,'Vaste kosten',4.35)
     txt(c,margin+colw-8,yy,cc.get('fixed_costs_note','volgens nota'),4.35,TEXT,'Helvetica-Bold','right')
@@ -290,8 +297,8 @@ def build(data, out):
     for i,(lab,val,sub,col) in enumerate(vals):
         xx=margin+5+i*(cardw+cardgap); c.setStrokeColor(GRID); c.setFillColor(white); c.roundRect(xx,y7+35,cardw,39,5,fill=1,stroke=1)
         txt(c,xx+cardw/2,y7+63,lab,4.6,TEXT,'Helvetica-Bold','center'); txt(c,xx+cardw/2,y7+49,val,8.5,col,'Helvetica-Bold','center'); txt(c,xx+cardw/2,y7+40,sub,3.9,MUTED,align='center')
-    c.setFillColor(LIGHT); c.roundRect(margin+6,y7+8,245,20,4,fill=1,stroke=0); txt(c,margin+14,y7+21,'Dekking jaarprognose',4.5,TEXT,'Helvetica-Bold'); c.setFillColor(HexColor('#DCE5EC')); c.roundRect(margin+14,y7+10,175,5,2,fill=1,stroke=0); c.setFillColor(ORANGE); c.roundRect(margin+14,y7+10,175*term['coverage_pct']/100,5,2,fill=1,stroke=0); txt(c,margin+239,y7+10,f"{term['coverage_pct']:.1f}% gedekt".replace('.',','),4.4,ORANGE,'Helvetica-Bold','right')
-    c.setStrokeColor(ORANGE); c.setFillColor(HexColor('#FFF8E8')); c.roundRect(margin+258,y7+8,W-margin-(margin+258),20,4,fill=1,stroke=1); txt(c,margin+266,y7+21,'Advies',4.5,ORANGE,'Helvetica-Bold'); txt(c,margin+266,y7+12,'Verhoog naar circa €225 per maand om een bijbetaling te beperken.',4.3,TEXT)
+    c.setFillColor(LIGHT); c.roundRect(margin+6,y7+8,245,20,4,fill=1,stroke=0); txt(c,margin+14,y7+21,'Dekking jaarprognose',4.5,TEXT,'Helvetica-Bold'); c.setFillColor(HexColor('#DCE5EC')); c.roundRect(margin+14,y7+10,175,5,2,fill=1,stroke=0); c.setFillColor(ORANGE); c.roundRect(margin+14,y7+10,175*float(term.get('coverage_pct') or 0)/100,5,2,fill=1,stroke=0); txt(c,margin+239,y7+10,f"{float(term.get('coverage_pct') or 0):.1f}% gedekt".replace('.',','),4.4,ORANGE,'Helvetica-Bold','right')
+    c.setStrokeColor(ORANGE); c.setFillColor(HexColor('#FFF8E8')); c.roundRect(margin+258,y7+8,W-margin-(margin+258),20,4,fill=1,stroke=1); txt(c,margin+266,y7+21,'Advies',4.5,ORANGE,'Helvetica-Bold'); txt(c,margin+266,y7+12,'Nog geen termijnadvies zolang leverancier-all-in niet compleet is.',4.3,TEXT)
 
     txt(c,W-margin,8,'Energierapport - Pagina 2 | generator v6.0',4.2,MUTED,align='right')
     c.save()

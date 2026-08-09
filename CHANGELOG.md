@@ -1,5 +1,29 @@
 # Changelog
 
+## v10.8.2 — watcher checksum-manifest hotfix
+
+- Herstelt verplicht `SHA256SUMS.json` dat in v10.8.1 ontbrak.
+- Release-identiteit overal 10.8.2.
+- Functionele inhoud van de financiële rapportintegratie ongewijzigd.
+
+## v10.8.2 — release-identiteit hotfix
+
+- Corrigeert de fout waardoor het v10.8.0-pakket intern nog als v10.7.0 werd gepubliceerd.
+- Add-on/config-versie, APP_VERSION en financiële engine-identiteit zijn nu consistent v10.8.2.
+- Functionaliteit van v10.8.0 blijft ongewijzigd: officiële financiële rapportintegratie en strikte contractgating.
+- Geen wijzigingen aan watcher, GUI, maandworkflow of herstelvoorzieningen.
+
+## v10.8.2 — officiële financiële rapportintegratie
+
+- Verbindt de gevalideerde financiële analyse met de bestaande officiële rapportgeneratoren.
+- Pagina 2 gebruikt geen financiële voorbeeldwaarden meer als productiedata.
+- Alleen waargenomen/verifieerbare NextEnergy-kosten worden doorgegeven.
+- Leverancier-all-in, gas, terugleververgoeding en termijnadvies blijven expliciet niet beschikbaar zolang officiële contractcomponenten ontbreken.
+- EPEX blijft uitsluitend markt-/referentieprijs.
+- De bestaande 7-dagen kwaliteitsgrens blijft ongewijzigd.
+- Adapterresultaat bevat een auditblok `financial_report_integration`.
+- Alle bestaande GUI-, watcher-, workflow-, diagnose- en herstelvoorzieningen blijven behouden.
+
 ## v10.7.0
 - Prognose-engine verdiept met kalendermaand-run-rate na de bestaande 7-dagen kwaliteitsgate.
 - 30-dagen variabele elektriciteitsprognose krijgt een expliciete ±15% bandbreedte voor scenarioanalyse.

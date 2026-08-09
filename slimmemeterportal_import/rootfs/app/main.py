@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.7.0"
+APP_VERSION = "10.8.2"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1423,6 +1423,34 @@ def load_generator_example(role: str) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def load_financial_analysis_for_report(input_folder: Path, month_key: str) -> dict[str, Any]:
+    """Load only validated financial analysis fields for the requested month.
+
+    Missing data stays missing. EPEX is never promoted to supplier-all-in.
+    """
+    candidates = [
+        input_folder / "Analysis" / f"energieanalyse_{month_key}.json",
+        input_folder.parent / "Analysis" / f"energieanalyse_{month_key}.json",
+        input_folder / f"energieanalyse_{month_key}.json",
+    ]
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for item in payload.get("months", []):
+            if str(item.get("month")) == month_key:
+                financial = item.get("financial_context") or {}
+                return {
+                    "source": str(path),
+                    "financial_context": financial,
+                    "supplier_context": payload.get("supplier_context") or {},
+                }
+    return {"source": None, "financial_context": {}, "supplier_context": {}}
+
+
 def build_report_adapter_data(
     options: Options,
     handoff: dict[str, Any],
@@ -1437,6 +1465,11 @@ def build_report_adapter_data(
     p1e_rows = read_csv_rows(input_folder / "P1e.csv")
     p1g_rows = read_csv_rows(input_folder / "P1g.csv")
     enphase_rows = read_csv_rows(input_folder / "Enphase.csv")
+    report_financial = load_financial_analysis_for_report(input_folder, month_key)
+    financial_context = report_financial.get("financial_context") or {}
+    supplier_context = report_financial.get("supplier_context") or {}
+    financial_projection = financial_context.get("financial_projection") or {}
+    projection_detail = financial_context.get("projection_detail") or {}
 
     import_kwh = cumulative_delta(
         p1e_rows,
@@ -1541,6 +1574,62 @@ def build_report_adapter_data(
         "gas_total": round(gas_m3 * 12, 1),
     })
 
+    # v10.8.2: officiële pagina-2-generator krijgt uitsluitend gevalideerde
+    # financiële waarden. Voorbeeldtarieven uit het generatorpakket mogen nooit
+    # als echte leverancierskosten in een productierapport terechtkomen.
+    observed_variable = financial_context.get("observed_variable_electricity_cost_eur")
+    observed_weighted_price = financial_context.get("observed_weighted_electricity_price_eur_per_kwh")
+    contract_preview = financial_context.get("contract_formula_preview") or {}
+    export_preview = contract_preview.get("export") or {}
+    gas_preview = contract_preview.get("gas") or {}
+    monthly_advance = (supplier_context.get("contract") or {}).get("monthly_advance_eur", 150.0)
+
+    page2["costs"].update({
+        "electricity": observed_variable if isinstance(observed_variable, (int, float)) else None,
+        "feed_in_compensation": (
+            export_preview.get("compensation_eur")
+            if export_preview.get("available") is True else None
+        ),
+        "grid_costs": None,
+        "gas": (
+            gas_preview.get("supplier_gas_cost_eur")
+            if gas_preview.get("available") is True else None
+        ),
+        "variable_total": None,
+        "tariff_t1": observed_weighted_price if isinstance(observed_weighted_price, (int, float)) else None,
+        "tariff_t2": observed_weighted_price if isinstance(observed_weighted_price, (int, float)) else None,
+        "feed_in_tariff": (
+            export_preview.get("effective_compensation_eur_per_kwh")
+            if export_preview.get("available") is True else None
+        ),
+        "gas_tariff": (
+            gas_preview.get("effective_price_eur_per_m3")
+            if gas_preview.get("available") is True else None
+        ),
+        "fixed_costs_note": "niet gekoppeld" if not (supplier_context.get("contract_costs") or {}).get("valid") else "contract gevalideerd",
+    })
+
+    projected_30d = financial_projection.get("projected_30d_variable_electricity_cost_eur")
+    all_in_projection = financial_projection.get("supplier_all_in_projection_eur")
+    page2["term"].update({
+        "current": float(monthly_advance) if isinstance(monthly_advance, (int, float)) else 150.0,
+        "advice": all_in_projection if isinstance(all_in_projection, (int, float)) else None,
+        "annual_cost": None,
+        "balance": None,
+        "coverage_pct": min(100.0, max(0.0, float((financial_context.get("projection_eligibility") or {}).get("coverage_progress_pct") or 0.0))),
+    })
+    page2["financial_validation"] = {
+        "source": report_financial.get("source"),
+        "projection_status": financial_projection.get("status"),
+        "quality_gate_passed": bool(financial_projection.get("quality_gate_passed")),
+        "observed_variable_electricity_cost_eur": observed_variable,
+        "projected_30d_variable_electricity_cost_eur": projected_30d,
+        "supplier_all_in_projection_eur": all_in_projection,
+        "supplier_all_in": bool(financial_projection.get("supplier_all_in")),
+        "epex_is_reference_only": True,
+        "policy": "official_contract_values_only_no_assumptions",
+    }
+
     pages = load_generator_example("pages_3_13")
     pages["meta"].update({
         "month": month_name,
@@ -1601,6 +1690,14 @@ def build_report_adapter_data(
             "self_supply_pct": round(self_supply_pct, 3),
         },
         "files": [str(path) for path in outputs.values()],
+        "financial_report_integration": {
+            "analysis_source": report_financial.get("source"),
+            "projection_status": financial_projection.get("status"),
+            "quality_gate_passed": bool(financial_projection.get("quality_gate_passed")),
+            "supplier_all_in": bool(financial_projection.get("supplier_all_in")),
+            "epex_is_reference_only": True,
+            "example_financial_values_suppressed": True,
+        },
     }
     write_atomic_json(data_folder / "adapter_result.json", result)
     update_state(
@@ -5673,7 +5770,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "10.7.0",
+            "engine_version": "10.8.2",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5720,7 +5817,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "10.7.0",
+            "engine_version": "10.8.2",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5781,7 +5878,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "10.7.0",
+        "engine_version": "10.8.2",
         "target_release": "10.6",
         "thirty_day_variable_projection_logic_ready": True,
         "supplier_all_in_projection_ready": bool(supplier_components_ready and projection_months),
