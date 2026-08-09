@@ -1,6 +1,16 @@
 # Changelog
 
-## v11.3.0 — v11 eindconsolidatie
+## v12.0.0 — financiële beslisondersteuning productie-baseline
+
+- Start v12 vanaf de volledig gevalideerde v11.3.0.
+- Voegt een expliciete beslisondersteuningslaag toe bovenop analyse, prognose en officiële rapportgeneratoren.
+- Primaire doelstelling: aantoonbare energiekostenbesparing.
+- Maandvoorschot €150 wordt als bekende context meegenomen, maar nog niet als kostenprognose geïnterpreteerd.
+- Financiële aanbevelingen blijven geblokkeerd totdat zowel de 7-dagen prognosegate als de vereiste leverancier-all-in contractdata beschikbaar zijn.
+- Geen ontbrekende contractwaarden worden aangenomen; EPEX blijft uitsluitend referentie.
+- Bestaande GUI, watcher, maandworkflow, diagnose- en herstelketen blijven behouden.
+
+## v12.0.0 — v11 eindconsolidatie
 
 - Laatste geplande v11-productiestap.
 - Voegt een expliciete machine-leesbare v11 completion gate toe.
@@ -9,7 +19,7 @@
 - Geen contractwaarden worden ingevuld of afgeleid.
 - Geen wijziging aan bewezen GUI, watcher, maandworkflow, GitHub-publicatie of herstelketen.
 
-## v11.3.0 — guarded report-readiness
+## v12.0.0 — guarded report-readiness
 
 - Bouwt voort op de gevalideerde v11.1.0.
 - Maakt de productiestatus van de officiële rapportgeneratoren expliciet in de analyse-audit.
@@ -18,7 +28,7 @@
 - Ontbrekende financiële waarden blijven zichtbaar als niet beschikbaar en worden niet verzonnen.
 - Geen wijziging aan watcher, GUI/Ingress, automatische maandworkflow of herstelketen.
 
-## v11.3.0 — automatische prognose-activatie
+## v12.0.0 — automatische prognose-activatie
 
 - Bouwt voort op de gevalideerde v11.0.0 productie-baseline.
 - Legt expliciet vast dat de 30-daagse prognose automatisch activeert zodra de bestaande 7-dagen kwaliteitsgrens wordt gehaald.
@@ -27,7 +37,7 @@
 - Verouderde interne target-release 10.6 bijgewerkt naar 11.1.
 - Geen wijziging aan watcher, GUI/Ingress, maandworkflow of herstelketen.
 
-## v11.3.0 — financiële & rapportage productie-baseline
+## v12.0.0 — financiële & rapportage productie-baseline
 
 - Start hoofdversie 11 vanaf de volledig gevalideerde v10.9.1 op Home Assistant 2026.8.2.
 - Consolideert de financiële analyse, prognose-engine en officiële rapportkoppeling als productie-baseline.
@@ -36,14 +46,14 @@
 - EPEX blijft uitsluitend markt-/referentieprijs.
 - Geen wijziging aan de bewezen watcher-, GitHub-, maandworkflow-, diagnose- of herstelketen.
 
-## v11.3.0 — GUI runtime hotfix
+## v12.0.0 — GUI runtime hotfix
 
 - Herstelt de Home Assistant GUI/Ingress-crash uit v10.9.0.
 - Oorzaak: `production_consolidation` verwees naar een niet-bestaande constante `MINIMUM_PROJECTION_OBSERVED_DAYS`.
 - Gebruikt nu de bestaande gevalideerde kwaliteitsgrens van 7.0 dagen zonder nieuwe afhankelijkheid.
 - Financiële logica en rapportintegratie blijven ongewijzigd.
 
-## v11.3.0 — productieconsolidatie financiële keten
+## v12.0.0 — productieconsolidatie financiële keten
 
 - Consolideert de gevalideerde financiële analyse-, prognose- en rapportketen.
 - Voegt expliciete productie-readiness/auditstatus toe aan de analyse-export.
@@ -52,20 +62,20 @@
 - Behoudt officiële rapportintegratie uit 10.8.x, GUI, watcher, maandworkflow, diagnoses en herstelvoorzieningen.
 - Voorbereid als laatste 10.x productiestap vóór v11.0.
 
-## v11.3.0 — watcher checksum-manifest hotfix
+## v12.0.0 — watcher checksum-manifest hotfix
 
 - Herstelt verplicht `SHA256SUMS.json` dat in v10.8.1 ontbrak.
-- Release-identiteit overal 11.3.0.
+- Release-identiteit overal 12.0.0.
 - Functionele inhoud van de financiële rapportintegratie ongewijzigd.
 
-## v11.3.0 — release-identiteit hotfix
+## v12.0.0 — release-identiteit hotfix
 
 - Corrigeert de fout waardoor het v10.8.0-pakket intern nog als v10.7.0 werd gepubliceerd.
-- Add-on/config-versie, APP_VERSION en financiële engine-identiteit zijn nu consistent v11.3.0.
+- Add-on/config-versie, APP_VERSION en financiële engine-identiteit zijn nu consistent v12.0.0.
 - Functionaliteit van v10.8.0 blijft ongewijzigd: officiële financiële rapportintegratie en strikte contractgating.
 - Geen wijzigingen aan watcher, GUI, maandworkflow of herstelvoorzieningen.
 
-## v11.3.0 — officiële financiële rapportintegratie
+## v12.0.0 — officiële financiële rapportintegratie
 
 - Verbindt de gevalideerde financiële analyse met de bestaande officiële rapportgeneratoren.
 - Pagina 2 gebruikt geen financiële voorbeeldwaarden meer als productiedata.

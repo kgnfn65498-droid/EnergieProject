@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "11.3.0"
+    assert cfg_version == app_version == "12.0.0"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "11.3.0"' in config
+    assert 'version: "12.0.0"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "11.3.0"' in config
-    assert 'APP_VERSION = "11.3.0"' in main
+    assert 'version: "12.0.0"' in config
+    assert 'APP_VERSION = "12.0.0"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "11.3.0"' in source
+    assert 'APP_VERSION = "12.0.0"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2433,7 +2433,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "11.3.0"' in source
+    assert 'APP_VERSION = "12.0.0"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -2915,7 +2915,7 @@ def test_v10539_analysis_context_month_loop_has_no_stale_item_reference():
 def test_v1060_financial_projection_engine_is_production_active():
     source = MAIN.read_text(encoding="utf-8")
     assert '"financial_projection"' in source
-    assert '"engine_version": "11.3.0"' in source
+    assert '"engine_version": "12.0.0"' in source
     assert '"stage": "production_active"' in source
     assert '"supplier_all_in_projection_eur": None' in source
     assert '"epex_is_reference_only": True' in source
@@ -2929,7 +2929,7 @@ def test_v1061_contract_all_in_validation_layer():
     assert '"policy": "official_contract_values_only_no_assumptions"' in source
     assert '"missing_components": missing' in source
     assert 'supplier_context["contract_validation"]' in source
-    assert '"engine_version": "11.3.0"' in source
+    assert '"engine_version": "12.0.0"' in source
 
 
 def test_v1070_projection_detail_band_and_calendar_run_rate():
@@ -2940,7 +2940,7 @@ def test_v1070_projection_detail_band_and_calendar_run_rate():
     assert '"projected_30d_variable_cost_band_eur"' in source
     assert '"base_run_rate_plus_minus_15pct"' in source
     assert '"scope": "variable_electricity_only_not_supplier_all_in"' in source
-    assert '"engine_version": "11.3.0"' in source
+    assert '"engine_version": "12.0.0"' in source
 
 def test_v1090_production_consolidation_guardrails():
     main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
@@ -2990,3 +2990,12 @@ def test_v1130_completion_gate_is_explicit_and_does_not_fake_readiness():
     assert '"supplier_all_in": "waiting_for_official_contract_values"' in main
     assert '"observation_gate": "waiting_until_7_days"' in main
     assert '"release_status": "v11_complete_external_data_gates_remain"' in main
+
+def test_v1200_decision_support_is_financially_guarded():
+    main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
+    assert '"v12_decision_support"' in main
+    assert '"objective": "energy_cost_saving"' in main
+    assert '"monthly_advance_eur": 150.0' in main
+    assert '"recommendation_publishable": False' in main
+    assert '"no_assumed_contract_values": True' in main
+    assert '"epex_reference_only": True' in main
