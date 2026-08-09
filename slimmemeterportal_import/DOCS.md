@@ -690,3 +690,15 @@ Deze bundel bevat bewust geen energiebrondata of secrets.
 
 ## v10.5.33 — Financiële readiness
 `financial_readiness` rapporteert welke bouwblokken gereed zijn. `candidate_variable_cost_vs_advance_gap_eur` vergelijkt alleen variabele stroomkosten met het maandvoorschot en is nadrukkelijk geen all-in prognose.
+
+
+## v10.5.34 — NextEnergy contractkosten
+Optioneel bestand: `00_Config/nextenergy_contract_costs.json`.
+
+Ondersteunde velden:
+- `supplier_fixed_costs_eur_per_month`
+- `supplier_markup_eur_per_kwh`
+- `export_compensation_eur_per_kwh`
+- `gas_supplier_formula`
+
+Alle velden mogen `null` zijn. Alleen expliciet ingevulde en valide waarden worden geactiveerd.

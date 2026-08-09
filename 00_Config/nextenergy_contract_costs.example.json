@@ -1,0 +1,14 @@
+{
+  "supplier": "NextEnergy",
+  "effective_from": null,
+  "supplier_fixed_costs_eur_per_month": null,
+  "supplier_markup_eur_per_kwh": null,
+  "export_compensation_eur_per_kwh": null,
+  "gas_supplier_formula": null,
+  "_instructions": [
+    "Vul alleen officiële contractwaarden in.",
+    "Laat onbekende waarden null.",
+    "De software gebruikt geen aannames of standaardtarieven.",
+    "gas_supplier_formula ondersteunt later: type, fixed_eur_per_m3, markup_eur_per_m3, notes."
+  ]
+}

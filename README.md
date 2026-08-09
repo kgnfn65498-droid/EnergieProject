@@ -1,4 +1,4 @@
-# EnergieProject v10.5.33
+# EnergieProject v10.5.34
 
 v10.5.6 bouwt voort op de in Home Assistant geteste v10.5.5-analysebasis en de bewezen stabiele releaseketen.
 
@@ -107,3 +107,7 @@ De Web UI kan nu een compacte release-diagnose downloaden voor actuele én ouder
 
 ## v10.5.33
 Financiële bouwstatus richting 10.6 wordt nu expliciet gemeten. De €150 maandtermijn wordt alleen vergeleken met de kandidaat variabele stroomkosten en nooit als all-in conclusie gebruikt.
+
+
+## v10.5.34
+Officiële NextEnergy-contractcomponenten kunnen nu veilig via een apart configuratiebestand in de financiële motor worden opgenomen. Ontbrekende waarden blijven null.

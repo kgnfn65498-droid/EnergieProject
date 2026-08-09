@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.33"
+APP_VERSION = "10.5.34"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5123,6 +5123,112 @@ def _supplier_contract_context() -> dict[str, Any]:
     }
 
 
+
+CONTRACT_COSTS_FILE = NAS_PROJECT_ROOT / "00_Config" / "nextenergy_contract_costs.json"
+
+
+def load_nextenergy_contract_costs() -> dict[str, Any]:
+    """Lees uitsluitend expliciete NextEnergy-contractwaarden; onbekend blijft null."""
+    result: dict[str, Any] = {
+        "source": str(CONTRACT_COSTS_FILE),
+        "available": False,
+        "valid": False,
+        "supplier": "NextEnergy",
+        "effective_from": None,
+        "supplier_fixed_costs_eur_per_month": None,
+        "supplier_markup_eur_per_kwh": None,
+        "export_compensation_eur_per_kwh": None,
+        "gas_supplier_formula": None,
+        "validation_errors": [],
+    }
+    if not CONTRACT_COSTS_FILE.is_file():
+        result["validation_errors"] = ["contract_costs_file_not_found"]
+        return result
+
+    try:
+        raw = json.loads(CONTRACT_COSTS_FILE.read_text(encoding="utf-8"))
+    except Exception as exc:
+        result["validation_errors"] = [f"contract_costs_file_unreadable:{type(exc).__name__}"]
+        return result
+
+    if not isinstance(raw, dict):
+        result["validation_errors"] = ["contract_costs_file_must_be_json_object"]
+        return result
+
+    result["available"] = True
+    errors: list[str] = []
+    supplier = raw.get("supplier")
+    if supplier not in (None, "NextEnergy"):
+        errors.append("supplier_must_be_NextEnergy")
+    result["supplier"] = supplier or "NextEnergy"
+
+    effective_from = raw.get("effective_from")
+    if effective_from is not None and not isinstance(effective_from, str):
+        errors.append("effective_from_must_be_string")
+    result["effective_from"] = effective_from
+
+    for field in (
+        "supplier_fixed_costs_eur_per_month",
+        "supplier_markup_eur_per_kwh",
+        "export_compensation_eur_per_kwh",
+    ):
+        value = raw.get(field)
+        if value is not None:
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
+                errors.append(f"{field}_must_be_non_negative_number_or_null")
+                value = None
+        result[field] = value
+
+    gas_formula = raw.get("gas_supplier_formula")
+    if gas_formula is not None and not isinstance(gas_formula, dict):
+        errors.append("gas_supplier_formula_must_be_object_or_null")
+        gas_formula = None
+    if isinstance(gas_formula, dict):
+        allowed = {"type", "fixed_eur_per_m3", "markup_eur_per_m3", "notes"}
+        unknown = sorted(set(gas_formula) - allowed)
+        if unknown:
+            errors.append("gas_supplier_formula_unknown_fields:" + ",".join(unknown))
+        for key in ("fixed_eur_per_m3", "markup_eur_per_m3"):
+            value = gas_formula.get(key)
+            if value is not None and (
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or value < 0
+            ):
+                errors.append(f"gas_supplier_formula.{key}_must_be_non_negative_number_or_null")
+    result["gas_supplier_formula"] = gas_formula
+    result["validation_errors"] = errors
+    result["valid"] = not errors
+    return result
+
+
+def apply_nextenergy_contract_costs(supplier_context: dict[str, Any]) -> None:
+    """Koppel alleen gevalideerde contractcomponenten aan het cost model."""
+    contract_costs = load_nextenergy_contract_costs()
+    supplier_context["contract_costs"] = contract_costs
+    model = supplier_context.setdefault("cost_model", {})
+
+    if not contract_costs.get("valid"):
+        model["supplier_fixed_costs_known"] = False
+        model["supplier_markup_known"] = False
+        model["export_compensation_known"] = False
+        model["gas_supplier_formula_known"] = False
+        return
+
+    model["supplier_fixed_costs_known"] = isinstance(
+        contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float)
+    )
+    model["supplier_markup_known"] = isinstance(
+        contract_costs.get("supplier_markup_eur_per_kwh"), (int, float)
+    )
+    model["export_compensation_known"] = isinstance(
+        contract_costs.get("export_compensation_eur_per_kwh"), (int, float)
+    )
+    model["gas_supplier_formula_known"] = isinstance(
+        contract_costs.get("gas_supplier_formula"), dict
+    )
+
+
 def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     months: list[dict[str, Any]] = []
     if MONTH_INPUT_ROOT.is_dir():
@@ -5183,6 +5289,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         if (item.get("financial_context") or {}).get("status") == "partial"
     ]
     supplier_context = _supplier_contract_context()
+    apply_nextenergy_contract_costs(supplier_context)
     supplier_live_connected = bool(
         (supplier_context.get("live_electricity_price") or {}).get("available")
     )
@@ -10005,7 +10112,7 @@ def build_test_package() -> bytes:
         "core_certificate_origin_release": certificate.get("version"),
         "core_certificate_reused": bool(certificate_valid and certificate_core == PRODUCTION_CORE_REVISION and str(certificate.get("version") or "") != APP_VERSION),
         "release_stage": "stable",
-        "target_stable_release": "10.5.33",
+        "target_stable_release": "10.5.34",
     }
 
     summary = {
@@ -10037,7 +10144,7 @@ def build_test_package() -> bytes:
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
         "release_stage": "stable",
-        "target_stable_release": "10.5.33",
+        "target_stable_release": "10.5.34",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",
     }
 
@@ -10104,7 +10211,7 @@ def build_test_package() -> bytes:
         f"Automatische technische beoordeling: {verdict}",
         f"Softwareversie: {APP_VERSION}",
         "Releasefase: Stable",
-        "Doelrelease: 10.5.33",
+        "Doelrelease: 10.5.34",
         f"Gecertificeerde productiekern: {PRODUCTION_CORE_REVISION}",
         f"Gebruikte productiekern: {summary.get('certificate_core_revision') or PRODUCTION_CORE_REVISION}",
         f"Kerncertificaat geldig: {'JA' if summary.get('production_certificate_valid') else 'NEE'}",
@@ -10449,7 +10556,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
   <div class="metric"><small>Laatste analysemaand</small><strong>{esc(analysis_top.get('latest_month'))}</strong><small>Bronnen: {esc(analysis_top.get('latest_sources'))}</small></div>
   <div class="metric"><small>Datakwaliteit</small><strong><span class="pill {'warn' if analysis_top.get('quality') == 'Waarschuwing' else 'ok'}">{esc(analysis_top.get('quality'))}</span></strong><small>{esc(analysis_top.get('warning'))}</small></div>
   <div class="metric"><small>Leverancier</small><strong>NextEnergy</strong><small>Dynamische stroom · variabel gas · voorschot €150</small></div>
-<div class="metric"><small>Financiële bouwstatus</small><strong>Richting 10.6</strong><p class="hint">Verbruikgewogen stroom + prognose-engine aanwezig. All-in blijft geblokkeerd tot vaste kosten, opslag, terugleververgoeding en gasformule zijn gekoppeld.</p></div>
+<div class="metric"><small>Financiële bouwstatus</small><strong>Richting 10.6</strong><p class="hint">Verbruikgewogen stroom + prognose-engine aanwezig. All-in blijft geblokkeerd tot vaste kosten, opslag, terugleververgoeding en gasformule zijn gekoppeld. Officiële contractwaarden kunnen veilig worden ingelezen uit <code>00_Config/nextenergy_contract_costs.json</code>.</p></div>
   <div class="metric"><small>Analysedata</small><strong>Direct beschikbaar</strong><p><a class="button-link" href="download-analysis-data">Download analysedata</a></p><small><a href="analysis-context">Bekijk technische analysecontext</a></small></div>
 <div class="metric"><small>Release-diagnose</small><strong>Ook bij mislukte release</strong><p><a class="button-link secondary" href="download-release-diagnostics">Download release-diagnose</a></p><small>Alleen watcher/publicatie/runtime; geen energiedata.</small></div>
 </div>

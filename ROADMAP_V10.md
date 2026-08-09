@@ -68,3 +68,5 @@
 - v10.5.32: release-/runtime-diagnostiek in Web UI; geen losse NAS/Container Station-logs meer nodig bij releaseproblemen.
 
 - v10.5.33: financiële readiness-matrix + veilige voorschotcontext richting v10.6.
+
+- v10.5.34: gevalideerde contractkosten-ingangslaag voor vaste kosten, opslag, terugleververgoeding en gasformule.

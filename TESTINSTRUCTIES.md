@@ -1,21 +1,23 @@
-# Testinstructies v10.5.33
+# Testinstructies v10.5.34
 
-1. Zet `EnergieProject_v10.5.33.zip` rechtstreeks in `EnergieProject_Inbox/incoming`.
+1. Zet `EnergieProject_v10.5.34.zip` rechtstreeks in `EnergieProject_Inbox/incoming`.
 2. Wacht op automatische verwerking naar `processed`.
-3. Installeer de Home Assistant-update naar 10.5.33.
+3. Installeer de Home Assistant-update naar 10.5.34.
 4. Download **analysedata** en **release-diagnose** en stuur beide hier.
 
-Verwacht:
-- versie 10.5.33;
+Verwacht zonder handmatig contractkostenbestand:
+- versie 10.5.34;
 - gewogen NextEnergy-analyse blijft `weighted_ok`;
-- `financial_readiness` is aanwezig;
-- `financial_readiness.progress_pct` is groter dan 0 maar `decision_ready=false`;
-- `next_required_components` noemt minimaal vaste leverancierskosten, opslag, terugleververgoeding en gasformule;
-- kandidaat 30-dagen variabele stroomkosten blijven beschikbaar voor validatie;
-- `monthly_advance_eur = 150.0`;
-- `advance_comparison_scope = variable_electricity_only_not_all_in`;
-- geen leverancier-all-in prognose zolang contractcomponenten ontbreken;
-- release-diagnose blijft zonder Terminal werken.
+- `supplier_context.contract_costs.available = false`;
+- `supplier_context.contract_costs.valid = false`;
+- validatiefout bevat `contract_costs_file_not_found`;
+- vaste kosten/opslag/terugleververgoeding/gasformule blijven `known=false`;
+- `ready_for_all_in_costs = false`;
+- bestaande financiële readiness blijft correct;
+- release-diagnose blijft werken.
+
+Release bevat:
+`00_Config/nextenergy_contract_costs.example.json`
 
 Juli-EPEX blijft `gedeeltelijk` t/m 2026-07-29.
 Gebruik GEEN Home Assistant Terminal.

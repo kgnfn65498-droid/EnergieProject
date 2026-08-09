@@ -1,5 +1,14 @@
 # Changelog
 
+## 10.5.34
+- Veilige NextEnergy-contractkostenlaag toegevoegd richting v10.6.
+- Nieuwe optionele bron: `00_Config/nextenergy_contract_costs.json`.
+- Vaste leverancierskosten, opslag per kWh, terugleververgoeding en gasformule worden alleen geactiveerd wanneer geldige officiële waarden aanwezig zijn.
+- Onbekende waarden blijven `null`; er worden geen tarieven of aannames verzonnen.
+- `supplier_context.contract_costs` toont bron, geldigheid en validatiefouten.
+- Voorbeeldbestand `00_Config/nextenergy_contract_costs.example.json` toegevoegd.
+- Bestaande gewogen prijs-, prognose- en diagnoseketen blijft werken wanneer het contractkostenbestand ontbreekt.
+
 ## 10.5.33
 - Financiële gereedheidsmatrix toegevoegd richting v10.6.
 - Technische/contractuele bouwblokken worden expliciet als gereed/niet-gereed gerapporteerd.
