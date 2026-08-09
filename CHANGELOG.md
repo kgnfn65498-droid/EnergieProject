@@ -1,19 +1,28 @@
 # Changelog
 
-## v10.8.2 — watcher checksum-manifest hotfix
+## v10.9.0 — productieconsolidatie financiële keten
+
+- Consolideert de gevalideerde financiële analyse-, prognose- en rapportketen.
+- Voegt expliciete productie-readiness/auditstatus toe aan de analyse-export.
+- Bevestigt strikte contractgating: geen leverancier-all-in zonder gevalideerde officiële contractwaarden.
+- Behoudt de 7-dagen kwaliteitsgrens en EPEX als uitsluitend markt-/referentieprijs.
+- Behoudt officiële rapportintegratie uit 10.8.x, GUI, watcher, maandworkflow, diagnoses en herstelvoorzieningen.
+- Voorbereid als laatste 10.x productiestap vóór v11.0.
+
+## v10.9.0 — watcher checksum-manifest hotfix
 
 - Herstelt verplicht `SHA256SUMS.json` dat in v10.8.1 ontbrak.
-- Release-identiteit overal 10.8.2.
+- Release-identiteit overal 10.9.0.
 - Functionele inhoud van de financiële rapportintegratie ongewijzigd.
 
-## v10.8.2 — release-identiteit hotfix
+## v10.9.0 — release-identiteit hotfix
 
 - Corrigeert de fout waardoor het v10.8.0-pakket intern nog als v10.7.0 werd gepubliceerd.
-- Add-on/config-versie, APP_VERSION en financiële engine-identiteit zijn nu consistent v10.8.2.
+- Add-on/config-versie, APP_VERSION en financiële engine-identiteit zijn nu consistent v10.9.0.
 - Functionaliteit van v10.8.0 blijft ongewijzigd: officiële financiële rapportintegratie en strikte contractgating.
 - Geen wijzigingen aan watcher, GUI, maandworkflow of herstelvoorzieningen.
 
-## v10.8.2 — officiële financiële rapportintegratie
+## v10.9.0 — officiële financiële rapportintegratie
 
 - Verbindt de gevalideerde financiële analyse met de bestaande officiële rapportgeneratoren.
 - Pagina 2 gebruikt geen financiële voorbeeldwaarden meer als productiedata.

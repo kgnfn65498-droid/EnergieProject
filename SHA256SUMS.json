@@ -1,35 +1,10 @@
 {
-  "version": "10.8.2",
+  "version": "10.9.0",
   "files": [
     {
       "path": ".gitignore",
       "sha256": "f10529b220b514ca72c66fd592c80ec5b3dea6a0a49f2658d80617824c5aa5e7",
       "size": 103
-    },
-    {
-      "path": ".pytest_cache/.gitignore",
-      "sha256": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
-      "size": 37
-    },
-    {
-      "path": ".pytest_cache/CACHEDIR.TAG",
-      "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4",
-      "size": 191
-    },
-    {
-      "path": ".pytest_cache/README.md",
-      "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad",
-      "size": 302
-    },
-    {
-      "path": ".pytest_cache/v/cache/lastfailed",
-      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-      "size": 2
-    },
-    {
-      "path": ".pytest_cache/v/cache/nodeids",
-      "sha256": "5336d34149d435f1921e0ea84269a60b52110f0ab76cbf059a863f823bab3871",
-      "size": 30668
     },
     {
       "path": "00_Config/nextenergy_contract_costs.example.json",
@@ -38,8 +13,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "40a0e56ff32c72e3809ecfd4de047a4aef5a0b4b1a9a0c4a8ef80a1b5e11b981",
-      "size": 21835
+      "sha256": "ab5a3e796b9c24541261b99c35957416283eb61c1aef6703af64acc652a26935",
+      "size": 22416
     },
     {
       "path": "INSTALL.md",
@@ -73,12 +48,12 @@
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "sha256": "37ca34b0065940414ac1a1ba2777e501fb51affc0d4c15f1d6ef7fb513522f2b",
-      "size": 1064
+      "sha256": "a5199d979be6303f3903b0b843ec5cf597085172e8ab1bdd52fffb1b8aa8c4ab",
+      "size": 839
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "457af6bcb860725c02c36308c43603dd9dd50fdae02abe4d09b1f85541b6431f",
+      "sha256": "b4a3dfddc038552a4141075dfdf5c44d0bff0b0e8b44d2329a232768a1dcbb50",
       "size": 7
     },
     {
@@ -88,7 +63,7 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "7d23780b766e66ef29af6421158d8f9ba172c77d8ef9b83edb9c4f415d6d6b91",
+      "sha256": "a907068a5d765db67bf21726733e9f4845d5f7ffdfcd9cdb1d02fafc63390a11",
       "size": 56935
     },
     {
@@ -108,13 +83,13 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "0c3aea9731a77e45b199b47b848da0ed5fd4d15c83284931acd741d1fe3c30f5",
+      "sha256": "cda29a784e2837e4665f7fe1840e0a828c41d4c0c18099bfa4e4ef41a671b6d7",
       "size": 5740
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "7db5de7c30b02b166cd13579acc3d6b994ff3b91a974d4690ddde8ffd34aff4c",
-      "size": 584942
+      "sha256": "c78f3b1884aa20d02bf4369df861d66222800b66180df1520631c26d77343f36",
+      "size": 585399
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -383,8 +358,8 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "27e3d2e10b6b493c008912fbe0bdb20d853c38950423b37d25e2e2e3c1b981dd",
-      "size": 138845
+      "sha256": "a5091b9c95c4bcf2459e395c293c09114b1ffd8aa69027efe6cf7ec9131e8e87",
+      "size": 139280
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
