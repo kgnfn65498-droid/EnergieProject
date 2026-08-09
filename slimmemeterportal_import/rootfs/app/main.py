@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.6.0"
+APP_VERSION = "10.6.1"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5227,10 +5227,39 @@ def load_nextenergy_contract_costs() -> dict[str, Any]:
     return result
 
 
+def build_contract_validation_status(contract_costs: dict[str, Any]) -> dict[str, Any]:
+    """Maak expliciet zichtbaar welke officiële all-in contractcomponenten ontbreken."""
+    component_checks = {
+        "supplier_fixed_costs": isinstance(contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float)),
+        "supplier_markup": isinstance(contract_costs.get("supplier_markup_eur_per_kwh"), (int, float)),
+        "export_compensation": (
+            isinstance(contract_costs.get("export_compensation_eur_per_kwh"), (int, float))
+            or isinstance(contract_costs.get("export_compensation_formula"), dict)
+        ),
+        "gas_supplier_formula": isinstance(contract_costs.get("gas_supplier_formula"), dict),
+    }
+    missing = [key for key, value in component_checks.items() if not value]
+    file_valid = bool(contract_costs.get("valid"))
+    return {
+        "schema": "nextenergy_contract_validation_v1",
+        "file_available": bool(contract_costs.get("available")),
+        "file_valid": file_valid,
+        "effective_from": contract_costs.get("effective_from"),
+        "components": component_checks,
+        "validated_component_count": sum(1 for value in component_checks.values() if value),
+        "required_component_count": len(component_checks),
+        "missing_components": missing,
+        "all_required_components_present": bool(file_valid and not missing),
+        "validation_errors": list(contract_costs.get("validation_errors") or []),
+        "policy": "official_contract_values_only_no_assumptions",
+    }
+
+
 def apply_nextenergy_contract_costs(supplier_context: dict[str, Any]) -> None:
     """Koppel alleen gevalideerde contractcomponenten aan het cost model."""
     contract_costs = load_nextenergy_contract_costs()
     supplier_context["contract_costs"] = contract_costs
+    supplier_context["contract_validation"] = build_contract_validation_status(contract_costs)
     model = supplier_context.setdefault("cost_model", {})
 
     if not contract_costs.get("valid"):
@@ -5644,7 +5673,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "10.6.0",
+            "engine_version": "10.6.1",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5709,7 +5738,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "10.6.0",
+        "engine_version": "10.6.1",
         "target_release": "10.6",
         "thirty_day_variable_projection_logic_ready": True,
         "supplier_all_in_projection_ready": bool(supplier_components_ready and projection_months),
