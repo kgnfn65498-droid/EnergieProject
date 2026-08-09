@@ -1,21 +1,15 @@
-# Testinstructies v10.5.37
+# Testinstructies v10.5.39
 
-1. Zet `EnergieProject_v10.5.37.zip` in `EnergieProject_Inbox/incoming`.
-2. Wacht op `processed`.
-3. Installeer de Home Assistant-update.
-4. Open de Web UI.
-5. Controleer dat op het hoofdscherm **Rapportage** met knop **Open rapportpagina** zichtbaar is.
-6. Open die pagina en stuur één screenshot.
-7. Download daarna **analysedata** en **release-diagnose** en stuur beide hier.
+1. Zet `EnergieProject_v10.5.39.zip` in `EnergieProject_Inbox/incoming`.
+2. Wacht tot de release naar `processed` is verplaatst en Home Assistant de update ziet.
+3. Installeer v10.5.39 en open daarna direct de Web UI.
+4. Controleer dat de hoofd-GUI opent zonder melding “app lijkt nog niet klaar te zijn”.
+5. Open **Rapportpagina** en controleer dat deze als HTML opent.
+6. Stuur één screenshot van de geopende GUI.
 
-Verwacht:
-- versie 10.5.37;
-- rapportpagina opent als HTML en niet als alleen JSON;
-- rapportstatus en outputinformatie zijn zichtbaar;
-- rapportacties zijn zichtbaar;
-- bestaande analysedata en release-diagnose blijven werken;
-- geen Home Assistant-herstart nodig buiten de normale add-on update.
+Verwacht: versie 10.5.39; GUI en rapportpagina openen; geen `NameError: item is not defined`; achtergrondfuncties blijven draaien.
 
-Juli-EPEX blijft `gedeeltelijk` t/m 2026-07-29.
 Gebruik GEEN Home Assistant Terminal.
 Gebruik GEEN handmatige Git-commit of Git-push.
+
+Juli-EPEX blijft `gedeeltelijk` t/m 2026-07-29.

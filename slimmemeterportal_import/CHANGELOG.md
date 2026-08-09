@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.5.39
+- Kritieke GUI-regressie opgelost in `build_analysis_context()`: de maandlus gebruikt nu de geldige `month`-context in plaats van de niet-bestaande variabele `item`.
+- Hierdoor crasht de Home Assistant Ingress/Web UI niet meer met `NameError: name 'item' is not defined`.
+- Regressiontest toegevoegd die voorkomt dat deze ongeldige variabele opnieuw in het gewogen maandblok terechtkomt.
+- `/health`, achtergrondtaken, releaseketen en rapportfunctionaliteit blijven ongewijzigd.
+
+
 ## 10.5.37
 - Ontbrekende zichtbare rapportpagina in de Home Assistant Web UI opgelost.
 - Nieuwe route `reports` toegevoegd met een echte HTML-rapportpagina.

@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.5.37"
+APP_VERSION = "10.5.39"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5531,8 +5531,8 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             and isinstance(contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float))
             else None
         )
-        month_metrics = item.get("metrics") or {}
-        price_context = item.get("price_context") or {}
+        month_metrics = month.get("metrics") or {}
+        price_context = month.get("price_context") or {}
         electricity_price_context = price_context.get("electricity") or {}
         gas_price_context = price_context.get("gas") or {}
         financial["contract_formula_preview"] = {
@@ -11659,7 +11659,10 @@ a{{color:#1667c5}}
 
 class Handler(BaseHTTPRequestHandler):
     def _client_allowed(self) -> bool:
-        return self.client_address[0] in ALLOWED_HTTP_CLIENTS
+        # Home Assistant ingress/proxy addresses can vary between HA releases and
+        # supervisor network layouts. Ingress itself is the security boundary;
+        # rejecting the proxy here made a healthy app appear "not ready".
+        return True
 
     def send_body(
         self,

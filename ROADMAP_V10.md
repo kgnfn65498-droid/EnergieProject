@@ -76,4 +76,4 @@
 - v10.5.36: contractformulemotor voor terugleververgoeding en gas, nog gated vóór all-in activatie.
 
 - v10.5.37: zichtbare rapportpagina in Home Assistant GUI hersteld.
-- Nog gepland tot v10.6.0: v10.5.38 consolidatie/acceptatie → v10.6.0 financiële productierelease.
+- Nog gepland tot v10.6.0: v10.5.39 consolidatie/acceptatie → v10.6.0 financiële productierelease.
