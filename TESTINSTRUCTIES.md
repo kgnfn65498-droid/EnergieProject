@@ -1,16 +1,14 @@
-# Testinstructies v10.9.1
+# Testinstructies v11.0.0
 
-1. Plaats `EnergieProject_v10.9.1.zip` in `EnergieProject_Inbox/incoming`.
-2. Wacht op verwerking naar `processed`.
-3. Update de Home Assistant-app naar **10.9.1** en controleer GUI/Ingress.
-4. Download **Analyse-export** en **release-diagnose**.
-5. Verwacht in de analyse een `production_consolidation`-blok met guarded production readiness.
-6. Ontbrekende NextEnergy-contractcomponenten moeten nog steeds ontbreken/null blijven.
-7. De prognose moet bij minder dan 7 waargenomen dagen geblokkeerd blijven.
-8. EPEX mag nergens leverancier-all-in worden genoemd.
-
-Gebruik GEEN Home Assistant Terminal en GEEN handmatige Git-commit of Git-push.
+1. Plaats `EnergieProject_v11.0.0.zip` in `EnergieProject_Inbox/incoming`.
+2. Wacht tot de watcher de release naar `processed` verplaatst.
+3. Update de Home Assistant-app naar **11.0.0**.
+4. Controleer GUI/Ingress op Home Assistant **2026.8.2**.
+5. Controleer dat de tegel Financiële bouwstatus nu **Financiële keten productie** toont.
+6. Download Analyse-export en release-diagnose.
+7. Controleer dat `production_consolidation.status` `production_ready_guarded` blijft en `major_release` `11.0` is.
+8. Ontbrekende contractcomponenten moeten null/niet beschikbaar blijven; EPEX blijft referentie.
 
 Gebruik GEEN Home Assistant Terminal.
-Historische EPEX juli 2026 blijft gedeeltelijk met laatste bronrecord 2026-07-29.
 Gebruik GEEN handmatige Git-commit of Git-push.
+Historische EPEX juli 2026 blijft gedeeltelijk met laatste bronrecord 2026-07-29.

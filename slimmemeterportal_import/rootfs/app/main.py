@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "10.9.1"
+APP_VERSION = "11.0.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1574,7 +1574,7 @@ def build_report_adapter_data(
         "gas_total": round(gas_m3 * 12, 1),
     })
 
-    # v10.9.1: officiële pagina-2-generator krijgt uitsluitend gevalideerde
+    # v11.0.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
     # financiële waarden. Voorbeeldtarieven uit het generatorpakket mogen nooit
     # als echte leverancierskosten in een productierapport terechtkomen.
     observed_variable = financial_context.get("observed_variable_electricity_cost_eur")
@@ -5770,7 +5770,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "10.9.1",
+            "engine_version": "11.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5817,7 +5817,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "10.9.1",
+            "engine_version": "11.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5878,7 +5878,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "10.9.1",
+        "engine_version": "11.0.0",
         "target_release": "10.6",
         "thirty_day_variable_projection_logic_ready": True,
         "supplier_all_in_projection_ready": bool(supplier_components_ready and projection_months),
@@ -5959,6 +5959,8 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "epex_reference_only": True,
             "supplier_all_in_requires_validated_contract": True,
             "status": "production_ready_guarded",
+            "major_release": "11.0",
+            "phase": "financial_reporting_production_baseline",
         },
         "scope": {"year_filter": year, "month_count": len(months)},
         "history_span": {
@@ -11023,7 +11025,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
   <div class="metric"><small>Laatste analysemaand</small><strong>{esc(analysis_top.get('latest_month'))}</strong><small>Bronnen: {esc(analysis_top.get('latest_sources'))}</small></div>
   <div class="metric"><small>Datakwaliteit</small><strong><span class="pill {'warn' if analysis_top.get('quality') == 'Waarschuwing' else 'ok'}">{esc(analysis_top.get('quality'))}</span></strong><small>{esc(analysis_top.get('warning'))}</small></div>
   <div class="metric"><small>Leverancier</small><strong>NextEnergy</strong><small>Dynamische stroom · variabel gas · voorschot €150</small></div>
-<div class="metric"><small>Financiële bouwstatus</small><strong>Richting 10.6</strong><p class="hint">Verbruikgewogen stroom + prognose-engine aanwezig. All-in blijft geblokkeerd tot vaste kosten, opslag, terugleververgoeding en gasformule zijn gekoppeld. Officiële contractwaarden kunnen veilig worden ingelezen uit <code>00_Config/nextenergy_contract_costs.json</code>.</p></div>
+<div class="metric"><small>Financiële bouwstatus</small><strong>Financiële keten productie</strong><p class="hint">Analyse, prognose en officiële rapportkoppeling actief. Leverancier-all-in blijft veilig geblokkeerd totdat alle officiële contractcomponenten zijn gevalideerd. Officiële contractwaarden kunnen veilig worden ingelezen uit <code>00_Config/nextenergy_contract_costs.json</code>.</p></div>
   <div class="metric"><small>Analysedata</small><strong>Direct beschikbaar</strong><p><a class="button-link" href="download-analysis-data">Download analysedata</a></p><small><a href="analysis-context">Bekijk technische analysecontext</a></small></div>
 <div class="metric"><small>Release-diagnose</small><strong>Ook bij mislukte release</strong><p><a class="button-link secondary" href="download-release-diagnostics">Download release-diagnose</a></p><small>Alleen watcher/publicatie/runtime; geen energiedata.</small></div>
 </div>
