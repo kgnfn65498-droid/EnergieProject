@@ -1,8 +1,8 @@
 # Changelog
 
-## 18.2.0
-- Financiële uitleglaag gekoppeld aan de officiële rapportuitvoer.
-- Managementsamenvatting, financiële KPI's, financiële simulatie, jaarprognose en maandvoorschotcontrole krijgen dezelfde guarded uitlegcontext.
-- Geblokkeerde én toekomstige publiceerbare financiële waarden vereisen een expliciete reden.
-- Indicatieve candidate-data blijft duidelijk gemarkeerd en mag geen aanbeveling sturen.
-- EPEX blijft zichtbaar als markt-/referentieprijs en nooit als leverancier-all-in.
+## 18.3.0
+- v18 explainability- en auditketen formeel afgerond.
+- Explainability-contract, runtime-uitleg en rapport-handoff als één guarded productie-baseline geconsolideerd.
+- Geblokkeerde en toekomstige publiceerbare financiële adviezen moeten expliciet verklaarbaar blijven.
+- Candidate-data blijft uitsluitend informatief; EPEX uitsluitend markt-/referentieprijs.
+- Externe gates blijven actief: minimaal 7 waargenomen dagen en officiële NextEnergy-contractcomponenten.
