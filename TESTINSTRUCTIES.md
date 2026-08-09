@@ -1,8 +1,8 @@
-# Testinstructies v10.9.0
+# Testinstructies v10.9.1
 
-1. Plaats `EnergieProject_v10.9.0.zip` in `EnergieProject_Inbox/incoming`.
+1. Plaats `EnergieProject_v10.9.1.zip` in `EnergieProject_Inbox/incoming`.
 2. Wacht op verwerking naar `processed`.
-3. Update de Home Assistant-app naar **10.9.0** en controleer GUI/Ingress.
+3. Update de Home Assistant-app naar **10.9.1** en controleer GUI/Ingress.
 4. Download **Analyse-export** en **release-diagnose**.
 5. Verwacht in de analyse een `production_consolidation`-blok met guarded production readiness.
 6. Ontbrekende NextEnergy-contractcomponenten moeten nog steeds ontbreken/null blijven.
