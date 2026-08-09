@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "16.1.0"
+APP_VERSION = "16.2.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1574,7 +1574,7 @@ def build_report_adapter_data(
         "gas_total": round(gas_m3 * 12, 1),
     })
 
-    # v16.1.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
+    # v16.2.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
     # financiële waarden. Voorbeeldtarieven uit het generatorpakket mogen nooit
     # als echte leverancierskosten in een productierapport terechtkomen.
     observed_variable = financial_context.get("observed_variable_electricity_cost_eur")
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "16.1.0",
+            "engine_version": "16.2.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "16.1.0",
+            "engine_version": "16.2.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "16.1.0",
+        "engine_version": "16.2.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6040,6 +6040,28 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "status": "production_ready_guarded",
             "major_release": "11.0",
             "phase": "financial_reporting_production_baseline",
+            "v16_output_runtime_validation": {
+                "objective": "make_runtime_gate_state_auditable_before_official_report_publication",
+                "projection_gate": {
+                    "required_source": "projection_eligibility",
+                    "required_value": "eligible_true",
+                    "blocked_reason_source": "projection_eligibility.reason",
+                },
+                "supplier_all_in_gate": {
+                    "required_source": "contract_validation",
+                    "required_value": "all_required_components_present_true",
+                    "blocked_reason_source": "contract_validation.missing_components",
+                },
+                "decision_gate": {
+                    "required_source": "v12_decision_support",
+                    "required_value": "recommendation_publishable_true",
+                    "blocked_reason_source": "v12_decision_support.reason",
+                },
+                "publication_state_values": ["blocked", "publishable"],
+                "blocked_rendering": "Niet beschikbaar",
+                "numeric_zero_for_blocked_allowed": False,
+                "status": "runtime_validation_active",
+            },
             "v16_output_activation_state": {
                 "projection_gate_source": "projection_eligibility",
                 "projection_publishable_when": "eligible_true",
@@ -6083,7 +6105,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "validation_candidates_publication": "forbidden",
                 "missing_financial_values_policy": "explicit_unavailable_never_zero",
                 "epex_policy": "reference_only",
-                "next_major_release": "16.1.0",
+                "next_major_release": "16.2.0",
                 "release_status": "v15_complete_external_data_gates_remain",
             },
             "v15_report_render_safety": {
