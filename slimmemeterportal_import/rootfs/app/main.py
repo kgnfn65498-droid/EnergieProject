@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "11.0.0"
+APP_VERSION = "11.1.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1574,7 +1574,7 @@ def build_report_adapter_data(
         "gas_total": round(gas_m3 * 12, 1),
     })
 
-    # v11.0.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
+    # v11.1.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
     # financiële waarden. Voorbeeldtarieven uit het generatorpakket mogen nooit
     # als echte leverancierskosten in een productierapport terechtkomen.
     observed_variable = financial_context.get("observed_variable_electricity_cost_eur")
@@ -5205,7 +5205,8 @@ def _supplier_contract_context() -> dict[str, Any]:
             "gas_supplier_formula_known": False,
             "consumption_weighted_import_available": False,
             "projection_ready_months": [],
-            "projection_engine": {"stage": "prepared_gated", "target_release": "10.6", "thirty_day_variable_projection_logic_ready": True, "supplier_all_in_projection_ready": False, "activation_requires_observed_days": 7.0},
+            "projection_engine": {"stage": "prepared_gated", "target_release": "10.6",
+                "current_release_target": "11.1", "thirty_day_variable_projection_logic_ready": True, "supplier_all_in_projection_ready": False, "activation_requires_observed_days": 7.0},
             "projection_observation_status": [],
             "financial_readiness": {"components": {}, "completed_components": 0, "total_components": 0, "progress_pct": 0.0, "decision_ready": False, "next_required_components": []},
             "projection_policy": {"minimum_observed_days": 7.0, "automatic_month_extrapolation": False, "automatic_contract_year_extrapolation": False},
@@ -5770,7 +5771,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "11.0.0",
+            "engine_version": "11.1.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5817,7 +5818,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "11.0.0",
+            "engine_version": "11.1.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5878,8 +5879,9 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "11.0.0",
+        "engine_version": "11.1.0",
         "target_release": "10.6",
+                "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
         "supplier_all_in_projection_ready": bool(supplier_components_ready and projection_months),
         "activation_requires_observed_days": 7.0,
@@ -5961,6 +5963,12 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "status": "production_ready_guarded",
             "major_release": "11.0",
             "phase": "financial_reporting_production_baseline",
+            "forecast_activation": {
+                "mode": "automatic_after_quality_gate",
+                "minimum_observed_days": 7.0,
+                "supplier_all_in_remains_contract_gated": True,
+                "no_manual_override": True,
+            },
         },
         "scope": {"year_filter": year, "month_count": len(months)},
         "history_span": {
