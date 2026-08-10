@@ -1,9 +1,9 @@
 # Changelog
 
-## 21.3.0
-- Financial Action Readiness toegevoegd.
-- Contractwissel, thuisbatterij, apparaatvervanging en load shifting krijgen ieder een afzonderlijke readiness-status.
-- Per actie worden vereiste en ontbrekende inputs expliciet vastgelegd.
-- Financiële evaluatie start alleen met complete gevalideerde inputs.
-- Een actie wordt pas actionable bij een positief, gevalideerd financieel resultaat.
-- Kandidaatwaarden en aannames mogen ontbrekende inputs niet vervangen.
+## 21.4.0
+- Financial Evaluation Contract toegevoegd.
+- Voor contractwissel, thuisbatterij, apparaatvervanging en load shifting is nu vastgelegd welke financiële uitkomst beslissend is.
+- Jaarbesparing is de primaire financiële maatstaf; terugverdientijd of verschuifbaar verbruik is waar relevant secundair.
+- Alleen gevalideerde inputs mogen een financiële evaluatie sturen.
+- Een koop-, wissel- of vervangactie vereist aantoonbaar positieve besparing.
+- Ontbrekende waarden blijven `Niet beschikbaar`; geen aannames of €0-substitutie.
