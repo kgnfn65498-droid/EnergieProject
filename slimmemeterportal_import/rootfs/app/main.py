@@ -53,13 +53,13 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.2"
+APP_VERSION = "32.0.3"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
 
-# v32.0.2: eenduidige 24/7 NAS-layout. De fysieke projectroot bevat uitsluitend
+# v32.0.3: eenduidige 24/7 NAS-layout. De fysieke projectroot bevat uitsluitend
 # de vaste hoofdmappen App, Data, Backups, Inbox en Infra. De Home Assistant-share
 # kan naar de bovenliggende map of rechtstreeks naar EnergieProject wijzen; beide
 # mountvormen worden zonder legacy-foldernamen herkend.
@@ -82,6 +82,7 @@ GITHUB_PRIVATE_KEY = GITHUB_PUBLISH_DIR / "id_ed25519"
 GITHUB_PUBLIC_KEY = GITHUB_PUBLISH_DIR / "id_ed25519.pub"
 GITHUB_KNOWN_HOSTS = GITHUB_PUBLISH_DIR / "known_hosts"
 GITHUB_PUBLISH_STATE = Path("/config/output/github_publication_state.json")
+GITHUB_WORKTREE = GITHUB_PUBLISH_DIR / "worktree"
 NAS_RELEASE_INBOX = NAS_RELEASE_ROOT / "incoming"
 NAS_RELEASE_PROCESSING = NAS_RELEASE_ROOT / "processing"
 NAS_RELEASE_ARCHIVE = NAS_RELEASE_ROOT / "processed"
@@ -5912,7 +5913,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "32.0.2",
+            "engine_version": "32.0.3",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5959,7 +5960,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "32.0.2",
+            "engine_version": "32.0.3",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -6020,7 +6021,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "32.0.2",
+        "engine_version": "32.0.3",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6799,7 +6800,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 },
                 "roadmap_state": "v31_step_4_of_4_chat_voice_completion_and_report_handoff_active_guarded",
                 "v31_release_state": "complete_after_home_assistant_validation",
-                "next_major_release": "32.0.2",
+                "next_major_release": "32.0.3",
                 "status": "v31_chat_voice_completion_and_report_handoff_active_guarded"
             },
             "v32_final_integration_runtime": {
@@ -6900,7 +6901,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "status": "final_validation_gate_active_guarded"
             },
             "release_identity_runtime": {
-                "release_version": "32.0.2",
+                "release_version": "32.0.3",
                 "release_family": "v32_final_integration",
                 "validation_marker": "v32_0_2_runtime_identity",
                 "purpose": "make_home_assistant_runtime_release_identity_explicit_in_energy_analysis",
@@ -7205,7 +7206,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v29_complete_guarded_forecast_calibration_and_publication_chain",
-                "next_major_release": "32.0.2",
+                "next_major_release": "32.0.3",
                 "status": "v29_complete_external_learning_context_and_confidence_gates_remain"
             },
             "v29_calibrated_savings_forecast_runtime": {
@@ -7397,7 +7398,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v28_complete_guarded_execution_outcome_learning_chain",
-                "next_major_release": "32.0.2",
+                "next_major_release": "32.0.3",
                 "status": "v28_complete_external_execution_measurement_and_learning_gates_remain"
             },
             "v28_verified_outcome_portfolio_runtime": {
@@ -7581,7 +7582,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v27_complete_guarded_execution_planning_chain",
-                "next_major_release": "32.0.2",
+                "next_major_release": "32.0.3",
                 "status": "v27_complete_external_data_and_user_action_gates_remain"
             },
             "v27_execution_plan_runtime": {
@@ -7764,7 +7765,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v26_complete_guarded_financial_action_queue_chain",
-                "next_major_release": "32.0.2",
+                "next_major_release": "32.0.3",
                 "status": "v26_complete_external_data_gates_remain"
             },
             "v26_action_queue_runtime": {
@@ -7933,7 +7934,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "reason_and_data_quality_required": True
                 },
                 "roadmap_state": "v25_step_5_of_5_completion_gate_active_guarded",
-                "next_major_release": "32.0.2",
+                "next_major_release": "32.0.3",
                 "status": "v25_complete_external_data_gates_remain"
             },
             "v23_completion_publication_gate": {
@@ -15100,6 +15101,73 @@ def github_publication_status(options=None):
     return result
 
 
+def _remove_path(path: Path):
+    if path.is_symlink() or path.is_file():
+        path.unlink(missing_ok=True)
+    elif path.is_dir():
+        shutil.rmtree(path)
+
+
+def _sync_project_to_github_worktree(source: Path, worktree: Path):
+    """Synchroniseer App-inhoud naar de dedicated HA Git-worktree zonder CIFS-modes over te nemen."""
+    source = source.resolve()
+    worktree.mkdir(parents=True, exist_ok=True)
+
+    source_entries = {p.relative_to(source) for p in source.rglob("*") if ".git" not in p.relative_to(source).parts}
+    for dst in sorted((p for p in worktree.rglob("*") if ".git" not in p.relative_to(worktree).parts), key=lambda p: len(p.parts), reverse=True):
+        rel = dst.relative_to(worktree)
+        if rel not in source_entries:
+            _remove_path(dst)
+
+    for src in sorted((p for p in source.rglob("*") if ".git" not in p.relative_to(source).parts), key=lambda p: len(p.parts)):
+        rel = src.relative_to(source)
+        dst = worktree / rel
+        if src.is_symlink():
+            if dst.exists() or dst.is_symlink():
+                _remove_path(dst)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.symlink_to(os.readlink(src))
+        elif src.is_dir():
+            dst.mkdir(parents=True, exist_ok=True)
+        elif src.is_file():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            existed = dst.exists()
+            shutil.copyfile(src, dst)
+            if not existed:
+                # Nieuwe bestanden krijgen een voorspelbare Git-mode; CIFS presenteert bestanden vaak als 0755.
+                executable = src.suffix in {".sh", ".command"} or src.name in {"run.sh"}
+                dst.chmod(0o755 if executable else 0o644)
+
+
+def _prepare_github_worktree(repo: str, branch: str, env: dict[str, str]):
+    GITHUB_PUBLISH_DIR.mkdir(parents=True, exist_ok=True)
+    if GITHUB_WORKTREE.exists() and not (GITHUB_WORKTREE / ".git").exists():
+        shutil.rmtree(GITHUB_WORKTREE)
+
+    if not GITHUB_WORKTREE.exists():
+        rc, out, err = _run_cmd(
+            ["git", "clone", "--single-branch", "--branch", branch, repo, str(GITHUB_WORKTREE)],
+            cwd=GITHUB_PUBLISH_DIR,
+            env=env,
+            timeout=120,
+        )
+        if rc != 0:
+            return False, f"Git-worktree clone mislukt: {err or out}"
+    else:
+        commands = (
+            ["git", "remote", "set-url", "origin", repo],
+            ["git", "fetch", "origin", branch],
+            ["git", "checkout", "-B", branch, f"origin/{branch}"],
+            ["git", "reset", "--hard", f"origin/{branch}"],
+            ["git", "clean", "-fd"],
+        )
+        for cmd in commands:
+            rc, out, err = _run_cmd(cmd, cwd=GITHUB_WORKTREE, env=env, timeout=120)
+            if rc != 0:
+                return False, f"Git-worktree voorbereiding mislukt: {err or out}"
+    return True, "Git-worktree gereed"
+
+
 def publish_github_release(options=None):
     options = options or {}
     LOGGER.info("GitHub-publicatie: statuscontrole gestart.")
@@ -15112,43 +15180,52 @@ def publish_github_release(options=None):
     branch = str(options.get("github_branch") or "main")
     env = _github_git_env()
 
-    for cmd in (
-        ["git", "-c", f"safe.directory={NAS_PROJECT_ROOT}", "remote", "set-url", "origin", repo],
-        ["git", "-c", f"safe.directory={NAS_PROJECT_ROOT}", "add", "-A"],
-    ):
-        rc, out, err = _run_cmd(cmd, cwd=NAS_PROJECT_ROOT, env=env, timeout=30)
-        if rc != 0:
-            return {**status, "published": False, "message": f"Git-publicatievoorbereiding mislukt: {err or out}"}
+    ready, message = _prepare_github_worktree(repo, branch, env)
+    if not ready:
+        return {**status, "published": False, "message": message}
 
-    rc, out, err = _run_cmd(
-        ["git", "-c", f"safe.directory={NAS_PROJECT_ROOT}", "diff", "--cached", "--quiet"],
-        cwd=NAS_PROJECT_ROOT, env=env, timeout=20,
-    )
+    try:
+        _sync_project_to_github_worktree(NAS_PROJECT_ROOT, GITHUB_WORKTREE)
+    except Exception as exc:
+        return {**status, "published": False, "message": f"Git-worktree synchronisatie mislukt: {exc}"}
+
+    rc, out, err = _run_cmd(["git", "add", "-A"], cwd=GITHUB_WORKTREE, env=env, timeout=60)
+    if rc != 0:
+        return {**status, "published": False, "message": f"Git add mislukt: {err or out}"}
+
+    rc, out, err = _run_cmd(["git", "diff", "--cached", "--quiet"], cwd=GITHUB_WORKTREE, env=env, timeout=30)
+    if rc not in (0, 1):
+        return {**status, "published": False, "message": f"Git diff mislukt: {err or out}"}
     if rc == 1:
         version = status.get("local_version") or "onbekend"
         rc2, out2, err2 = _run_cmd(
-            ["git", "-c", f"safe.directory={NAS_PROJECT_ROOT}",
-             "-c", "user.name=EnergieProject Publisher",
+            ["git", "-c", "user.name=EnergieProject Publisher",
              "-c", "user.email=energieproject@local",
              "commit", "-m", f"v{version}: automatic Home Assistant publication"],
-            cwd=NAS_PROJECT_ROOT, env=env, timeout=60,
+            cwd=GITHUB_WORKTREE, env=env, timeout=60,
         )
         if rc2 != 0:
             return {**status, "published": False, "message": f"Commit mislukt: {err2 or out2}"}
 
-    rc, out, err = _run_cmd(
-        ["git", "-c", f"safe.directory={NAS_PROJECT_ROOT}", "push", "origin", f"HEAD:{branch}"],
-        cwd=NAS_PROJECT_ROOT, env=env, timeout=120,
-    )
-    result = {**status, "published": rc == 0, "push_output": out, "push_error": err}
-    result["message"] = "GitHub-publicatie geslaagd" if rc == 0 else f"GitHub-publicatie mislukt: {err or out}"
+    rc, out, err = _run_cmd(["git", "push", "origin", f"HEAD:{branch}"], cwd=GITHUB_WORKTREE, env=env, timeout=120)
+    result = {**status, "published": rc == 0, "push_output": out, "push_error": err, "worktree": str(GITHUB_WORKTREE)}
+    if rc == 0:
+        local_rc, local_out, _ = _run_cmd(["git", "rev-parse", "HEAD"], cwd=GITHUB_WORKTREE, env=env, timeout=20)
+        remote_rc, remote_out, _ = _run_cmd(["git", "ls-remote", "origin", f"refs/heads/{branch}"], cwd=GITHUB_WORKTREE, env=env, timeout=20)
+        local_head = local_out.strip() if local_rc == 0 else ""
+        remote_head = remote_out.split()[0] if remote_rc == 0 and remote_out else ""
+        result["local_head"] = local_head
+        result["remote_head"] = remote_head
+        result["published"] = bool(local_head and local_head == remote_head)
+        result["message"] = "GitHub-publicatie geslaagd" if result["published"] else "GitHub-push uitgevoerd maar remote verificatie wijkt af"
+    else:
+        result["message"] = f"GitHub-publicatie mislukt: {err or out}"
     try:
         GITHUB_PUBLISH_STATE.parent.mkdir(parents=True, exist_ok=True)
         GITHUB_PUBLISH_STATE.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     except Exception:
         pass
     return result
-
 
 def _write_github_publish_state(payload):
     try:

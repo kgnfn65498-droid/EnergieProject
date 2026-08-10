@@ -1,4 +1,10 @@
-## v32.0.2 — definitieve NAS-layoutcorrectie en regressiecontrole
+## 32.0.3 - Home Assistant GitHub publisher worktree fix
+- Herstelt automatische HA→GitHub-publicatie na de NAS-layoutmigratie.
+- Publicatie gebruikt een dedicated persistente Git-worktree onder `/config/github_publisher/worktree`; `EnergieProject/App` blijft bewust zonder `.git`.
+- Synchroniseert uitsluitend App-inhoud en verifieert na push dat lokale en remote HEAD gelijk zijn.
+- Voorkomt CIFS executable-bit vervuiling bij nieuwe bestanden.
+
+## v32.0.3 — definitieve NAS-layoutcorrectie en regressiecontrole
 - Release-installatie is aangepast aan de definitieve NAS-structuur `EnergieProject/{App,Data,Backups,Inbox,Infra}`.
 - De installer vervangt uitsluitend `App`, zodat `Data`, `Backups`, `Inbox` en `Infra` nooit door een software-update worden gewist.
 - Watcher, bootstrap, Home Assistant infrastructuurdiagnose, GitHub-publicatiepad, EPEX-lokalisatie en noodherstel gebruiken dezelfde layout.
