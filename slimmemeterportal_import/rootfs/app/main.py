@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "21.1.0"
+APP_VERSION = "21.2.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1574,7 +1574,7 @@ def build_report_adapter_data(
         "gas_total": round(gas_m3 * 12, 1),
     })
 
-    # v21.1.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
+    # v21.2.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
     # financiële waarden. Voorbeeldtarieven uit het generatorpakket mogen nooit
     # als echte leverancierskosten in een productierapport terechtkomen.
     observed_variable = financial_context.get("observed_variable_electricity_cost_eur")
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "21.1.0",
+            "engine_version": "21.2.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "21.1.0",
+            "engine_version": "21.2.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "21.1.0",
+        "engine_version": "21.2.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6126,6 +6126,57 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "roadmap_state": "v20_savings_opportunities_can_be_prioritized_when_financially_complete",
                 "status": "savings_priority_engine_active_guarded"
             },
+            "v21_blocked_dependency_runtime": {
+                "objective": "make_the_current_blocking_financial_dependencies_explicit_and_actionable_without_bypassing_gates",
+                "source_gate_resolution": "v21_runtime_gate_resolution",
+                "dependency_groups": {
+                    "observation": {
+                        "source": "projection_eligibility",
+                        "required_fields": [
+                            "eligible",
+                            "observed_days",
+                            "minimum_observed_days",
+                            "remaining_observation_days",
+                            "reason"
+                        ],
+                        "user_message": "Wachten op voldoende meetdekking"
+                    },
+                    "supplier_contract": {
+                        "source": "contract_validation",
+                        "required_fields": [
+                            "all_required_components_present",
+                            "missing_components",
+                            "validation_errors"
+                        ],
+                        "user_message": "Wachten op officiële leveranciercontractgegevens"
+                    },
+                    "opportunity_inputs": {
+                        "source": "v20_savings_opportunity_engine",
+                        "required_fields": [
+                            "required_inputs",
+                            "missing_inputs"
+                        ],
+                        "user_message": "Wachten op complete besparingsanalyse-inputs"
+                    }
+                },
+                "resolution_policy": {
+                    "show_only_real_blockers": True,
+                    "preserve_gate_order": True,
+                    "do_not_infer_missing_contract_values": True,
+                    "do_not_promote_candidate_values": True,
+                    "automatic_refresh_after_new_data": True
+                },
+                "report_contract": {
+                    "current_state": "resolved_runtime_state",
+                    "primary_blocker": "first_unresolved_dependency_or_null",
+                    "blocked_dependencies": "all_unresolved_dependencies",
+                    "remaining_observation_days": "validated_value_or_null",
+                    "missing_contract_components": "validated_list_or_empty",
+                    "missing_opportunity_inputs": "validated_list_or_empty",
+                    "blocked_rendering": "Niet beschikbaar"
+                },
+                "status": "blocked_dependency_runtime_active_guarded"
+            },
             "v21_runtime_gate_resolution": {
                 "objective": "resolve_the_current_financial_action_runtime_state_from_external_and_opportunity_gates",
                 "source_runtime": "v21_financial_action_runtime",
@@ -6191,7 +6242,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "candidate_value_policy": "informational_only_never_primary_report_value",
                 "missing_value_policy": "explicit_unavailable_never_zero",
                 "epex_policy": "market_reference_only",
-                "next_major_release": "21.1.0",
+                "next_major_release": "21.2.0",
                 "release_status": "v20_complete_external_data_gates_remain",
             },
             "v20_report_publication_state": {
@@ -6277,7 +6328,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "epex_policy": "market_reference_only",
                 "automatic_transition_after_external_gates": True,
                 "manual_override_allowed": False,
-                "next_major_release": "21.1.0",
+                "next_major_release": "21.2.0",
                 "release_status": "v19_complete_external_data_gates_remain",
             },
             "v19_report_action_quality_context": {
@@ -6359,7 +6410,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "epex_policy": "market_reference_only",
                 "observation_gate_dependency": "minimum_7_observed_days",
                 "supplier_all_in_dependency": "official_contract_values_required",
-                "next_major_release": "21.1.0",
+                "next_major_release": "21.2.0",
                 "release_status": "v18_complete_external_data_gates_remain",
             },
             "v18_report_explanation_handoff": {
@@ -6441,7 +6492,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "candidate_values_publication": "forbidden",
                 "epex_policy": "reference_only",
                 "blocked_value_policy": "explicit_unavailable_never_zero",
-                "next_major_release": "21.1.0",
+                "next_major_release": "21.2.0",
                 "release_status": "v17_complete_external_data_gates_remain",
             },
             "v17_recommendation_publication_gate": {
@@ -6518,7 +6569,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "blocked_value_policy": "explicit_unavailable_never_zero",
                 "manual_override_allowed": False,
                 "epex_policy": "reference_only",
-                "next_major_release": "21.1.0",
+                "next_major_release": "21.2.0",
                 "release_status": "v16_complete_external_data_gates_remain",
             },
             "v16_output_runtime_validation": {
@@ -6586,7 +6637,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "validation_candidates_publication": "forbidden",
                 "missing_financial_values_policy": "explicit_unavailable_never_zero",
                 "epex_policy": "reference_only",
-                "next_major_release": "21.1.0",
+                "next_major_release": "21.2.0",
                 "release_status": "v15_complete_external_data_gates_remain",
             },
             "v15_report_render_safety": {

@@ -1,8 +1,8 @@
 # Changelog
 
-## 21.1.0
-- Financial Action Runtime uitgebreid met expliciete runtime-gate-resolutie.
-- Vaste volgorde: meetkwaliteit → officiële contractdata → opportunity-inputs → actionable.
-- Automatische overgang zodra een externe gate werkelijk is gehaald.
-- Geen gedeeltelijke of kandidaatwaarden mogen een actie publiceren.
-- Ontbrekende financiële waarden blijven `Niet beschikbaar`; nooit €0-substitutie.
+## 21.2.0
+- Blocked Dependency Runtime toegevoegd.
+- De financiële actieketen maakt nu expliciet zichtbaar welke echte afhankelijkheid de volgende stap blokkeert.
+- Meetdekking, officiële leveranciercontractdata en opportunity-inputs worden afzonderlijk en in vaste volgorde gevolgd.
+- Alleen werkelijk ontbrekende afhankelijkheden worden gemeld; kandidaatwaarden of aannames mogen geen gate openen.
+- Automatische verversing na nieuwe meet- of contractgegevens blijft actief.
