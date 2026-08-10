@@ -1,3 +1,8 @@
+## v29.1.0 — calibrated savings forecast
+- v29 stap 2/4: gevalideerde kalibratie wordt vertaald naar toekomstige besparingsprognoses.
+- Actuals, businesscase en forecast blijven afzonderlijke financiële lagen.
+- Onzekerheid blijft zichtbaar; negatieve forecastaanpassingen worden behouden.
+
 ## v29.0.0 — guarded forecast calibration
 - Start v29 met gecontroleerde kalibratie van toekomstige energie- en financiële prognoses.
 - Historische actuals blijven immutable; forecast-aanpassingen worden afzonderlijk opgeslagen en gepubliceerd.

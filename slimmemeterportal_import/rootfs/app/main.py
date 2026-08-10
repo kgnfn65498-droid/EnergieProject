@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "29.0.0"
+APP_VERSION = "29.1.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "29.0.0",
+            "engine_version": "29.1.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "29.0.0",
+            "engine_version": "29.1.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "29.0.0",
+        "engine_version": "29.1.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6514,6 +6514,63 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "next_step": "v25_report_publication_runtime",
                 "status": "monthly_budget_impact_runtime_active_guarded"
             },
+            "v29_calibrated_savings_forecast_runtime": {
+                "objective": "apply_only_validated_forecast_calibration_to_future_savings_expectations_while_preserving_actuals_business_cases_and_uncertainty",
+                "roadmap_step": "2/4",
+                "source_runtime": "v29_forecast_calibration_runtime",
+                "forecast_contract": {
+                    "validated_calibration_required": True,
+                    "historical_actuals_immutable": True,
+                    "business_case_value_preserved_separately": True,
+                    "calibrated_forecast_separate_from_realized_savings": True,
+                    "uncertainty_required": True,
+                    "confidence_required": True,
+                    "forecast_horizon_required": True,
+                    "evidence_references_required": True
+                },
+                "forecast_states": {
+                    "blocked": "validated_calibration_not_available",
+                    "candidate": "calibration_exists_but_required_context_or_confidence_incomplete",
+                    "validated": "calibration_context_confidence_and_horizon_validated",
+                    "hold": "validated_calibration_does_not_justify_change"
+                },
+                "forecast_item_contract": {
+                    "domain": "validated_domain_required",
+                    "forecast_state": "required",
+                    "business_case_savings_eur": "validated_reference_value_or_null",
+                    "prior_forecast_savings_eur": "validated_forecast_or_null",
+                    "calibrated_forecast_savings_eur": "validated_value_or_null",
+                    "forecast_variance_eur": "validated_calibrated_minus_prior_or_null",
+                    "forecast_horizon": "validated_period_required",
+                    "uncertainty": "validated_range_or_state_required",
+                    "confidence": "required",
+                    "evidence_references": "required",
+                    "primary_blocker": "validated_blocker_or_null",
+                    "data_quality": "required"
+                },
+                "financial_guardrails": {
+                    "calibrated_forecast_may_not_become_realized_savings": True,
+                    "candidate_values_may_not_become_validated_forecast": True,
+                    "historical_actuals_rewrite_allowed": False,
+                    "automatic_annualization_from_short_window": False,
+                    "partial_period_promotion_allowed": False,
+                    "zero_substitution_allowed": False,
+                    "double_counting_allowed": False,
+                    "negative_forecast_adjustment_preserved": True,
+                    "manual_financial_override_allowed": False
+                },
+                "publication_policy": {
+                    "publish_only_validated_calibrated_forecast": True,
+                    "actuals_business_case_and_forecast_visibly_separate": True,
+                    "uncertainty_visible_when_forecast_published": True,
+                    "blocked_numeric_value": None,
+                    "blocked_rendering": "Niet beschikbaar",
+                    "audit_trail_required": True
+                },
+                "roadmap_state": "v29_step_2_of_4_calibrated_savings_forecast_runtime_active_guarded",
+                "next_step": "v29_forecast_publication_runtime",
+                "status": "calibrated_savings_forecast_runtime_active_guarded"
+            },
             "v29_forecast_calibration_runtime": {
                 "objective": "calibrate_future_energy_and_financial_forecasts_from_repeated_validated_outcomes_without_erasing_observed_history_or_promoting_low_quality_signals",
                 "roadmap_step": "1/4",
@@ -6646,7 +6703,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v28_complete_guarded_execution_outcome_learning_chain",
-                "next_major_release": "29.0.0",
+                "next_major_release": "29.1.0",
                 "status": "v28_complete_external_execution_measurement_and_learning_gates_remain"
             },
             "v28_verified_outcome_portfolio_runtime": {
@@ -6830,7 +6887,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v27_complete_guarded_execution_planning_chain",
-                "next_major_release": "29.0.0",
+                "next_major_release": "29.1.0",
                 "status": "v27_complete_external_data_and_user_action_gates_remain"
             },
             "v27_execution_plan_runtime": {
@@ -7013,7 +7070,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v26_complete_guarded_financial_action_queue_chain",
-                "next_major_release": "29.0.0",
+                "next_major_release": "29.1.0",
                 "status": "v26_complete_external_data_gates_remain"
             },
             "v26_action_queue_runtime": {
@@ -7182,7 +7239,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "reason_and_data_quality_required": True
                 },
                 "roadmap_state": "v25_step_5_of_5_completion_gate_active_guarded",
-                "next_major_release": "29.0.0",
+                "next_major_release": "29.1.0",
                 "status": "v25_complete_external_data_gates_remain"
             },
             "v23_completion_publication_gate": {
@@ -14241,7 +14298,7 @@ window.addEventListener('load',()=>{{
 </main></body></html>""".encode("utf-8")
 
 
-ALLOWED_HTTP_CLIENTS = {"172.30.32.2", "129.0.0.1", "::1"}
+ALLOWED_HTTP_CLIENTS = {"172.30.32.2", "129.1.0.1", "::1"}
 
 
 
