@@ -1,3 +1,13 @@
+## v30.3.1 — release identity validation
+- Correctieve build nadat de HA-analyse nog 30.2.0 rapporteerde.
+- Expliciete runtime release-identiteit toegevoegd zodat updateherkenning direct controleerbaar is.
+- Geen nieuwe roadmapfunctionaliteit; v30 blijft op completion stap 4/4.
+
+## v30.3.0 — v30 guarded completion gate
+- v30 stap 4/4: completion gate voor de volledige optimalisatieketen.
+- Controleert kandidaat → selectie → uitvoeringsplan als één traceerbare keten.
+- Externe acties blijven expliciet door de gebruiker geautoriseerd; geen verzonnen financiële waarden.
+
 ## v30.2.0 — guarded optimization execution plan
 - v30 stap 3/4: traceerbaar uitvoeringsplan voor één gevalideerde optimalisatie.
 - Meetbaseline, succesmetric en rollback-gate verplicht.
