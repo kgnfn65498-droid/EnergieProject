@@ -1,8 +1,8 @@
 # Changelog
 
-## 28.0.0
-- Start v28 met guarded Execution Outcome Verification Runtime.
-- Verifieert gebruikersuitvoering, baseline, post-action meting en financiële uitkomst voordat gerealiseerde besparing wordt geaccepteerd.
-- Zelfrapportage alleen kan nooit gerealiseerde besparing creëren.
-- Geen automatische annualisatie vanuit korte meetvensters.
-- Behoudt alle bestaande financiële, data-quality en gebruikersautorisatiegates.
+## 28.2.0
+- Bundelt v28 stap 3/4 en 4/4 in één grotere completion-release.
+- Voeg guarded Outcome Learning Runtime toe.
+- Sluit v28 af met Completion Gate.
+- Modelaanpassingen vereisen herhaalde gevalideerde uitkomsten; één event of kort meetvenster is onvoldoende.
+- Negatieve gerealiseerde uitkomsten blijven behouden en auditbaar.

@@ -1,3 +1,14 @@
+## v28.2.0 — outcome learning + v28 completion
+- Bundelt v28 stap 3/4 en 4/4.
+- Leert uitsluitend uit herhaalde, gevalideerde uitvoering- en meetuitkomsten.
+- Geen modelrewrite vanuit één gebeurtenis, kandidaatwaarde of kort meetvenster.
+- Volgende major release: v29.0.0.
+
+## v28.1.0 — verified outcome portfolio
+- v28 stap 2/4: traceerbare portfolio van uitsluitend gevalideerde gerealiseerde uitkomsten.
+- Geen estimate-promotie, dubbeltelling, automatische overlapverdeling of annualisatie.
+- Negatieve uitkomsten worden niet weggefilterd.
+
 ## v28.0.0 — guarded execution outcome verification
 - Start v28 met gesloten-lus verificatie van uitgevoerde energieacties.
 - Accepteert gerealiseerde besparing alleen na valide uitvoeringsbewijs en vergelijkbare voor/na-meting.
