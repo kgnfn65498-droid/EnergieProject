@@ -262,7 +262,9 @@ else
   FINAL_DETAIL="QNAP ZIP-modus zonder git"
 fi
 WORKTREE_REPLACED=0
-mv "$ZIP_WORK" "$PROCESSED/"
+CANONICAL_PROCESSED="$PROCESSED/EnergieProject_v${NEW_VERSION}.zip"
+rm -f "$CANONICAL_PROCESSED"
+mv "$ZIP_WORK" "$CANONICAL_PROCESSED"
 ZIP_WORK=""
-log "SUCCES: $CURRENT_VERSION -> $NEW_VERSION; $FINAL_DETAIL; ZIP gearchiveerd in processed."
+log "SUCCES: $CURRENT_VERSION -> $NEW_VERSION; $FINAL_DETAIL; ZIP canoniek gearchiveerd als EnergieProject_v${NEW_VERSION}.zip in processed."
 schedule_watcher_refresh

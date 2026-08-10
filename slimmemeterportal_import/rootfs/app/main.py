@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "24.2.0"
+APP_VERSION = "24.3.1"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "24.2.0",
+            "engine_version": "24.3.1",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "24.2.0",
+            "engine_version": "24.3.1",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "24.2.0",
+        "engine_version": "24.3.1",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6274,6 +6274,54 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "roadmap_state": "v24_step_3_of_5_realized_savings_runtime_active_guarded",
                 "next_step": "v24_variance_learning_runtime",
                 "status": "realized_savings_runtime_active_guarded"
+            },
+            "v24_variance_learning_runtime": {
+                "objective": "compare_validated_realized_savings_with_the_original_business_case_and_learn_only_from_traceable_measured_variance",
+                "source_realized_savings_runtime": "v24_realized_savings_runtime",
+                "roadmap_step": "4/5",
+                "learning_states": ["waiting_for_realized_savings", "variance_pending", "variance_validated", "learning_available"],
+                "variance_policy": {
+                    "validated_realized_savings_required": True,
+                    "original_business_case_reference_required": True,
+                    "comparable_period_and_scope_required": True,
+                    "variance_must_be_derived_from_validated_values": True,
+                    "positive_or_negative_variance_must_be_preserved": True,
+                    "candidate_values_may_not_drive_learning": True,
+                    "missing_values_may_not_be_assumed": True,
+                    "zero_substitution_allowed": False,
+                    "automatic_refresh_after_new_measurements": True,
+                    "manual_financial_override_allowed": False
+                },
+                "learning_policy": {
+                    "learning_may_adjust_future_assumptions_only_after_repeated_validated_evidence": True,
+                    "single_short_window_may_not_rewrite_financial_model": True,
+                    "seasonality_and_usage_context_must_be_preserved": True,
+                    "supplier_contract_changes_must_remain_separately_validated": True,
+                    "audit_trail_required_for_model_adjustment": True
+                },
+                "variance_learning_output_contract": {
+                    "learning_state": "required",
+                    "action_id": "stable_traceable_identifier_required",
+                    "domain": "validated_source_domain_or_null",
+                    "business_case_savings_eur": "validated_original_value_or_null",
+                    "realized_savings_eur": "validated_measured_value_or_null",
+                    "variance_eur": "validated_realized_minus_business_case_or_null",
+                    "variance_pct": "validated_value_or_null_when_denominator_valid",
+                    "variance_reason": "validated_explanation_or_null",
+                    "future_model_adjustment": "guarded_adjustment_or_null",
+                    "evidence_reference": "validated_reference_or_null",
+                    "primary_blocker": "validated_blocker_or_null",
+                    "data_quality": "required"
+                },
+                "report_handoff": {
+                    "page1_management_summary": "validated_learning_signal_or_guarded_wait",
+                    "page1_financial_kpis": "validated_realized_and_variance_values_only",
+                    "page2_financial_analysis": "business_case_realized_result_variance_and_explanation",
+                    "pages3_13_context": "learning_evidence_context_quality_and_audit_trail"
+                },
+                "roadmap_state": "v24_step_4_of_5_variance_learning_runtime_active_guarded",
+                "next_step": "v24_completion_gate",
+                "status": "variance_learning_runtime_active_guarded"
             },
             "v23_completion_publication_gate": {
                 "objective": "close_v23_with_one_guarded_auditable_savings_portfolio_recommendation_publication_chain_ready_for_v24",
@@ -13517,10 +13565,13 @@ def _github_publication_loop(stop_event):
             if enabled:
                 version_path = NAS_PROJECT_ROOT / "VERSIE.txt"
                 version = version_path.read_text(encoding="utf-8").strip() if version_path.exists() else ""
-                processed = NAS_RELEASE_ROOT / "processed" / f"EnergieProject_v{version}.zip" if version else None
+                processed_dir = NAS_RELEASE_ROOT / "processed"
+                processed_candidates = []
+                if version and processed_dir.exists():
+                    processed_candidates = sorted(processed_dir.glob(f"EnergieProject_v{version}*.zip"))
                 if not version:
                     LOGGER.warning("GitHub-publisher: VERSIE.txt ontbreekt of is leeg.")
-                elif not processed or not processed.exists():
+                elif not processed_candidates:
                     LOGGER.info("GitHub-publisher: release %s nog niet in processed.", version)
                 elif version != last_seen:
                     LOGGER.info("GitHub-publisher: publicatiepoging voor v%s gestart.", version)

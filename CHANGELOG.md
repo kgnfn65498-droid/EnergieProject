@@ -1,3 +1,8 @@
+## v24.3.1
+- Herstelt NAS→GitHub→Home Assistant publicatie wanneer browser/QNAP een releasebestand als `(1)`/`(2)` archiveert.
+- Publisher accepteert voortaan alle verifieerbare `EnergieProject_v<versie>*.zip` bestanden in `processed`.
+- Installer archiveert toekomstige releases canoniek als `EnergieProject_v<versie>.zip`.
+
 # Changelog
 
 ## v24.2.0 — guarded realized savings
