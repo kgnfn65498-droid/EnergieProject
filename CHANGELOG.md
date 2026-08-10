@@ -1,3 +1,10 @@
+## v32.0.4 — GitHub publisher status-state cleanup
+
+- Voorkomt recursieve `last_publication`-nesting in `/config/output/github_publication_state.json`.
+- Houdt de dedicated Home Assistant Git-worktree en automatische HA→GitHub-publicatie ongewijzigd actief.
+- Corrigeert de v32 release-identiteitsmarker naar v32.0.4.
+- Geen wijzigingen aan energiegegevens, rapportlogica, financiële gates, NAS-layout of Home Assistant-mounts.
+
 ## 32.0.3 - Home Assistant GitHub publisher worktree fix
 - Herstelt automatische HA→GitHub-publicatie na de NAS-layoutmigratie.
 - Publicatie gebruikt een dedicated persistente Git-worktree onder `/config/github_publisher/worktree`; `EnergieProject/App` blijft bewust zonder `.git`.
