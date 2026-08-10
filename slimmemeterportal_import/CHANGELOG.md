@@ -1,8 +1,8 @@
 # Changelog
 
-## 22.5.0
-- Decision Publication Payload Runtime toegevoegd.
-- Guarded beslisstatus wordt nu omgezet naar één expliciete, auditeerbare gebruikerspayload.
-- Blocked en informational leveren uitsluitend `wait_for_data`; alleen publishable kan een financieel wijzigingsadvies dragen.
-- Rapporthandoff voor managementsamenvatting, financiële KPI's en financiële aanbeveling is expliciet vastgelegd.
-- Kandidaatwaarden komen nooit in de actiepayload; ontbrekende bedragen blijven null/`Niet beschikbaar`.
+## 22.6.0
+- v22 Completion Gate toegevoegd.
+- De volledige financiële beslisketen van decision runtime tot auditeerbare publication payload is formeel afgesloten.
+- Externe datagates mogen nog gesloten zijn zonder de technische v22-keten onvolledig te maken.
+- Automatische overgang blijft actief zodra meetdekking, officiële contractgegevens en complete opportunity-inputs beschikbaar zijn.
+- v22 is hiermee gereed voor de v23-ontwikkelfase.
