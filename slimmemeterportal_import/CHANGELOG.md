@@ -1,8 +1,8 @@
 # Changelog
 
-## 27.2.0
-- Bundelt v27 stap 3/4 en 4/4 in één grotere completion-release.
-- Voeg guarded Execution Plan Publication Runtime toe.
-- Sluit v27 af met Completion Gate.
-- Maximaal drie primaire plannen; externe uitvoering blijft altijd achter gebruikersactie en validatiegates.
-- Geen promotie van kandidaatwaarden, gedeeltelijke perioden of ontbrekende financiële waarden.
+## 28.0.0
+- Start v28 met guarded Execution Outcome Verification Runtime.
+- Verifieert gebruikersuitvoering, baseline, post-action meting en financiële uitkomst voordat gerealiseerde besparing wordt geaccepteerd.
+- Zelfrapportage alleen kan nooit gerealiseerde besparing creëren.
+- Geen automatische annualisatie vanuit korte meetvensters.
+- Behoudt alle bestaande financiële, data-quality en gebruikersautorisatiegates.

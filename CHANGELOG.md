@@ -1,3 +1,8 @@
+## v28.0.0 — guarded execution outcome verification
+- Start v28 met gesloten-lus verificatie van uitgevoerde energieacties.
+- Accepteert gerealiseerde besparing alleen na valide uitvoeringsbewijs en vergelijkbare voor/na-meting.
+- Bewaart negatieve financiële uitkomsten en verbiedt dubbeltelling en short-window annualisatie.
+
 ## v27.2.0 — execution plan publication + v27 completion
 - Bundelt v27 stap 3/4 en 4/4.
 - Publiceert maximaal drie guarded uitvoeringsplannen naar officiële rapportsurfaces.
