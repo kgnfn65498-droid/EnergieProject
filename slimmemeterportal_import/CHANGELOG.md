@@ -1,9 +1,8 @@
 # Changelog
 
-## 21.6.0
-- v21 Financial Action Runtime afgerond.
-- Complete keten vastgelegd: runtime → gates → blockers → readiness → financiële evaluatie → actieselectie.
-- Contractwissel, thuisbatterij, apparaatvervanging en load shifting blijven volledig guarded.
-- Externe meet-, contract- en inputgates worden automatisch herbeoordeeld maar nooit omzeild.
-- Alleen complete positieve financiële businesscases mogen worden gepubliceerd.
-- v21 is gereed voor overgang naar v22.
+## 22.0.0
+- v22 gestart met Financial Decision Runtime.
+- De complete v21-actieketen is gekoppeld aan een runtimebeslissing met controleerbare euro-impact.
+- Ondersteunde beslissingen: contract wisselen, batterij kopen, apparaat vervangen, verbruik verschuiven, behouden of wachten op data.
+- Een wijzigingsadvies vereist een complete positieve gevalideerde businesscase en geopende externe gates.
+- Ontbrekende of kandidaatwaarden mogen geen beslissing sturen.

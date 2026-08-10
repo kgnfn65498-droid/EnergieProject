@@ -1,16 +1,16 @@
-# Testinstructies v21.6.0
+# Testinstructies v22.0.0
 
-1. Plaats `EnergieProject_v21.6.0.zip` in `EnergieProject_Inbox/incoming` en wacht op `processed`.
+1. Plaats `EnergieProject_v22.0.0.zip` in `EnergieProject_Inbox/incoming` en wacht op `processed`.
 2. Update in Home Assistant en controleer GUI/Ingress.
 3. Download Analyse-export en release-diagnose.
-4. Controleer `v21_completion_gate.status = v21_complete_external_data_gates_remain`.
-5. Controleer `roadmap_state = v21_complete_guarded_financial_action_chain_ready_for_v22`.
-6. Alle zes v21-lagen moeten `ready_guarded` zijn.
-7. De vier actietypen moeten intact blijven: contractwissel, thuisbatterij, apparaatvervanging en load shifting.
-8. Externe meet-, contract- en opportunity-inputgates mogen niet worden omzeild.
-9. Ontbrekende bedragen blijven null/`Niet beschikbaar`; nooit €0.
-10. EPEX blijft uitsluitend markt-/referentieprijs.
-11. Historische EPEX juli 2026 blijft gedeeltelijk t/m 2026-07-29.
+4. Controleer `v22_financial_decision_runtime.status = financial_decision_runtime_active_guarded`.
+5. Controleer de zes beslissingen: contractwissel, batterij, apparaat, load shifting, behouden en wachten op data.
+6. Een wijzigingsadvies mag alleen bij een complete positieve gevalideerde businesscase en geopende externe gates.
+7. Zolang meet- of officiële contractgates dichtstaan moet de beslissing `wait_for_data` blijven.
+8. Ontbrekende bedragen blijven null/`Niet beschikbaar`; nooit €0.
+9. EPEX blijft uitsluitend markt-/referentieprijs.
+10. Historische EPEX juli 2026 blijft gedeeltelijk t/m 2026-07-29.
+11. De volledige v20- en v21-keten moet intact blijven.
 12. GUI, analyse-export, release-diagnose, watcher en automatische maandworkflow moeten blijven werken.
 
 Gebruik GEEN Home Assistant Terminal.
