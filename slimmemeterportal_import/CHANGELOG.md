@@ -1,8 +1,8 @@
 # Changelog
 
-## 20.0.0
-- Start v20: guarded financiële beslissingen en kwaliteitscontext gebonden aan officiële rapport-runtimevelden.
-- Page 1 managementsamenvatting en financiële KPI's krijgen vaste bronvelden uit de bestaande v19-keten.
-- Page 2 simulatie, prognose en voorschotadvies krijgen één guarded runtimecontract.
-- Pagina 3-13 krijgen alleen gevalideerde financiële contextvelden.
-- Candidate-data blijft uitgesloten als primaire rapportwaarde; EPEX blijft markt-/referentieprijs.
+## 20.1.0
+- Guarded financiële runtimevelden concreet gemapt naar de officiële rapportsecties.
+- Page 1 managementsamenvatting gebruikt beslissing, reden en kwaliteitscontext uit de bestaande productieketen.
+- Page 1 financiële KPI's gebruiken uitsluitend publiceerbare verschil-, voorschot- en sterktevelden.
+- Page 2 prognose en voorschotcontrole gebruiken de bestaande guarded projectie- en beslisbronnen.
+- Ontbrekende waarden blijven `Niet beschikbaar`; candidate-data en EPEX mogen geen leverancier-all-in uitvoer worden.
