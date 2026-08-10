@@ -1,3 +1,9 @@
+## v27.0.0 — guarded execution readiness
+- Start v27 met uitvoeringsgereedheid voor maximaal drie financieel geprioriteerde energieacties.
+- Acties worden alleen uitvoeringsgereed wanneer bewijs, financiële case en vereiste externe gates valide zijn.
+- Meetplan en stopconditie worden onderdeel van de uitvoeringscontext.
+- Geen autonome financiële transacties of apparaatwijzigingen.
+
 ## v26.2.0 — action queue publication + v26 completion
 - Bundelt v26 stap 3/4 en 4/4.
 - Publiceert maximaal drie guarded energieacties naar officiële rapportsurfaces.
