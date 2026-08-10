@@ -1,8 +1,8 @@
 # Changelog
 
-## 22.0.0
-- v22 gestart met Financial Decision Runtime.
-- De complete v21-actieketen is gekoppeld aan een runtimebeslissing met controleerbare euro-impact.
-- Ondersteunde beslissingen: contract wisselen, batterij kopen, apparaat vervangen, verbruik verschuiven, behouden of wachten op data.
-- Een wijzigingsadvies vereist een complete positieve gevalideerde businesscase en geopende externe gates.
-- Ontbrekende of kandidaatwaarden mogen geen beslissing sturen.
+## 22.1.0
+- Decision Evidence Runtime toegevoegd.
+- Iedere financiële beslissing krijgt een controleerbare onderbouwing met broninputs, berekeningsbasis, datakwaliteit en eventuele blockers.
+- Financiële bedragen mogen alleen worden gepubliceerd wanneer de gebruikte invoer traceerbaar en gevalideerd is.
+- Meetvenster, contractvalidatiestatus en externe gates blijven onderdeel van de audittrail.
+- Ontbrekende of kandidaatwaarden mogen niet als bewijs worden gebruikt.
