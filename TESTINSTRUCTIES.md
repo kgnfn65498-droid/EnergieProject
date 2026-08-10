@@ -1,15 +1,13 @@
-# Testinstructies v24.0.0 — stap 1/5
+# Testinstructies v32.0.2 — NAS-layoutcorrectie
 
-1. Plaats `EnergieProject_v25.0.0.zip` in `EnergieProject_Inbox/incoming` en wacht op `processed`.
-2. Update in Home Assistant en controleer GUI/Ingress.
-3. Download Analyse-export en release-diagnose.
-4. Controleer `v24_action_handoff_runtime.status = action_handoff_runtime_active_guarded`.
-5. Controleer `roadmap_step = 1/5` en `roadmap_state = v24_step_1_of_5_action_handoff_runtime_active_guarded`.
-6. Zolang de externe gates niet volledig geldig zijn, moet de handoff `waiting_for_data` blijven en financiële ontbrekende waarden null/`Niet beschikbaar`.
-7. Controleer dat kandidaatwaarden geen handoff activeren en dat EPEX nooit leverancier-all-in wordt.
-8. Controleer dat geen aankoop, contractwissel of apparaatsturing automatisch wordt uitgevoerd; externe actie vereist gebruikerbevestiging.
-9. Historische EPEX juli 2026 blijft gedeeltelijk beschikbaar t/m 2026-07-29.
-10. GUI, analyse-export, release-diagnose, watcher, automatische maandworkflow en officiële rapportgeneratoren moeten blijven werken.
+1. Plaats `EnergieProject_v32.0.2.zip` in `EnergieProject/Inbox/incoming` en wacht tot de release in `EnergieProject/Inbox/processed` staat.
+2. Update SlimmeMeterPortal Import in Home Assistant en controleer dat versie `32.0.2` zichtbaar is.
+3. Download **Analyse-export** en **release-diagnose**.
+4. Controleer in de diagnose dat de NAS-layout `App`, `Data`, `Backups`, `Inbox` en `Infra` gebruikt.
+5. Controleer dat release-inbox, watcherstatus en backupdoel geen oude losse EnergieProject-mappen meer noemen.
+6. Controleer dat analyse-export `version = 32.0.2` meldt en dat bestaande financiële/rapportagegates ongewijzigd blijven.
+7. Historische EPEX juli 2026 blijft gedeeltelijk beschikbaar t/m 2026-07-29; deze bekende brondekking mag niet als fout worden behandeld.
+8. Er mag geen automatische aankoop, leverancierswissel of apparaatbesturing plaatsvinden.
 
 Gebruik GEEN Home Assistant Terminal.
 Gebruik GEEN handmatige Git-commit of Git-push.

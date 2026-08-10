@@ -1,3 +1,10 @@
+## v32.0.2 — definitieve NAS-layoutcorrectie en regressiecontrole
+- Release-installatie is aangepast aan de definitieve NAS-structuur `EnergieProject/{App,Data,Backups,Inbox,Infra}`.
+- De installer vervangt uitsluitend `App`, zodat `Data`, `Backups`, `Inbox` en `Infra` nooit door een software-update worden gewist.
+- Watcher, bootstrap, Home Assistant infrastructuurdiagnose, GitHub-publicatiepad, EPEX-lokalisatie en noodherstel gebruiken dezelfde layout.
+- Oude losse inbox/backuppaden zijn uit actieve broncode, scripts, tests en documentatie verwijderd.
+- Pytest-importisolatie toegevoegd zodat de volledige testsuite ook met gelijknamige generatortests betrouwbaar kan worden verzameld.
+
 ## v32.0.1 — automatische crash-recoveryretentie
 - Maximaal 3 pre-release herstelbackups.
 - Retentie pas na succesvolle installatie/eindcontrole.

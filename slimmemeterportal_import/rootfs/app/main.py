@@ -53,26 +53,29 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.1"
+APP_VERSION = "32.0.2"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
 
-# v10.1: 24/7 infrastructuurfundament. Home Assistant kan een QNAP-share
-# via Instellingen > Systeem > Opslag als type Share koppelen. Een share met
-# naam Energie_NAS verschijnt voor apps onder /share/Energie_NAS.
+# v32.0.2: eenduidige 24/7 NAS-layout. De fysieke projectroot bevat uitsluitend
+# de vaste hoofdmappen App, Data, Backups, Inbox en Infra. De Home Assistant-share
+# kan naar de bovenliggende map of rechtstreeks naar EnergieProject wijzen; beide
+# mountvormen worden zonder legacy-foldernamen herkend.
 NAS_SHARE_ROOT = Path("/share/Energie_NAS")
-PROJECT_BACKUP_ROOT = NAS_SHARE_ROOT / "EnergieProject_Backups"
+if (NAS_SHARE_ROOT / "App").is_dir() or (NAS_SHARE_ROOT / "Data").is_dir():
+    NAS_LAYOUT_ROOT = NAS_SHARE_ROOT
+else:
+    NAS_LAYOUT_ROOT = NAS_SHARE_ROOT / "EnergieProject"
+NAS_PROJECT_ROOT = NAS_LAYOUT_ROOT / "App"
+NAS_DATA_ROOT = NAS_LAYOUT_ROOT / "Data"
+PROJECT_BACKUP_ROOT = NAS_LAYOUT_ROOT / "Backups"
+NAS_RELEASE_ROOT = NAS_LAYOUT_ROOT / "Inbox"
+NAS_INFRA_ROOT = NAS_LAYOUT_ROOT / "Infra"
 PROJECT_BACKUP_RETENTION = 24
 PROJECT_BACKUP_PREFIX = "EnergieProject_maandbackup"
-
-# v10.3: werkelijke 24/7 NAS-layout. De actieve repository staat op de nieuwe
-# QNAP-share onder /share/Energie_NAS/EnergieProject. Releases komen als ZIP in
-# EnergieProject_Inbox/incoming en doorlopen processing -> processed/failed.
-NAS_PROJECT_ROOT = NAS_SHARE_ROOT / "EnergieProject"
 ENERGIE_MCP_URL = os.environ.get("ENERGIE_MCP_URL", "http://192.168.1.200:8000/mcp").rstrip("/")
-NAS_RELEASE_ROOT = NAS_SHARE_ROOT / "EnergieProject_Inbox"
 
 GITHUB_PUBLISH_DIR = Path("/config/github_publisher")
 GITHUB_PRIVATE_KEY = GITHUB_PUBLISH_DIR / "id_ed25519"
@@ -84,13 +87,15 @@ NAS_RELEASE_PROCESSING = NAS_RELEASE_ROOT / "processing"
 NAS_RELEASE_ARCHIVE = NAS_RELEASE_ROOT / "processed"
 NAS_RELEASE_FAILED = NAS_RELEASE_ROOT / "failed"
 NAS_V10_LAYOUT = {
-    "EnergieProject": NAS_PROJECT_ROOT,
-    "EnergieProject_Inbox": NAS_RELEASE_ROOT,
+    "App": NAS_PROJECT_ROOT,
+    "Data": NAS_DATA_ROOT,
+    "Backups": PROJECT_BACKUP_ROOT,
+    "Inbox": NAS_RELEASE_ROOT,
+    "Infra": NAS_INFRA_ROOT,
     "incoming": NAS_RELEASE_INBOX,
     "processing": NAS_RELEASE_PROCESSING,
     "processed": NAS_RELEASE_ARCHIVE,
     "failed": NAS_RELEASE_FAILED,
-    "EnergieProject_Backups": PROJECT_BACKUP_ROOT,
 }
 LEGACY_NAS_DIRECTORIES = ()
 
@@ -4476,22 +4481,27 @@ def _epex_price_stats_rows(rows: list[dict[str, str]], *, unit: str) -> dict[str
 def _epex_mcp_month_context(month_key: str) -> dict[str, Any] | None:
     month_dash = month_key.replace("_", "-")
     year = month_key[:4]
-    index_text = _mcp_read_project_text("05_Maanddata/EPEX/EPEX_index.csv")
+    mcp_epex_root = "05_Maanddata/EPEX"
+    index_text = _mcp_read_project_text(f"{mcp_epex_root}/EPEX_index.csv")
     index_rows = _read_epex_text_rows(index_text)
+    if not index_rows:
+        mcp_epex_root = "Data/05_Maanddata/EPEX"
+        index_text = _mcp_read_project_text(f"{mcp_epex_root}/EPEX_index.csv")
+        index_rows = _read_epex_text_rows(index_text)
     if not index_rows:
         return None
     index = {str(row.get("maand") or "").strip(): row for row in index_rows if row.get("maand")}
     index_row = index.get(month_dash, {})
     electricity_rows = _read_epex_text_rows(
-        _mcp_read_project_text(f"05_Maanddata/EPEX/{year}/{month_dash}_stroom.csv")
+        _mcp_read_project_text(f"{mcp_epex_root}/{year}/{month_dash}_stroom.csv")
     )
     gas_rows = _read_epex_text_rows(
-        _mcp_read_project_text(f"05_Maanddata/EPEX/{year}/{month_dash}_gas.csv")
+        _mcp_read_project_text(f"{mcp_epex_root}/{year}/{month_dash}_gas.csv")
     )
     if not index_row and not electricity_rows and not gas_rows:
         return {
-            "source": "Energie_MCP/05_Maanddata/EPEX",
-            "resolved_path": f"{ENERGIE_MCP_URL} :: 05_Maanddata/EPEX",
+            "source": f"Energie_MCP/{mcp_epex_root}",
+            "resolved_path": f"{ENERGIE_MCP_URL} :: {mcp_epex_root}",
             "source_found": True,
             "transport": "mcp_streamable_http_read_only",
             "coverage": {"status": "month_not_available", "first_date": None, "last_date": None, "source_gaps": 0},
@@ -4505,8 +4515,8 @@ def _epex_mcp_month_context(month_key: str) -> dict[str, Any] | None:
     except ValueError:
         source_gaps = None
     return {
-        "source": "Energie_MCP/05_Maanddata/EPEX",
-        "resolved_path": f"{ENERGIE_MCP_URL} :: 05_Maanddata/EPEX",
+        "source": f"Energie_MCP/{mcp_epex_root}",
+        "resolved_path": f"{ENERGIE_MCP_URL} :: {mcp_epex_root}",
         "source_found": True,
         "transport": "mcp_streamable_http_read_only",
         "coverage": {
@@ -4529,8 +4539,8 @@ def _resolve_epex_history_root() -> Path | None:
     candidates = (
         NAS_SHARE_ROOT / "05_Maanddata" / "EPEX",
         NAS_SHARE_ROOT / "EPEX",
-        NAS_PROJECT_ROOT / "05_Maanddata" / "EPEX",
-        NAS_PROJECT_ROOT / "EPEX",
+        NAS_DATA_ROOT / "05_Maanddata" / "EPEX",
+        NAS_DATA_ROOT / "EPEX",
         Path("/media/Energie_NAS") / "05_Maanddata" / "EPEX",
         Path("/media/Energie_NAS") / "EPEX",
     )
@@ -4848,7 +4858,44 @@ def _aggregate_analysis_period(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _ha_month_entity_snapshot_series(month_key: str, entity_id: str) -> list[dict[str, Any]]:
-    """Lees HA-entiteit robuust uit volledige kwartiersnapshotbestanden via read-only MCP."""
+    """Lees HA-entiteit uit de definitieve Data-root; MCP blijft read-only fallback."""
+    series: list[dict[str, Any]] = []
+    local_folders = (
+        NAS_DATA_ROOT / "01_Input" / month_key / "HomeAssistant" / "QuarterHour",
+        MONTH_INPUT_ROOT / month_key / "HomeAssistant" / "QuarterHour",
+    )
+    for folder in local_folders:
+        if not folder.is_dir():
+            continue
+        for snapshot in sorted(folder.glob("home_assistant_quarter_*.json")):
+            file_match = re.search(r'home_assistant_quarter_(\d{8}T\d{6}Z)\.json$', snapshot.name)
+            if not file_match:
+                continue
+            try:
+                payload = json.loads(snapshot.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            entities = payload.get("entities") if isinstance(payload, dict) else None
+            if not isinstance(entities, list):
+                continue
+            for entity in entities:
+                if not isinstance(entity, dict) or entity.get("entity_id") != entity_id:
+                    continue
+                try:
+                    value = float(str(entity.get("state")).replace(",", "."))
+                except (TypeError, ValueError):
+                    break
+                series.append({
+                    "snapshot_timestamp": file_match.group(1),
+                    "entity_timestamp": entity.get("last_updated") or entity.get("last_changed"),
+                    "value": value,
+                    "transport": "nas_data_filesystem_read_only" if folder.is_relative_to(NAS_DATA_ROOT) else "local_filesystem_read_only",
+                })
+                break
+        if series:
+            dedup = {item["snapshot_timestamp"]: item for item in series}
+            return [dedup[key] for key in sorted(dedup)]
+
     path = f"01_Input/{month_key}/HomeAssistant/QuarterHour"
     files_result = _mcp_call_project_tool(
         "search_files",
@@ -4875,7 +4922,6 @@ def _ha_month_entity_snapshot_series(month_key: str, entity_id: str) -> list[dic
                 if isinstance(candidate, str):
                     file_paths.append(candidate)
 
-    series: list[dict[str, Any]] = []
     for candidate in sorted(set(file_paths)):
         full_path = candidate if candidate.startswith("01_Input/") else f"{path}/{candidate.rsplit('/',1)[-1]}"
         file_match = re.search(r'home_assistant_quarter_(\d{8}T\d{6}Z)\.json$', full_path)
@@ -4914,6 +4960,7 @@ def _ha_month_entity_snapshot_series(month_key: str, entity_id: str) -> list[dic
                 "snapshot_timestamp": file_match.group(1),
                 "entity_timestamp": entity.get("last_updated") or entity.get("last_changed"),
                 "value": value,
+                "transport": "mcp_search_files_read_text_file",
             })
             break
 
@@ -5054,10 +5101,38 @@ def _nextenergy_month_telemetry(month_key: str) -> dict[str, Any]:
         values: list[float] = []
         timestamps: list[str] = []
 
-        # Productiepad: kwartier-snapshots staan op de Energie-NAS en zijn
-        # read-only beschikbaar via de bestaande MCP.
+        # Primair productiepad na NAS-consolidatie: rechtstreeks uit Data/01_Input.
+        nas_folder = NAS_DATA_ROOT / "01_Input" / month_key / "HomeAssistant" / "QuarterHour"
+        if nas_folder.is_dir():
+            for snapshot in sorted(nas_folder.glob("home_assistant_quarter_*.json")):
+                try:
+                    payload = json.loads(snapshot.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                entities = payload.get("entities") if isinstance(payload, dict) else None
+                if not isinstance(entities, list):
+                    continue
+                for entity in entities:
+                    if not isinstance(entity, dict) or entity.get("entity_id") != entity_id:
+                        continue
+                    try:
+                        value = float(str(entity.get("state")).replace(",", "."))
+                    except (TypeError, ValueError):
+                        continue
+                    values.append(value)
+                    stamp = entity.get("last_updated") or entity.get("last_changed")
+                    if isinstance(stamp, str) and stamp:
+                        timestamps.append(stamp)
+                    break
+            if values:
+                result["source"] = str(nas_folder)
+                result["transport"] = "nas_data_filesystem_read_only"
+
+        # Read-only MCP fallback voor installaties waar Data niet rechtstreeks gemount is.
         mcp_path = f"01_Input/{month_key}/HomeAssistant/QuarterHour"
-        search_result = _mcp_call_project_tool(
+        search_result = None
+        if not values:
+            search_result = _mcp_call_project_tool(
             "search_content",
             {
                 "query": entity_id,
@@ -5837,7 +5912,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "32.0.1",
+            "engine_version": "32.0.2",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5959,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "32.0.1",
+            "engine_version": "32.0.2",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +6020,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "32.0.1",
+        "engine_version": "32.0.2",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6724,7 +6799,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 },
                 "roadmap_state": "v31_step_4_of_4_chat_voice_completion_and_report_handoff_active_guarded",
                 "v31_release_state": "complete_after_home_assistant_validation",
-                "next_major_release": "32.0.1",
+                "next_major_release": "32.0.2",
                 "status": "v31_chat_voice_completion_and_report_handoff_active_guarded"
             },
             "v32_final_integration_runtime": {
@@ -6825,9 +6900,9 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "status": "final_validation_gate_active_guarded"
             },
             "release_identity_runtime": {
-                "release_version": "32.0.1",
+                "release_version": "32.0.2",
                 "release_family": "v32_final_integration",
-                "validation_marker": "v32_0_1_runtime_identity",
+                "validation_marker": "v32_0_2_runtime_identity",
                 "purpose": "make_home_assistant_runtime_release_identity_explicit_in_energy_analysis",
                 "must_match_app_version": True,
                 "must_match_addon_config_version": True,
@@ -7130,7 +7205,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v29_complete_guarded_forecast_calibration_and_publication_chain",
-                "next_major_release": "32.0.1",
+                "next_major_release": "32.0.2",
                 "status": "v29_complete_external_learning_context_and_confidence_gates_remain"
             },
             "v29_calibrated_savings_forecast_runtime": {
@@ -7322,7 +7397,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v28_complete_guarded_execution_outcome_learning_chain",
-                "next_major_release": "32.0.1",
+                "next_major_release": "32.0.2",
                 "status": "v28_complete_external_execution_measurement_and_learning_gates_remain"
             },
             "v28_verified_outcome_portfolio_runtime": {
@@ -7506,7 +7581,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v27_complete_guarded_execution_planning_chain",
-                "next_major_release": "32.0.1",
+                "next_major_release": "32.0.2",
                 "status": "v27_complete_external_data_and_user_action_gates_remain"
             },
             "v27_execution_plan_runtime": {
@@ -7689,7 +7764,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v26_complete_guarded_financial_action_queue_chain",
-                "next_major_release": "32.0.1",
+                "next_major_release": "32.0.2",
                 "status": "v26_complete_external_data_gates_remain"
             },
             "v26_action_queue_runtime": {
@@ -7858,7 +7933,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "reason_and_data_quality_required": True
                 },
                 "roadmap_state": "v25_step_5_of_5_completion_gate_active_guarded",
-                "next_major_release": "32.0.1",
+                "next_major_release": "32.0.2",
                 "status": "v25_complete_external_data_gates_remain"
             },
             "v23_completion_publication_gate": {
@@ -11631,7 +11706,7 @@ def nas_migration_snapshot() -> dict[str, Any]:
             "release_processing_supported": True,
             "imac_required": False,
         },
-        "next_step": "Plaats een release-ZIP in EnergieProject_Inbox/incoming; de release-installer valideert eerst en houdt rollback beschikbaar.",
+        "next_step": "Plaats een release-ZIP in EnergieProject/Inbox/incoming; de release-installer valideert eerst en houdt rollback beschikbaar.",
     }
 
 
@@ -11758,7 +11833,7 @@ def create_project_backup(month_key: str, *, trigger: str) -> dict[str, Any]:
 
 
 def build_emergency_recovery_guide() -> str:
-    return f"""# Energieproject - noodherstel\n\nVersie: {APP_VERSION}\n\n## Doel\nDeze handleiding is uitsluitend voor een echte crash of vervanging van Home Assistant. Normaal dagelijks beheer gebeurt automatisch.\n\n## Herstel in het kort\n1. Herstel Home Assistant eerst met de normale Home Assistant back-up vanaf de externe QNAP-back-uplocatie.\n2. Voeg daarna de GitHub-repository `https://github.com/kgnfn65498-droid/EnergieProject` toe en installeer SlimmeMeterPortal Import.\n3. Controleer in Home Assistant bij Instellingen > Systeem > Opslag dat de QNAP-share met naam `Energie_NAS` gekoppeld is als type Share.\n4. Start de app en download het diagnosepakket. GO + health 100% betekent dat de operationele keten hersteld is.\n5. Alleen wanneer maanddata ontbreken, gebruik je de nieuwste `EnergieProject_maandbackup_*.zip` uit `EnergieProject_Backups` om de ontbrekende runtime-/maanddata terug te zetten.\n\n## Belangrijk\n- API-sleutels staan bewust niet in projectback-ups. Home Assistant/appconfiguratie hoort via de normale Home Assistant back-up terug te komen.\n- Broncode staat in GitHub; maand- en runtimegegevens staan in de QNAP-sidecarback-ups.\n- Voer geen terminalcommando's uit zolang bovenstaande UI-route beschikbaar is.\n"""
+    return f"""# Energieproject - noodherstel\n\nVersie: {APP_VERSION}\n\n## Doel\nDeze handleiding is uitsluitend voor een echte crash of vervanging van Home Assistant. Normaal dagelijks beheer gebeurt automatisch.\n\n## Herstel in het kort\n1. Herstel Home Assistant eerst met de normale Home Assistant back-up vanaf de externe QNAP-back-uplocatie.\n2. Voeg daarna de GitHub-repository `https://github.com/kgnfn65498-droid/EnergieProject` toe en installeer SlimmeMeterPortal Import.\n3. Controleer in Home Assistant bij Instellingen > Systeem > Opslag dat de QNAP-share met naam `Energie_NAS` gekoppeld is als type Share.\n4. Start de app en download het diagnosepakket. GO + health 100% betekent dat de operationele keten hersteld is.\n5. Alleen wanneer maanddata ontbreken, gebruik je de nieuwste `EnergieProject_maandbackup_*.zip` uit `EnergieProject/Backups` om de ontbrekende runtime-/maanddata terug te zetten.\n\n## Belangrijk\n- API-sleutels staan bewust niet in projectback-ups. Home Assistant/appconfiguratie hoort via de normale Home Assistant back-up terug te komen.\n- Broncode staat in GitHub; maand- en runtimegegevens staan in de QNAP-sidecarback-ups.\n- Voer geen terminalcommando's uit zolang bovenstaande UI-route beschikbaar is.\n"""
 
 
 def build_chat_transfer_package() -> bytes:
@@ -14414,7 +14489,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <div class="metric"><small>Release-inbox</small><strong>{esc(((op.get('nas_migration') or {}).get('release_inbox') or {}).get('status') or 'niet beschikbaar')}</strong></div>
 </div>
 <p class="hint">{esc((op.get('nas_migration') or {}).get('message') or '')}</p>
-<p class="hint">v10.3 gebruikt de nieuwe NAS-master. Releases gaan via <code>EnergieProject_Inbox/incoming</code> en worden eerst technisch gevalideerd; backup en rollback blijven verplicht vóór live vervanging.</p>
+<p class="hint">v10.3 gebruikt de nieuwe NAS-master. Releases gaan via <code>EnergieProject/Inbox/incoming</code> en worden eerst technisch gevalideerd; backup en rollback blijven verplicht vóór live vervanging.</p>
 <p><a href="migration-status">Technische migratiestatus</a></p>
 </div>
 

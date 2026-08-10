@@ -1,15 +1,20 @@
 #!/bin/sh
 set -eu
 
-if [ -n "${ENERGIE_SHARE:-}" ]; then
-  SHARE="$ENERGIE_SHARE"
-elif [ -d "/share/AI Projecten/EnergieProject" ]; then
-  SHARE="/share/AI Projecten"
+if [ -n "${ENERGIE_ROOT:-}" ]; then
+  ROOT="$ENERGIE_ROOT"
+elif [ -d "/share/AI Projecten/EnergieProject/App" ]; then
+  ROOT="/share/AI Projecten/EnergieProject"
+elif [ -d "/share/Energie_NAS/EnergieProject/App" ]; then
+  ROOT="/share/Energie_NAS/EnergieProject"
+elif [ -d "/share/Energie_NAS/App" ]; then
+  ROOT="/share/Energie_NAS"
 else
-  SHARE="/share/Energie_NAS"
+  echo "FOUT: EnergieProject-root met App/Data/Backups/Inbox/Infra niet gevonden" >&2
+  exit 1
 fi
-PROJECT="$SHARE/EnergieProject"
-INBOX="$SHARE/EnergieProject_Inbox"
+PROJECT="$ROOT/App"
+INBOX="$ROOT/Inbox"
 INCOMING="$INBOX/incoming"
 LOGDIR="$INBOX/logs"
 INSTALLER_SOURCE="$PROJECT/tools/release_installer.sh"

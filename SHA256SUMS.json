@@ -1,5 +1,5 @@
 {
-  "version": "32.0.1",
+  "version": "32.0.2",
   "files": [
     {
       "path": ".gitignore",
@@ -13,18 +13,13 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "45d804e866cc396b2ff0fa7d70b8eaaa4b7b4553074b5372006dd7cef1b7278a",
-      "size": 51698
+      "sha256": "65aa51f0d73197930ad55d7517e8986a2e80460afcd3eb204925b38866b1fa8e",
+      "size": 52394
     },
     {
       "path": "INSTALL.md",
       "sha256": "3959d6e51b053e0df2abbd859cdc24c069e2ec1ce738d2045e5547627637af36",
       "size": 824
-    },
-    {
-      "path": "MANIFEST.sha256",
-      "sha256": "85ffd7cbd596c93532c1ff9dc1615372bc7890010c4ae74ca37c48ec89fc4b55",
-      "size": 11581
     },
     {
       "path": "NEXT_CHAT_V7.md",
@@ -33,7 +28,7 @@
     },
     {
       "path": "NOODHERSTEL.md",
-      "sha256": "487e7c7938d866141a431facd1f304cf5e9d1ee0fe1f4fa9dcd0af9504170291",
+      "sha256": "281ce2bc0da59af377f08fe1eba9d3c0cd0b85a3f611f6cb0a11403dcad54442",
       "size": 1151
     },
     {
@@ -53,13 +48,18 @@
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "sha256": "0c9a60a011d31c55d5c3fff3a620d0c8ab8d95f01556337b9713463b06d6fd84",
-      "size": 1143
+      "sha256": "f18dd6029e2bd1e9661f66abeedbd3d8d38dece81eecfd755d4984f00d893749",
+      "size": 1004
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "22f5cbdbf47866a292a3abff8f8989f581e41d2fb141e211b7cb22a73f76f75d",
+      "sha256": "651f5cc9f23fefcfedc0594f2dd9af99ec30d41b03db3b70abd019c8137e7a72",
       "size": 7
+    },
+    {
+      "path": "pytest.ini",
+      "sha256": "ca4b82760538130959a0fbe25c21fc5d28cd46fb7a63b1209def6d19e2b40a62",
+      "size": 43
     },
     {
       "path": "repository.yaml",
@@ -68,13 +68,13 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "15f44ea361a4fd087c0e9f4a3ea292065fb74dc7e2956b4f4c3d5a0b4b3277d5",
-      "size": 331
+      "sha256": "1e054c1f05ed564a7b1ff1dcf471300e99cc9195fbf6974513dafb97f0332bc7",
+      "size": 425
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
-      "sha256": "7afbcb525e288fe5773158fd7d5643d789d8dba03198644ed3059774c90fab07",
-      "size": 34121
+      "sha256": "14bd039216ee93a2d257e454bebf4a72894ec79e99430090b54f11b98b74f213",
+      "size": 34126
     },
     {
       "path": "slimmemeterportal_import/Dockerfile",
@@ -88,13 +88,13 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "af9e8bcc7af24e234db128160ea976b529e835d0c4e0b044f57806977ada5766",
+      "sha256": "66032f687702d31d7e0ddcba23856ccb4042fa539232f4b04ddd5f3bdea0e618",
       "size": 5740
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "f2989a8b38f7676afb9d3472680ae573d126ff69aa4b0d07194cf32b1cf11ce9",
-      "size": 787531
+      "sha256": "7f1e15841e3adee850360c26a60e551bf2b0b76c7c903c784bdd86ab845be09b",
+      "size": 791004
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -363,23 +363,23 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "142717aceca51c4a3d89b3de9b177475b381d70b6e173a02c4d15f7fd306bf66",
-      "size": 217136
+      "sha256": "a4f53ccb7e52a22587ec61ad7b097d01c06571900cef8dc38b7f14f4a84588f1",
+      "size": 218224
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
-      "sha256": "601664bb960860dbb8a7e65f4a50d56edf6eb1eb8d9e39d9253709ffd4f59c51",
-      "size": 1950
+      "sha256": "8972043dc14ea669dda19a6d57afbdcf58c1e10152852c0120020af33b604d1b",
+      "size": 2040
     },
     {
       "path": "tools/release_installer.sh",
-      "sha256": "37db690ac59727355f3612fbd6107a14fc715e624a92e43b89dc29fe864073b5",
-      "size": 12140
+      "sha256": "7d5eb296fb28bbc297a5cffc01c09c27e3137add9c4b53b9058977780dc03747",
+      "size": 12349
     },
     {
       "path": "tools/release_watcher.sh",
-      "sha256": "98d46bcc7251a608d7bdf4fc889b93f78e7a12b6c8bf5bc29879bb744ce0a9ea",
-      "size": 6309
+      "sha256": "278de4655717d74bfefdc09b44f90b68078ab9cf543a8f3aa83fec8052aac979",
+      "size": 6534
     },
     {
       "path": "tools/release_zip.py",

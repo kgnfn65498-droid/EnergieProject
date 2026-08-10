@@ -6,7 +6,7 @@ Deze handleiding is uitsluitend voor een echte crash of vervanging van Home Assi
 2. Voeg de GitHub-repository `https://github.com/kgnfn65498-droid/EnergieProject` toe en installeer SlimmeMeterPortal Import.
 3. Controleer bij **Instellingen > Systeem > Opslag** dat de QNAP-share met naam `Energie_NAS` gekoppeld is als type **Share**.
 4. Start de app en download het diagnosepakket. GO + health 100% betekent dat de operationele keten hersteld is.
-5. Ontbreken maand-/runtimegegevens, gebruik dan de nieuwste `EnergieProject_maandbackup_*.zip` uit `EnergieProject_Backups`.
+5. Ontbreken maand-/runtimegegevens, gebruik dan de nieuwste `EnergieProject_maandbackup_*.zip` uit `EnergieProject/Backups`.
 
 API-sleutels staan bewust niet in projectback-ups. Die horen via de normale Home Assistant back-up/appconfiguratie terug te komen.
 

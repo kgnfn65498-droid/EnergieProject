@@ -589,7 +589,7 @@ De analysecontext bevat per maand `price_context` met ruwe statistiek uit bestaa
 
 
 ## Versie 10.5.8 — EPEX productiebron
-De analysecontext leest de bestaande EPEX-v6 historie rechtstreeks uit `/share/Energie_NAS/EnergieProject/05_Maanddata/EPEX`. `EPEX_index.csv` bepaalt de maanddekking. De hoofdstatistiek gebruikt `prijs_incl_btw_en_eb`; leverancieropslag en vaste kosten worden niet toegevoegd of aangenomen.
+De analysecontext leest de bestaande EPEX-v6 historie rechtstreeks uit `/share/Energie_NAS/EnergieProject/Data/05_Maanddata/EPEX`. `EPEX_index.csv` bepaalt de maanddekking. De hoofdstatistiek gebruikt `prijs_incl_btw_en_eb`; leverancieropslag en vaste kosten worden niet toegevoegd of aangenomen.
 
 
 ## Versie 10.5.9 — EPEX mountdetectie
