@@ -1,3 +1,8 @@
+## v30.1.0 — guarded optimization selection
+- v30 stap 2/4: maximaal één financieel voorkeursadvies uit gevalideerde optimalisatiekandidaten.
+- Externe financiële/meetgates en gebruikersautorisatie blijven hard.
+- Geen automatische aankoop, leverancierswissel, contractacceptatie, voorschotwijziging of apparaatbesturing.
+
 ## v30.0.0 — adaptive optimization candidates
 - Start v30 met een guarded optimalisatielaag bovenop de afgeronde forecastketen.
 - Kandidaten worden financieel gerangschikt op gevalideerde eurowaarde, confidence en implementatie-inspanning.

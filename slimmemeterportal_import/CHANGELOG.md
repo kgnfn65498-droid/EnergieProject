@@ -1,8 +1,8 @@
 # Changelog
 
-## 30.0.0
-- Start v30 met guarded Adaptive Optimization Candidate Runtime.
-- Combineert gevalideerde prognoses, actuele tariefcontext en meetpatronen tot maximaal drie optimalisatiekandidaten.
-- Ondersteunde domeinen: load shifting, leverancier, maandvoorschot, apparaatvervanging en thuisbatterij.
-- Alleen gevalideerde positieve financiële cases kunnen uiteindelijk doorstromen naar optimalisatie.
-- Geen automatische aankoop, contractwissel, voorschotwijziging of apparaatbesturing.
+## 30.1.0
+- v30 stap 2/4: Optimization Selection Runtime.
+- Selecteert maximaal één primaire optimalisatieactie uit gevalideerde kandidaten.
+- Rangschikking: gevalideerde eurowaarde, confidence en implementatie-inspanning.
+- Geblokkeerde, measure-first en niet-positieve kandidaten kunnen niet worden geselecteerd.
+- Externe uitvoering blijft altijd achter expliciete gebruikersautorisatie.
