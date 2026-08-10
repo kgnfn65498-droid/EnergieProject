@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "30.3.1"
+APP_VERSION = "31.0.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -3157,7 +3157,7 @@ def validate_runtime_dependencies() -> None:
 def derive_local_ipv4_cidr() -> str:
     """
     Bepaal een bruikbaar thuisnetwerk, maar accepteer nooit het interne
-    Home Assistant-containerbereik 172.30.3.1/16 als HomeWizard-scanbereik.
+    Home Assistant-containerbereik 172.31.0.0/16 als HomeWizard-scanbereik.
     """
     candidates: list[str] = []
 
@@ -3186,7 +3186,7 @@ def derive_local_ipv4_cidr() -> str:
             continue
         if ip.is_loopback or ip.is_link_local:
             continue
-        if ip in ipaddress.ip_network("172.30.3.1/16"):
+        if ip in ipaddress.ip_network("172.31.0.0/16"):
             continue
         if ip.is_private:
             return str(ipaddress.ip_network(f"{ip}/24", strict=False))
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "30.3.1",
+            "engine_version": "31.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "30.3.1",
+            "engine_version": "31.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "30.3.1",
+        "engine_version": "31.0.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6514,10 +6514,111 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "next_step": "v25_report_publication_runtime",
                 "status": "monthly_budget_impact_runtime_active_guarded"
             },
+            "v31_conversation_context_runtime": {
+                "objective": "expose_one_guarded_machine_readable_energy_context_for_natural_language_chat_and_voice_questions_without_bypassing_existing_financial_data_quality_or_authority_gates",
+                "roadmap_step": "1/4",
+                "source_chain": [
+                    "production_consolidation",
+                    "financial_status",
+                    "supplier_context",
+                    "months",
+                    "quarters",
+                    "years"
+                ],
+                "conversation_domains": [
+                    "project_status",
+                    "energy_use",
+                    "solar",
+                    "gas",
+                    "prices",
+                    "financial_projection",
+                    "savings_opportunities",
+                    "device_measurement",
+                    "battery",
+                    "supplier_contract",
+                    "report_status",
+                    "data_quality"
+                ],
+                "context_contract": {
+                    "current_release_required": True,
+                    "latest_available_measurement_context_required": True,
+                    "financial_gate_state_required": True,
+                    "data_quality_required": True,
+                    "source_traceability_required": True,
+                    "blocked_dependencies_required_when_material": True,
+                    "actual_forecast_and_candidate_values_must_remain_separate": True,
+                    "missing_values_may_not_be_assumed": True
+                },
+                "answer_policy": {
+                    "ordinary_language_questions_supported": True,
+                    "answer_from_validated_project_context_first": True,
+                    "state_when_requested_value_is_unavailable": True,
+                    "do_not_invent_missing_financial_values": True,
+                    "do_not_present_candidate_as_actual": True,
+                    "do_not_cross_user_authority_gate": True,
+                    "show_primary_blocker_when_action_is_blocked": True,
+                    "preserve_evidence_reference_when_available": True
+                },
+                "safety_policy": {
+                    "automatic_purchase_allowed": False,
+                    "automatic_supplier_switch_allowed": False,
+                    "automatic_contract_acceptance_allowed": False,
+                    "automatic_advance_payment_change_allowed": False,
+                    "automatic_device_control_change_allowed": False,
+                    "manual_financial_override_allowed": False,
+                    "zero_substitution_allowed": False,
+                    "double_counting_allowed": False
+                },
+                "roadmap_state": "v31_step_1_of_4_conversation_context_runtime_active_guarded",
+                "next_step": "v31_conversation_intent_runtime",
+                "status": "conversation_context_runtime_active_guarded"
+            },
+            "v31_conversation_intent_runtime": {
+                "objective": "classify_natural_language_chat_or_voice_requests_into_guarded_energy_project_intents_and_bind_each_intent_to_existing_validated_runtime_sources",
+                "roadmap_step": "2/4",
+                "source_runtime": "v31_conversation_context_runtime",
+                "supported_intents": {
+                    "status": "summarize_current_project_and_data_readiness",
+                    "explain": "explain_energy_financial_or_quality_result",
+                    "compare": "compare_validated_periods_devices_or_financial_cases",
+                    "diagnose": "identify_current_blockers_or_missing_inputs",
+                    "recommend": "surface_only_guarded_publishable_recommendation_or_wait_state",
+                    "report": "describe_or_prepare_existing_official_report_context",
+                    "measure": "explain_measurement_need_and_next_validated_measurement_step",
+                    "history": "summarize_validated_historical_energy_context"
+                },
+                "routing_contract": {
+                    "one_primary_intent_required": True,
+                    "domain_binding_required": True,
+                    "source_runtime_binding_required": True,
+                    "financial_gate_check_required_for_numeric_advice": True,
+                    "authority_gate_check_required_for_external_action": True,
+                    "ambiguity_may_fall_back_to_explain_or_status": True,
+                    "unknown_intent_may_not_trigger_external_action": True
+                },
+                "response_contract": {
+                    "answer_state": "available_blocked_or_partial",
+                    "primary_answer": "validated_project_context_or_explicit_unavailable",
+                    "reason": "required_when_blocked_or_partial",
+                    "data_quality": "required",
+                    "source_context": "required",
+                    "next_safe_action": "validated_next_step_or_null"
+                },
+                "safety_policy": {
+                    "recommend_intent_requires_existing_publishable_decision": True,
+                    "report_intent_may_not_create_unvalidated_financial_values": True,
+                    "diagnose_intent_may_not_modify_system": True,
+                    "measure_intent_is_advisory_only": True,
+                    "unknown_intent_external_execution_allowed": False
+                },
+                "roadmap_state": "v31_step_2_of_4_conversation_intent_runtime_active_guarded",
+                "next_step": "v31_conversation_response_runtime",
+                "status": "conversation_intent_runtime_active_guarded"
+            },
             "release_identity_runtime": {
-                "release_version": "30.3.1",
-                "release_family": "v30_completion",
-                "validation_marker": "v30_3_1_runtime_identity",
+                "release_version": "31.0.0",
+                "release_family": "v31_conversation",
+                "validation_marker": "v31_0_0_runtime_identity",
                 "purpose": "make_home_assistant_runtime_release_identity_explicit_in_energy_analysis",
                 "must_match_app_version": True,
                 "must_match_addon_config_version": True,
@@ -6820,7 +6921,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v29_complete_guarded_forecast_calibration_and_publication_chain",
-                "next_major_release": "30.3.1",
+                "next_major_release": "31.0.0",
                 "status": "v29_complete_external_learning_context_and_confidence_gates_remain"
             },
             "v29_calibrated_savings_forecast_runtime": {
@@ -7012,7 +7113,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v28_complete_guarded_execution_outcome_learning_chain",
-                "next_major_release": "30.3.1",
+                "next_major_release": "31.0.0",
                 "status": "v28_complete_external_execution_measurement_and_learning_gates_remain"
             },
             "v28_verified_outcome_portfolio_runtime": {
@@ -7196,7 +7297,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v27_complete_guarded_execution_planning_chain",
-                "next_major_release": "30.3.1",
+                "next_major_release": "31.0.0",
                 "status": "v27_complete_external_data_and_user_action_gates_remain"
             },
             "v27_execution_plan_runtime": {
@@ -7379,7 +7480,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v26_complete_guarded_financial_action_queue_chain",
-                "next_major_release": "30.3.1",
+                "next_major_release": "31.0.0",
                 "status": "v26_complete_external_data_gates_remain"
             },
             "v26_action_queue_runtime": {
@@ -7548,7 +7649,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "reason_and_data_quality_required": True
                 },
                 "roadmap_state": "v25_step_5_of_5_completion_gate_active_guarded",
-                "next_major_release": "30.3.1",
+                "next_major_release": "31.0.0",
                 "status": "v25_complete_external_data_gates_remain"
             },
             "v23_completion_publication_gate": {
@@ -14607,7 +14708,7 @@ window.addEventListener('load',()=>{{
 </main></body></html>""".encode("utf-8")
 
 
-ALLOWED_HTTP_CLIENTS = {"172.30.32.2", "130.3.1.1", "::1"}
+ALLOWED_HTTP_CLIENTS = {"172.30.32.2", "131.0.0.1", "::1"}
 
 
 

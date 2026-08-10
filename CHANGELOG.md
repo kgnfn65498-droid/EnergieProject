@@ -1,3 +1,9 @@
+## v31.0.0 — chat/voice context + intent routing
+- Bundelt v31 stap 1/4 en 2/4.
+- Gewone-taalvragen worden gebonden aan bestaande gevalideerde Energieproject-context.
+- Intent-routing ondersteunt status, uitleg, vergelijking, diagnose, advies, rapport, meting en historie.
+- Alle bestaande financiële en autorisatiegates blijven hard.
+
 ## v30.3.1 — release identity validation
 - Correctieve build nadat de HA-analyse nog 30.2.0 rapporteerde.
 - Expliciete runtime release-identiteit toegevoegd zodat updateherkenning direct controleerbaar is.

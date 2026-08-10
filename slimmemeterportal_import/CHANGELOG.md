@@ -1,7 +1,8 @@
 # Changelog
 
-## 30.3.1
-- Correctieve v30 completion-release voor ondubbelzinnige Home Assistant update-validatie.
-- Voegt expliciete release_identity_runtime toe aan de Energieanalyse.
-- Runtime-identiteit moet 30.3.1 tonen en overeenkomen met APP_VERSION en add-onconfiguratie.
-- De functionele v30 completion gate blijft stap 4/4.
+## 31.0.0
+- Start v31 chat/voice-laag; bundelt stap 1/4 en 2/4.
+- Conversation Context Runtime voor gewone-taalvragen over status, energie, prijzen, financiële analyse, besparingen en datakwaliteit.
+- Conversation Intent Runtime voor guarded routing van status-, uitleg-, vergelijk-, diagnose-, advies-, rapport-, meet- en historievragen.
+- Bestaande financiële, datakwaliteits- en gebruikersautorisatiegates blijven leidend.
+- Geen externe acties, aankopen, contractwijzigingen of apparaatbesturing vanuit chat/voice.

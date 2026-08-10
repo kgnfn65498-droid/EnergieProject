@@ -87,3 +87,10 @@
 - v25.2.x — stap 3/5: guarded impact op maandbudget/voorschotcontext.
 - v25.3.x — stap 4/5: officiële rapportpublicatie van gevalideerde cumulatieve besparing.
 - v25.4.x — stap 5/5: completion/consolidatie, externe datagates mogen gesloten blijven.
+
+
+## v31 — chat/voice-laag
+- v31.0.0 — stap 1/4 + 2/4 gebundeld: Conversation Context Runtime + Conversation Intent Runtime.
+- v31.1.x — stap 3/4: guarded Conversation Response Runtime voor gewone-taaluitleg, diagnose en aanbevelingen.
+- v31.2.x — stap 4/4: chat/voice completion + rapport-/print-handoff zonder externe uitvoering.
+- Daarna v32: eindintegratie, backup/recovery, eindvalidatie en alleen fixes in v32.x.
