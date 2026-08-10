@@ -1,8 +1,9 @@
 # Changelog
 
-## 20.4.0
-- v20-roadmap inhoudelijk hervat na de rapportagebaseline.
-- Savings Opportunity Engine toegevoegd voor energiecontract, thuisbatterij, apparaatvervanging en load shifting.
-- Marstek Venus 3 is uitsluitend kandidaat en wordt niet vooraf als beste keuze aangenomen.
-- Apparaatmetingen kunnen voortaan als basis dienen voor jaarkosten, besparing, terugverdientijd en vervangen/behouden-beslissing.
-- Geen koop-, vervang- of contractadvies zonder complete gevalideerde inputs.
+## 20.5.0
+- Savings Priority Engine toegevoegd.
+- Besparingskansen worden pas gerangschikt wanneer de benodigde financiële waarden gevalideerd compleet zijn.
+- Rangschikking gebruikt jaarlijkse eurobesparing, terugverdientijd, datacompleetheid en uitvoeringsinspanning.
+- Contract, thuisbatterij, apparaatvervanging en load shifting hebben elk expliciete ranking-gates.
+- Geblokkeerde kansen blijven zichtbaar als wachtend op data, maar tellen niet mee als financieel advies.
+- Marstek Venus 3 blijft kandidaat en wordt niet vooraf als beste batterij gekozen.
