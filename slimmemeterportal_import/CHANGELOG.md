@@ -1,9 +1,9 @@
 # Changelog
 
-## 20.6.0
-- Savings Action Handoff toegevoegd als afsluitende v20-stap.
-- Alleen volledig gevalideerde besparingskansen kunnen een financiële actie opleveren.
-- Acties: contract wisselen, batterij kopen, apparaat vervangen, verbruik verschuiven, behouden of wachten op data.
-- Ontbrekende gegevens leiden tot `wait_for_data`; bedragen blijven `Niet beschikbaar`.
-- Automatische herbeoordeling na nieuwe meetgegevens vastgelegd.
-- v20-besparingsketen technisch compleet en guarded; bestaande externe gates blijven behouden.
+## 21.0.0
+- Nieuwe v21-fase gestart: Financial Action Runtime.
+- Complete guarded v20-besparingsketen gekoppeld aan één runtime-actielaag.
+- Runtime onderscheidt wachten op meetdekking, contractdata, opportunity-inputs en actionable.
+- Alleen volledig gevalideerde en publiceerbare financiële waarden mogen een actie sturen.
+- Ontbrekende waarden blijven `Niet beschikbaar`; geen aannames en geen €0-substitutie.
+- Automatische herbeoordeling blijft actief.
