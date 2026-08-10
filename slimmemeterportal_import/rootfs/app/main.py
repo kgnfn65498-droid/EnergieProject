@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "29.2.0"
+APP_VERSION = "30.0.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "29.2.0",
+            "engine_version": "30.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "29.2.0",
+            "engine_version": "30.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "29.2.0",
+        "engine_version": "30.0.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6514,6 +6514,72 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "next_step": "v25_report_publication_runtime",
                 "status": "monthly_budget_impact_runtime_active_guarded"
             },
+            "v30_adaptive_optimization_candidate_runtime": {
+                "objective": "derive_guarded_cost_optimization_candidates_from_validated_forecasts_current_tariff_context_and_measured_energy_patterns_without_automatic_external_execution",
+                "roadmap_step": "1/4",
+                "source_chain": [
+                    "v29_forecast_calibration_runtime",
+                    "v29_calibrated_savings_forecast_runtime",
+                    "v29_forecast_publication_runtime",
+                    "v29_completion_gate"
+                ],
+                "optimization_domains": [
+                    "load_shifting",
+                    "supplier_contract",
+                    "monthly_advance",
+                    "device_replacement",
+                    "home_battery"
+                ],
+                "candidate_contract": {
+                    "validated_financial_context_required": True,
+                    "validated_measurement_context_required_when_material": True,
+                    "forecast_and_actuals_must_remain_separate": True,
+                    "candidate_expected_euro_value_required_for_ranking": True,
+                    "confidence_required": True,
+                    "implementation_effort_required": True,
+                    "external_gate_state_required": True,
+                    "evidence_references_required": True,
+                    "data_quality_required": True
+                },
+                "candidate_states": {
+                    "blocked": "required_external_financial_or_measurement_gate_closed",
+                    "measure_first": "potential_exists_but_measurement_or_confidence_incomplete",
+                    "financially_evaluable": "validated_inputs_complete_but_final_action_not_selected",
+                    "eligible_for_optimization": "validated_positive_financial_case_and_required_gates_open",
+                    "hold": "validated_case_does_not_currently_justify_change"
+                },
+                "ranking_policy": {
+                    "maximum_primary_candidates": 3,
+                    "rank_by_validated_expected_euro_value_first": True,
+                    "confidence_is_secondary": True,
+                    "implementation_effort_is_tiebreaker": True,
+                    "blocked_candidates_excluded_from_numeric_ranking": True,
+                    "candidate_values_may_not_become_realized_savings": True,
+                    "negative_expected_value_preserved": True
+                },
+                "safety_policy": {
+                    "automatic_supplier_switch_allowed": False,
+                    "automatic_purchase_allowed": False,
+                    "automatic_contract_acceptance_allowed": False,
+                    "automatic_advance_payment_change_allowed": False,
+                    "automatic_device_control_change_allowed": False,
+                    "historical_actuals_rewrite_allowed": False,
+                    "manual_financial_override_allowed": False,
+                    "missing_values_may_be_assumed": False,
+                    "zero_substitution_allowed": False,
+                    "double_counting_allowed": False
+                },
+                "publication_policy": {
+                    "eligible_candidate_may_be_published_as_advice_only_after_required_gates": True,
+                    "blocked_numeric_value": None,
+                    "blocked_rendering": "Niet beschikbaar",
+                    "candidate_label_required": True,
+                    "audit_trail_required": True
+                },
+                "roadmap_state": "v30_step_1_of_4_adaptive_optimization_candidate_runtime_active_guarded",
+                "next_step": "v30_optimization_selection_runtime",
+                "status": "adaptive_optimization_candidate_runtime_active_guarded"
+            },
             "v29_forecast_publication_runtime": {
                 "objective": "publish_only_validated_calibrated_savings_forecasts_with_visible_uncertainty_and_clear_separation_from_actuals_and_business_case_values",
                 "roadmap_step": "3/4",
@@ -6776,7 +6842,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v28_complete_guarded_execution_outcome_learning_chain",
-                "next_major_release": "29.2.0",
+                "next_major_release": "30.0.0",
                 "status": "v28_complete_external_execution_measurement_and_learning_gates_remain"
             },
             "v28_verified_outcome_portfolio_runtime": {
@@ -6960,7 +7026,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v27_complete_guarded_execution_planning_chain",
-                "next_major_release": "29.2.0",
+                "next_major_release": "30.0.0",
                 "status": "v27_complete_external_data_and_user_action_gates_remain"
             },
             "v27_execution_plan_runtime": {
@@ -7143,7 +7209,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v26_complete_guarded_financial_action_queue_chain",
-                "next_major_release": "29.2.0",
+                "next_major_release": "30.0.0",
                 "status": "v26_complete_external_data_gates_remain"
             },
             "v26_action_queue_runtime": {
@@ -7312,7 +7378,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "reason_and_data_quality_required": True
                 },
                 "roadmap_state": "v25_step_5_of_5_completion_gate_active_guarded",
-                "next_major_release": "29.2.0",
+                "next_major_release": "30.0.0",
                 "status": "v25_complete_external_data_gates_remain"
             },
             "v23_completion_publication_gate": {
@@ -14371,7 +14437,7 @@ window.addEventListener('load',()=>{{
 </main></body></html>""".encode("utf-8")
 
 
-ALLOWED_HTTP_CLIENTS = {"172.30.32.2", "129.2.0.1", "::1"}
+ALLOWED_HTTP_CLIENTS = {"172.30.32.2", "130.0.0.1", "::1"}
 
 
 

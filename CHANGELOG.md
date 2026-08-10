@@ -1,3 +1,8 @@
+## v30.0.0 — adaptive optimization candidates
+- Start v30 met een guarded optimalisatielaag bovenop de afgeronde forecastketen.
+- Kandidaten worden financieel gerangschikt op gevalideerde eurowaarde, confidence en implementatie-inspanning.
+- Externe financiële en meetgates blijven hard; geen autonome externe uitvoering.
+
 ## v29.2.0 — forecast publication + v29 completion
 - Bundelt v29 stap 3/4 en 4/4.
 - Publiceert alleen gevalideerde gekalibreerde besparingsprognoses.
