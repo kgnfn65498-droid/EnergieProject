@@ -15,6 +15,7 @@ PROCESSING="$INBOX/processing"
 PROCESSED="$INBOX/processed"
 FAILED="$INBOX/failed"
 BACKUPS="$SHARE/EnergieProject_Backups"
+BACKUP_RETENTION="${ENERGIE_BACKUP_RETENTION:-3}"
 LOCK="$INBOX/.installer.lock"
 PROCESSING_STALE_SECONDS="${ENERGIE_PROCESSING_STALE_SECONDS:-600}"
 REQUIRED="README.md INSTALL.md CHANGELOG.md MANIFEST.sha256 SHA256SUMS.json repository.yaml VERSIE.txt"
@@ -89,6 +90,37 @@ copy_tree_no_metadata(){
   # Intentionally use plain recursive copy without metadata preservation. QNAP shares may
   # reject ownership/timestamp preservation even though normal file writes work.
   cp -R "$SRC"/. "$DST"/
+}
+
+cleanup_old_backups(){
+  case "$BACKUP_RETENTION" in
+    ''|*[!0-9]*)
+      log "WAARSCHUWING: ongeldige backupretentie '$BACKUP_RETENTION'; gebruik 3"
+      BACKUP_RETENTION=3
+      ;;
+  esac
+  [ "$BACKUP_RETENTION" -ge 1 ] 2>/dev/null || BACKUP_RETENTION=3
+
+  set -- "$BACKUPS"/EnergieProject_pre_*.tar.gz
+  [ -e "$1" ] || return 0
+
+  OLD_BACKUPS="$(ls -1t "$BACKUPS"/EnergieProject_pre_*.tar.gz 2>/dev/null | tail -n +$((BACKUP_RETENTION + 1)) || true)"
+  if [ -z "$OLD_BACKUPS" ]; then
+    log "Backupretentie: maximaal $BACKUP_RETENTION; niets op te ruimen"
+    return 0
+  fi
+
+  printf '%s\n' "$OLD_BACKUPS" | while IFS= read -r old_backup; do
+    [ -n "$old_backup" ] || continue
+    [ "$old_backup" = "$BACKUP" ] && continue
+    if rm -f -- "$old_backup"; then
+      log "Backupretentie: verwijderd $(basename "$old_backup")"
+    else
+      log "WAARSCHUWING: backupretentie kon $(basename "$old_backup") niet verwijderen"
+    fi
+  done
+
+  log "Backupretentie toegepast: maximaal $BACKUP_RETENTION pre-release backups"
 }
 
 restore_backup(){
@@ -266,5 +298,6 @@ CANONICAL_PROCESSED="$PROCESSED/EnergieProject_v${NEW_VERSION}.zip"
 rm -f "$CANONICAL_PROCESSED"
 mv "$ZIP_WORK" "$CANONICAL_PROCESSED"
 ZIP_WORK=""
+cleanup_old_backups
 log "SUCCES: $CURRENT_VERSION -> $NEW_VERSION; $FINAL_DETAIL; ZIP canoniek gearchiveerd als EnergieProject_v${NEW_VERSION}.zip in processed."
 schedule_watcher_refresh

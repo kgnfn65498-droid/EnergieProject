@@ -1,3 +1,8 @@
+## v32.0.1 — automatische crash-recoveryretentie
+- Maximaal 3 pre-release herstelbackups.
+- Retentie pas na succesvolle installatie/eindcontrole.
+- BusyBox/QNAP-compatibel; `ENERGIE_BACKUP_RETENTION` kan het aantal overschrijven.
+
 ## v32.0.0 — final integration, backup/recovery and final validation
 - Bundelt de volledige v32-afronding in één release.
 - Eén consistente guarded integratieketen voor release-identiteit, financiële gates, officiële rapportage, chat/voice en savings-runtime.
