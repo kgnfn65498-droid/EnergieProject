@@ -1,8 +1,8 @@
 # Changelog
 
-## 24.0.0
-- Start v24 met een guarded Action Handoff Runtime bovenop de gevalideerde v23-portfolio/publicatieketen.
-- Alleen een volledig publiceerbare, positieve en traceerbare v23-case kan `ready_for_user_action` worden.
-- De handoff voert nooit zelfstandig een aankoop, contractwissel of apparaatsturing uit; externe actie vereist gebruikerbevestiging.
-- Geblokkeerde cases blijven `waiting_for_data`; ontbrekende financiële waarden blijven `Niet beschikbaar` en nooit €0.
-- Roadmap v24: stap 1/5; volgende stap is guarded action tracking.
+## 24.1.0
+- Voegt guarded Action Tracking Runtime toe bovenop de in Home Assistant gevalideerde v24.0.0 Action Handoff.
+- Volgt actie-status en uitvoeringsbewijs zonder zelfrapportage als financiële besparing te behandelen.
+- Gerealiseerde besparing blijft `null` totdat meetbare, traceerbare validatie beschikbaar is.
+- Behoudt alle contract-, kandidaat-, null-, EPEX- en gebruikersbevestigingsgates.
+- Roadmap v24: stap 2/5; volgende stap is Realized Savings.

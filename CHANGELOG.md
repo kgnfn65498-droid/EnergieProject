@@ -1,5 +1,13 @@
 # Changelog
 
+## v24.1.0 — guarded action tracking
+
+- Bouwt voort op de in Home Assistant gevalideerde v24.0.0 Action Handoff Runtime.
+- Voegt traceerbare actiestatus, uitvoeringsbewijs en audittrail toe zonder externe acties automatisch uit te voeren.
+- Zelfrapportage mag een actie registreren, maar nooit zelfstandig gerealiseerde financiële besparing bewijzen.
+- Gerealiseerde besparing blijft `null` tot gevalideerde meetdata beschikbaar is.
+- v24-roadmap stap 2/5: Action Tracking; hierna Realized Savings.
+
 ## v24.0.0 — guarded action handoff
 
 - Start v24 vanaf de gevalideerde v23.5.0 productie-baseline.
