@@ -1,3 +1,11 @@
+## v24.4.0 — v24 completion gate
+- Sluit v24 af na de in Home Assistant gevalideerde Variance/Learning Runtime van v24.3.1.
+- Consolideert Action Handoff, Action Tracking, Realized Savings en Variance/Learning tot één guarded end-to-end keten.
+- Externe meet- en contractgates mogen bij release-afronding nog geblokkeerd zijn; zij openen later automatisch zonder handmatige override.
+- Kandidaatwaarden, korte meetvensters en business-case schattingen mogen nooit als gerealiseerde besparing of learning-input worden gepromoveerd.
+- v24-roadmap stap 5/5 voltooid; volgende hoofdontwikkelrelease is v25.0.0.
+- Behoudt de v24.3.1 suffix-tolerante NAS→GitHub→Home Assistant publicatiefix.
+
 ## v24.3.1
 - Herstelt NAS→GitHub→Home Assistant publicatie wanneer browser/QNAP een releasebestand als `(1)`/`(2)` archiveert.
 - Publisher accepteert voortaan alle verifieerbare `EnergieProject_v<versie>*.zip` bestanden in `processed`.

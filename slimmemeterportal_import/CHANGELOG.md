@@ -1,12 +1,9 @@
-## v24.3.1
-- Herstelt NAS→GitHub→Home Assistant publicatie wanneer browser/QNAP een releasebestand als `(1)`/`(2)` archiveert.
-- Publisher accepteert voortaan alle verifieerbare `EnergieProject_v<versie>*.zip` bestanden in `processed`.
-- Installer archiveert toekomstige releases canoniek als `EnergieProject_v<versie>.zip`.
-
 # Changelog
 
-## 24.3.1
-- Guarded Variance/Learning Runtime toegevoegd (v24 stap 4/5).
-- Alleen gevalideerde businesscase- en gerealiseerde waarden mogen variantie en learning voeden.
-- Een korte of enkele meetperiode mag het financiële model niet automatisch herschrijven.
+## 24.4.0
+- v24 Completion Gate toegevoegd (stap 5/5).
+- Action Handoff, Action Tracking, Realized Savings en Variance/Learning zijn als één guarded keten afgerond.
+- Externe observatie-, contract-, uitvoerings- en meetgates mogen bij release-afronding nog geblokkeerd zijn en openen uitsluitend automatisch na geldige data.
+- Kandidaatwaarden, business-case schattingen en korte meetvensters worden niet als gerealiseerde besparing of learning-resultaat gepubliceerd.
 - Ontbrekende financiële waarden blijven null / Niet beschikbaar; geen zero-substitutie of handmatige financiële override.
+- Suffix-tolerante NAS→GitHub→Home Assistant publicatie uit v24.3.1 blijft actief.
