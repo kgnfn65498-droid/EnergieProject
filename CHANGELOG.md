@@ -1,3 +1,9 @@
+## v27.2.0 — execution plan publication + v27 completion
+- Bundelt v27 stap 3/4 en 4/4.
+- Publiceert maximaal drie guarded uitvoeringsplannen naar officiële rapportsurfaces.
+- Sluit v27 af zonder externe observatie-, contract-, meet- of gebruikersactiegates kunstmatig te openen.
+- Volgende major release: v28.0.0.
+
 ## v27.1.0 — guarded execution plans
 - v27 stap 2/4: concrete uitvoeringsplannen voor maximaal drie gevalideerde energieacties.
 - Meetplan, succescriterium, stopconditie en rollback worden expliciet onderdeel van ieder toepasbaar plan.

@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "27.1.0"
+APP_VERSION = "27.2.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "27.1.0",
+            "engine_version": "27.2.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "27.1.0",
+            "engine_version": "27.2.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "27.1.0",
+        "engine_version": "27.2.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6514,6 +6514,80 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "next_step": "v25_report_publication_runtime",
                 "status": "monthly_budget_impact_runtime_active_guarded"
             },
+            "v27_execution_plan_publication_runtime": {
+                "objective": "publish_guarded_execution_plans_to_official_report_surfaces_without_crossing_user_authority_or_financial_validation_boundaries",
+                "roadmap_step": "3/4",
+                "source_runtime": "v27_execution_plan_runtime",
+                "publication_policy": {
+                    "maximum_primary_plans": 3,
+                    "ready_for_user_action_requires_all_required_gates_open": True,
+                    "measurement_plan_requires_explicit_measurement_need": True,
+                    "blocked_external_requires_explicit_dependency": True,
+                    "hold_requires_validated_non_action_case": True,
+                    "candidate_values_primary_output_allowed": False,
+                    "blocked_numeric_value": None,
+                    "blocked_rendering": "Niet beschikbaar",
+                    "reason_required": True,
+                    "evidence_reference_required": True,
+                    "data_quality_required": True
+                },
+                "report_surface_contract": {
+                    "page1_management_summary": "top_guarded_execution_plans_or_wait_state",
+                    "page1_financial_kpis": "validated_publishable_execution_values_only",
+                    "page2_financial_analysis": "execution_plan_financial_basis_measurement_and_blockers",
+                    "pages3_13_context": "execution_evidence_measurement_success_stop_rollback_and_quality"
+                },
+                "authority_boundaries": {
+                    "automatic_purchase_allowed": False,
+                    "automatic_supplier_switch_allowed": False,
+                    "automatic_contract_acceptance_allowed": False,
+                    "automatic_advance_payment_change_allowed": False,
+                    "automatic_device_control_change_allowed": False
+                },
+                "roadmap_state": "v27_step_3_of_4_execution_plan_publication_active_guarded",
+                "next_step": "v27_completion_gate",
+                "status": "execution_plan_publication_runtime_active_guarded"
+            },
+            "v27_completion_gate": {
+                "objective": "complete_v27_with_one_guarded_chain_from_execution_readiness_to_traceable_execution_plan_and_official_publication",
+                "roadmap_step": "4/4",
+                "chain_components": {
+                    "execution_readiness_runtime": "ready_guarded",
+                    "execution_plan_runtime": "ready_guarded",
+                    "execution_plan_publication_runtime": "ready_guarded"
+                },
+                "external_dependencies": {
+                    "observation_gate": "minimum_7_observed_days",
+                    "supplier_contract_gate": "official_contract_values_required",
+                    "supplier_all_in_gate": "validated_supplier_components_required",
+                    "measurement_gate": "validated_domain_measurement_required",
+                    "user_action_gate": "explicit_user_action_required_before_external_execution"
+                },
+                "completion_policy": {
+                    "external_data_may_remain_blocked_at_release_completion": True,
+                    "automatic_transition_after_external_gates": True,
+                    "automatic_external_execution_allowed": False,
+                    "manual_financial_override_allowed": False,
+                    "candidate_values_may_drive_execution": False,
+                    "partial_period_may_be_promoted_to_full_period": False,
+                    "missing_values_may_be_assumed": False,
+                    "zero_substitution_allowed": False,
+                    "double_counting_allowed": False
+                },
+                "publication_policy": {
+                    "publish_maximum_primary_plans": 3,
+                    "publish_ready_for_user_action_only_when_all_required_gates_open": True,
+                    "publish_measurement_plan_only_with_explicit_measurement_need": True,
+                    "publish_blocked_external_only_with_explicit_dependency": True,
+                    "publish_hold_only_from_validated_case": True,
+                    "blocked_numeric_value": None,
+                    "blocked_rendering": "Niet beschikbaar",
+                    "audit_trail_required": True
+                },
+                "roadmap_state": "v27_complete_guarded_execution_planning_chain",
+                "next_major_release": "28.0.0",
+                "status": "v27_complete_external_data_and_user_action_gates_remain"
+            },
             "v27_execution_plan_runtime": {
                 "objective": "turn_execution_ready_energy_actions_into_small_traceable_plans_without_crossing_financial_or_device_control_authority_boundaries",
                 "roadmap_step": "2/4",
@@ -6694,7 +6768,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v26_complete_guarded_financial_action_queue_chain",
-                "next_major_release": "27.1.0",
+                "next_major_release": "27.2.0",
                 "status": "v26_complete_external_data_gates_remain"
             },
             "v26_action_queue_runtime": {
@@ -6863,7 +6937,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "reason_and_data_quality_required": True
                 },
                 "roadmap_state": "v25_step_5_of_5_completion_gate_active_guarded",
-                "next_major_release": "27.1.0",
+                "next_major_release": "27.2.0",
                 "status": "v25_complete_external_data_gates_remain"
             },
             "v23_completion_publication_gate": {
@@ -13922,7 +13996,7 @@ window.addEventListener('load',()=>{{
 </main></body></html>""".encode("utf-8")
 
 
-ALLOWED_HTTP_CLIENTS = {"172.30.32.2", "127.1.0.1", "::1"}
+ALLOWED_HTTP_CLIENTS = {"172.30.32.2", "127.2.0.1", "::1"}
 
 
 

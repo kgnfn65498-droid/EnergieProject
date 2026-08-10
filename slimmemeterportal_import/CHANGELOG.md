@@ -1,8 +1,8 @@
 # Changelog
 
-## 27.1.0
-- v27 stap 2/4: guarded Execution Plan Runtime.
-- Zet maximaal drie uitvoeringsgereedheidsacties om in concrete, traceerbare plannen.
-- Elk plan bevat volgende actie, meetplan waar nodig, succescriterium, stopconditie en rollbackpad.
-- Geen automatische aankoop, leverancierswissel, contractacceptatie, voorschotwijziging of apparaatbesturing.
-- Alle bestaande financiële en data-quality gates blijven hard.
+## 27.2.0
+- Bundelt v27 stap 3/4 en 4/4 in één grotere completion-release.
+- Voeg guarded Execution Plan Publication Runtime toe.
+- Sluit v27 af met Completion Gate.
+- Maximaal drie primaire plannen; externe uitvoering blijft altijd achter gebruikersactie en validatiegates.
+- Geen promotie van kandidaatwaarden, gedeeltelijke perioden of ontbrekende financiële waarden.
