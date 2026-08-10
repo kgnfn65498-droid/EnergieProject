@@ -1,8 +1,9 @@
 # Changelog
 
-## 21.2.0
-- Blocked Dependency Runtime toegevoegd.
-- De financiële actieketen maakt nu expliciet zichtbaar welke echte afhankelijkheid de volgende stap blokkeert.
-- Meetdekking, officiële leveranciercontractdata en opportunity-inputs worden afzonderlijk en in vaste volgorde gevolgd.
-- Alleen werkelijk ontbrekende afhankelijkheden worden gemeld; kandidaatwaarden of aannames mogen geen gate openen.
-- Automatische verversing na nieuwe meet- of contractgegevens blijft actief.
+## 21.3.0
+- Financial Action Readiness toegevoegd.
+- Contractwissel, thuisbatterij, apparaatvervanging en load shifting krijgen ieder een afzonderlijke readiness-status.
+- Per actie worden vereiste en ontbrekende inputs expliciet vastgelegd.
+- Financiële evaluatie start alleen met complete gevalideerde inputs.
+- Een actie wordt pas actionable bij een positief, gevalideerd financieel resultaat.
+- Kandidaatwaarden en aannames mogen ontbrekende inputs niet vervangen.
