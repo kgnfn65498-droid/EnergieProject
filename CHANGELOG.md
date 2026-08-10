@@ -1,3 +1,11 @@
+## v25.0.0 — guarded validated savings ledger
+- Start v25 vanaf de in Home Assistant gevalideerde v24.4.0 completion-baseline.
+- Voegt één traceerbaar Savings Ledger-contract toe voor uitsluitend gevalideerde gerealiseerde besparingen uit de v24-keten.
+- Voorkomt dubbeltelling via stabiele action-id + evidence-reference; estimates, candidates en self-report mogen niet als gerealiseerde eurobesparing worden geboekt.
+- Negatieve gerealiseerde impact blijft zichtbaar en mag niet naar nul worden afgevlakt.
+- v25-roadmap stap 1/5; hierna cumulatieve portfolio-impact, budget/voorschot-impact, rapportpublicatie en completion.
+- Behoudt ongewijzigd de v24.3.1 suffix-tolerante NAS→GitHub→Home Assistant publicatieketen.
+
 ## v24.4.0 — v24 completion gate
 - Sluit v24 af na de in Home Assistant gevalideerde Variance/Learning Runtime van v24.3.1.
 - Consolideert Action Handoff, Action Tracking, Realized Savings en Variance/Learning tot één guarded end-to-end keten.

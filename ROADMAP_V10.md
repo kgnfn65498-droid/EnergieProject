@@ -80,3 +80,10 @@
 
 - v10.6.0: financiële 30-dagen productieprognose geactiveerd achter de 7-dagen kwaliteitsgate; leverancier-all-in blijft contract-gated.
 - Resterend tot v11.0: 4 productiestappen gepland: v10.6.1 contract/all-in validatie, v10.7 prognose-engine verdieping, v10.8 officiële rapportgenerator-integratie, v10.9 eindvalidatie/consolidatie.
+
+## v25 — gevalideerde besparingsboekhouding
+- v25.0.0 — stap 1/5: Savings Ledger Runtime; uitsluitend gemeten en gevalideerde gerealiseerde besparingen boekbaar, zonder dubbeltelling.
+- v25.1.x — stap 2/5: cumulatieve portfolio-impact over gevalideerde acties.
+- v25.2.x — stap 3/5: guarded impact op maandbudget/voorschotcontext.
+- v25.3.x — stap 4/5: officiële rapportpublicatie van gevalideerde cumulatieve besparing.
+- v25.4.x — stap 5/5: completion/consolidatie, externe datagates mogen gesloten blijven.

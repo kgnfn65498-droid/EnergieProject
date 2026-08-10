@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "24.4.0"
+APP_VERSION = "25.0.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "24.4.0",
+            "engine_version": "25.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "24.4.0",
+            "engine_version": "25.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "24.4.0",
+        "engine_version": "25.0.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6372,6 +6372,57 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "roadmap_state": "v24_complete_guarded_action_to_realized_savings_learning_chain",
                 "next_major_release": "25.0.0",
                 "status": "v24_complete_external_data_gates_remain"
+            },
+            "v25_savings_ledger_runtime": {
+                "objective": "maintain_one_guarded_auditable_ledger_of_validated_realized_savings_across_actions_without_double_counting",
+                "source_completion_gate": "v24_completion_gate",
+                "roadmap_step": "1/5",
+                "ledger_entry_states": ["blocked", "eligible", "booked", "reversed_or_corrected"],
+                "eligibility_policy": {
+                    "validated_realized_savings_required": True,
+                    "stable_action_id_required": True,
+                    "traceable_measurement_evidence_required": True,
+                    "realized_period_required": True,
+                    "candidate_values_may_not_be_booked": True,
+                    "business_case_estimates_may_not_be_booked": True,
+                    "self_report_alone_may_not_be_booked": True,
+                    "missing_values_may_not_be_assumed": True,
+                    "manual_financial_override_allowed": False
+                },
+                "double_counting_policy": {
+                    "deduplication_key": "stable_action_id_plus_validated_evidence_reference_plus_realized_period",
+                    "same_validated_savings_may_be_booked_twice": False,
+                    "overlapping_measurement_periods_require_explicit_separation": True,
+                    "correction_preserves_original_audit_entry": True
+                },
+                "ledger_value_policy": {
+                    "positive_realized_savings_preserved": True,
+                    "negative_realized_impact_preserved": True,
+                    "negative_values_may_be_clamped_to_zero": False,
+                    "zero_substitution_for_missing_allowed": False,
+                    "annualization_requires_existing_v24_annualization_gate": True
+                },
+                "ledger_output_contract": {
+                    "ledger_entry_id": "stable_traceable_identifier_required",
+                    "action_id": "validated_action_identifier_required",
+                    "domain": "validated_domain_required",
+                    "realized_savings_eur": "validated_measured_value_required",
+                    "realized_savings_period": "validated_period_required",
+                    "annualized_realized_savings_eur": "validated_value_or_null",
+                    "evidence_reference": "validated_reference_required",
+                    "booking_state": "required",
+                    "correction_reference": "validated_reference_or_null",
+                    "data_quality": "required"
+                },
+                "publication_policy": {
+                    "booked_values_are_actuals_not_estimates": True,
+                    "blocked_numeric_value": None,
+                    "blocked_rendering": "Niet beschikbaar",
+                    "audit_trail_required": True
+                },
+                "roadmap_state": "v25_step_1_of_5_validated_savings_ledger_runtime_active_guarded",
+                "next_step": "v25_cumulative_portfolio_impact_runtime",
+                "status": "savings_ledger_runtime_active_guarded"
             },
             "v23_completion_publication_gate": {
                 "objective": "close_v23_with_one_guarded_auditable_savings_portfolio_recommendation_publication_chain_ready_for_v24",

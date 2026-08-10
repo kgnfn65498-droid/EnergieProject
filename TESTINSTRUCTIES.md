@@ -1,6 +1,6 @@
 # Testinstructies v24.0.0 — stap 1/5
 
-1. Plaats `EnergieProject_v24.0.0.zip` in `EnergieProject_Inbox/incoming` en wacht op `processed`.
+1. Plaats `EnergieProject_v25.0.0.zip` in `EnergieProject_Inbox/incoming` en wacht op `processed`.
 2. Update in Home Assistant en controleer GUI/Ingress.
 3. Download Analyse-export en release-diagnose.
 4. Controleer `v24_action_handoff_runtime.status = action_handoff_runtime_active_guarded`.
