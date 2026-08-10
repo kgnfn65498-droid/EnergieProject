@@ -1,3 +1,9 @@
+## v26.2.0 — action queue publication + v26 completion
+- Bundelt v26 stap 3/4 en 4/4.
+- Publiceert maximaal drie guarded energieacties naar officiële rapportsurfaces.
+- Sluit v26 af zonder externe observatie-, contract- of meetgates kunstmatig te openen.
+- Volgende major release: v27.0.0.
+
 ## v26.1.1 — GUI runtime hotfix
 - Herstelt de Action Queue runtime waardoor de GUI-context in v26.1.0 kon crashen.
 - Voegt een runtime-safe regressiecontrole toe zodat JSON-literals niet opnieuw in Python-dictionaries terechtkomen.

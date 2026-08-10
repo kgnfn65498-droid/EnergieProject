@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "26.1.1"
+APP_VERSION = "26.2.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "26.1.1",
+            "engine_version": "26.2.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "26.1.1",
+            "engine_version": "26.2.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "26.1.1",
+        "engine_version": "26.2.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6514,6 +6514,71 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "next_step": "v25_report_publication_runtime",
                 "status": "monthly_budget_impact_runtime_active_guarded"
             },
+            "v26_action_queue_publication_runtime": {
+                "objective": "publish_the_guarded_action_queue_into_official_report_surfaces_without_promoting_blocked_candidate_or_unvalidated_financial_values",
+                "roadmap_step": "3/4",
+                "source_runtime": "v26_action_queue_runtime",
+                "publication_policy": {
+                    "maximum_primary_actions": 3,
+                    "act_now_requires_all_required_gates_open": True,
+                    "measure_first_requires_explicit_measurement_gap": True,
+                    "wait_for_data_requires_explicit_blocker": True,
+                    "do_not_pursue_requires_validated_non_positive_or_unjustified_case": True,
+                    "candidate_values_primary_output_allowed": False,
+                    "blocked_numeric_value": None,
+                    "blocked_rendering": "Niet beschikbaar",
+                    "reason_required": True,
+                    "evidence_reference_required": True,
+                    "data_quality_required": True
+                },
+                "report_surface_contract": {
+                    "page1_management_summary": "top_guarded_actions_or_wait_state",
+                    "page1_financial_kpis": "validated_publishable_action_values_only",
+                    "page2_financial_analysis": "ranked_action_queue_financial_basis_and_blockers",
+                    "pages3_13_context": "action_evidence_measurement_needs_quality_and_traceability"
+                },
+                "roadmap_state": "v26_step_3_of_4_action_queue_publication_active_guarded",
+                "next_step": "v26_completion_gate",
+                "status": "action_queue_publication_runtime_active_guarded"
+            },
+            "v26_completion_gate": {
+                "objective": "complete_v26_with_one_guarded_chain_from_financial_value_prioritization_to_traceable_action_queue_and_official_publication",
+                "roadmap_step": "4/4",
+                "chain_components": {
+                    "decision_value_prioritization_runtime": "ready_guarded",
+                    "action_queue_runtime": "ready_guarded",
+                    "action_queue_publication_runtime": "ready_guarded"
+                },
+                "external_dependencies": {
+                    "observation_gate": "minimum_7_observed_days",
+                    "supplier_contract_gate": "official_contract_values_required",
+                    "supplier_all_in_gate": "validated_supplier_components_required",
+                    "measurement_gate": "validated_domain_measurement_required"
+                },
+                "completion_policy": {
+                    "external_data_may_remain_blocked_at_release_completion": True,
+                    "automatic_transition_after_external_gates": True,
+                    "manual_financial_override_allowed": False,
+                    "candidate_values_may_drive_action": False,
+                    "partial_period_may_be_promoted_to_full_period": False,
+                    "missing_values_may_be_assumed": False,
+                    "zero_substitution_allowed": False,
+                    "double_counting_allowed": False
+                },
+                "publication_policy": {
+                    "publish_maximum_primary_actions": 3,
+                    "publish_act_now_only_when_all_required_gates_open": True,
+                    "publish_measure_first_only_with_explicit_measurement_gap": True,
+                    "publish_wait_for_data_only_with_explicit_blocker": True,
+                    "publish_do_not_pursue_only_from_validated_case": True,
+                    "blocked_numeric_value": None,
+                    "blocked_rendering": "Niet beschikbaar",
+                    "audit_trail_required": True
+                },
+                "roadmap_state": "v26_complete_guarded_financial_action_queue_chain",
+                "next_major_release": "27.0.0",
+                "status": "v26_complete_external_data_gates_remain"
+            },
             "v26_action_queue_runtime": {
                 "objective": "materialize_the_guarded_decision_value_ranking_into_a_small_traceable_action_queue_without_bypassing_external_financial_gates",
                 "roadmap_step": "2/4",
@@ -6680,7 +6745,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "reason_and_data_quality_required": True
                 },
                 "roadmap_state": "v25_step_5_of_5_completion_gate_active_guarded",
-                "next_major_release": "26.1.1",
+                "next_major_release": "26.2.0",
                 "status": "v25_complete_external_data_gates_remain"
             },
             "v23_completion_publication_gate": {

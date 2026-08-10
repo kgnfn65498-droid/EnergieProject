@@ -1,7 +1,8 @@
 # Changelog
 
-## 26.1.1
-- Hotfix voor de v26.1.0 GUI-regressie.
-- Corrigeert JSON-literals in de Python Action Queue runtime naar geldige Python-literals.
-- Corrigeert de regressietest die de foutieve notatie ten onrechte accepteerde.
-- Geen wijziging aan financiële gates of functionele v26-logica.
+## 26.2.0
+- Bundelt v26 stap 3/4 en 4/4 in één grotere completion-release.
+- Voeg guarded Action Queue Publication Runtime toe voor officiële rapportage.
+- Sluit v26 af met Completion Gate.
+- Maximaal drie primaire acties; alleen act_now wanneer alle vereiste gates open zijn.
+- Geen promotie van kandidaatwaarden, gedeeltelijke perioden of ontbrekende financiële waarden.
