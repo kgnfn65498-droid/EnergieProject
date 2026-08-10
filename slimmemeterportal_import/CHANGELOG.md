@@ -1,8 +1,8 @@
 # Changelog
 
-## 22.2.0
-- Decision Confidence Runtime toegevoegd.
-- Financiële beslissingen krijgen een expliciete confidence-status: blocked, limited, validated of actionable.
-- Confidence wordt uitsluitend verhoogd door traceerbaar bewijs en geopende vereiste gates.
-- Alleen een complete positieve gevalideerde businesscase kan de status actionable bereiken.
-- Kandidaatwaarden of ontbrekende gegevens kunnen confidence niet kunstmatig verhogen.
+## 22.3.0
+- Decision Confidence Resolution Runtime toegevoegd.
+- Confidence wordt nu deterministisch opgelost via gate failure, gedeeltelijk bewijs, compleet bewijs en positieve financiële businesscase.
+- De eerste onopgeloste vereiste gate blijft de primaire blocker.
+- Een gevalideerde analyse wordt niet automatisch een aankoop-, vervangings- of overstapadvies.
+- Alleen actionable confidence mag een wijzigingsactie publiceren.
