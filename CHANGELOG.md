@@ -1,3 +1,9 @@
+## v29.2.0 — forecast publication + v29 completion
+- Bundelt v29 stap 3/4 en 4/4.
+- Publiceert alleen gevalideerde gekalibreerde besparingsprognoses.
+- Actuals, businesscase en forecast blijven gescheiden; onzekerheid en confidence zijn verplicht.
+- Volgende major release: v30.0.0.
+
 ## v29.1.0 — calibrated savings forecast
 - v29 stap 2/4: gevalideerde kalibratie wordt vertaald naar toekomstige besparingsprognoses.
 - Actuals, businesscase en forecast blijven afzonderlijke financiële lagen.
