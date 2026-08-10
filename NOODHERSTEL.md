@@ -9,3 +9,6 @@ Deze handleiding is uitsluitend voor een echte crash of vervanging van Home Assi
 5. Ontbreken maand-/runtimegegevens, gebruik dan de nieuwste `EnergieProject_maandbackup_*.zip` uit `EnergieProject_Backups`.
 
 API-sleutels staan bewust niet in projectback-ups. Die horen via de normale Home Assistant back-up/appconfiguratie terug te komen.
+
+## v32 herstelvalidatie
+Na herstel controleren: release-identiteit, MANIFEST.sha256, SHA256SUMS.json, Python compile, runtime-smoke en daarna een nieuwe Home Assistant Energieanalyse. Een herstel zonder deze controles geldt niet als gevalideerd herstel.

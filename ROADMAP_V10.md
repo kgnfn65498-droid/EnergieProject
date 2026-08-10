@@ -101,3 +101,10 @@
 - v31.2.0 — stap 4/4 gerealiseerd: Chat/Voice Completion + Report/Print Handoff.
 - v31 is compleet na Home Assistant-validatie.
 - Volgende: v32.0.0 eindintegratie, backup/recovery en eindvalidatie; daarna alleen gerichte fixes.
+
+## v32 — eindintegratie en afronding
+- v32.0.0 — stap 1/3: Final Integration Runtime.
+- v32.0.0 — stap 2/3: Backup/Recovery Runtime.
+- v32.0.0 — stap 3/3: Final Validation Gate.
+- Na succesvolle Home Assistant-validatie is de huidige roadmap afgerond.
+- Daarna alleen gerichte v32.x fixes of een expliciet nieuw roadmapbesluit.

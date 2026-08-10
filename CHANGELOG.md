@@ -1,3 +1,9 @@
+## v32.0.0 — final integration, backup/recovery and final validation
+- Bundelt de volledige v32-afronding in één release.
+- Eén consistente guarded integratieketen voor release-identiteit, financiële gates, officiële rapportage, chat/voice en savings-runtime.
+- Backup/recovery wordt expliciet onderdeel van releasevalidatie.
+- Na succesvolle HA-validatie is de huidige roadmap compleet.
+
 ## v31.2.0 — chat/voice completion + report/print handoff
 - v31 stap 4/4 voltooid.
 - Chat/voice gebruikt uitsluitend bestaande gevalideerde rapportcontext en publiceerbare financiële waarden.

@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "31.2.0"
+APP_VERSION = "32.0.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -3157,7 +3157,7 @@ def validate_runtime_dependencies() -> None:
 def derive_local_ipv4_cidr() -> str:
     """
     Bepaal een bruikbaar thuisnetwerk, maar accepteer nooit het interne
-    Home Assistant-containerbereik 172.31.2.0/16 als HomeWizard-scanbereik.
+    Home Assistant-containerbereik 172.32.0.0/16 als HomeWizard-scanbereik.
     """
     candidates: list[str] = []
 
@@ -3186,7 +3186,7 @@ def derive_local_ipv4_cidr() -> str:
             continue
         if ip.is_loopback or ip.is_link_local:
             continue
-        if ip in ipaddress.ip_network("172.31.2.0/16"):
+        if ip in ipaddress.ip_network("172.32.0.0/16"):
             continue
         if ip.is_private:
             return str(ipaddress.ip_network(f"{ip}/24", strict=False))
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "31.2.0",
+            "engine_version": "32.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "31.2.0",
+            "engine_version": "32.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "31.2.0",
+        "engine_version": "32.0.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6727,10 +6727,107 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "next_major_release": "32.0.0",
                 "status": "v31_chat_voice_completion_and_report_handoff_active_guarded"
             },
+            "v32_final_integration_runtime": {
+                "objective": "close_the_current_development_program_with_one_guarded_integrated_runtime_contract_covering_release_identity_reporting_financial_gates_chat_voice_backup_recovery_and_final_validation",
+                "roadmap_step": "1/3",
+                "integration_contract": {
+                    "release_identity_runtime_required": True,
+                    "financial_guardrails_required": True,
+                    "official_report_contract_required": True,
+                    "chat_voice_handoff_required": True,
+                    "savings_action_chain_required": True,
+                    "backup_recovery_contract_required": True,
+                    "final_validation_contract_required": True,
+                    "historical_actuals_must_remain_immutable": True,
+                    "missing_values_may_not_be_assumed": True
+                },
+                "cross_runtime_consistency": {
+                    "single_release_version_required": True,
+                    "single_guarded_financial_policy_required": True,
+                    "single_missing_value_policy_required": True,
+                    "single_external_execution_authority_policy_required": True,
+                    "single_official_report_template_policy_required": True
+                },
+                "safety_policy": {
+                    "automatic_external_execution_allowed": False,
+                    "automatic_supplier_switch_allowed": False,
+                    "automatic_purchase_allowed": False,
+                    "automatic_contract_acceptance_allowed": False,
+                    "automatic_advance_payment_change_allowed": False,
+                    "automatic_device_control_change_allowed": False,
+                    "manual_financial_override_allowed": False,
+                    "zero_substitution_allowed": False,
+                    "fabricated_source_allowed": False
+                },
+                "roadmap_state": "v32_step_1_of_3_final_integration_runtime_active_guarded",
+                "next_step": "v32_backup_recovery_runtime",
+                "status": "final_integration_runtime_active_guarded"
+            },
+            "v32_backup_recovery_runtime": {
+                "objective": "define_a_guarded_recoverable_release_state_for_the_energy_project_with_traceable_backup_contents_version_identity_and_recovery_validation",
+                "roadmap_step": "2/3",
+                "backup_contract": {
+                    "current_release_version_required": True,
+                    "manifest_required": True,
+                    "sha256_inventory_required": True,
+                    "project_agreements_required": True,
+                    "roadmap_required": True,
+                    "install_instructions_required": True,
+                    "test_instructions_required": True,
+                    "emergency_recovery_instructions_required": True,
+                    "backup_may_not_silently_mix_release_versions": True
+                },
+                "recovery_contract": {
+                    "restore_requires_matching_release_identity": True,
+                    "restore_requires_manifest_validation": True,
+                    "restore_requires_python_compile_check": True,
+                    "restore_requires_runtime_smoke_check": True,
+                    "home_assistant_validation_required_after_restore": True,
+                    "previous_known_good_release_must_remain_recoverable": True
+                },
+                "retention_policy": {
+                    "minimum_known_good_releases": 3,
+                    "current_release_plus_previous_releases": True,
+                    "corrupt_or_incomplete_backup_may_not_be_marked_good": True
+                },
+                "roadmap_state": "v32_step_2_of_3_backup_recovery_runtime_active_guarded",
+                "next_step": "v32_final_validation_gate",
+                "status": "backup_recovery_runtime_active_guarded"
+            },
+            "v32_final_validation_gate": {
+                "objective": "mark_the_current_program_complete_only_after_static_runtime_integrity_backup_recovery_and_home_assistant_release_identity_validation",
+                "roadmap_step": "3/3",
+                "validation_contract": {
+                    "full_regression_suite_required": True,
+                    "python_compile_required": True,
+                    "runtime_smoke_required": True,
+                    "manifest_validation_required": True,
+                    "zip_integrity_required": True,
+                    "release_identity_validation_required": True,
+                    "home_assistant_analysis_required": True,
+                    "known_external_data_gates_may_remain_blocked": True
+                },
+                "completion_policy": {
+                    "external_financial_data_dependencies_do_not_block_software_completion": True,
+                    "software_integrity_failures_do_block_completion": True,
+                    "release_identity_mismatch_blocks_completion": True,
+                    "missing_backup_or_recovery_contract_blocks_completion": True,
+                    "future_changes_after_completion_should_be_targeted_fixes_or_explicit_new_roadmap": True
+                },
+                "completion_states": {
+                    "awaiting_home_assistant_validation": "all_local_checks_passed_but_final_ha_analysis_not_yet_validated",
+                    "complete_guarded": "all_required_local_and_home_assistant_validation_passed",
+                    "blocked": "one_or_more_required_software_validation_checks_failed"
+                },
+                "roadmap_state": "v32_step_3_of_3_final_validation_gate_active_guarded",
+                "release_state": "awaiting_home_assistant_validation",
+                "next_step_after_success": "maintenance_only_or_explicit_new_roadmap",
+                "status": "final_validation_gate_active_guarded"
+            },
             "release_identity_runtime": {
-                "release_version": "31.2.0",
-                "release_family": "v31_conversation",
-                "validation_marker": "v31_2_0_runtime_identity",
+                "release_version": "32.0.0",
+                "release_family": "v32_final_integration",
+                "validation_marker": "v32_0_0_runtime_identity",
                 "purpose": "make_home_assistant_runtime_release_identity_explicit_in_energy_analysis",
                 "must_match_app_version": True,
                 "must_match_addon_config_version": True,
@@ -7033,7 +7130,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v29_complete_guarded_forecast_calibration_and_publication_chain",
-                "next_major_release": "31.2.0",
+                "next_major_release": "32.0.0",
                 "status": "v29_complete_external_learning_context_and_confidence_gates_remain"
             },
             "v29_calibrated_savings_forecast_runtime": {
@@ -7225,7 +7322,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v28_complete_guarded_execution_outcome_learning_chain",
-                "next_major_release": "31.2.0",
+                "next_major_release": "32.0.0",
                 "status": "v28_complete_external_execution_measurement_and_learning_gates_remain"
             },
             "v28_verified_outcome_portfolio_runtime": {
@@ -7409,7 +7506,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v27_complete_guarded_execution_planning_chain",
-                "next_major_release": "31.2.0",
+                "next_major_release": "32.0.0",
                 "status": "v27_complete_external_data_and_user_action_gates_remain"
             },
             "v27_execution_plan_runtime": {
@@ -7592,7 +7689,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v26_complete_guarded_financial_action_queue_chain",
-                "next_major_release": "31.2.0",
+                "next_major_release": "32.0.0",
                 "status": "v26_complete_external_data_gates_remain"
             },
             "v26_action_queue_runtime": {
@@ -7761,7 +7858,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "reason_and_data_quality_required": True
                 },
                 "roadmap_state": "v25_step_5_of_5_completion_gate_active_guarded",
-                "next_major_release": "31.2.0",
+                "next_major_release": "32.0.0",
                 "status": "v25_complete_external_data_gates_remain"
             },
             "v23_completion_publication_gate": {
@@ -14820,7 +14917,7 @@ window.addEventListener('load',()=>{{
 </main></body></html>""".encode("utf-8")
 
 
-ALLOWED_HTTP_CLIENTS = {"172.30.32.2", "131.2.0.1", "::1"}
+ALLOWED_HTTP_CLIENTS = {"172.30.32.2", "132.0.0.1", "::1"}
 
 
 
