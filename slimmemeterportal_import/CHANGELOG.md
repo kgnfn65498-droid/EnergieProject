@@ -1,9 +1,8 @@
 # Changelog
 
-## 20.3.0
-- v20 financiële rapportageketen formeel afgesloten met één completion gate.
-- Runtime-contract, waardemapping en publicatiestatus zijn als guarded productieonderdelen gekoppeld.
-- Automatische vrijgave na de 7-dagen observatiegate blijft actief.
-- Supplier-all-in blijft uitsluitend vrijgegeven na officiële NextEnergy-contractvalidatie.
-- Geen kandidaatwaarden, nulvervanging of handmatige override in officiële rapportwaarden.
-- Voorbereiding voor v21.0.0 afgerond.
+## 20.4.0
+- v20-roadmap inhoudelijk hervat na de rapportagebaseline.
+- Savings Opportunity Engine toegevoegd voor energiecontract, thuisbatterij, apparaatvervanging en load shifting.
+- Marstek Venus 3 is uitsluitend kandidaat en wordt niet vooraf als beste keuze aangenomen.
+- Apparaatmetingen kunnen voortaan als basis dienen voor jaarkosten, besparing, terugverdientijd en vervangen/behouden-beslissing.
+- Geen koop-, vervang- of contractadvies zonder complete gevalideerde inputs.

@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "20.3.0"
+APP_VERSION = "20.4.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1574,7 +1574,7 @@ def build_report_adapter_data(
         "gas_total": round(gas_m3 * 12, 1),
     })
 
-    # v20.3.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
+    # v20.4.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
     # financiële waarden. Voorbeeldtarieven uit het generatorpakket mogen nooit
     # als echte leverancierskosten in een productierapport terechtkomen.
     observed_variable = financial_context.get("observed_variable_electricity_cost_eur")
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "20.3.0",
+            "engine_version": "20.4.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "20.3.0",
+            "engine_version": "20.4.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "20.3.0",
+        "engine_version": "20.4.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6040,6 +6040,42 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "status": "production_ready_guarded",
             "major_release": "11.0",
             "phase": "financial_reporting_production_baseline",
+            "v20_savings_opportunity_engine": {
+                "objective": "turn_validated_energy_measurements_into_actionable_cost_saving_opportunities",
+                "primary_goal": "reduce_total_energy_costs",
+                "opportunity_types": ["energy_contract", "home_battery", "appliance_replacement", "load_shifting"],
+                "energy_contract": {"status": "guarded", "requires_supplier_all_in": True, "requires_official_contract_values": True, "may_use_epex_as_supplier_price": False},
+                "home_battery": {
+                    "status": "analysis_ready_guarded",
+                    "candidate_product_policy": "candidate_not_preselected",
+                    "known_candidate": "Marstek Venus 3",
+                    "required_inputs": ["validated_import_profile", "validated_export_profile", "dynamic_price_profile", "battery_purchase_price", "usable_capacity_kwh", "roundtrip_efficiency", "power_limits"],
+                    "outputs_when_complete": ["estimated_annual_savings_eur", "simple_payback_years", "buy_wait_or_reject"],
+                    "missing_inputs_may_be_assumed": False
+                },
+                "appliance_replacement": {
+                    "status": "analysis_ready_guarded",
+                    "measurement_source": "HomeWizard_socket_or_validated_device_measurement",
+                    "compare_against": ["nameplate_or_official_consumption", "replacement_purchase_price", "replacement_expected_consumption"],
+                    "outputs_when_complete": ["measured_annual_cost_eur", "replacement_annual_cost_eur", "annual_savings_eur", "simple_payback_years", "replace_or_keep"],
+                    "replacement_recommendation_requires_positive_financial_case": True,
+                    "missing_inputs_may_be_assumed": False
+                },
+                "load_shifting": {
+                    "status": "analysis_ready_guarded",
+                    "requires_dynamic_price_profile": True,
+                    "requires_measured_load_profile": True,
+                    "outputs_when_complete": ["shiftable_kwh", "estimated_savings_eur", "recommended_time_windows"]
+                },
+                "recommendation_policy": {
+                    "publish_only_when_required_inputs_complete": True,
+                    "show_blocking_inputs_when_incomplete": True,
+                    "candidate_numbers_may_drive_recommendation": False,
+                    "missing_values_render_as": "Niet beschikbaar"
+                },
+                "roadmap_state": "v20_reporting_baseline_complete_savings_development_continues",
+                "status": "savings_opportunity_engine_active_guarded"
+            },
             "v20_completion_gate": {
                 "financial_report_runtime_contract": "ready_guarded",
                 "report_runtime_value_mapping": "ready_guarded",
@@ -6138,7 +6174,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "epex_policy": "market_reference_only",
                 "automatic_transition_after_external_gates": True,
                 "manual_override_allowed": False,
-                "next_major_release": "20.3.0",
+                "next_major_release": "20.4.0",
                 "release_status": "v19_complete_external_data_gates_remain",
             },
             "v19_report_action_quality_context": {
@@ -6220,7 +6256,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "epex_policy": "market_reference_only",
                 "observation_gate_dependency": "minimum_7_observed_days",
                 "supplier_all_in_dependency": "official_contract_values_required",
-                "next_major_release": "20.3.0",
+                "next_major_release": "20.4.0",
                 "release_status": "v18_complete_external_data_gates_remain",
             },
             "v18_report_explanation_handoff": {
@@ -6302,7 +6338,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "candidate_values_publication": "forbidden",
                 "epex_policy": "reference_only",
                 "blocked_value_policy": "explicit_unavailable_never_zero",
-                "next_major_release": "20.3.0",
+                "next_major_release": "20.4.0",
                 "release_status": "v17_complete_external_data_gates_remain",
             },
             "v17_recommendation_publication_gate": {
@@ -6379,7 +6415,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "blocked_value_policy": "explicit_unavailable_never_zero",
                 "manual_override_allowed": False,
                 "epex_policy": "reference_only",
-                "next_major_release": "20.3.0",
+                "next_major_release": "20.4.0",
                 "release_status": "v16_complete_external_data_gates_remain",
             },
             "v16_output_runtime_validation": {
@@ -6447,7 +6483,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "validation_candidates_publication": "forbidden",
                 "missing_financial_values_policy": "explicit_unavailable_never_zero",
                 "epex_policy": "reference_only",
-                "next_major_release": "20.3.0",
+                "next_major_release": "20.4.0",
                 "release_status": "v15_complete_external_data_gates_remain",
             },
             "v15_report_render_safety": {
