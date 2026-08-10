@@ -1,8 +1,8 @@
 # Changelog
 
-## 23.0.0
-- Savings Portfolio Runtime toegevoegd als start van de v23-roadmapfase.
-- Contract, thuisbatterij, apparaatvervanging en load shifting worden samengebracht in één guarded financieel portfolio.
-- Alleen volledig gevalideerde kansen mogen financieel worden gerangschikt.
-- Jaarbesparing is de primaire rangschikking; terugverdientijd en uitvoeringsinspanning volgen daarna.
-- Geblokkeerde domeinen blijven zichtbaar zonder fictieve nulwaarden of aannames.
+## 23.1.0
+- Portfolio Evaluation Runtime toegevoegd.
+- Elk besparingsdomein krijgt één deterministische guarded evaluatiestatus.
+- Primaire blocker en alle ontbrekende verplichte inputs blijven expliciet zichtbaar.
+- Complete gevalideerde inputs gaan automatisch door naar financiële evaluatie.
+- Alleen positieve gevalideerde jaarbesparing wordt een portfolio-kans; nul/negatief wordt `validated_no_action`.
