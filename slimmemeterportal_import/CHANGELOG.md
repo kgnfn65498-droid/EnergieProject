@@ -1,9 +1,8 @@
 # Changelog
 
-## 23.5.0
-- v23 Completion/Publication Gate toegevoegd.
-- De volledige portfolio-keten v23.0 t/m v23.4 wordt als één guarded, auditeerbare productieketen afgesloten.
-- Alleen een volledig gevalideerde positieve financiële case mag als wijzigingsadvies worden gepubliceerd.
-- `keep_current` mag uitsluitend als gevalideerd no-change resultaat verschijnen.
-- Geblokkeerde of incomplete cases blijven `wait_for_data`; financiële ontbrekende waarden blijven `Niet beschikbaar`.
-- v23 wordt technisch afgerond en klaargezet voor v24; externe meet- en contractgates mogen veilig gesloten blijven.
+## 24.0.0
+- Start v24 met een guarded Action Handoff Runtime bovenop de gevalideerde v23-portfolio/publicatieketen.
+- Alleen een volledig publiceerbare, positieve en traceerbare v23-case kan `ready_for_user_action` worden.
+- De handoff voert nooit zelfstandig een aankoop, contractwissel of apparaatsturing uit; externe actie vereist gebruikerbevestiging.
+- Geblokkeerde cases blijven `waiting_for_data`; ontbrekende financiële waarden blijven `Niet beschikbaar` en nooit €0.
+- Roadmap v24: stap 1/5; volgende stap is guarded action tracking.

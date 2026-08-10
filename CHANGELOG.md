@@ -1,5 +1,13 @@
 # Changelog
 
+## v24.0.0 — guarded action handoff
+
+- Start v24 vanaf de gevalideerde v23.5.0 productie-baseline.
+- Voegt een traceerbare handoff toe van publiceerbaar besparingsadvies naar een concrete gebruikersactie, zonder automatische externe uitvoering.
+- Behoudt alle observatie-, contract-, kandidaat-, null- en EPEX-publicatiegates.
+- Legt actievoorwaarden, financiële basis, blockers, bewijsreferentie en datakwaliteit vast in één outputcontract.
+- v24-roadmap stap 1/5: Action Handoff; hierna Action Tracking, Realized Savings, Variance/Learning en Completion.
+
 ## v23.5.0 — financiële beslissing naar rapportklare actie
 
 - Start nieuwe hoofdversie na afronding van de v18 explainabilityketen.

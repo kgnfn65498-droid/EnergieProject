@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "23.5.0"
+APP_VERSION = "24.0.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "23.5.0",
+            "engine_version": "24.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "23.5.0",
+            "engine_version": "24.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "23.5.0",
+        "engine_version": "24.0.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6125,6 +6125,57 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 },
                 "roadmap_state": "v20_savings_opportunities_can_be_prioritized_when_financially_complete",
                 "status": "savings_priority_engine_active_guarded"
+            },
+            "v24_action_handoff_runtime": {
+                "objective": "translate_one_publishable_v23_portfolio_recommendation_into_a_guarded_traceable_execution_handoff_without_automatic_external_action",
+                "source_recommendation_runtime": "v23_portfolio_recommendation_runtime",
+                "roadmap_step": "1/5",
+                "handoff_states": ["waiting_for_data", "keep_current", "ready_for_user_action"],
+                "activation_policy": {
+                    "publishable_v23_recommendation_required": True,
+                    "positive_validated_annual_savings_required_for_change": True,
+                    "complete_traceable_financial_case_required": True,
+                    "candidate_values_may_not_activate_handoff": True,
+                    "missing_values_may_not_be_assumed": True,
+                    "zero_substitution_allowed": False,
+                    "supplier_all_in_requires_official_contract_validation": True,
+                    "automatic_refresh_after_new_data": True,
+                    "manual_override_allowed": False
+                },
+                "execution_policy": {
+                    "automatic_purchase_switch_or_device_control": False,
+                    "user_confirmation_required_before_external_action": True,
+                    "handoff_is_advisory_until_user_acts": True,
+                    "preserve_source_recommendation_and_evidence": True
+                },
+                "handoff_output_contract": {
+                    "state": "required",
+                    "recommended_action": "validated_action_keep_or_wait",
+                    "domain": "validated_domain_or_null",
+                    "annual_savings_eur": "validated_value_or_null",
+                    "monthly_savings_eur": "validated_value_or_null",
+                    "simple_payback_years": "validated_value_or_null",
+                    "implementation_effort": "validated_value_or_null",
+                    "action_prerequisites": "validated_list",
+                    "primary_blocker": "validated_blocker_or_null",
+                    "evidence_reference": "required",
+                    "data_quality": "required"
+                },
+                "blocked_policy": {
+                    "state": "waiting_for_data",
+                    "numeric_value": None,
+                    "rendering": "Niet beschikbaar",
+                    "external_action_allowed": False
+                },
+                "report_handoff": {
+                    "page1_management_summary": "validated_action_or_guarded_wait",
+                    "page1_financial_kpis": "validated_publishable_numeric_values_only",
+                    "page2_financial_analysis": "validated_case_prerequisites_and_financial_basis",
+                    "pages3_13_context": "evidence_blockers_quality_and_traceability"
+                },
+                "roadmap_state": "v24_step_1_of_5_action_handoff_runtime_active_guarded",
+                "next_step": "v24_action_tracking_runtime",
+                "status": "action_handoff_runtime_active_guarded"
             },
             "v23_completion_publication_gate": {
                 "objective": "close_v23_with_one_guarded_auditable_savings_portfolio_recommendation_publication_chain_ready_for_v24",

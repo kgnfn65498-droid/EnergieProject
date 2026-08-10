@@ -1,17 +1,15 @@
-# Testinstructies v23.5.0 — v23 afronding
+# Testinstructies v24.0.0 — stap 1/5
 
-1. Plaats `EnergieProject_v23.5.0.zip` in `EnergieProject_Inbox/incoming` en wacht op `processed`.
+1. Plaats `EnergieProject_v24.0.0.zip` in `EnergieProject_Inbox/incoming` en wacht op `processed`.
 2. Update in Home Assistant en controleer GUI/Ingress.
 3. Download Analyse-export en release-diagnose.
-4. Controleer `v23_completion_publication_gate.status = v23_complete_external_data_gates_remain`.
-5. Controleer `roadmap_state = v23_complete_guarded_savings_portfolio_chain_ready_for_v24`.
-6. Alle vijf v23-ketencomponenten moeten `ready_guarded` zijn.
-7. Een wijzigingsadvies mag uitsluitend bij een volledig gevalideerde positieve financiële case worden gepubliceerd.
-8. Geblokkeerde/incomplete cases blijven `wait_for_data`; ontbrekende bedragen blijven null/`Niet beschikbaar`, nooit €0.
-9. EPEX blijft uitsluitend markt-/referentieprijs en nooit leverancier-all-in.
-10. De observation gate blijft minimaal 7 geobserveerde dagen; externe gates hoeven voor technische v23-afronding niet open te zijn.
-11. Historische EPEX juli 2026 blijft gedeeltelijk beschikbaar t/m 2026-07-29.
-12. GUI, analyse-export, release-diagnose, watcher, automatische maandworkflow en officiële rapportgeneratoren moeten blijven werken.
+4. Controleer `v24_action_handoff_runtime.status = action_handoff_runtime_active_guarded`.
+5. Controleer `roadmap_step = 1/5` en `roadmap_state = v24_step_1_of_5_action_handoff_runtime_active_guarded`.
+6. Zolang de externe gates niet volledig geldig zijn, moet de handoff `waiting_for_data` blijven en financiële ontbrekende waarden null/`Niet beschikbaar`.
+7. Controleer dat kandidaatwaarden geen handoff activeren en dat EPEX nooit leverancier-all-in wordt.
+8. Controleer dat geen aankoop, contractwissel of apparaatsturing automatisch wordt uitgevoerd; externe actie vereist gebruikerbevestiging.
+9. Historische EPEX juli 2026 blijft gedeeltelijk beschikbaar t/m 2026-07-29.
+10. GUI, analyse-export, release-diagnose, watcher, automatische maandworkflow en officiële rapportgeneratoren moeten blijven werken.
 
 Gebruik GEEN Home Assistant Terminal.
 Gebruik GEEN handmatige Git-commit of Git-push.
