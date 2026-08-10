@@ -1,3 +1,8 @@
+## v29.0.0 — guarded forecast calibration
+- Start v29 met gecontroleerde kalibratie van toekomstige energie- en financiële prognoses.
+- Historische actuals blijven immutable; forecast-aanpassingen worden afzonderlijk opgeslagen en gepubliceerd.
+- Kalibratie vereist herhaald gevalideerd bewijs en relevante context.
+
 ## v28.2.0 — outcome learning + v28 completion
 - Bundelt v28 stap 3/4 en 4/4.
 - Leert uitsluitend uit herhaalde, gevalideerde uitvoering- en meetuitkomsten.
