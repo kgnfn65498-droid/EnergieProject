@@ -1,3 +1,8 @@
+## v30.2.0 — guarded optimization execution plan
+- v30 stap 3/4: traceerbaar uitvoeringsplan voor één gevalideerde optimalisatie.
+- Meetbaseline, succesmetric en rollback-gate verplicht.
+- Geen automatische aankoop, leverancierswissel, contractacceptatie, voorschotwijziging of apparaatbesturing.
+
 ## v30.1.0 — guarded optimization selection
 - v30 stap 2/4: maximaal één financieel voorkeursadvies uit gevalideerde optimalisatiekandidaten.
 - Externe financiële/meetgates en gebruikersautorisatie blijven hard.

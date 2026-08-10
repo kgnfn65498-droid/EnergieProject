@@ -1,8 +1,7 @@
 # Changelog
 
-## 30.1.0
-- v30 stap 2/4: Optimization Selection Runtime.
-- Selecteert maximaal één primaire optimalisatieactie uit gevalideerde kandidaten.
-- Rangschikking: gevalideerde eurowaarde, confidence en implementatie-inspanning.
-- Geblokkeerde, measure-first en niet-positieve kandidaten kunnen niet worden geselecteerd.
-- Externe uitvoering blijft altijd achter expliciete gebruikersautorisatie.
+## 30.2.0
+- v30 stap 3/4: Optimization Execution Plan Runtime.
+- Zet maximaal één geselecteerde optimalisatie om in een traceerbaar uitvoeringsplan.
+- Financiële basis, meetbaseline, succescriterium en rollback-conditie zijn verplicht.
+- Het plan blijft adviserend; externe uitvoering vereist expliciete gebruikersautorisatie.
