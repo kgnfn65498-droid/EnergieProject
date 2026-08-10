@@ -1,8 +1,8 @@
 # Changelog
 
-## 20.1.0
-- Guarded financiële runtimevelden concreet gemapt naar de officiële rapportsecties.
-- Page 1 managementsamenvatting gebruikt beslissing, reden en kwaliteitscontext uit de bestaande productieketen.
-- Page 1 financiële KPI's gebruiken uitsluitend publiceerbare verschil-, voorschot- en sterktevelden.
-- Page 2 prognose en voorschotcontrole gebruiken de bestaande guarded projectie- en beslisbronnen.
-- Ontbrekende waarden blijven `Niet beschikbaar`; candidate-data en EPEX mogen geen leverancier-all-in uitvoer worden.
+## 20.2.0
+- Eén controleerbare publicatiestatus toegevoegd voor alle officiële financiële rapportsecties.
+- Page 1 financiële beslissingen/KPI's blijven geblokkeerd tot de complete beslisgate publiceerbaar is.
+- Page 2 projectie opent uitsluitend na de 7-dagen observatiegate; supplier-all-in blijft apart contract-gated.
+- Page 2 voorschotadvies opent uitsluitend na complete financiële validatie.
+- Automatische overgang na externe gates blijft actief; handmatige override blijft verboden.
