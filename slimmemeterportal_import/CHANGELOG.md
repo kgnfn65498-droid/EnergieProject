@@ -1,8 +1,8 @@
 # Changelog
 
-## 22.3.0
-- Decision Confidence Resolution Runtime toegevoegd.
-- Confidence wordt nu deterministisch opgelost via gate failure, gedeeltelijk bewijs, compleet bewijs en positieve financiële businesscase.
-- De eerste onopgeloste vereiste gate blijft de primaire blocker.
-- Een gevalideerde analyse wordt niet automatisch een aankoop-, vervangings- of overstapadvies.
-- Alleen actionable confidence mag een wijzigingsactie publiceren.
+## 22.4.0
+- Decision Publication Runtime toegevoegd.
+- Alleen actionable confidence mag een gebruikersadvies publiceren.
+- Limited en validated blijven informatief en mogen geen wijzigingsadvies geven.
+- Rapportvelden voor acties en financiële KPI's zijn expliciet gekoppeld aan de publication-state.
+- Blokkades blijven zichtbaar met reden; ontbrekende bedragen blijven Niet beschikbaar.
