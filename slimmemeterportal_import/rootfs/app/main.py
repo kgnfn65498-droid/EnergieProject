@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "25.3.0"
+APP_VERSION = "26.0.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "25.3.0",
+            "engine_version": "26.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "25.3.0",
+            "engine_version": "26.0.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "25.3.0",
+        "engine_version": "26.0.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6513,6 +6513,51 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "roadmap_state": "v25_step_3_of_5_monthly_budget_impact_runtime_active_guarded",
                 "next_step": "v25_report_publication_runtime",
                 "status": "monthly_budget_impact_runtime_active_guarded"
+            },
+            "v26_decision_value_prioritization_runtime": {
+                "objective": "rank_only_actionable_energy_decisions_by_validated_financial_value_confidence_and_effort_without_promoting_estimates_to_realized_savings",
+                "roadmap_step": "1/4",
+                "source_chain": [
+                    "v25_savings_ledger_runtime",
+                    "v25_cumulative_portfolio_impact_runtime",
+                    "v25_monthly_budget_impact_runtime",
+                    "v25_report_publication_runtime"
+                ],
+                "ranking_contract": {
+                    "primary_metric": "validated_expected_euro_value",
+                    "confidence_required": True,
+                    "implementation_effort_required": True,
+                    "measurement_readiness_required": True,
+                    "data_quality_required": True,
+                    "blocked_or_missing_financial_value_rankable": False,
+                    "candidate_value_may_be_labelled_realized": False,
+                    "negative_financial_value_preserved": True
+                },
+                "decision_classes": {
+                    "act_now": "validated_value_and_required_execution_gates_open",
+                    "measure_first": "financial_potential_exists_but_measurement_or_confidence_gate_closed",
+                    "wait_for_data": "required_external_data_gate_closed",
+                    "do_not_pursue": "validated_net_value_non_positive_or_effort_not_justified"
+                },
+                "guardrails": {
+                    "supplier_switch_requires_official_contract_components": True,
+                    "advance_payment_change_requires_supplier_all_in_gate": True,
+                    "device_replacement_requires_validated_consumption_and_payback_case": True,
+                    "battery_recommendation_requires_household_profile_and_regulatory_power_limit": True,
+                    "partial_period_extrapolation_without_validated_normalization": False,
+                    "missing_values_may_not_be_assumed": True,
+                    "double_counting_forbidden": True
+                },
+                "output_contract": {
+                    "maximum_primary_actions": 3,
+                    "reason_required": True,
+                    "evidence_reference_required": True,
+                    "blocked_gate_required": True,
+                    "estimated_or_realized_label_required": True
+                },
+                "roadmap_state": "v26_step_1_of_4_decision_value_prioritization_active_guarded",
+                "next_step": "v26_action_queue_runtime",
+                "status": "decision_value_prioritization_runtime_active_guarded"
             },
             "v25_report_publication_runtime": {
                 "objective": "publish_only_validated_realized_savings_portfolio_and_monthly_budget_impact_into_official_report_surfaces_with_traceable_evidence_and_without_estimate_promotion",

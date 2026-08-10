@@ -1,3 +1,9 @@
+## v26.0.0 — decision value prioritization
+- Start v26 met guarded financiële prioritering van maximaal drie concrete energieacties.
+- Combineert euro-impact, confidence, meetgereedheid, data quality en uitvoeringsinspanning.
+- Supplier-, batterij- en apparaatbeslissingen behouden hun bestaande harde gates.
+- Geen estimate-promotie, partial-period extrapolatie of dubbeltelling.
+
 ## v25.3.0 — report publication + v25 completion
 - Bundelt v25 stap 4/5 Report Publication en stap 5/5 Completion in één grotere release.
 - Publiceert alleen gevalideerde gerealiseerde Savings Ledger-, portfolio- en maandbudgetwaarden naar officiële rapportsurfaces.
