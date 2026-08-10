@@ -1,8 +1,8 @@
 # Changelog
 
-## 22.6.0
-- v22 Completion Gate toegevoegd.
-- De volledige financiële beslisketen van decision runtime tot auditeerbare publication payload is formeel afgesloten.
-- Externe datagates mogen nog gesloten zijn zonder de technische v22-keten onvolledig te maken.
-- Automatische overgang blijft actief zodra meetdekking, officiële contractgegevens en complete opportunity-inputs beschikbaar zijn.
-- v22 is hiermee gereed voor de v23-ontwikkelfase.
+## 23.0.0
+- Savings Portfolio Runtime toegevoegd als start van de v23-roadmapfase.
+- Contract, thuisbatterij, apparaatvervanging en load shifting worden samengebracht in één guarded financieel portfolio.
+- Alleen volledig gevalideerde kansen mogen financieel worden gerangschikt.
+- Jaarbesparing is de primaire rangschikking; terugverdientijd en uitvoeringsinspanning volgen daarna.
+- Geblokkeerde domeinen blijven zichtbaar zonder fictieve nulwaarden of aannames.
