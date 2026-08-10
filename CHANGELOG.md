@@ -1,3 +1,7 @@
+## v26.1.1 — GUI runtime hotfix
+- Herstelt de Action Queue runtime waardoor de GUI-context in v26.1.0 kon crashen.
+- Voegt een runtime-safe regressiecontrole toe zodat JSON-literals niet opnieuw in Python-dictionaries terechtkomen.
+
 ## v26.1.0 — guarded action queue
 - v26 stap 2/4: maximaal drie traceerbare energieacties vanuit gevalideerde financiële prioritering.
 - Expliciete act_now / measure_first / wait_for_data / do_not_pursue toestanden.

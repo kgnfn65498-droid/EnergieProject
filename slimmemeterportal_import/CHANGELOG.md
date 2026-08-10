@@ -1,8 +1,7 @@
 # Changelog
 
-## 26.1.0
-- v26 stap 2/4: guarded Action Queue Runtime.
-- Zet de financiële prioritering om in maximaal drie traceerbare acties.
-- Onderscheidt act_now, measure_first, wait_for_data en do_not_pursue.
-- Externe observatie-, contract-, all-in- en meetgates blijven hard.
-- Geblokkeerde of kandidaatwaarden kunnen niet promoveren naar een uitvoerbare actie.
+## 26.1.1
+- Hotfix voor de v26.1.0 GUI-regressie.
+- Corrigeert JSON-literals in de Python Action Queue runtime naar geldige Python-literals.
+- Corrigeert de regressietest die de foutieve notatie ten onrechte accepteerde.
+- Geen wijziging aan financiële gates of functionele v26-logica.

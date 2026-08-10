@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "26.1.0"
+APP_VERSION = "26.1.1"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "26.1.0",
+            "engine_version": "26.1.1",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "26.1.0",
+            "engine_version": "26.1.1",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "26.1.0",
+        "engine_version": "26.1.1",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6520,13 +6520,13 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "source_runtime": "v26_decision_value_prioritization_runtime",
                 "queue_policy": {
                     "maximum_primary_actions": 3,
-                    "ranked_actions_only": true,
-                    "blocked_actions_remain_visible": true,
-                    "blocked_actions_may_not_be_promoted_to_act_now": true,
-                    "candidate_values_may_not_drive_queue_position": true,
-                    "missing_values_may_not_be_assumed": true,
-                    "automatic_refresh_after_new_data": true,
-                    "manual_financial_override_allowed": false
+                    "ranked_actions_only": True,
+                    "blocked_actions_remain_visible": True,
+                    "blocked_actions_may_not_be_promoted_to_act_now": True,
+                    "candidate_values_may_not_drive_queue_position": True,
+                    "missing_values_may_not_be_assumed": True,
+                    "automatic_refresh_after_new_data": True,
+                    "manual_financial_override_allowed": False
                 },
                 "queue_states": [
                     "act_now",
@@ -6554,11 +6554,11 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "data_quality": "required"
                 },
                 "publication_policy": {
-                    "act_now_requires_all_required_gates_open": true,
-                    "measure_first_requires_explicit_measurement_gap": true,
-                    "wait_for_data_requires_external_blocker": true,
-                    "do_not_pursue_requires_validated_non_positive_case_or_unjustified_effort": true,
-                    "blocked_numeric_value": null,
+                    "act_now_requires_all_required_gates_open": True,
+                    "measure_first_requires_explicit_measurement_gap": True,
+                    "wait_for_data_requires_external_blocker": True,
+                    "do_not_pursue_requires_validated_non_positive_case_or_unjustified_effort": True,
+                    "blocked_numeric_value": None,
                     "blocked_rendering": "Niet beschikbaar"
                 },
                 "roadmap_state": "v26_step_2_of_4_action_queue_runtime_active_guarded",
@@ -6680,7 +6680,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "reason_and_data_quality_required": True
                 },
                 "roadmap_state": "v25_step_5_of_5_completion_gate_active_guarded",
-                "next_major_release": "26.1.0",
+                "next_major_release": "26.1.1",
                 "status": "v25_complete_external_data_gates_remain"
             },
             "v23_completion_publication_gate": {
