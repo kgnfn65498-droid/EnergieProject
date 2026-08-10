@@ -1,8 +1,8 @@
 # Changelog
 
-## 23.2.0
-- Portfolio Ranking Runtime toegevoegd.
-- Alleen `validated_opportunity`-domeinen mogen financieel worden gerangschikt.
-- Rangorde: hoogste gevalideerde jaarbesparing, daarna kortste terugverdientijd, daarna laagste implementatie-inspanning.
-- Geblokkeerde en `validated_no_action`-domeinen blijven zichtbaar maar krijgen geen fictieve financiële rang.
-- Automatische herordening volgt zodra nieuwe gevalideerde data beschikbaar komt.
+## 23.3.0
+- Portfolio Selection Runtime toegevoegd.
+- Alleen de nummer 1 volledig gevalideerde positieve besparingskans kan als actie worden geselecteerd.
+- Geblokkeerde domeinen en `validated_no_action` kunnen nooit als besparingsactie worden gekozen.
+- Bij ontbreken van een valide kans blijft de uitkomst `wait_for_data` of `keep_current`.
+- Nieuwe gevalideerde data triggert automatische herselectie.

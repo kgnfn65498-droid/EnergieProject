@@ -1,16 +1,16 @@
-# Testinstructies v23.2.0
+# Testinstructies v23.3.0
 
-1. Plaats `EnergieProject_v23.2.0.zip` in `EnergieProject_Inbox/incoming` en wacht op `processed`.
+1. Plaats `EnergieProject_v23.3.0.zip` in `EnergieProject_Inbox/incoming` en wacht op `processed`.
 2. Update in Home Assistant en controleer GUI/Ingress.
 3. Download Analyse-export en release-diagnose.
-4. Controleer `v23_portfolio_ranking_runtime.status = portfolio_ranking_runtime_active_guarded`.
-5. Alleen `validated_opportunity` mag in de numerieke ranking komen.
-6. Rangorde moet zijn: hoogste jaarbesparing → kortste terugverdientijd → laagste implementatie-inspanning.
-7. Geblokkeerde domeinen blijven zichtbaar maar hebben rank/null en financiële waarden null/`Niet beschikbaar`.
-8. `validated_no_action` mag niet als besparingsactie worden gerangschikt.
-9. Kandidaatwaarden mogen de ranking niet beïnvloeden.
-10. De bestaande v23.0 Savings Portfolio Runtime en v23.1 Portfolio Evaluation Runtime moeten intact blijven.
-11. Met huidige meetdekking onder 7 dagen blijft de observation gate gesloten.
+4. Controleer `v23_portfolio_selection_runtime.status = portfolio_selection_runtime_active_guarded`.
+5. Alleen rank 1 met `validated_opportunity` en positieve jaarbesparing mag worden geselecteerd.
+6. Geblokkeerde domeinen en `validated_no_action` mogen nooit als besparingsactie worden geselecteerd.
+7. Zonder gevalideerde ranked opportunity blijft de actie `wait_for_data` of `keep_current`.
+8. Kandidaatwaarden mogen de selectie niet beïnvloeden.
+9. Ontbrekende bedragen blijven null/`Niet beschikbaar`; nooit €0.
+10. De v23.0-, v23.1- en v23.2-keten moet intact blijven.
+11. Met meetdekking onder 7 dagen blijft de observation gate gesloten.
 12. Zonder officiële NextEnergy-contractcomponenten blijft supplier-all-in geblokkeerd.
 13. EPEX blijft uitsluitend markt-/referentieprijs; historische juli 2026-data blijft gedeeltelijk t/m 2026-07-29.
 14. GUI, analyse-export, release-diagnose, watcher en automatische maandworkflow moeten blijven werken.
