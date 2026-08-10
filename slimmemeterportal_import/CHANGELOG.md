@@ -1,8 +1,8 @@
 # Changelog
 
-## 25.2.0
-- Voeg guarded Monthly Budget Impact Runtime toe als v25 stap 3/5.
-- Koppel uitsluitend gevalideerde gerealiseerde portfolio-impact aan de maandbudgetcontext van €150.
-- Blokkeer automatische extrapolatie van gedeeltelijke meetvensters en voorkom dubbeltelling met leverancier-kostenprognoses.
-- Een wijziging van het leveranciervoorschot blijft afhankelijk van de bestaande supplier-all-in beslisgate.
+## 25.3.0
+- Bundel v25 stap 4/5 en 5/5 in één grotere feature-completion release.
+- Voeg guarded Report Publication Runtime toe voor uitsluitend gevalideerde gerealiseerde besparingen, portfolio-impact en maandbudgetimpact.
+- Sluit v25 af met een Completion Gate; externe meet-, periode- en leveranciergates mogen technisch nog gesloten zijn.
+- Blokkeer estimate-promotie, partial-period extrapolatie, dubbeltelling en ongevalideerde voorschotwijzigingen.
 - Suffix-tolerante NAS→GitHub→Home Assistant publicatie blijft actief.

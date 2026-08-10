@@ -1,3 +1,10 @@
+## v25.3.0 — report publication + v25 completion
+- Bundelt v25 stap 4/5 Report Publication en stap 5/5 Completion in één grotere release.
+- Publiceert alleen gevalideerde gerealiseerde Savings Ledger-, portfolio- en maandbudgetwaarden naar officiële rapportsurfaces.
+- Externe meet-, contract- en period-normalization gates mogen bij technische v25-afronding nog gesloten zijn.
+- Blokkeert kandidaatwaarden, business-case estimates, partial-period extrapolatie, dubbeltelling en ongevalideerde voorschotwijzigingen.
+- Volgende major release: v26.0.0.
+
 ## v25.2.0 — guarded monthly budget impact
 - v25 stap 3/5: vertaalt uitsluitend gevalideerde gerealiseerde portfolio-impact naar maandbudgetcontext.
 - Referentie maandvoorschot blijft €150; ledgerbesparing alleen mag het leveranciervoorschot niet wijzigen.
