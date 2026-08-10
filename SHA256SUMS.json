@@ -1,5 +1,5 @@
 {
-  "version": "23.4.0",
+  "version": "23.5.0",
   "files": [
     {
       "path": ".gitignore",
@@ -13,7 +13,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "2f7ad3f2661306be0c8dd94b8e6faa1a3465ce8e7d585803c3dbdaa42694c91e",
+      "sha256": "52a5d401f398620b201398be271769fcc895c1113b089177f2d98439f43805de",
       "size": 40156
     },
     {
@@ -48,12 +48,12 @@
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "sha256": "7c056286d1743e36ced47eb6ab95a8f3e5ae30a81b7cd58261d072daf0928c82",
-      "size": 989
+      "sha256": "bb492394a321d2e83c80b2e8302b483a452b8efa95b134893587096d1f00d105",
+      "size": 1255
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "4be4794fe8d00da0a54354899bc2ee34b133126626882f923f4442b68d787a1d",
+      "sha256": "0bd6870681ae14dd69f287da4f0d968daa23c7a7c32e85e55313664bf87b3b10",
       "size": 7
     },
     {
@@ -63,8 +63,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "56304fce8729e100c21873be672439e71cc12f4a2553241b4b174b505df524cc",
-      "size": 480
+      "sha256": "ad2b29372f628bad742bd66922df8e8f73880317d3812ab0bfbff522dac97fa2",
+      "size": 608
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -83,13 +83,13 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "957dfd059fbcdccfe780eeeaa2d2f467c1663b81456c201228d7c93db9a7a83e",
+      "sha256": "2ce85e7941d92ec12ff9e2f736499d02802df5e1d8a39671544561fe981d05bd",
       "size": 5740
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "983c460b695eec6df02a02666a214f49171fa2d677754bf49e1766fbe2a61f7a",
-      "size": 677306
+      "sha256": "3eaf08a563897752c4add37445f9294adce4eece7e90fbc3a899510d16f3c154",
+      "size": 679871
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -358,8 +358,8 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "8d9fef5db0ec843724dd149fa6ff9dd63a090d46e9840b10fdd081151716b750",
-      "size": 187502
+      "sha256": "c78fb011ffe06f779157d8d04b1abb3368e7c4faa05120576b0f85f5e4fc27df",
+      "size": 188182
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
