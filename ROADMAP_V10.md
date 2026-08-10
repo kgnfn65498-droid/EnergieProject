@@ -94,3 +94,6 @@
 - v31.1.x — stap 3/4: guarded Conversation Response Runtime voor gewone-taaluitleg, diagnose en aanbevelingen.
 - v31.2.x — stap 4/4: chat/voice completion + rapport-/print-handoff zonder externe uitvoering.
 - Daarna v32: eindintegratie, backup/recovery, eindvalidatie en alleen fixes in v32.x.
+
+- v31.1.0 — stap 3/4 gerealiseerd: guarded Conversation Response Runtime.
+- Volgende: v31 stap 4/4 chat/voice completion + rapport-/print-handoff.

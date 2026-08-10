@@ -1,3 +1,8 @@
+## v31.1.0 — guarded conversation response runtime
+- v31 stap 3/4.
+- Antwoordcontract, taalbeleid, recommendation policy en failure policy.
+- Geen externe uitvoering vanuit chat/voice.
+
 ## v31.0.0 — chat/voice context + intent routing
 - Bundelt v31 stap 1/4 en 2/4.
 - Gewone-taalvragen worden gebonden aan bestaande gevalideerde Energieproject-context.
