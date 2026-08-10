@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "26.0.0"
+APP_VERSION = "26.1.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "26.0.0",
+            "engine_version": "26.1.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "26.0.0",
+            "engine_version": "26.1.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "26.0.0",
+        "engine_version": "26.1.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6514,6 +6514,57 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "next_step": "v25_report_publication_runtime",
                 "status": "monthly_budget_impact_runtime_active_guarded"
             },
+            "v26_action_queue_runtime": {
+                "objective": "materialize_the_guarded_decision_value_ranking_into_a_small_traceable_action_queue_without_bypassing_external_financial_gates",
+                "roadmap_step": "2/4",
+                "source_runtime": "v26_decision_value_prioritization_runtime",
+                "queue_policy": {
+                    "maximum_primary_actions": 3,
+                    "ranked_actions_only": true,
+                    "blocked_actions_remain_visible": true,
+                    "blocked_actions_may_not_be_promoted_to_act_now": true,
+                    "candidate_values_may_not_drive_queue_position": true,
+                    "missing_values_may_not_be_assumed": true,
+                    "automatic_refresh_after_new_data": true,
+                    "manual_financial_override_allowed": false
+                },
+                "queue_states": [
+                    "act_now",
+                    "measure_first",
+                    "wait_for_data",
+                    "do_not_pursue"
+                ],
+                "current_external_gate_awareness": {
+                    "observation_quality_gate": "minimum_7_observed_days",
+                    "supplier_contract_gate": "official_contract_values_required",
+                    "supplier_all_in_gate": "all_required_supplier_components_present",
+                    "measurement_gate": "validated_domain_measurement_required"
+                },
+                "queue_item_contract": {
+                    "priority": "positive_integer_or_null",
+                    "decision_class": "required",
+                    "domain": "validated_domain_required",
+                    "recommended_action": "validated_action_keep_or_wait",
+                    "validated_expected_euro_value": "validated_value_or_null",
+                    "confidence": "validated_state_required",
+                    "implementation_effort": "validated_value_or_null",
+                    "primary_blocker": "validated_blocker_or_null",
+                    "next_required_input": "validated_dependency_or_null",
+                    "evidence_reference": "required",
+                    "data_quality": "required"
+                },
+                "publication_policy": {
+                    "act_now_requires_all_required_gates_open": true,
+                    "measure_first_requires_explicit_measurement_gap": true,
+                    "wait_for_data_requires_external_blocker": true,
+                    "do_not_pursue_requires_validated_non_positive_case_or_unjustified_effort": true,
+                    "blocked_numeric_value": null,
+                    "blocked_rendering": "Niet beschikbaar"
+                },
+                "roadmap_state": "v26_step_2_of_4_action_queue_runtime_active_guarded",
+                "next_step": "v26_action_queue_publication_runtime",
+                "status": "action_queue_runtime_active_guarded"
+            },
             "v26_decision_value_prioritization_runtime": {
                 "objective": "rank_only_actionable_energy_decisions_by_validated_financial_value_confidence_and_effort_without_promoting_estimates_to_realized_savings",
                 "roadmap_step": "1/4",
@@ -6629,7 +6680,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "reason_and_data_quality_required": True
                 },
                 "roadmap_state": "v25_step_5_of_5_completion_gate_active_guarded",
-                "next_major_release": "26.0.0",
+                "next_major_release": "26.1.0",
                 "status": "v25_complete_external_data_gates_remain"
             },
             "v23_completion_publication_gate": {

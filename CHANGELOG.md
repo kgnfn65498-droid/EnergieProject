@@ -1,3 +1,8 @@
+## v26.1.0 — guarded action queue
+- v26 stap 2/4: maximaal drie traceerbare energieacties vanuit gevalideerde financiële prioritering.
+- Expliciete act_now / measure_first / wait_for_data / do_not_pursue toestanden.
+- Geen bypass van observatie-, leveranciercontract-, all-in- of meetgates.
+
 ## v26.0.0 — decision value prioritization
 - Start v26 met guarded financiële prioritering van maximaal drie concrete energieacties.
 - Combineert euro-impact, confidence, meetgereedheid, data quality en uitvoeringsinspanning.
