@@ -1,35 +1,10 @@
 {
-  "version": "24.1.0",
+  "version": "24.2.0",
   "files": [
     {
       "path": ".gitignore",
       "sha256": "f10529b220b514ca72c66fd592c80ec5b3dea6a0a49f2658d80617824c5aa5e7",
       "size": 103
-    },
-    {
-      "path": ".pytest_cache/.gitignore",
-      "sha256": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
-      "size": 37
-    },
-    {
-      "path": ".pytest_cache/CACHEDIR.TAG",
-      "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4",
-      "size": 191
-    },
-    {
-      "path": ".pytest_cache/README.md",
-      "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad",
-      "size": 302
-    },
-    {
-      "path": ".pytest_cache/v/cache/lastfailed",
-      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-      "size": 2
-    },
-    {
-      "path": ".pytest_cache/v/cache/nodeids",
-      "sha256": "c4d312c8b68a330b1b339b60d24336875be729545f075d090a070a9b21c529bb",
-      "size": 39415
     },
     {
       "path": "00_Config/nextenergy_contract_costs.example.json",
@@ -38,8 +13,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "3565cbc8d778a82e821237b27628e1ee721ca46e829b9ff4dde6f4e907015c05",
-      "size": 41222
+      "sha256": "5dedcf381b90052f80246a1863e907a2aa9d012cd0e63a5f3972f6773872e5b2",
+      "size": 41829
     },
     {
       "path": "INSTALL.md",
@@ -78,7 +53,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "30d28f6aad294fd7feda7dd04893f5f5312b5316a1f7498a29ec6573a91b7909",
+      "sha256": "0247b8c2458efab0ee1fc22a643fab0bea14362a1a71d5a2fd6c10e04243a63e",
       "size": 7
     },
     {
@@ -88,8 +63,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "98a7189262ec6ace2f1e57c9069885f19583823a3e215933e9ab306da21fe591",
-      "size": 476
+      "sha256": "ac9392858257a7ed706c992e7c96083904627ce948210b0ce80188eaa037c554",
+      "size": 555
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -108,18 +83,13 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "ed1a14e4dd6ef11091a3e38261a467f374fe304e4ba0649ac9f72dee1f175336",
+      "sha256": "b8711a9dd576b201af6c1b4048b914c1ab1ef08096155df6449f176bb2bb3c74",
       "size": 5740
     },
     {
-      "path": "slimmemeterportal_import/rootfs/app/__pycache__/main.cpython-313.pyc",
-      "sha256": "59d6406ec9427f2aa7bf96375f7ed587ecda554461ec903489433af85ae5f456",
-      "size": 723160
-    },
-    {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "e5c73b81c4ae46b3ffc1f394d709adce3b9b72ead5477b82ae7e3f11a4d8ba57",
-      "size": 686135
+      "sha256": "ef117a31eb52227ca29fef79a461110501499dfde6e0a6c06b2a0c0d519a47b5",
+      "size": 689755
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/.pytest_cache/.gitignore",
@@ -172,31 +142,6 @@
       "size": 1664
     },
     {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/__pycache__/build_example.cpython-313.pyc",
-      "sha256": "7111035bf4a7a338d9dc29f1bf549005c204bfb342d96623324348a3574eb28f",
-      "size": 869
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/__pycache__/controleer_pakket.cpython-313.pyc",
-      "sha256": "30217d0a1f6d28e0d8e8fef4208543da5e8d5f0a93577faba89aca9f82d63a77",
-      "size": 2574
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/__pycache__/generate_energierapport_pagina1.cpython-313.pyc",
-      "sha256": "0ba8c2ede5c2ffc63f6d470ad11d3e522e3357d686e82e0b8c464b14b9526feb",
-      "size": 41314
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/__pycache__/validate_maanddata.cpython-313.pyc",
-      "sha256": "1dbee7b4fd37dacc75a0baef526a241371f72a76e4615d7db1314feb9221300b",
-      "size": 8980
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/__pycache__/verwerk_maandupdate.cpython-313.pyc",
-      "sha256": "a19d928625416f9b0bd4129fa35c8fb9dc6db1b8d106f181fc26ce654de1798a",
-      "size": 1967
-    },
-    {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/assets/woning.png",
       "sha256": "a6da782f4959e183bd5ca75ee85487f6ba7cb91aa8203402ac547ea2800b65c8",
       "size": 172100
@@ -245,16 +190,6 @@
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/requirements.txt",
       "sha256": "f1b21977c06d06cc687ebb0b0f057787635239f3e446c436f78e722ce2699045",
       "size": 18
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/tests/__pycache__/test_generator.cpython-313-pytest-9.0.2.pyc",
-      "sha256": "9db7cd70dc46240aab9652e13eee45ffc82855294f2d3ca36ba97c637a23869c",
-      "size": 17212
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/tests/__pycache__/test_generator.cpython-313.pyc",
-      "sha256": "493edbec3003f30631c38c2346ad5251dedfa2966ffeb8702889a1ef2cb6d6f7",
-      "size": 5401
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/tests/test_generator.py",
@@ -327,24 +262,9 @@
       "size": 27
     },
     {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina2_Generator_v6_0/src/__pycache__/generate_p2.cpython-313.pyc",
-      "sha256": "8752f5054c2c2238f40bc9c42e9eeae074acbc51f89829c29c219ebedf91b24e",
-      "size": 41998
-    },
-    {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina2_Generator_v6_0/src/generate_p2.py",
       "sha256": "73058b37eb5382dfb088ccc4ce6cc5f44021362142ea9d3bf6fa8ef73ee67e74",
       "size": 20871
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina2_Generator_v6_0/tests/__pycache__/test_generate.cpython-313-pytest-9.0.2.pyc",
-      "sha256": "712991a0050c4009966411d5ba843ad265949dd8c884c6b74577e9f45406ec26",
-      "size": 4660
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina2_Generator_v6_0/tests/__pycache__/test_generate.cpython-313.pyc",
-      "sha256": "13a4112fa4216c4c42f49fdebe8bc939b8b889d55af5708b63d0e1eaa3685e6c",
-      "size": 1698
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina2_Generator_v6_0/tests/test_generate.py",
@@ -412,24 +332,9 @@
       "size": 27
     },
     {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina3_tm_13_Generator_v1_0/src/__pycache__/generate_pages_3_13.cpython-313.pyc",
-      "sha256": "900c8ca346a0e43715385eda0afb224c2dfbb8dd4a4922a503ac0b2b7ff14a2f",
-      "size": 40278
-    },
-    {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina3_tm_13_Generator_v1_0/src/generate_pages_3_13.py",
       "sha256": "2443243df7b75c2916e3fbbceb9a06b933f4e24c68b7772f749f5f7eb147077c",
       "size": 20341
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina3_tm_13_Generator_v1_0/tests/__pycache__/test_generate.cpython-313-pytest-9.0.2.pyc",
-      "sha256": "ef2deb1295856df4cf532c918bae5377c0ee9af4e1ba7c7c0d9ad12619a53f2c",
-      "size": 3826
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina3_tm_13_Generator_v1_0/tests/__pycache__/test_generate.cpython-313.pyc",
-      "sha256": "903a94a5dc743ec45ec891213221b9bb267dc437cee70ceb2d29a41822aa4294",
-      "size": 1152
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina3_tm_13_Generator_v1_0/tests/test_generate.py",
@@ -512,19 +417,9 @@
       "size": 4518
     },
     {
-      "path": "tests/__pycache__/test_static.cpython-313-pytest-9.0.2.pyc",
-      "sha256": "6a27198f47aa12de32fc1607f06997f1b3b1de6cdc826d84a30c01ebe6c7fdf2",
-      "size": 1032443
-    },
-    {
-      "path": "tests/__pycache__/test_static.cpython-313.pyc",
-      "sha256": "93c0b8d4c659d7591735dfeb287294fe08efe65c88019c7275b3cdf0584eca95",
-      "size": 251777
-    },
-    {
       "path": "tests/test_static.py",
-      "sha256": "db72513a48243a34bfa70aeb6d061ec4172b548a7bd1c73cc9b80fb088995e05",
-      "size": 190185
+      "sha256": "2451a92aa780b47d1e24e68a7fdfc88249b14d7ef75d0f1b0943c8756420c23f",
+      "size": 191099
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",

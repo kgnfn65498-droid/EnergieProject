@@ -1,8 +1,8 @@
 # Changelog
 
-## 24.1.0
-- Voegt guarded Action Tracking Runtime toe bovenop de in Home Assistant gevalideerde v24.0.0 Action Handoff.
-- Volgt actie-status en uitvoeringsbewijs zonder zelfrapportage als financiële besparing te behandelen.
-- Gerealiseerde besparing blijft `null` totdat meetbare, traceerbare validatie beschikbaar is.
-- Behoudt alle contract-, kandidaat-, null-, EPEX- en gebruikersbevestigingsgates.
-- Roadmap v24: stap 2/5; volgende stap is Realized Savings.
+## 24.2.0
+- Voegt guarded Realized Savings Runtime toe bovenop de in Home Assistant gevalideerde v24.1.0 Action Tracking Runtime.
+- Gerealiseerde besparing ontstaat uitsluitend uit gevalideerde, vergelijkbare metingen vóór en na een gevalideerde uitvoering.
+- Schattingen, zelfrapportage en kandidaatwaarden mogen nooit naar werkelijke besparing promoveren.
+- Korte meetvensters worden niet automatisch geannualiseerd; representativiteit en seizoenseffecten blijven harde gates.
+- Roadmap v24: stap 3/5; volgende stap is Variance/Learning.

@@ -1,5 +1,13 @@
 # Changelog
 
+## v24.2.0 — guarded realized savings
+
+- Bouwt voort op de in Home Assistant gevalideerde v24.1.0 Action Tracking Runtime.
+- Voegt meetbare gerealiseerde besparing toe met verplichte baseline, post-actiemeting en vergelijkbare meetvensters.
+- Voorkomt dat business-case schattingen, zelfrapportage of kandidaatwaarden als werkelijke besparing worden gepubliceerd.
+- Annualisering blijft geblokkeerd tot een representatieve gevalideerde periode beschikbaar is; relevante seizoens- en gebruikseffecten moeten zijn verwerkt.
+- v24-roadmap stap 3/5: Realized Savings; hierna Variance/Learning en Completion.
+
 ## v24.1.0 — guarded action tracking
 
 - Bouwt voort op de in Home Assistant gevalideerde v24.0.0 Action Handoff Runtime.

@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "24.1.0"
+APP_VERSION = "24.2.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5837,7 +5837,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "24.1.0",
+            "engine_version": "24.2.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5884,7 +5884,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "24.1.0",
+            "engine_version": "24.2.0",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -5945,7 +5945,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "24.1.0",
+        "engine_version": "24.2.0",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6222,6 +6222,58 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "roadmap_state": "v24_step_2_of_5_action_tracking_runtime_active_guarded",
                 "next_step": "v24_realized_savings_runtime",
                 "status": "action_tracking_runtime_active_guarded"
+            },
+            "v24_realized_savings_runtime": {
+                "objective": "measure_realized_financial_savings_only_after_validated_execution_and_comparable_post_action_measurement_evidence",
+                "source_tracking_runtime": "v24_action_tracking_runtime",
+                "roadmap_step": "3/5",
+                "realization_states": ["waiting_for_validated_execution", "measurement_baseline_pending", "post_action_measurement_pending", "comparison_pending", "realized_savings_validated"],
+                "measurement_policy": {
+                    "validated_execution_required": True,
+                    "traceable_pre_action_baseline_required": True,
+                    "traceable_post_action_measurement_required": True,
+                    "comparable_measurement_windows_required": True,
+                    "weather_or_usage_normalization_required_when_material": True,
+                    "realized_savings_must_be_derived_from_measured_difference": True,
+                    "business_case_estimate_may_not_be_promoted_to_actual": True,
+                    "self_report_may_not_create_realized_savings": True,
+                    "candidate_values_may_not_be_promoted_to_actuals": True,
+                    "missing_values_may_not_be_assumed": True,
+                    "zero_substitution_allowed": False,
+                    "automatic_refresh_after_new_measurements": True,
+                    "manual_financial_override_allowed": False
+                },
+                "realized_savings_output_contract": {
+                    "realization_state": "required",
+                    "action_id": "stable_traceable_identifier_required",
+                    "domain": "validated_source_domain_or_null",
+                    "baseline_evidence_reference": "validated_reference_or_null",
+                    "post_action_evidence_reference": "validated_reference_or_null",
+                    "baseline_cost_eur": "validated_comparable_value_or_null",
+                    "post_action_cost_eur": "validated_comparable_value_or_null",
+                    "realized_savings_eur": "validated_measured_difference_or_null",
+                    "realized_savings_period": "validated_period_or_null",
+                    "annualized_realized_savings_eur": "validated_value_or_null_only_when_annualization_gate_passes",
+                    "variance_vs_business_case_eur": "validated_value_or_null",
+                    "primary_blocker": "validated_blocker_or_null",
+                    "data_quality": "required"
+                },
+                "annualization_policy": {
+                    "automatic_annualization_from_short_window": False,
+                    "requires_representative_validated_period": True,
+                    "seasonality_must_be_accounted_for_when_material": True,
+                    "blocked_numeric_value": None,
+                    "blocked_rendering": "Niet beschikbaar"
+                },
+                "report_handoff": {
+                    "page1_management_summary": "validated_realized_result_or_guarded_wait",
+                    "page1_financial_kpis": "validated_realized_savings_only",
+                    "page2_financial_analysis": "baseline_post_action_comparison_and_original_business_case",
+                    "pages3_13_context": "measurement_evidence_normalization_blockers_quality_and_audit_trail"
+                },
+                "roadmap_state": "v24_step_3_of_5_realized_savings_runtime_active_guarded",
+                "next_step": "v24_variance_learning_runtime",
+                "status": "realized_savings_runtime_active_guarded"
             },
             "v23_completion_publication_gate": {
                 "objective": "close_v23_with_one_guarded_auditable_savings_portfolio_recommendation_publication_chain_ready_for_v24",
