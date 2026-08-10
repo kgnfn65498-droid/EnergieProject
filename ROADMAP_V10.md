@@ -97,3 +97,7 @@
 
 - v31.1.0 — stap 3/4 gerealiseerd: guarded Conversation Response Runtime.
 - Volgende: v31 stap 4/4 chat/voice completion + rapport-/print-handoff.
+
+- v31.2.0 — stap 4/4 gerealiseerd: Chat/Voice Completion + Report/Print Handoff.
+- v31 is compleet na Home Assistant-validatie.
+- Volgende: v32.0.0 eindintegratie, backup/recovery en eindvalidatie; daarna alleen gerichte fixes.

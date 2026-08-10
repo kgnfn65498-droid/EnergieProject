@@ -1,3 +1,9 @@
+## v31.2.0 — chat/voice completion + report/print handoff
+- v31 stap 4/4 voltooid.
+- Chat/voice gebruikt uitsluitend bestaande gevalideerde rapportcontext en publiceerbare financiële waarden.
+- Rapport/print-handoff bewaart officiële templates en staand formaat.
+- Volgende major release: v32.0.0 eindintegratie, backup/recovery en eindvalidatie.
+
 ## v31.1.0 — guarded conversation response runtime
 - v31 stap 3/4.
 - Antwoordcontract, taalbeleid, recommendation policy en failure policy.
