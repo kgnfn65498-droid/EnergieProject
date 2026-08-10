@@ -1,3 +1,8 @@
+## v27.1.0 — guarded execution plans
+- v27 stap 2/4: concrete uitvoeringsplannen voor maximaal drie gevalideerde energieacties.
+- Meetplan, succescriterium, stopconditie en rollback worden expliciet onderdeel van ieder toepasbaar plan.
+- Geen financiële transacties of apparaatwijzigingen zonder gebruikersactie.
+
 ## v27.0.0 — guarded execution readiness
 - Start v27 met uitvoeringsgereedheid voor maximaal drie financieel geprioriteerde energieacties.
 - Acties worden alleen uitvoeringsgereed wanneer bewijs, financiële case en vereiste externe gates valide zijn.

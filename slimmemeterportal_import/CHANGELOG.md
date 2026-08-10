@@ -1,8 +1,8 @@
 # Changelog
 
-## 27.0.0
-- Start v27 met een grotere guarded Execution Readiness Runtime.
-- Zet maximaal drie financieel geprioriteerde acties om naar ready_to_execute, ready_to_measure, blocked_external of hold.
-- Vereist gevalideerde financiële case, bewijs, externe gates, uitvoeringsinspanning en waar nodig een meetplan.
-- Geen automatische leverancierswissel, aankoop, voorschotwijziging of apparaatbesturing.
-- Behoudt alle v25/v26 financiële en data-quality guardrails.
+## 27.1.0
+- v27 stap 2/4: guarded Execution Plan Runtime.
+- Zet maximaal drie uitvoeringsgereedheidsacties om in concrete, traceerbare plannen.
+- Elk plan bevat volgende actie, meetplan waar nodig, succescriterium, stopconditie en rollbackpad.
+- Geen automatische aankoop, leverancierswissel, contractacceptatie, voorschotwijziging of apparaatbesturing.
+- Alle bestaande financiële en data-quality gates blijven hard.
