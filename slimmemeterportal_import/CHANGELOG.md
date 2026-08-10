@@ -1,8 +1,8 @@
 # Changelog
 
-## 22.1.0
-- Decision Evidence Runtime toegevoegd.
-- Iedere financiële beslissing krijgt een controleerbare onderbouwing met broninputs, berekeningsbasis, datakwaliteit en eventuele blockers.
-- Financiële bedragen mogen alleen worden gepubliceerd wanneer de gebruikte invoer traceerbaar en gevalideerd is.
-- Meetvenster, contractvalidatiestatus en externe gates blijven onderdeel van de audittrail.
-- Ontbrekende of kandidaatwaarden mogen niet als bewijs worden gebruikt.
+## 22.2.0
+- Decision Confidence Runtime toegevoegd.
+- Financiële beslissingen krijgen een expliciete confidence-status: blocked, limited, validated of actionable.
+- Confidence wordt uitsluitend verhoogd door traceerbaar bewijs en geopende vereiste gates.
+- Alleen een complete positieve gevalideerde businesscase kan de status actionable bereiken.
+- Kandidaatwaarden of ontbrekende gegevens kunnen confidence niet kunstmatig verhogen.
