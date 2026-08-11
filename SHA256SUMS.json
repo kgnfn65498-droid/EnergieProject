@@ -1,5 +1,5 @@
 {
-  "version": "32.0.5",
+  "version": "32.0.6",
   "files": [
     {
       "path": ".DS_Store",
@@ -43,7 +43,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "0e427ed9b94e880dcc3082f8cddce63f07389dafb0c423629cf38d9d5f2f2009",
+      "sha256": "580587d2f058d32a1adfa6fc3d605124745bbf8c9a00aa64ed2ce5eefdd11de4",
       "size": 53278
     },
     {
@@ -78,12 +78,12 @@
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "sha256": "6b03819d1442e065fd415ebf9eb28a9b72738f0fa375c78a06fdbe6aa9ec6c78",
+      "sha256": "7d4958d09ebd05fef63c8ddaaa79971154527ceca9aeb115517453cb7da5d9ad",
       "size": 1390
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "bd3f6ba8e0b7b52f1961d24698f768144db8b02b32e0373f2b02bb7f72223da9",
+      "sha256": "5c55e8c0b4a7ddba44901cf01b288a518e7849b05f6a5b63a1606748e012ca49",
       "size": 7
     },
     {
@@ -98,7 +98,7 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "6bdcb09bda12bb688c3b570e7b11e2dce75a3cf4e5bdf6af3f9c9574d3151831",
+      "sha256": "9d46c970f7c8adb674269f84505f39c85d290098874bd034ce262e98aaa181d9",
       "size": 871
     },
     {
@@ -118,7 +118,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "fd1d0538cadce26eb72039dcac86e8db08ebef5acf226a84865eb243eecb7983",
+      "sha256": "45772a0c97cb664993802ab41e55f0d0a7a73d28499efe44859e53c71365c564",
       "size": 5740
     },
     {
@@ -128,7 +128,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "47ca20a983451384bc041b4a06110d0e96c107867729b3806fb8dcaf1474b3c4",
+      "sha256": "db916010f0deb41c8fad496114dccda80e8681c511396d24d104f3671e988756",
       "size": 795069
     },
     {
@@ -433,7 +433,7 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "0751303d58a4b50f9f06a20dfa69b8029562da83fef1727014a70357f9027f94",
+      "sha256": "f2d5aa5412b7d38ecce972e3bce4969d5863bdebe5c3f42cb78b29246c73b64d",
       "size": 219389
     },
     {
