@@ -1,14 +1,11 @@
-## 32.0.6 - GitHub publisher status-state cleanup
-- Voorkomt recursieve `last_publication`-nesting in `/config/output/github_publication_state.json`.
-- Behoudt de dedicated persistente Git-worktree `/config/github_publisher/worktree` en automatische HA→GitHub-publicatie.
-- Corrigeert de v32 release-identiteitsmarker naar v32.0.6.
-- Geen wijzigingen aan energiegegevens, rapportlogica, financiële gates, NAS-layout of Home Assistant-mounts.
+## 32.0.7 - Ingress-statusfetch onderhoudsfix
+- Gebruikt Home Assistant `X-Ingress-Path` voor interne API-fetches in de operationele console.
+- Voorkomt `TypeError: Load failed` bij de GitHub-publicatiestatus onder Home Assistant Ingress/Safari.
+- Behoudt de dedicated persistente Git-worktree en automatische HA→GitHub-publicatie.
+- Geen wijzigingen aan energiegegevens, financiële gates, rapportlogica, NAS-layout of recoverybeleid.
 
 # Changelog
 
-## 32.0.6
-- NAS-releaseketen gebruikt uitsluitend `EnergieProject/App`, `Data`, `Backups`, `Inbox` en `Infra`.
-- Installer vervangt alleen `App`; data, backups, inbox en infrastructuur blijven buiten de worktree.
-- Watcher en Container Station bootstrap gebruiken dezelfde projectroot.
-- Oude losse inbox/backuplocaties zijn uit runtime en tests verwijderd.
-- EPEX lokale bronresolutie gebruikt voortaan `Data`.
+## 32.0.7
+- NAS-releaseketen blijft ZIP-only en automatisch.
+- Alleen de Ingress-statusfetch is aangepast; overige productielogica blijft ongewijzigd.
