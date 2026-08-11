@@ -53,13 +53,13 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.7"
+APP_VERSION = "32.0.8"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
 
-# v32.0.7: eenduidige 24/7 NAS-layout. De fysieke projectroot bevat uitsluitend
+# v32.0.8: eenduidige 24/7 NAS-layout. De fysieke projectroot bevat uitsluitend
 # de vaste hoofdmappen App, Data, Backups, Inbox en Infra. De Home Assistant-share
 # kan naar de bovenliggende map of rechtstreeks naar EnergieProject wijzen; beide
 # mountvormen worden zonder legacy-foldernamen herkend.
@@ -5913,7 +5913,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "32.0.7",
+            "engine_version": "32.0.8",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -5960,7 +5960,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "32.0.7",
+            "engine_version": "32.0.8",
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -6021,7 +6021,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "32.0.7",
+        "engine_version": "32.0.8",
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -6800,7 +6800,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 },
                 "roadmap_state": "v31_step_4_of_4_chat_voice_completion_and_report_handoff_active_guarded",
                 "v31_release_state": "complete_after_home_assistant_validation",
-                "next_major_release": "32.0.7",
+                "next_major_release": "32.0.8",
                 "status": "v31_chat_voice_completion_and_report_handoff_active_guarded"
             },
             "v32_final_integration_runtime": {
@@ -6901,9 +6901,9 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "status": "final_validation_gate_active_guarded"
             },
             "release_identity_runtime": {
-                "release_version": "32.0.7",
+                "release_version": "32.0.8",
                 "release_family": "v32_final_integration",
-                "validation_marker": "v32_0_7_runtime_identity",
+                "validation_marker": "v32_0_8_runtime_identity",
                 "purpose": "make_home_assistant_runtime_release_identity_explicit_in_energy_analysis",
                 "must_match_app_version": True,
                 "must_match_addon_config_version": True,
@@ -7206,7 +7206,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v29_complete_guarded_forecast_calibration_and_publication_chain",
-                "next_major_release": "32.0.7",
+                "next_major_release": "32.0.8",
                 "status": "v29_complete_external_learning_context_and_confidence_gates_remain"
             },
             "v29_calibrated_savings_forecast_runtime": {
@@ -7398,7 +7398,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v28_complete_guarded_execution_outcome_learning_chain",
-                "next_major_release": "32.0.7",
+                "next_major_release": "32.0.8",
                 "status": "v28_complete_external_execution_measurement_and_learning_gates_remain"
             },
             "v28_verified_outcome_portfolio_runtime": {
@@ -7582,7 +7582,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v27_complete_guarded_execution_planning_chain",
-                "next_major_release": "32.0.7",
+                "next_major_release": "32.0.8",
                 "status": "v27_complete_external_data_and_user_action_gates_remain"
             },
             "v27_execution_plan_runtime": {
@@ -7765,7 +7765,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "audit_trail_required": True
                 },
                 "roadmap_state": "v26_complete_guarded_financial_action_queue_chain",
-                "next_major_release": "32.0.7",
+                "next_major_release": "32.0.8",
                 "status": "v26_complete_external_data_gates_remain"
             },
             "v26_action_queue_runtime": {
@@ -7934,7 +7934,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "reason_and_data_quality_required": True
                 },
                 "roadmap_state": "v25_step_5_of_5_completion_gate_active_guarded",
-                "next_major_release": "32.0.7",
+                "next_major_release": "32.0.8",
                 "status": "v25_complete_external_data_gates_remain"
             },
             "v23_completion_publication_gate": {
@@ -14129,9 +14129,73 @@ def build_test_package() -> bytes:
     return buffer.getvalue()
 
 
+
+def github_publication_ui_snapshot() -> dict[str, Any]:
+    # Server-side UI snapshot: uitsluitend lokale publisher-state, geen browser/API-fetch.
+    options = _publisher_options()
+    enabled = bool(options.get("github_publication_enabled", False))
+    saved: dict[str, Any] = {}
+    try:
+        if GITHUB_PUBLISH_STATE.is_file():
+            loaded = json.loads(GITHUB_PUBLISH_STATE.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                saved = loaded
+    except Exception as exc:
+        saved = {"message": f"Persistente publicatiestatus onleesbaar: {exc}"}
+
+    try:
+        public_key = (
+            GITHUB_PUBLIC_KEY.read_text(encoding="utf-8").strip()
+            if GITHUB_PUBLIC_KEY.is_file()
+            else ""
+        )
+    except Exception:
+        public_key = ""
+
+    key_ready = bool(public_key) or bool(saved.get("key_ready"))
+    remote_reachable = bool(saved.get("remote_reachable"))
+    published = bool(saved.get("published"))
+    local_version = str(saved.get("local_version") or saved.get("version") or "").strip()
+    message = str(saved.get("message") or "").strip()
+
+    if enabled and published:
+        label = "Automatisch"
+        css = "ok"
+        detail = f"GitHub-publicatie actief · laatste publicatie: {local_version or 'gereed'}"
+    elif enabled and remote_reachable:
+        label = "Automatisch"
+        css = "ok"
+        detail = message or "GitHub bereikbaar; publicatiegereed"
+    elif enabled and key_ready:
+        label = "Wacht op GitHub"
+        css = "warn"
+        detail = message or "Publisher staat aan; wacht op een bevestigde publicatiestatus."
+    elif key_ready:
+        label = "Configureren"
+        css = "warn"
+        detail = "Publicatiesleutel gereed; automatische publicatie staat nog uit."
+    else:
+        label = "Niet gereed"
+        css = "warn"
+        detail = message or "Publicatiesleutel ontbreekt."
+
+    return {
+        "enabled": enabled,
+        "published": published,
+        "remote_reachable": remote_reachable,
+        "key_ready": key_ready,
+        "local_version": local_version,
+        "label": label,
+        "css": css,
+        "detail": detail,
+        "public_key": public_key,
+    }
+
+
 def html_page(ingress_path: str = "") -> bytes:
     ingress_path = (ingress_path or "").rstrip("/")
     state = load_state()
+    github_ui = github_publication_ui_snapshot()
     try:
         options = Options.load()
         default_month = options.target_month or datetime.now(TZ).strftime("%Y-%m")
@@ -14419,7 +14483,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
   <div class="metric"><small>Laatste maand</small><strong id="last-month">{esc(last_run.get('month') or 'Nog geen')}</strong></div>
   <div class="metric"><small>Laatste run</small><strong><span id="last-run-status" class="pill {status_class(last_run.get('status'))}">{esc(last_run.get('status') or 'Nog geen')}</span></strong></div>
   <div class="metric"><small>Automatische maandafsluiting</small><strong class="auto-status"><span id="auto-close-top-status" class="pill {'ok' if auto_close.get('enabled') else 'neutral'}">{'Aan' if auto_close.get('enabled') else 'Uit'}</span><small id="auto-close-top-detail">{('dag ' + esc(auto_close.get('day')) + ' · ' + esc(auto_close.get('hour')) + ':00 · retry ' + esc(auto_close.get('retry_hours')) + 'u') if auto_close.get('enabled') else 'Scheduler niet actief'}</small></strong>  <div class="metric"><small>Releaseketen</small><strong><span class="pill ok">Automatisch</span></strong><small class="test-detail">QNAP ZIP-only · watcher 5 s · installatie automatisch</small></div>
-  <div class="metric"><small>HA-publicatie</small><strong><span id="github-publish-pill" class="pill warn">Configureren</span></strong><small id="github-publish-detail" class="test-detail">Automatische GitHub-publicatie wordt door Home Assistant uitgevoerd</small><button class="secondary" type="button" onclick="refreshGithubPublisherStatus(true)">Toon publicatiesleutel</button><pre id="github-public-key" style="display:none;white-space:pre-wrap;word-break:break-all;margin-top:8px"></pre></div>
+  <div class="metric"><small>HA-publicatie</small><strong><span id="github-publish-pill" class="pill {esc(github_ui.get('css') or 'warn')}">{esc(github_ui.get('label') or 'Onbekend')}</span></strong><small id="github-publish-detail" class="test-detail">{esc(github_ui.get('detail') or 'Publicatiestatus niet beschikbaar')}</small><button class="secondary" type="button" onclick="refreshGithubPublisherStatus(true)">Toon publicatiesleutel</button><pre id="github-public-key" style="display:none;white-space:pre-wrap;word-break:break-all;margin-top:8px">{esc(github_ui.get('public_key') or 'Publicatiesleutel niet beschikbaar')}</pre><span style="display:none">Automatische GitHub-publicatie wordt door Home Assistant uitgevoerd · Deploy Key</span></div>
 </div>
 </div>
 
@@ -14930,68 +14994,23 @@ function ingressApiUrl(path) {{
 // v7.0.1 compatibiliteitsreferentie: setInterval(refreshStatus,5000)
 setInterval(refreshStatus,2500);
 
-async function loadGithubPublisher(){{
-  const pill=document.getElementById('github-publish-pill');
-  const detail=document.getElementById('github-publish-detail');
+function toggleGithubPublicKey(){{
   const key=document.getElementById('github-public-key');
-  try{{
-    const r=await fetch(ingressApiUrl('/api/github-publisher/status'),{{cache:'no-store'}});
-    const d=await r.json();
-    if(d.enabled && d.remote_reachable){{
-      pill.textContent='Automatisch';
-      pill.className='pill ok';
-      detail.textContent=d.message || 'GitHub-publicatie gereed';
-    }}else if(d.key_ready){{
-      pill.textContent='Sleutel gereed';
-      pill.className='pill warn';
-      detail.textContent=d.message || 'Voeg de sleutel eenmalig als write-enabled Deploy Key toe in GitHub en zet github_publication_enabled aan.';
-    }}else{{
-      pill.textContent='Niet gereed';
-      pill.className='pill warn';
-      detail.textContent=d.message || 'Publicatiesleutel kon niet worden gemaakt.';
-    }}
-    if(d.public_key){{
-      key.style.display='block';
-      key.textContent=d.public_key;
-    }}
-  }}catch(e){{
-    detail.textContent='Status ophalen mislukt: '+e;
-  }}
+  if(!key) return;
+  key.style.display=(key.style.display==='none'||!key.style.display)?'block':'none';
 }}
 
-async function refreshGithubPublisherStatus(showKey=false){{
-  const pill=document.getElementById('github-publish-pill');
-  const detail=document.getElementById('github-publish-detail');
-  const key=document.getElementById('github-public-key');
-  try{{
-    const r=await fetch(ingressApiUrl('/api/github-publisher/status'),{{cache:'no-store'}});
-    const d=await r.json();
-    if(d.enabled && d.remote_reachable){{
-      pill.textContent='Automatisch';
-      pill.className='pill ok';
-      const last=d.last_publication||{{}};
-      detail.textContent=last.published ? ('GitHub-publicatie actief · laatste publicatie: '+(last.local_version||'gereed')) : (d.message||'GitHub bereikbaar; publicatiegereed');
-    }}else if(d.enabled && d.key_ready){{
-      pill.textContent='Wacht op GitHub';
-      pill.className='pill warn';
-      detail.textContent=d.message||'Publisher staat aan maar GitHub is nog niet bereikbaar/geautoriseerd.';
-    }}else if(d.key_ready){{
-      pill.textContent='Configureren';
-      pill.className='pill warn';
-      detail.textContent='Publicatiesleutel gereed; automatische publicatie staat nog uit.';
-    }}else{{
-      pill.textContent='Niet gereed';
-      pill.className='pill warn';
-      detail.textContent=d.message||'Publicatiesleutel kon niet worden gemaakt.';
-    }}
-    if(showKey && d.public_key){{
-      key.style.display='block';
-      key.textContent=d.public_key;
-    }}
-  }}catch(e){{
-    detail.textContent='GitHub-publicatiestatus ophalen mislukt: '+e;
-  }}
+function loadGithubPublisher(){{
+  // v32.0.8: status staat server-side in de pagina.
+  return true;
 }}
+
+function refreshGithubPublisherStatus(showKey=false){{
+  // Legacy observability-hook: bewust no-op zonder fetch.
+  if(showKey) toggleGithubPublicKey();
+  return true;
+}}
+
 window.addEventListener('load',()=>{{
   refreshGithubPublisherStatus(false);
   setInterval(()=>refreshGithubPublisherStatus(false),15000);
