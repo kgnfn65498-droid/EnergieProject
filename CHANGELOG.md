@@ -1,3 +1,11 @@
+## v32.0.14 — HA SlimmeMeterPortal IPv4 transportfix
+
+- SlimmeMeterPortal-aanroepen vanuit de HA-app gebruiken geforceerd IPv4.
+- Moderne userapi/v1 endpoints en bestaande API-key blijven ongewijzigd.
+- API-test krijgt veilige DNS/transportdiagnose.
+- partial_current_month blijft behouden.
+- Actuele analyse release_version en engine_version volgen APP_VERSION.
+
 ## v32.0.13 — release-identiteit gesynchroniseerd
 
 - VERSIE.txt, add-on config en APP_VERSION zijn gelijkgetrokken.

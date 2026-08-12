@@ -25,6 +25,7 @@ import zipfile
 from calendar import monthrange
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -53,7 +54,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.13"
+APP_VERSION = "32.0.14"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -906,6 +907,39 @@ def build_usage_path(options: Options, connection_id: str, current: date) -> str
     )
 
 
+_SMP_IPV4_RESOLVER_LOCK = threading.RLock()
+
+@contextmanager
+def _smp_ipv4_only_resolution():
+    """Force SlimmeMeterPortal urllib calls through IPv4 only."""
+    original = socket.getaddrinfo
+
+    def ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        return original(host, port, socket.AF_INET, type or socket.SOCK_STREAM, proto, flags)
+
+    with _SMP_IPV4_RESOLVER_LOCK:
+        socket.getaddrinfo = ipv4_getaddrinfo
+        try:
+            yield
+        finally:
+            socket.getaddrinfo = original
+
+def _smp_transport_diagnostics() -> dict[str, object]:
+    host = urlparse(BASE_URL).hostname or "app.slimmemeterportal.nl"
+    result: dict[str, object] = {
+        "host": host,
+        "transport": "ipv4_forced",
+        "ipv4_addresses": [],
+        "ipv6_addresses_seen": [],
+    }
+    try:
+        rows = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+        result["ipv4_addresses"] = sorted({r[4][0] for r in rows if r[0] == socket.AF_INET})
+        result["ipv6_addresses_seen"] = sorted({r[4][0] for r in rows if r[0] == socket.AF_INET6})
+    except Exception as exc:
+        result["dns_error"] = f"{type(exc).__name__}: {exc}"
+    return result
+
 def api_get(path: str, options: Options) -> Any:
     request = urllib.request.Request(
         BASE_URL + path,
@@ -919,11 +953,12 @@ def api_get(path: str, options: Options) -> Any:
     last: Exception | None = None
     for attempt in range(options.retry_count + 1):
         try:
-            with urllib.request.urlopen(request, timeout=options.request_timeout_seconds) as response:
-                status = getattr(response, "status", 200)
-                if status != 200:
-                    raise RuntimeError(f"HTTP {status}")
-                return json.loads(response.read().decode("utf-8"))
+            with _smp_ipv4_only_resolution():
+                with urllib.request.urlopen(request, timeout=options.request_timeout_seconds) as response:
+                    status = getattr(response, "status", 200)
+                    if status != 200:
+                        raise RuntimeError(f"HTTP {status}")
+                    return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             if exc.code in (401, 403):
                 raise RuntimeError(f"API-key geweigerd (HTTP {exc.code}).") from exc
@@ -961,6 +996,8 @@ def test_api() -> dict[str, Any]:
             "status": "error",
             "checked_at": started.isoformat(),
             "error": str(exc),
+            "transport": _smp_transport_diagnostics(),
+            "endpoint_family": "userapi/v1",
         }
     update_state(api_test=result)
     return result
@@ -6090,7 +6127,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         financial["financial_projection"] = {
-            "engine_version": "32.0.10",
+            "engine_version": APP_VERSION,
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "minimum_observed_days": minimum_days,
@@ -6137,7 +6174,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             if isinstance(projected_variable_cost_30d, (int, float)) else None
         )
         financial["projection_detail"] = {
-            "engine_version": "32.0.10",
+            "engine_version": APP_VERSION,
             "status": "published" if eligible else "blocked_insufficient_observation",
             "quality_gate_passed": eligible,
             "observed_days": round(observed_days, 3),
@@ -6198,7 +6235,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
     ]
     supplier_context["cost_model"]["projection_engine"] = {
         "stage": "production_active",
-        "engine_version": "32.0.10",
+        "engine_version": APP_VERSION,
         "target_release": "10.6",
                 "current_release_target": "11.1",
         "thirty_day_variable_projection_logic_ready": True,
@@ -7078,9 +7115,9 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                 "status": "final_validation_gate_active_guarded"
             },
             "release_identity_runtime": {
-                "release_version": "32.0.10",
+                "release_version": APP_VERSION,
                 "release_family": "v32_final_integration",
-                "validation_marker": "v32_0_10_runtime_identity",
+                "validation_marker": "current_release_runtime_identity",
                 "purpose": "make_home_assistant_runtime_release_identity_explicit_in_energy_analysis",
                 "must_match_app_version": True,
                 "must_match_addon_config_version": True,
