@@ -54,7 +54,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.17"
+APP_VERSION = "32.0.18"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -4152,11 +4152,20 @@ def publish_smp_import_to_nas_input(source: Path, month_key: str) -> dict[str, A
         raise RuntimeError(f"SMP-bronmap ontbreekt: {source}")
 
     destination_month = NAS_DATA_ROOT / "01_Input" / month_key
-    destination_root = destination_month / "SlimmeMeterPortal"
-    staging = destination_month / ".SlimmeMeterPortal.staging"
-    backup = destination_month / ".SlimmeMeterPortal.backup"
 
-    destination_month.mkdir(parents=True, exist_ok=True)
+    # v32.0.18: Home Assistant schrijft niet meer rechtstreeks in de NAS-maandroot.
+    # De door de NAS aangemaakte HomeAssistant-submap is de vaste HA-ingress.
+    ingress_root = destination_month / "HomeAssistant"
+    if not ingress_root.is_dir():
+        raise RuntimeError(
+            f"HA-ingress ontbreekt voor {month_key}: {ingress_root}. "
+            "Laat eerst de normale Home Assistant energiesnapshot/kwartiercollector "
+            "de maandmap voorbereiden."
+        )
+
+    destination_root = ingress_root / "SlimmeMeterPortal"
+    staging = ingress_root / ".SlimmeMeterPortal.staging"
+    backup = ingress_root / ".SlimmeMeterPortal.backup"
     if staging.exists():
         if staging.is_dir():
             shutil.rmtree(staging)

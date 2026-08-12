@@ -1,3 +1,11 @@
+## v32.0.18 — HA-ingress zonder schrijven in NAS-maandroot
+
+- Home Assistant maakt geen stagingmap meer rechtstreeks in `Data/01_Input/YYYY_MM`.
+- SMP-overdracht gebruikt `Data/01_Input/YYYY_MM/HomeAssistant` als vaste HA-ingress.
+- Alleen `HomeAssistant/SlimmeMeterPortal` wordt atomisch bijgewerkt; snapshots en QuarterHour blijven onaangeroerd.
+- Platform-v5 scant de maandmap recursief en herkent deze SlimmeMeterPortal-evidence zonder NAS-API-fallback.
+- IPv4-only SMP, `userapi/v1`, `partial_current_month`, month_key-fix en gescheiden diagnose blijven behouden.
+
 ## v32.0.17 — automatische HA → NAS SMP-overdracht
 
 - Een geslaagde `Importeer SMP` publiceert de gevalideerde SlimmeMeterPortal-maanddata automatisch naar `Data/01_Input/YYYY_MM/SlimmeMeterPortal`.
