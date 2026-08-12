@@ -1,3 +1,10 @@
+## v32.0.10 — SMP bronvertraging lopende maand
+
+- Lopende maand: recente lege SMP-dagen worden expliciet als `partial_current_month` gemeld.
+- Afgesloten maand blijft volledig verplicht.
+- Gaten vóór het beschikbaarheidsfront blijven hard fout.
+- `available_through` en `calendar_expected_through` maken dekking controleerbaar.
+
 ## v32.0.9 — GitHub publisher status-state cleanup
 
 - Voorkomt recursieve `last_publication`-nesting in `/config/output/github_publication_state.json`.
