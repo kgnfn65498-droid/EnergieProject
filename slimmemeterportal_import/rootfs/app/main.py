@@ -54,7 +54,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.14"
+APP_VERSION = "32.0.15"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -4347,7 +4347,7 @@ def run_import(year: int, month: int) -> None:
             load_state(),
             month_summary,
         )
-        content_coverage = validate_smp_content_coverage(target, month_key)
+        content_coverage = validate_smp_content_coverage(target, workflow_month_key)
         write_atomic_json(target / "content_coverage_report.json", content_coverage)
         if content_coverage.get("status") == "error":
             central_validation.setdefault("errors", []).extend(

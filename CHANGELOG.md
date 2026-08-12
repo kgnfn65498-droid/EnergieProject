@@ -1,3 +1,11 @@
+## v32.0.15 — SlimmeMeterPortal maandimport month_key fix
+
+- Herstelt RuntimeError `name 'month_key' is not defined` in de SMP-inhoudscontrole.
+- De inhoudscontrole gebruikt nu de reeds gedefinieerde `workflow_month_key`.
+- De werkende IPv4-only SMP-transportfix uit v32.0.14 blijft behouden.
+- `partial_current_month` en de moderne `/userapi/v1` route blijven behouden.
+- Regression-test voorkomt gebruik van de ongedefinieerde `month_key` op deze plek.
+
 ## v32.0.14 — HA SlimmeMeterPortal IPv4 transportfix
 
 - SlimmeMeterPortal-aanroepen vanuit de HA-app gebruiken geforceerd IPv4.
