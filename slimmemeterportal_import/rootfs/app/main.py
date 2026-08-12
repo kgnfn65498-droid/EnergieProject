@@ -54,7 +54,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.15"
+APP_VERSION = "32.0.16"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -407,6 +407,8 @@ def default_state() -> dict[str, Any]:
         "last_target_month": None,
         "last_output": None,
         "last_error": None,
+        "last_error_type": None,
+        "last_traceback": None,
         "last_validation_status": None,
         "next_scheduled_run": None,
         "api_test": None,
@@ -4145,6 +4147,7 @@ def run_import(year: int, month: int) -> None:
     try:
         options = Options.load()
         month_iso = f"{year:04d}-{month:02d}"
+        month_key = f"{year:04d}_{month:02d}"
         target = OUTPUT_ROOT / f"{year:04d}_{month:02d}"
         raw = target / "raw"
         raw.mkdir(parents=True, exist_ok=True)
@@ -4157,6 +4160,8 @@ def run_import(year: int, month: int) -> None:
             last_finished=None,
             last_target_month=month_iso,
             last_error=None,
+            last_error_type=None,
+            last_traceback=None,
             last_validation_status=None,
             progress_current=0,
             progress_total=0,
@@ -4427,6 +4432,8 @@ def run_import(year: int, month: int) -> None:
             last_finished=datetime.now(TZ).isoformat(),
             last_output=str(target),
             last_error=None if not report["errors"] else f"{len(report['errors'])} fout(en)",
+            last_error_type=None if not report["errors"] else "ImportValidationError",
+            last_traceback=None,
             last_validation_status=report["status"],
             progress_current=total_steps,
             progress_total=total_steps,
@@ -4461,6 +4468,8 @@ def run_import(year: int, month: int) -> None:
             cancel_requested=False,
             last_cancel_reason=exc.reason,
             last_cancelled_at=datetime.now(TZ).isoformat(),
+            last_error_type="ImportCancelled",
+            last_traceback=None,
         )
     except Exception as exc:
         LOGGER.exception("Import mislukt.")
@@ -4468,6 +4477,8 @@ def run_import(year: int, month: int) -> None:
             status="error",
             last_finished=datetime.now(TZ).isoformat(),
             last_error=str(exc),
+            last_error_type=type(exc).__name__,
+            last_traceback=traceback.format_exc(),
             last_validation_status="error",
             progress_message="Afgebroken",
             cancel_requested=False,
@@ -14853,6 +14864,17 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <p><a href="download-audit-trail">Download audittrail</a></p>
 </details></div>
 
+
+<div class="card" id="smp-import-status-card"><h2>Laatste SMP-import</h2>
+<div><strong>Maand:</strong> {esc(state.get('last_target_month') or 'Nog geen')}</div>
+<div><strong>Status:</strong> <span class="pill {status_class(state.get('status'))}">{esc(state.get('status') or 'Nog geen')}</span></div>
+<div class="hint"><strong>Gestart:</strong> {esc(state.get('last_started') or '—')} · <strong>Afgerond:</strong> {esc(state.get('last_finished') or '—')}</div>
+<div style="display:{'block' if state.get('last_error') else 'none'}"><strong>Fouttype:</strong> {esc(state.get('last_error_type') or '—')}<div class="log">{esc(state.get('last_error') or '')}</div></div>
+<div style="display:{'block' if state.get('last_traceback') else 'none'}"><strong>Traceback:</strong><div class="log">{esc(state.get('last_traceback') or '')}</div></div>
+<p><a id="download-smp-import-diagnose" href="download-smp-import-diagnose">Download SMP-importdiagnose</a></p>
+<p class="hint">Dit blok hoort uitsluitend bij de knop <strong>Importeer SMP</strong>. Het blok Laatste workflowfout hieronder hoort bij de volledige maandworkflow.</p>
+</div>
+
 <div class="card" id="last-error-card" style="display:{'block' if last_run.get('error') else 'none'}"><h2>Laatste workflowfout</h2>
 <div><strong id="last-error-step">{esc(last_run.get('error_step') or last_run.get('step') or '—')}</strong></div>
 <div class="hint" id="last-error-type">{esc(last_run.get('error_type') or '')}</div>
@@ -15747,6 +15769,24 @@ class Handler(BaseHTTPRequestHandler):
                 "error": state.get("report_generation_last_error"),
             }, ensure_ascii=False, indent=2).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/download-smp-import-diagnose") or path == "/download-smp-import-diagnose":
+            state = load_state()
+            payload = {
+                "version": APP_VERSION,
+                "month": state.get("last_target_month"),
+                "started": state.get("last_started"),
+                "finished": state.get("last_finished"),
+                "status": state.get("status"),
+                "validation_status": state.get("last_validation_status"),
+                "output": state.get("last_output"),
+                "error": state.get("last_error"),
+                "error_type": state.get("last_error_type"),
+                "traceback": state.get("last_traceback"),
+            }
+            body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+            filename = f"SMP_import_diagnose_{state.get('last_target_month') or 'onbekend'}_v{APP_VERSION}.json"
+            disposition = f'attachment; filename="{filename}"'
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8", disposition)
         elif path.endswith("/operation-status") or path == "/operation-status":
             body = json.dumps(
                 operation_status(Options.load()),

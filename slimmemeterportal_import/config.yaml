@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "32.0.15"
+version: "32.0.16"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"

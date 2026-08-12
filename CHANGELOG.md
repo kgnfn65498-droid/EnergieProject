@@ -1,3 +1,14 @@
+## v32.0.16 — complete SMP-importfix en juiste diagnose
+
+- Definieert `month_key` vroeg in `run_import()`, zodat een kale month_key-referentie nooit meer ongedefinieerd kan zijn.
+- Behoudt de v32.0.15 content-coveragefix via `workflow_month_key`.
+- De losse GUI-actie `Importeer SMP` krijgt een eigen zichtbaar blok `Laatste SMP-import`.
+- Fouttype en volledige Python-traceback van de losse SMP-import worden bewaard.
+- `Download SMP-importdiagnose` levert exact de status en traceback van de laatste losse SMP-import.
+- `Laatste workflowfout` en `Download workflowlog` blijven uitsluitend gekoppeld aan de volledige maandworkflow.
+- IPv4-only SlimmeMeterPortal transport, `userapi/v1`, `partial_current_month` en de bestaande releaseketen blijven behouden.
+- De release wordt als volledige ZIP uit v32.0.15 opgebouwd; de live App-map wordt tijdens het bouwen niet gewijzigd.
+
 ## v32.0.15 — SlimmeMeterPortal maandimport month_key fix
 
 - Herstelt RuntimeError `name 'month_key' is not defined` in de SMP-inhoudscontrole.

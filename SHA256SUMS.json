@@ -1,5 +1,5 @@
 {
-  "version": "32.0.15",
+  "version": "32.0.16",
   "files": [
     {
       "path": ".DS_Store",
@@ -12,39 +12,14 @@
       "size": 103
     },
     {
-      "path": ".pytest_cache/.gitignore",
-      "sha256": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
-      "size": 37
-    },
-    {
-      "path": ".pytest_cache/CACHEDIR.TAG",
-      "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4",
-      "size": 191
-    },
-    {
-      "path": ".pytest_cache/README.md",
-      "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad",
-      "size": 302
-    },
-    {
-      "path": ".pytest_cache/v/cache/lastfailed",
-      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-      "size": 2
-    },
-    {
-      "path": ".pytest_cache/v/cache/nodeids",
-      "sha256": "d0560048f8e6f3fe0d1794d1a26ce3c12d06b4cc736dbf2606996d221890ba03",
-      "size": 43137
-    },
-    {
       "path": "00_Config/nextenergy_contract_costs.example.json",
       "sha256": "aeba4d632c71bfa19070992a0be5caf4ed48b6087dfb5ebf3430dc7979279bd3",
       "size": 813
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "d28e4ebaa3916fe98b365b57e94843db4423d3c87f3f3457828b6a939854adee",
-      "size": 55580
+      "sha256": "d6f17117bd2bee7c77708d4fb6f8f1e992252ab62640034ec3e09afb46982d0b",
+      "size": 56460
     },
     {
       "path": "INSTALL.md",
@@ -83,7 +58,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "1249201713eac89bbf2c2eacfe886711c938178e98f2ddf7e14eb84f44f7f7e6",
+      "sha256": "4225ab4ae4cd4611f0a889664712ff33772b3ea44ec26ff6984121bdb85c42df",
       "size": 8
     },
     {
@@ -118,23 +93,13 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "8e12cb3b128896639efc9b8a0b394a913bba8d8d73005450041cf3bb8bc42e93",
+      "sha256": "a24c7d8420e0d37052a610ec042756a1e9bb5afdaa75f602e68757cbbdf85049",
       "size": 5801
     },
     {
-      "path": "slimmemeterportal_import/rootfs/app/__pycache__/main.cpython-312.pyc",
-      "sha256": "40589aa1d3ef64bf344f8697323d245ded1dd3a0b60f5bfae7789a494c7e57bd",
-      "size": 774752
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/__pycache__/main.cpython-313.pyc",
-      "sha256": "9f5a9292874b870ec01666b65755067f89cc65495fcba788ecebbc9bf2cf2518",
-      "size": 786630
-    },
-    {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "f70ee75fdad4a864c3ba0ecaf474228bb863b791e84dd11a0cd7f50a5f8a5264",
-      "size": 804721
+      "sha256": "798e7585cc2d6e3c4c56c88788a50cc607c2cc7938b98190f0787eb3f92a3c65",
+      "size": 807411
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -165,16 +130,6 @@
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/README.md",
       "sha256": "0bab16ef4a6b03c38803d058cae1a85af1c486adf92b27e1d0251f6e9fee54f6",
       "size": 1664
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/__pycache__/generate_energierapport_pagina1.cpython-313.pyc",
-      "sha256": "5eec7e475e20566489bb3923cd6bda2ba8af18726871940c815314e498ef5eef",
-      "size": 41319
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/__pycache__/validate_maanddata.cpython-313.pyc",
-      "sha256": "d13125592e79c1883bb8a2535a8194b900e462f62120ed8924a95bb73657e510",
-      "size": 8985
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/assets/woning.png",
@@ -225,11 +180,6 @@
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/requirements.txt",
       "sha256": "f1b21977c06d06cc687ebb0b0f057787635239f3e446c436f78e722ce2699045",
       "size": 18
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/tests/__pycache__/test_generator.cpython-313-pytest-9.0.2.pyc",
-      "sha256": "5f10b290182a546726b6a99f4c45b34f2aa1f4c37b00aa84769a319a79856bb8",
-      "size": 17217
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/tests/test_generator.py",
@@ -287,11 +237,6 @@
       "size": 20871
     },
     {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina2_Generator_v6_0/tests/__pycache__/test_generate.cpython-313-pytest-9.0.2.pyc",
-      "sha256": "a4e2ff8c239bbb9fe03de8fd27af44f486bf3091422bb623298fa15e5f74882d",
-      "size": 4665
-    },
-    {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina2_Generator_v6_0/tests/test_generate.py",
       "sha256": "e1b27cebba7ab5bd98ec4a4a0bd557ae0b0323567cdfa935b69f86b917ed395f",
       "size": 624
@@ -337,19 +282,9 @@
       "size": 27
     },
     {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina3_tm_13_Generator_v1_0/src/__pycache__/generate_pages_3_13.cpython-313.pyc",
-      "sha256": "0cb83615a697f99934b14efb0252a4b368e79045c88c9376b4d3068d7ae3da17",
-      "size": 40283
-    },
-    {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina3_tm_13_Generator_v1_0/src/generate_pages_3_13.py",
       "sha256": "2443243df7b75c2916e3fbbceb9a06b933f4e24c68b7772f749f5f7eb147077c",
       "size": 20341
-    },
-    {
-      "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina3_tm_13_Generator_v1_0/tests/__pycache__/test_generate.cpython-313-pytest-9.0.2.pyc",
-      "sha256": "66c042f552a8c32607c291d1e9249fa3a96d6753ce8213cb39c8ca2bfab09b24",
-      "size": 3831
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina3_tm_13_Generator_v1_0/tests/test_generate.py",
@@ -432,14 +367,9 @@
       "size": 4518
     },
     {
-      "path": "tests/__pycache__/test_static.cpython-313-pytest-9.0.2.pyc",
-      "sha256": "d9afea28f601f1c07d35771f71fea90ef44cd37e642c115de62cc0a281346bce",
-      "size": 1106778
-    },
-    {
       "path": "tests/test_static.py",
-      "sha256": "d71337a4e5fbb6f4f67cb82fd9b3eb40b1d9c839c1b845c52440ca50ebc4a5b6",
-      "size": 225002
+      "sha256": "3721b60ac1d51433e29f286e9fd0f2aea4e596e788a29caf72e411d95a49b3ec",
+      "size": 226767
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
