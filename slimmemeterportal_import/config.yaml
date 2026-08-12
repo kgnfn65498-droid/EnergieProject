@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "32.0.10"
+version: "32.0.13"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -36,7 +36,7 @@ options:
   detect_duplicates: true
   create_month_summary: true
   create_transfer_bundle: true
-  workflow_mode: "smp_only"
+  workflow_mode: "full_month_workflow"
   homewizard_enabled: false
   homewizard_discovery_enabled: true
   homewizard_discovery_cidr: "192.168.1.0/24"
@@ -81,7 +81,7 @@ options:
   workflow_notify_home_assistant: true
   workflow_notify_on_start: true
   full_workflow_enabled: true
-  full_workflow_use_previous_month: true
+  full_workflow_use_previous_month: false
   full_workflow_stop_on_error: true
   full_workflow_run_epex_when_enabled: true
   automatic_month_close_enabled: false

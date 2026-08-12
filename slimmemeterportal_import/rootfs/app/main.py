@@ -53,7 +53,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.10"
+APP_VERSION = "32.0.13"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -258,7 +258,7 @@ class Options:
             detect_duplicates=bool(raw.get("detect_duplicates", True)),
             create_month_summary=bool(raw.get("create_month_summary", True)),
             create_transfer_bundle=bool(raw.get("create_transfer_bundle", True)),
-            workflow_mode=str(raw.get("workflow_mode", "smp_only")),
+            workflow_mode="full_month_workflow",  # v32.0.11: HA centrale API-importlaag
             homewizard_enabled=bool(raw.get("homewizard_enabled", False)),
             homewizard_discovery_enabled=bool(raw.get("homewizard_discovery_enabled", True)),
             homewizard_discovery_cidr=str(raw.get("homewizard_discovery_cidr", "")).strip(),
@@ -303,7 +303,7 @@ class Options:
             workflow_notify_home_assistant=bool(raw.get("workflow_notify_home_assistant", True)),
             workflow_notify_on_start=bool(raw.get("workflow_notify_on_start", True)),
             full_workflow_enabled=bool(raw.get("full_workflow_enabled", True)),
-            full_workflow_use_previous_month=bool(raw.get("full_workflow_use_previous_month", True)),
+            full_workflow_use_previous_month=False,  # v32.0.12: full workflow = lopende maand
             full_workflow_stop_on_error=bool(raw.get("full_workflow_stop_on_error", True)),
             full_workflow_run_epex_when_enabled=bool(raw.get("full_workflow_run_epex_when_enabled", True)),
             automatic_month_close_enabled=bool(raw.get("automatic_month_close_enabled", False)),

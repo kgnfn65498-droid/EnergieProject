@@ -1,3 +1,25 @@
+## v32.0.13 — release-identiteit gesynchroniseerd
+
+- VERSIE.txt, add-on config en APP_VERSION zijn gelijkgetrokken.
+- De release-watcher kan de actuele release nu correct herkennen en archiveren.
+- v32.0.12 HA-current-month en transferfix blijft inhoudelijk ongewijzigd.
+
+## v32.0.12 — lopende maand via Home Assistant
+
+- De handmatige/full workflow verwerkt standaard de lopende kalendermaand.
+- De aparte maandelijkse scheduler blijft de vorige kalendermaand verwerken.
+- Bestaande opgeslagen HA-opties kunnen de full workflow niet terugzetten op vorige maand.
+- SMP-maanddata wordt via Home Assistant naar Data/01_Input overgedragen.
+- De verouderde analysezin 'SlimmeMeterPortal wordt bewust overgeslagen' is verwijderd.
+
+## v32.0.11 — Home Assistant centrale API-importlaag
+
+- Externe/API-importen lopen productioneel via Home Assistant.
+- `full_month_workflow` wordt ook voor bestaande opgeslagen opties afgedwongen.
+- De NAS-workflow voert geen directe SlimmeMeterPortal-API-fallback meer uit.
+- De NAS valideert en verwerkt uitsluitend HA-aangeleverde maanddata.
+- De v32.0.10-logica voor `partial_current_month` blijft behouden.
+
 ## v32.0.10 — SMP bronvertraging lopende maand
 
 - Lopende maand: recente lege SMP-dagen worden expliciet als `partial_current_month` gemeld.
