@@ -54,7 +54,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.16"
+APP_VERSION = "32.0.17"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -409,6 +409,10 @@ def default_state() -> dict[str, Any]:
         "last_error": None,
         "last_error_type": None,
         "last_traceback": None,
+        "smp_nas_transfer_last_status": None,
+        "smp_nas_transfer_last_path": None,
+        "smp_nas_transfer_last_manifest": None,
+        "smp_nas_transfer_last_error": None,
         "last_validation_status": None,
         "next_scheduled_run": None,
         "api_test": None,
@@ -4141,6 +4145,79 @@ def write_atomic_json(path: Path, value: Any) -> None:
     temp.replace(path)
 
 
+def publish_smp_import_to_nas_input(source: Path, month_key: str) -> dict[str, Any]:
+    """Publiceer alleen SMP-bewijs naar Data/01_Input/YYYY_MM/SlimmeMeterPortal."""
+    parse_month_key(month_key)
+    if not source.is_dir():
+        raise RuntimeError(f"SMP-bronmap ontbreekt: {source}")
+
+    destination_month = NAS_DATA_ROOT / "01_Input" / month_key
+    destination_root = destination_month / "SlimmeMeterPortal"
+    staging = destination_month / ".SlimmeMeterPortal.staging"
+    backup = destination_month / ".SlimmeMeterPortal.backup"
+
+    destination_month.mkdir(parents=True, exist_ok=True)
+    if staging.exists():
+        if staging.is_dir():
+            shutil.rmtree(staging)
+        else:
+            staging.unlink()
+    if backup.exists():
+        shutil.rmtree(backup)
+
+    staging.mkdir(parents=True, exist_ok=False)
+    copied = 0
+    total_bytes = 0
+
+    try:
+        for src in sorted(source.rglob("*")):
+            if not src.is_file() or src.name == ".incomplete":
+                continue
+            rel = src.relative_to(source)
+            dst = staging / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            if hashlib.sha256(src.read_bytes()).hexdigest() != hashlib.sha256(dst.read_bytes()).hexdigest():
+                raise RuntimeError(f"SMP NAS-overdracht checksum fout: {rel}")
+            copied += 1
+            total_bytes += dst.stat().st_size
+
+        if copied == 0:
+            raise RuntimeError("SMP NAS-overdracht bevat geen bestanden.")
+
+        evidence = {
+            "version": APP_VERSION,
+            "schema": "smp_ha_to_nas_v1",
+            "month": month_key,
+            "published_at": datetime.now(TZ).isoformat(),
+            "source": str(source),
+            "destination": str(destination_root),
+            "file_count": copied,
+            "total_bytes": total_bytes,
+            "status": "ok",
+        }
+        write_atomic_json(staging / "ha_smp_transfer_manifest.json", evidence)
+
+        if destination_root.exists():
+            destination_root.replace(backup)
+        staging.replace(destination_root)
+
+        if backup.exists():
+            shutil.rmtree(backup)
+
+        if not (destination_root / "ha_smp_transfer_manifest.json").is_file():
+            raise RuntimeError("SMP NAS-overdracht manifest ontbreekt na publicatie.")
+        return evidence
+    except Exception:
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
+        if backup.exists():
+            if destination_root.exists():
+                shutil.rmtree(destination_root, ignore_errors=True)
+            backup.replace(destination_root)
+        raise
+
+
 def run_import(year: int, month: int) -> None:
     if not RUN_LOCK.acquire(blocking=False):
         raise RuntimeError("Er draait al een import.")
@@ -4162,6 +4239,10 @@ def run_import(year: int, month: int) -> None:
             last_error=None,
             last_error_type=None,
             last_traceback=None,
+            smp_nas_transfer_last_status="running",
+            smp_nas_transfer_last_path=None,
+            smp_nas_transfer_last_manifest=None,
+            smp_nas_transfer_last_error=None,
             last_validation_status=None,
             progress_current=0,
             progress_total=0,
@@ -4415,6 +4496,8 @@ def run_import(year: int, month: int) -> None:
 
         write_atomic_json(target / "report_trigger_result.json", report_trigger_result)
 
+        smp_nas_transfer = publish_smp_import_to_nas_input(target, workflow_month_key)
+
         if integrity["status"] == "error":
             LOGGER.error("Integriteitscontrole mislukt: %s", integrity.get("errors"))
             if options.fail_on_validation_errors:
@@ -4451,6 +4534,10 @@ def run_import(year: int, month: int) -> None:
                 if isinstance(report_trigger_result, dict)
                 else None
             ),
+            smp_nas_transfer_last_status=smp_nas_transfer.get("status"),
+            smp_nas_transfer_last_path=smp_nas_transfer.get("destination"),
+            smp_nas_transfer_last_manifest=smp_nas_transfer,
+            smp_nas_transfer_last_error=None,
         )
     except ImportCancelled as exc:
         reason_text = {
@@ -4479,6 +4566,8 @@ def run_import(year: int, month: int) -> None:
             last_error=str(exc),
             last_error_type=type(exc).__name__,
             last_traceback=traceback.format_exc(),
+            smp_nas_transfer_last_status="error",
+            smp_nas_transfer_last_error=str(exc),
             last_validation_status="error",
             progress_message="Afgebroken",
             cancel_requested=False,
@@ -14869,6 +14958,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <div><strong>Maand:</strong> {esc(state.get('last_target_month') or 'Nog geen')}</div>
 <div><strong>Status:</strong> <span class="pill {status_class(state.get('status'))}">{esc(state.get('status') or 'Nog geen')}</span></div>
 <div class="hint"><strong>Gestart:</strong> {esc(state.get('last_started') or '—')} · <strong>Afgerond:</strong> {esc(state.get('last_finished') or '—')}</div>
+<div><strong>HA → NAS SMP:</strong> <span class="pill {status_class(state.get('smp_nas_transfer_last_status'))}">{esc(state.get('smp_nas_transfer_last_status') or 'Nog geen')}</span> {esc(state.get('smp_nas_transfer_last_path') or '')}</div>
 <div style="display:{'block' if state.get('last_error') else 'none'}"><strong>Fouttype:</strong> {esc(state.get('last_error_type') or '—')}<div class="log">{esc(state.get('last_error') or '')}</div></div>
 <div style="display:{'block' if state.get('last_traceback') else 'none'}"><strong>Traceback:</strong><div class="log">{esc(state.get('last_traceback') or '')}</div></div>
 <p><a id="download-smp-import-diagnose" href="download-smp-import-diagnose">Download SMP-importdiagnose</a></p>
@@ -15782,6 +15872,10 @@ class Handler(BaseHTTPRequestHandler):
                 "error": state.get("last_error"),
                 "error_type": state.get("last_error_type"),
                 "traceback": state.get("last_traceback"),
+                "nas_transfer_status": state.get("smp_nas_transfer_last_status"),
+                "nas_transfer_path": state.get("smp_nas_transfer_last_path"),
+                "nas_transfer_manifest": state.get("smp_nas_transfer_last_manifest"),
+                "nas_transfer_error": state.get("smp_nas_transfer_last_error"),
             }
             body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
             filename = f"SMP_import_diagnose_{state.get('last_target_month') or 'onbekend'}_v{APP_VERSION}.json"

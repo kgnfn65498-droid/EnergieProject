@@ -1,3 +1,13 @@
+## v32.0.17 — automatische HA → NAS SMP-overdracht
+
+- Een geslaagde `Importeer SMP` publiceert de gevalideerde SlimmeMeterPortal-maanddata automatisch naar `Data/01_Input/YYYY_MM/SlimmeMeterPortal`.
+- Alleen de submap `SlimmeMeterPortal` wordt atomisch vervangen; bestaande Home Assistant-snapshots, analyses en andere maandbronnen blijven onaangeroerd.
+- Publicatie gebruikt staging, SHA-256-verificatie en rollback van uitsluitend de SMP-submap.
+- `ha_smp_transfer_manifest.json` bewijst maand, doelpad, bestandenaantal, omvang en publicatiestatus.
+- Een mislukte vereiste NAS-publicatie maakt de SMP-import zichtbaar fout; stille half-geslaagde overdrachten zijn niet toegestaan.
+- De GUI en SMP-importdiagnose tonen de laatste HA→NAS overdracht.
+- IPv4-only SMP, `userapi/v1`, `partial_current_month`, month_key-fix en gescheiden SMP/workflowdiagnose blijven behouden.
+
 ## v32.0.16 — complete SMP-importfix en juiste diagnose
 
 - Definieert `month_key` vroeg in `run_import()`, zodat een kale month_key-referentie nooit meer ongedefinieerd kan zijn.
