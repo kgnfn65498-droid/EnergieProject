@@ -1,11 +1,11 @@
-## 32.0.8 - Server-rendered GitHub-publicatiestatus
-- GitHub-publicatiestatus wordt server-side uit de persistente publisher-state opgebouwd.
-- De browser gebruikt voor deze kaart geen netwerkfetch meer.
-- Legacy observability-hooks blijven als no-op compatibiliteitslaag aanwezig.
-- Publisher-thread, GitHub-publicatie, energie-, rapport- en recoverylogica blijven ongewijzigd.
+## 32.0.9 - SMP inhoudsdekking en actuele NAS-overdracht
+- SlimmeMeterPortal-validatie onderscheidt bestandsintegriteit van echte meetdekking.
+- Lege dagresponses worden niet langer stil als complete meetdagen geaccepteerd.
+- Voor de lopende maand worden alleen volledig verstreken dagen als verplichte dekking beoordeeld.
+- De legacy overdrachtsinstelling `Energie_Overdracht` wordt runtime veilig naar `Data/01_Input` geleid.
+- Geen wijziging aan API-key, KPN/QNAP/firewallinstellingen of gecertificeerde productiekern.
 
 # Changelog
 
-## 32.0.8
-- Onderhoudsfix voor Home Assistant Ingress/Safari `TypeError: Load failed`.
-- Geen functionele wijziging buiten de HA-publicatiestatuskaart.
+## 32.0.9
+- Auditfix voor SlimmeMeterPortal end-to-end datavolledigheid en projectopslag.

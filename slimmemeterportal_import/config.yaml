@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "32.0.8"
+version: "32.0.9"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -74,7 +74,7 @@ options:
   require_all_core_sources: true
   epex_require_full_calendar_month: true
   transfer_enabled: true
-  transfer_share_folder: "Energie_Overdracht"
+  transfer_share_folder: "Energie_Overdracht"  # v32.0.9 runtime migreert naar Data/01_Input
   transfer_overwrite_existing: false
   transfer_require_valid_month: true
   transfer_notify_home_assistant: true
