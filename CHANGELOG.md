@@ -1,3 +1,10 @@
+## v32.0.21 — processed-retentie activeren via normale releaseketen
+
+- Geen nieuwe functionele wijziging buiten de releaseketen.
+- De reeds aanwezige fail-closed processed-retentie uit v32.0.20 wordt nu door de actieve v32.0.20-installer uitgevoerd.
+- Installatie telt processed vóór en na cleanup en faalt wanneer meer dan 3 release-ZIP's overblijven.
+- Crash Recovery blijft onafhankelijk van maandafsluiting.
+
 ## v32.0.20 — Processed-retentie fail-closed
 
 - Retentie telt voor en na opschonen expliciet de release-ZIP’s.
