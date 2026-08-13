@@ -26,6 +26,7 @@ LOCK="$INBOX/.installer.lock"
 PROCESSING_STALE_SECONDS="${ENERGIE_PROCESSING_STALE_SECONDS:-600}"
 REQUIRED="README.md INSTALL.md CHANGELOG.md MANIFEST.sha256 SHA256SUMS.json repository.yaml VERSIE.txt"
 ZIP_HELPER="$PROJECT/tools/release_zip.py"
+HA_PUBLICATION_REQUIRED="$INBOX/ha_publication_required.json"
 
 # Safety rule: never run the live installer from inside the worktree that it replaces.
 # If invoked from the project, copy to /tmp and re-exec before touching the worktree.
@@ -178,6 +179,16 @@ cleanup_processed_releases(){
   AFTER="$(find "$PROCESSED" -maxdepth 1 -type f -name 'EnergieProject_v*.zip' 2>/dev/null | wc -l | tr -d ' ')"
   [ "$AFTER" -le "$PROCESSED_RETENTION" ] || fail "processed-retentie eindcontrole mislukt: count=$AFTER keep=$PROCESSED_RETENTION"
   log "Processed-retentie toegepast en gecontroleerd: count=$AFTER keep=$PROCESSED_RETENTION"
+}
+
+
+write_ha_publication_required(){
+  TMP_PUBLICATION="$HA_PUBLICATION_REQUIRED.tmp.$$"
+  cat > "$TMP_PUBLICATION" <<EOF
+{"status":"publication_required","version":"$NEW_VERSION","repository":"https://github.com/kgnfn65498-droid/EnergieProject","branch":"main","reason":"qnap_zip_mode_without_git"}
+EOF
+  mv "$TMP_PUBLICATION" "$HA_PUBLICATION_REQUIRED"
+  log "HA-publicatie vereist voor v$NEW_VERSION; marker=$HA_PUBLICATION_REQUIRED"
 }
 
 restore_backup(){
@@ -336,7 +347,8 @@ if [ "$GIT_AVAILABLE" -eq 1 ]; then
     fi
   fi
 else
-  log "Git-publicatie overgeslagen: git is niet geïnstalleerd op deze QNAP; release-installatie blijft zelfstandig werken"
+  write_ha_publication_required
+  log "Git-publicatie niet lokaal mogelijk; NAS-release is geïnstalleerd maar HA-update wacht op externe GitHub-publicatie"
 fi
 
 log "FASE 8/8: eindcontrole en archivering"

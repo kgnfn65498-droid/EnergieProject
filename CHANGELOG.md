@@ -1,3 +1,11 @@
+## v32.0.24 — correcte NAS/HA-publicatiestatus
+
+- ZIP-only QNAP-installatie markeert expliciet dat GitHub/HA-publicatie nog vereist is.
+- NAS-success wordt niet langer gelijkgesteld aan een beschikbare Home Assistant update.
+- De nieuwe HA add-on probeert niet meer zijn eigen nog-niet-geïnstalleerde release te publiceren.
+- `Inbox/ha_publication_required.json` vormt het overdrachtspunt voor een externe GitHub publisher.
+- Geen credentials of runtime-data worden aan de release toegevoegd.
+
 ## v32.0.23 — HA-app-owned processed-retentie
 
 - Structurele fix: processed-retentie draait nu ook rechtstreeks bij startup van de HA add-on.
