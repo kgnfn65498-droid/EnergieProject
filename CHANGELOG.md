@@ -1,4 +1,10 @@
-## v32.0.19 — Crash Recovery + processed-retentie
+## v32.0.20 — Processed-retentie fail-closed
+
+- Retentie telt voor en na opschonen expliciet de release-ZIP’s.
+- Oude releases worden deterministisch verwijderd tot maximaal 3.
+- Installatie faalt als de eindcontrole meer dan 3 release-ZIP’s aantreft.
+
+## v32.0.20 — Crash Recovery + processed-retentie
 
 - Inbox/processed bewaart automatisch de laatste 3 release-ZIP's.
 - Crash Recovery staat los van finalize_month en kan op ieder moment worden gemaakt.

@@ -132,28 +132,29 @@ cleanup_old_backups(){
 
 cleanup_processed_releases(){
   case "$PROCESSED_RETENTION" in
-    ''|*[!0-9]*)
-      log "WAARSCHUWING: ongeldige processed-retentie '$PROCESSED_RETENTION'; gebruik 3"
-      PROCESSED_RETENTION=3
-      ;;
+    ''|*[!0-9]*) PROCESSED_RETENTION=3 ;;
   esac
   [ "$PROCESSED_RETENTION" -ge 1 ] 2>/dev/null || PROCESSED_RETENTION=3
-  set -- "$PROCESSED"/EnergieProject_v*.zip
-  [ -e "$1" ] || return 0
-  OLD_PROCESSED="$(ls -1t "$PROCESSED"/EnergieProject_v*.zip 2>/dev/null | tail -n +$((PROCESSED_RETENTION + 1)) || true)"
-  if [ -z "$OLD_PROCESSED" ]; then
-    log "Processed-retentie: maximaal $PROCESSED_RETENTION; niets op te ruimen"
-    return 0
-  fi
-  printf '%s\n' "$OLD_PROCESSED" | while IFS= read -r old_release; do
+
+  BEFORE_COUNT="$(find "$PROCESSED" -maxdepth 1 -type f -name 'EnergieProject_v*.zip' 2>/dev/null | wc -l | tr -d ' ')"
+  log "Processed-retentie: start count=$BEFORE_COUNT keep=$PROCESSED_RETENTION"
+  [ "$BEFORE_COUNT" -gt "$PROCESSED_RETENTION" ] || { log "Processed-retentie: niets op te ruimen"; return 0; }
+
+  KEEP_LIST="$(mktemp /tmp/energie-processed-keep.XXXXXX)" || fail "processed-retentie: tijdelijk bestand maken mislukt"
+  REMOVE_LIST="$(mktemp /tmp/energie-processed-remove.XXXXXX)" || { rm -f "$KEEP_LIST"; fail "processed-retentie: tijdelijk bestand maken mislukt"; }
+  ls -1t "$PROCESSED"/EnergieProject_v*.zip > "$KEEP_LIST" 2>/dev/null || true
+  tail -n +$((PROCESSED_RETENTION + 1)) "$KEEP_LIST" > "$REMOVE_LIST" 2>/dev/null || true
+
+  while IFS= read -r old_release; do
     [ -n "$old_release" ] || continue
-    if rm -f -- "$old_release"; then
-      log "Processed-retentie: verwijderd $(basename "$old_release")"
-    else
-      log "WAARSCHUWING: processed-retentie kon $(basename "$old_release") niet verwijderen"
-    fi
-  done
-  log "Processed-retentie toegepast: maximaal $PROCESSED_RETENTION release-ZIP's"
+    rm -f -- "$old_release" || { rm -f "$KEEP_LIST" "$REMOVE_LIST"; fail "processed-retentie: verwijderen mislukt: $(basename "$old_release")"; }
+    log "Processed-retentie: verwijderd $(basename "$old_release")"
+  done < "$REMOVE_LIST"
+  rm -f "$KEEP_LIST" "$REMOVE_LIST"
+
+  AFTER_COUNT="$(find "$PROCESSED" -maxdepth 1 -type f -name 'EnergieProject_v*.zip' 2>/dev/null | wc -l | tr -d ' ')"
+  [ "$AFTER_COUNT" -le "$PROCESSED_RETENTION" ] || fail "processed-retentie eindcontrole mislukt: count=$AFTER_COUNT keep=$PROCESSED_RETENTION"
+  log "Processed-retentie toegepast en gecontroleerd: count=$AFTER_COUNT keep=$PROCESSED_RETENTION"
 }
 
 restore_backup(){

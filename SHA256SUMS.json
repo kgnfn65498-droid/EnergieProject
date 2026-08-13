@@ -1,5 +1,5 @@
 {
-  "version": "32.0.19",
+  "version": "32.0.20",
   "files": [
     {
       "path": ".DS_Store",
@@ -18,8 +18,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "2c284a6f791a270275f3a02cc12a600156236d75b1044b02890dc4745e81892e",
-      "size": 58349
+      "sha256": "3b46521d4eed2e5d6eeca544ca40ce56f7561a993800f250e94741dbaea3e04c",
+      "size": 58608
     },
     {
       "path": "INSTALL.md",
@@ -58,7 +58,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "55481a0a3a38d15f4d7c88bea696d66f408c712a051b9231800b581fef7323b0",
+      "sha256": "157c3aad9210e9699fbdac1e8a1a420966cfa8c8baedd40812daeef097e99391",
       "size": 8
     },
     {
@@ -93,12 +93,12 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "fcad0f1fad91747ca5920e21a9ff7054250d489a39bdaf8ec08a335339712605",
+      "sha256": "0775110b4708d610c3aabe3a1015696fd3b1de54f2f73ce0f7cead41b2e84a64",
       "size": 5801
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "920ea4445c1fcadf7000b5f78809a890b9a70b1732fbd6b165a88a27b11cb02e",
+      "sha256": "0272eff4e3d0c17a896ef025b60612f03dbefe0cd7aaf282105bbd4a5b5cc640",
       "size": 811905
     },
     {
@@ -368,8 +368,8 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "b74b6cd61e98a213e5acb547a2a2f9344be606399cda1e9117c21dd2855cf907",
-      "size": 230611
+      "sha256": "68f81b7433c7ca7dabcda184e7fb0b1c14317d86004dd1378cce10f4f8c896b0",
+      "size": 231008
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
@@ -378,8 +378,8 @@
     },
     {
       "path": "tools/release_installer.sh",
-      "sha256": "aacbde0b12eae19a77a32dda2c0aef7dbb0107524b5fe4c3cf1acab655578bc7",
-      "size": 13460
+      "sha256": "18cd227bcfe308ff2827059257da5a1ac7456c7ed242886ec1c91116dd2ffb42",
+      "size": 14088
     },
     {
       "path": "tools/release_watcher.sh",
