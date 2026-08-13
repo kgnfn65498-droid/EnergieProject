@@ -54,7 +54,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.22"
+APP_VERSION = "32.0.23"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -133,6 +133,71 @@ WORKFLOW_ACTIVE: dict[str, Any] = {}
 STATE_LOCK = threading.RLock()
 AUDIT_LOCK = threading.Lock()
 MONITORING_LOCK = threading.Lock()
+
+
+
+def cleanup_processed_release_retention_on_app_start(keep: int = 3) -> dict[str, Any]:
+    """Keep only the highest semantic EnergieProject release ZIP versions.
+
+    This runs in the HA add-on itself, so it is independent from whichever
+    watcher/installer version performed the release installation.
+    """
+    keep = max(1, int(keep))
+    root = NAS_RELEASE_ARCHIVE
+    result: dict[str, Any] = {
+        "status": "ok",
+        "path": str(root),
+        "keep": keep,
+        "before": 0,
+        "after": 0,
+        "kept": [],
+        "removed": [],
+        "ignored": [],
+    }
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        ranked: list[tuple[tuple[int, int, int], Path]] = []
+        for candidate in root.glob("EnergieProject_v*.zip"):
+            match = re.fullmatch(
+                r"EnergieProject_v(\d+)\.(\d+)\.(\d+)\.zip",
+                candidate.name,
+            )
+            if not match:
+                result["ignored"].append(candidate.name)
+                continue
+            version = tuple(int(part) for part in match.groups())
+            ranked.append((version, candidate))
+
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        result["before"] = len(ranked)
+        keep_paths = {path for _, path in ranked[:keep]}
+
+        for _, candidate in ranked[keep:]:
+            candidate.unlink()
+            result["removed"].append(candidate.name)
+
+        remaining = []
+        for candidate in root.glob("EnergieProject_v*.zip"):
+            match = re.fullmatch(
+                r"EnergieProject_v(\d+)\.(\d+)\.(\d+)\.zip",
+                candidate.name,
+            )
+            if match:
+                remaining.append((tuple(int(part) for part in match.groups()), candidate))
+        remaining.sort(key=lambda item: item[0], reverse=True)
+        result["after"] = len(remaining)
+        result["kept"] = [path.name for _, path in remaining]
+
+        if result["after"] > keep:
+            result["status"] = "error"
+            result["error"] = (
+                f"processed-retentie eindcontrole: {result['after']} > {keep}"
+            )
+        return result
+    except Exception as exc:
+        result["status"] = "error"
+        result["error"] = f"{type(exc).__name__}: {exc}"
+        return result
 
 
 class ImportCancelled(Exception):
@@ -16747,6 +16812,24 @@ def main() -> None:
     validate_runtime_dependencies()
     ensure_storage_paths()
     LOGGER.info("Python-app v%s initialiseert.", APP_VERSION)
+
+    processed_retention = cleanup_processed_release_retention_on_app_start(
+        PROJECT_BACKUP_RETENTION
+    )
+    if processed_retention.get("status") == "ok":
+        LOGGER.info(
+            "HA-app processed-retentie v32.0.23: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            processed_retention.get("before"),
+            processed_retention.get("after"),
+            processed_retention.get("keep"),
+            processed_retention.get("kept"),
+            processed_retention.get("removed"),
+        )
+    else:
+        LOGGER.error(
+            "HA-app processed-retentie v32.0.23: FOUT %s",
+            processed_retention.get("error"),
+        )
     signal.signal(signal.SIGTERM, stop_handler)
     signal.signal(signal.SIGINT, stop_handler)
     update_state(version=APP_VERSION)

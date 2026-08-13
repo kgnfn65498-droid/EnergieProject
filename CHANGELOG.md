@@ -1,3 +1,11 @@
+## v32.0.23 — HA-app-owned processed-retentie
+
+- Structurele fix: processed-retentie draait nu ook rechtstreeks bij startup van de HA add-on.
+- Daardoor is de cleanup niet afhankelijk van de watcher/installer die de release installeerde.
+- Bewaren gebeurt op semantisch versienummer; de hoogste 3 releases blijven staan.
+- Startup logt before/after, behouden en verwijderde release-ZIP's.
+- Fout in retentie blokkeert de energie-app niet, maar wordt expliciet als ERROR gelogd.
+
 ## v32.0.22 — watcher-owned processed-retentie
 
 - Structurele fix: processed-retentie is niet langer afhankelijk van de installer die de huidige release installeert.
