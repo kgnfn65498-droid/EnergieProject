@@ -54,7 +54,7 @@ RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.24"
+APP_VERSION = "32.0.27"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -4205,6 +4205,7 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def write_atomic_json(path: Path, value: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix(path.suffix + ".tmp")
     temp.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
     temp.replace(path)
@@ -14325,7 +14326,17 @@ def build_test_package() -> bytes:
     op = operation_status(options)
     health = health_dashboard(options)
     certificate = validate_production_certificate()
-    monitoring = op.get("monitoring") or monitoring_snapshot(options)
+    monitoring = op.get("monitoring") or (
+        monitoring_snapshot(options) if options is not None else read_monitoring_status()
+    )
+    if not monitoring:
+        monitoring = {
+            "status": "not_configured",
+            "checks": [],
+            "active_alerts": 0,
+            "active_errors": 0,
+            "pending_points": 0,
+        }
     recovery = op.get("recovery_controller") or read_recovery_status()
     audit = op.get("audit_trail") or {"validation": validate_audit_trail(), "events": read_audit_trail(limit=12), "path": str(AUDIT_TRAIL_PATH)}
 
@@ -14794,7 +14805,17 @@ def html_page(ingress_path: str = "") -> bytes:
         + "<td>" + esc(item.get("month") or "—") + "</td></tr>"
         for item in (audit_trail.get("events") or [])
     ) or "<tr><td colspan='5'>Nog geen auditrecords.</td></tr>"
-    monitoring = op.get("monitoring") or monitoring_snapshot(options)
+    monitoring = op.get("monitoring") or (
+        monitoring_snapshot(options) if options is not None else read_monitoring_status()
+    )
+    if not monitoring:
+        monitoring = {
+            "status": "not_configured",
+            "checks": [],
+            "active_alerts": 0,
+            "active_errors": 0,
+            "pending_points": 0,
+        }
     monitoring_checks = monitoring.get("checks") or []
     monitoring_status = str(monitoring.get("status") or "unknown")
     monitoring_count = int(monitoring.get("active_alerts") or 0)
@@ -16813,6 +16834,52 @@ def main() -> None:
     ensure_storage_paths()
     LOGGER.info("Python-app v%s initialiseert.", APP_VERSION)
 
+    processed_retention = cleanup_processed_release_retention_on_app_start(
+        PROJECT_BACKUP_RETENTION
+    )
+    if processed_retention.get("status") == "ok":
+        LOGGER.info(
+            "HA-app processed-retentie v32.0.27: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            processed_retention.get("before"),
+            processed_retention.get("after"),
+            processed_retention.get("keep"),
+            processed_retention.get("kept"),
+            processed_retention.get("removed"),
+        )
+    else:
+        LOGGER.error(
+            "HA-app processed-retentie v32.0.27: FOUT %s",
+            processed_retention.get("error"),
+        )
+    signal.signal(signal.SIGTERM, stop_handler)
+    signal.signal(signal.SIGINT, stop_handler)
+    update_state(version=APP_VERSION)
+    threading.Thread(target=scheduler, daemon=True).start()
+    server = ThreadingHTTPServer(("0.0.0.0", 8099), Handler)
+    LOGGER.info("SlimmeMeterPortal Import v%s gestart.", APP_VERSION)
+
+    def startup_self_test() -> None:
+        try:
+            time.sleep(1)
+            recovery_result = run_recovery_controller(trigger="startup")
+            LOGGER.info("Recovery startupcontrole: %s; herstelacties=%s", recovery_result.get("status"), recovery_result.get("repair_count"))
+            result = run_self_test()
+            LOGGER.info(
+                "Automatische zelftest afgerond: %s; installatie_gereed=%s",
+                result.get("status"),
+                result.get("status") != "error",
+            )
+            try:
+                monitor_options = Options.load()
+            except Exception as exc:
+                LOGGER.warning("Monitoring startupcontrole overgeslagen zolang configuratie niet gereed is: %s", exc)
+            else:
+                monitor = monitoring_snapshot(monitor_options, force=True, trigger="startup")
+                LOGGER.info("Monitoring startupcontrole v%s: %s; meldingen=%s", APP_VERSION, monitor.get("status"), monitor.get("active_alerts"))
+        except Exception:
+            LOGGER.exception("Automatische zelftest mislukt.")
+
+    threading.Thread(target=startup_self_test, daemon=True).start()
     try:
         publisher_options = _publisher_options()
         LOGGER.info(
