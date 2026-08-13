@@ -1,3 +1,11 @@
+## v32.0.19 — Crash Recovery + processed-retentie
+
+- Inbox/processed bewaart automatisch de laatste 3 release-ZIP's.
+- Crash Recovery staat los van finalize_month en kan op ieder moment worden gemaakt.
+- Crash Recovery bevat App, Data, Infra, Inbox en bestaande Backups.
+- Alleen Backups/CrashRecovery wordt uitgesloten om recursieve backupgroei te voorkomen.
+- Manifest, SHA-256, ZIP-integriteit en deep verification zijn verplicht.
+
 ## v32.0.18 — HA-ingress zonder schrijven in NAS-maandroot
 
 - Home Assistant maakt geen stagingmap meer rechtstreeks in `Data/01_Input/YYYY_MM`.

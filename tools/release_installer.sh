@@ -21,6 +21,7 @@ PROCESSED="$INBOX/processed"
 FAILED="$INBOX/failed"
 BACKUPS="$ROOT/Backups"
 BACKUP_RETENTION="${ENERGIE_BACKUP_RETENTION:-3}"
+PROCESSED_RETENTION="${ENERGIE_PROCESSED_RETENTION:-3}"
 LOCK="$INBOX/.installer.lock"
 PROCESSING_STALE_SECONDS="${ENERGIE_PROCESSING_STALE_SECONDS:-600}"
 REQUIRED="README.md INSTALL.md CHANGELOG.md MANIFEST.sha256 SHA256SUMS.json repository.yaml VERSIE.txt"
@@ -126,6 +127,33 @@ cleanup_old_backups(){
   done
 
   log "Backupretentie toegepast: maximaal $BACKUP_RETENTION pre-release backups"
+}
+
+
+cleanup_processed_releases(){
+  case "$PROCESSED_RETENTION" in
+    ''|*[!0-9]*)
+      log "WAARSCHUWING: ongeldige processed-retentie '$PROCESSED_RETENTION'; gebruik 3"
+      PROCESSED_RETENTION=3
+      ;;
+  esac
+  [ "$PROCESSED_RETENTION" -ge 1 ] 2>/dev/null || PROCESSED_RETENTION=3
+  set -- "$PROCESSED"/EnergieProject_v*.zip
+  [ -e "$1" ] || return 0
+  OLD_PROCESSED="$(ls -1t "$PROCESSED"/EnergieProject_v*.zip 2>/dev/null | tail -n +$((PROCESSED_RETENTION + 1)) || true)"
+  if [ -z "$OLD_PROCESSED" ]; then
+    log "Processed-retentie: maximaal $PROCESSED_RETENTION; niets op te ruimen"
+    return 0
+  fi
+  printf '%s\n' "$OLD_PROCESSED" | while IFS= read -r old_release; do
+    [ -n "$old_release" ] || continue
+    if rm -f -- "$old_release"; then
+      log "Processed-retentie: verwijderd $(basename "$old_release")"
+    else
+      log "WAARSCHUWING: processed-retentie kon $(basename "$old_release") niet verwijderen"
+    fi
+  done
+  log "Processed-retentie toegepast: maximaal $PROCESSED_RETENTION release-ZIP's"
 }
 
 restore_backup(){
@@ -304,5 +332,6 @@ rm -f "$CANONICAL_PROCESSED"
 mv "$ZIP_WORK" "$CANONICAL_PROCESSED"
 ZIP_WORK=""
 cleanup_old_backups
+cleanup_processed_releases
 log "SUCCES: $CURRENT_VERSION -> $NEW_VERSION; $FINAL_DETAIL; ZIP canoniek gearchiveerd als EnergieProject_v${NEW_VERSION}.zip in processed."
 schedule_watcher_refresh
