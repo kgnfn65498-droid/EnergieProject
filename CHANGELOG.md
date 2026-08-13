@@ -1,3 +1,26 @@
+## v32.0.27 — HA Ingress GUI render fail-safe
+
+- Root cause opgelost waarbij de GUI tijdens renderen een schrijvende productiecertificaatcontrole kon starten voordat `/config/output` bestond.
+- `write_atomic_json()` maakt voortaan de doelmap atomisch gereed vóór het tijdelijke JSON-bestand wordt geschreven.
+- Nieuwe runtime-regressietest bewijst dat de SlimmeMeterPortal-GUI rendert wanneer de outputmap nog niet bestaat.
+- Geen wijziging aan maandworkflow, SMP-import, GitHub-publicatiearchitectuur of gecertificeerde productiekern.
+
+## v32.0.26 — fail-safe HA GUI + harde releasevalidatie
+
+- GUI blijft bereikbaar wanneer de API-key/configuratie tijdelijk ontbreekt of nog niet geladen is.
+- Startupmonitoring degradeert naar waarschuwing in plaats van een exception die Ingress breekt.
+- Processed-retentie blijft semantisch en maximaal 3.
+- Statische release-identiteitstests zijn opnieuw gesynchroniseerd met de actuele release.
+- Standalone release-tests mogen alleen full-project Infra-tests overslaan wanneer Infra fysiek niet aanwezig is; in de installatieketentest wordt Infra wel meegenomen.
+- Geen maandfinalisatie en geen wijziging aan de gecertificeerde productiekern.
+
+## v32.0.25 — GUI startup recovery + processed-retentie
+
+- Herstelt het volledige bewezen Home Assistant app-startpad dat in v32.0.24 onbedoeld was afgekapt.
+- Herstelt signal handlers, state update, scheduler, HTTP/Ingress server en startup-selftest.
+- Behoudt de semantische processed-retentie met harde eindcontrole op maximaal 3 release-ZIP's.
+- Geen maandfinalisatie en geen wijziging aan de gecertificeerde productiekern.
+
 ## v32.0.24 — correcte NAS/HA-publicatiestatus
 
 - ZIP-only QNAP-installatie markeert expliciet dat GitHub/HA-publicatie nog vereist is.

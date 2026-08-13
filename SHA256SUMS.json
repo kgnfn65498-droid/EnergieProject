@@ -1,5 +1,5 @@
 {
-  "version": "32.0.24",
+  "version": "32.0.27",
   "files": [
     {
       "path": ".DS_Store",
@@ -18,8 +18,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "73c1b8321ca00373bae96bf41bc5d1e33432ab14b531769457294b77edfb8968",
-      "size": 60711
+      "sha256": "4f4225500fe401bcf53c620366f5572a1a451cbe43e525b17de90aae8f55cf41",
+      "size": 62334
     },
     {
       "path": "INSTALL.md",
@@ -58,7 +58,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "53ffe920310846f395b6142ffda50bc49a48a3178898a975775baf81e76b84ee",
+      "sha256": "a82ec726d4ab9fb126633dbe1bb9f5a0c2085f62cf5f5e9b1a24602aa22d3d2a",
       "size": 8
     },
     {
@@ -93,13 +93,13 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "3fd886437268f78b36fa231799dea3ebf61241505f57f55329a899be6a4a5f92",
+      "sha256": "1f5c88d6e3c7859ec9f6f7d6408f727746dc4c33e54ee2812a952d30986d2634",
       "size": 5801
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "12c475975ab3f3565d56e00dd0becaecf0675004f82c8faef5ea22cb760f6f0e",
-      "size": 812950
+      "sha256": "0fe6455bf14395684c00eb8ca273092653ba7b0b2482c83bae8cecf0b3ee1f3b",
+      "size": 815744
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -367,9 +367,14 @@
       "size": 4518
     },
     {
+      "path": "tests/test_gui_runtime.py",
+      "sha256": "37bd7e37db26dfdd1a5f3b9b3aba4211ec1c8724c0c0d8045019d67119775a4a",
+      "size": 1381
+    },
+    {
       "path": "tests/test_static.py",
-      "sha256": "b9174158598b3479a5ccc439619a7c36e250f9db405c6c2bc1667e64ccefd365",
-      "size": 233944
+      "sha256": "207dcbdcda20a2c04f05e0ebd3821facc3343fffa12f0955994c1e7a9abf08d2",
+      "size": 236294
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
