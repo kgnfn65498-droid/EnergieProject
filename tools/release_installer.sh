@@ -136,25 +136,48 @@ cleanup_processed_releases(){
   esac
   [ "$PROCESSED_RETENTION" -ge 1 ] 2>/dev/null || PROCESSED_RETENTION=3
 
-  BEFORE_COUNT="$(find "$PROCESSED" -maxdepth 1 -type f -name 'EnergieProject_v*.zip' 2>/dev/null | wc -l | tr -d ' ')"
-  log "Processed-retentie: start count=$BEFORE_COUNT keep=$PROCESSED_RETENTION"
-  [ "$BEFORE_COUNT" -gt "$PROCESSED_RETENTION" ] || { log "Processed-retentie: niets op te ruimen"; return 0; }
+  COUNT="$(find "$PROCESSED" -maxdepth 1 -type f -name 'EnergieProject_v*.zip' 2>/dev/null | wc -l | tr -d ' ')"
+  log "Processed-retentie: start count=$COUNT keep=$PROCESSED_RETENTION"
+  [ "$COUNT" -gt "$PROCESSED_RETENTION" ] || {
+    log "Processed-retentie: niets op te ruimen"
+    return 0
+  }
 
-  KEEP_LIST="$(mktemp /tmp/energie-processed-keep.XXXXXX)" || fail "processed-retentie: tijdelijk bestand maken mislukt"
-  REMOVE_LIST="$(mktemp /tmp/energie-processed-remove.XXXXXX)" || { rm -f "$KEEP_LIST"; fail "processed-retentie: tijdelijk bestand maken mislukt"; }
-  ls -1t "$PROCESSED"/EnergieProject_v*.zip > "$KEEP_LIST" 2>/dev/null || true
-  tail -n +$((PROCESSED_RETENTION + 1)) "$KEEP_LIST" > "$REMOVE_LIST" 2>/dev/null || true
+  RANKED="$(mktemp /tmp/energie-processed-ranked.XXXXXX)" || fail "processed-retentie: ranked tempfile mislukt"
+  REMOVE="$(mktemp /tmp/energie-processed-remove.XXXXXX)" || {
+    rm -f "$RANKED"
+    fail "processed-retentie: remove tempfile mislukt"
+  }
 
+  for release_zip in "$PROCESSED"/EnergieProject_v*.zip; do
+    [ -e "$release_zip" ] || continue
+    base="$(basename "$release_zip")"
+    version="${base#EnergieProject_v}"
+    version="${version%.zip}"
+    major="${version%%.*}"
+    rest="${version#*.}"
+    minor="${rest%%.*}"
+    patch="${rest#*.}"
+    case "$major:$minor:$patch" in
+      *[!0-9:]*|'') continue ;;
+    esac
+    printf '%09d.%09d.%09d %s\n' "$major" "$minor" "$patch" "$release_zip"
+  done | sort -r > "$RANKED"
+
+  tail -n +$((PROCESSED_RETENTION + 1)) "$RANKED" | cut -d' ' -f2- > "$REMOVE"
   while IFS= read -r old_release; do
     [ -n "$old_release" ] || continue
-    rm -f -- "$old_release" || { rm -f "$KEEP_LIST" "$REMOVE_LIST"; fail "processed-retentie: verwijderen mislukt: $(basename "$old_release")"; }
+    rm -f -- "$old_release" || {
+      rm -f "$RANKED" "$REMOVE"
+      fail "processed-retentie: verwijderen mislukt: $(basename "$old_release")"
+    }
     log "Processed-retentie: verwijderd $(basename "$old_release")"
-  done < "$REMOVE_LIST"
-  rm -f "$KEEP_LIST" "$REMOVE_LIST"
+  done < "$REMOVE"
+  rm -f "$RANKED" "$REMOVE"
 
-  AFTER_COUNT="$(find "$PROCESSED" -maxdepth 1 -type f -name 'EnergieProject_v*.zip' 2>/dev/null | wc -l | tr -d ' ')"
-  [ "$AFTER_COUNT" -le "$PROCESSED_RETENTION" ] || fail "processed-retentie eindcontrole mislukt: count=$AFTER_COUNT keep=$PROCESSED_RETENTION"
-  log "Processed-retentie toegepast en gecontroleerd: count=$AFTER_COUNT keep=$PROCESSED_RETENTION"
+  AFTER="$(find "$PROCESSED" -maxdepth 1 -type f -name 'EnergieProject_v*.zip' 2>/dev/null | wc -l | tr -d ' ')"
+  [ "$AFTER" -le "$PROCESSED_RETENTION" ] || fail "processed-retentie eindcontrole mislukt: count=$AFTER keep=$PROCESSED_RETENTION"
+  log "Processed-retentie toegepast en gecontroleerd: count=$AFTER keep=$PROCESSED_RETENTION"
 }
 
 restore_backup(){

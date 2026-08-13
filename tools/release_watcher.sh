@@ -16,6 +16,7 @@ fi
 PROJECT="$ROOT/App"
 INBOX="$ROOT/Inbox"
 INCOMING="$INBOX/incoming"
+PROCESSED="$INBOX/processed"
 LOGDIR="$INBOX/logs"
 INSTALLER_SOURCE="$PROJECT/tools/release_installer.sh"
 PIDFILE="$INBOX/.watcher.pid"
@@ -26,6 +27,7 @@ ZIP_HELPER_SOURCE="$PROJECT/tools/release_zip.py"
 HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
 INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"
 STABLE_POLLS="${ENERGIE_ZIP_STABLE_POLLS:-3}"
+PROCESSED_RETENTION="${ENERGIE_PROCESSED_RETENTION:-3}"
 LAST_ZIP=""
 LAST_SIZE=""
 LAST_MTIME=""
@@ -62,6 +64,69 @@ zip_integrity_ok(){
   else
     unzip -tqq "$ZIP_PATH" >/dev/null 2>&1
   fi
+}
+
+
+cleanup_processed_releases_on_start(){
+  case "$PROCESSED_RETENTION" in
+    ''|*[!0-9]*) PROCESSED_RETENTION=3 ;;
+  esac
+  [ "$PROCESSED_RETENTION" -ge 1 ] 2>/dev/null || PROCESSED_RETENTION=3
+  mkdir -p "$PROCESSED"
+
+  COUNT="$(find "$PROCESSED" -maxdepth 1 -type f -name 'EnergieProject_v*.zip' 2>/dev/null | wc -l | tr -d ' ')"
+  log "Watcher startup-retentie v32.0.22: start count=$COUNT keep=$PROCESSED_RETENTION"
+  [ "$COUNT" -gt "$PROCESSED_RETENTION" ] || {
+    log "Watcher startup-retentie v32.0.22: niets op te ruimen"
+    return 0
+  }
+
+  RANKED="$(mktemp /tmp/energie-processed-ranked.XXXXXX)" || return 1
+  REMOVE="$(mktemp /tmp/energie-processed-remove.XXXXXX)" || {
+    rm -f "$RANKED"
+    return 1
+  }
+
+  for release_zip in "$PROCESSED"/EnergieProject_v*.zip; do
+    [ -e "$release_zip" ] || continue
+    base="$(basename "$release_zip")"
+    version="${base#EnergieProject_v}"
+    version="${version%.zip}"
+    major="${version%%.*}"
+    rest="${version#*.}"
+    minor="${rest%%.*}"
+    patch="${rest#*.}"
+    case "$major:$minor:$patch" in
+      *[!0-9:]*|'') 
+        log "WAARSCHUWING: processed ZIP met onbekende versie blijft behouden: $base"
+        continue
+        ;;
+    esac
+    printf '%09d.%09d.%09d %s\n' "$major" "$minor" "$patch" "$release_zip"
+  done | sort -r > "$RANKED"
+
+  tail -n +$((PROCESSED_RETENTION + 1)) "$RANKED" | cut -d' ' -f2- > "$REMOVE"
+
+  while IFS= read -r old_release; do
+    [ -n "$old_release" ] || continue
+    if rm -f -- "$old_release"; then
+      log "Watcher startup-retentie v32.0.22: verwijderd $(basename "$old_release")"
+    else
+      log "FOUT: watcher startup-retentie kon niet verwijderen: $(basename "$old_release")"
+      rm -f "$RANKED" "$REMOVE"
+      return 1
+    fi
+  done < "$REMOVE"
+
+  rm -f "$RANKED" "$REMOVE"
+
+  AFTER="$(find "$PROCESSED" -maxdepth 1 -type f -name 'EnergieProject_v*.zip' 2>/dev/null | wc -l | tr -d ' ')"
+  if [ "$AFTER" -gt "$PROCESSED_RETENTION" ]; then
+    log "FOUT: watcher startup-retentie eindcontrole count=$AFTER keep=$PROCESSED_RETENTION"
+    return 1
+  fi
+  log "Watcher startup-retentie v32.0.22: OK count=$AFTER keep=$PROCESSED_RETENTION"
+  return 0
 }
 
 heartbeat_age(){
@@ -140,6 +205,12 @@ refresh_watcher_from_installed_release(){
 trap 'cleanup_watcher' EXIT INT TERM
 touch_heartbeat
 log "Release watcher gestart; interval=${INTERVAL}s"
+
+if cleanup_processed_releases_on_start; then
+  write_status "WATCHER_ACTIVE" "startup-retention-ok keep=${PROCESSED_RETENTION}"
+else
+  write_status "MAINTENANCE_FAILED" "processed-retention; watcher blijft actief"
+fi
 [ -f "$STATUSFILE" ] || write_status "WATCHER_ACTIVE" "interval=${INTERVAL}s"
 
 while :; do

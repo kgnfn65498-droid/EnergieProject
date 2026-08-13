@@ -1,5 +1,5 @@
 {
-  "version": "32.0.21",
+  "version": "32.0.22",
   "files": [
     {
       "path": ".DS_Store",
@@ -18,8 +18,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "e0dca03319f5e49a743efaa41ee55ad62243301b4a106f019502b953432dca8c",
-      "size": 59025
+      "sha256": "4406131964e55325de20cd8162d17f37dd1f265378e03b5f53272efee5777912",
+      "size": 59733
     },
     {
       "path": "INSTALL.md",
@@ -58,7 +58,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "a2f40673842572832b3964a30d454c3d3bb3d81e284363eea82befcb1a05d9d2",
+      "sha256": "69c53540a01555d7967217a3a18d3598200487542d032c0abef37d91c3c2e4f7",
       "size": 8
     },
     {
@@ -93,12 +93,12 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "123ab73bc071dba605a2d180218da49559ada74c13c3572a28748de96fb88e07",
+      "sha256": "a475227ce11d5be93f3041979e7bae9911fbb9f6cbc5e2aa89500e68d4ced00d",
       "size": 5801
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "3300e7fc0b50922110fc44f68980010bb34b66a8b5de7cd4013f5be800c37bb8",
+      "sha256": "1caf5d0e623766a1c6e86bb664ee7f102cbadf87f727fa1dc24495eddf0c7f35",
       "size": 811905
     },
     {
@@ -368,8 +368,8 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "4a5d16aa141f4a78dc3e7da11590f8fb3c25174222f51f07a0a2394fa69efac3",
-      "size": 231657
+      "sha256": "aab0b2d52bffd5c4cb3cd3b44782cd79390cb5316548c0e0a9dcbe65292458db",
+      "size": 232655
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
@@ -378,13 +378,13 @@
     },
     {
       "path": "tools/release_installer.sh",
-      "sha256": "18cd227bcfe308ff2827059257da5a1ac7456c7ed242886ec1c91116dd2ffb42",
-      "size": 14088
+      "sha256": "ccd6f3cbe5c25aab8bb2154e45aafea25638925b680181663784e4ac394b28b0",
+      "size": 14422
     },
     {
       "path": "tools/release_watcher.sh",
-      "sha256": "278de4655717d74bfefdc09b44f90b68078ab9cf543a8f3aa83fec8052aac979",
-      "size": 6534
+      "sha256": "ab32d04cc98c7230dbef8e7e2dab30fe246e2685e65fd9f36020aa77eee35322",
+      "size": 9000
     },
     {
       "path": "tools/release_zip.py",

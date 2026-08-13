@@ -1,3 +1,13 @@
+## v32.0.22 — watcher-owned processed-retentie
+
+- Structurele fix: processed-retentie is niet langer afhankelijk van de installer die de huidige release installeert.
+- De nieuw geïnstalleerde watcher voert bij zijn eigen startup direct retentie uit.
+- Daardoor wordt de retentie ook actief bij de overgang van een oudere installer naar deze release.
+- Bewaren gebeurt op semantisch versienummer, niet op bestandstijd.
+- Doel na watcher-overname: uitsluitend de hoogste 3 `EnergieProject_v*.zip` releases in `Inbox/processed`.
+- Een cleanup-fout stopt de watcher niet, maar publiceert status `MAINTENANCE_FAILED`.
+- Installer-retentie gebruikt dezelfde semantische versielogica voor toekomstige releases.
+
 ## v32.0.21 — processed-retentie activeren via normale releaseketen
 
 - Geen nieuwe functionele wijziging buiten de releaseketen.
