@@ -51,10 +51,11 @@ PRODUCTION_CERTIFICATE_MANAGEMENT_PATH = Path("/config/output/production_certifi
 AUDIT_TRAIL_PATH = Path("/config/output/audit_trail.jsonl")
 RECOVERY_STATE_PATH = Path("/config/output/recovery_state.json")
 RECOVERY_HISTORY_PATH = Path("/config/output/recovery_history.jsonl")
+COMPLETE_CRASH_RECOVERY_STATE_PATH = Path("/config/output/complete_crash_recovery_state.json")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.27"
+APP_VERSION = "32.0.28"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -133,6 +134,7 @@ WORKFLOW_ACTIVE: dict[str, Any] = {}
 STATE_LOCK = threading.RLock()
 AUDIT_LOCK = threading.Lock()
 MONITORING_LOCK = threading.Lock()
+COMPLETE_CRASH_RECOVERY_LOCK = threading.Lock()
 
 
 
@@ -4743,6 +4745,344 @@ def _mcp_call_project_tool(name: str, arguments: dict[str, Any], timeout: float 
 
     _MCP_TOOL_CACHE[cache_key] = None
     return None
+
+
+
+def _mcp_call_project_action(
+    name: str,
+    arguments: dict[str, Any],
+    timeout: float = 30.0,
+) -> Any:
+    """Voer één expliciete MCP-actie uit zonder de read-only toolcache te hergebruiken."""
+    cache_key = json.dumps(
+        {"name": name, "arguments": arguments},
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    _MCP_TOOL_CACHE.pop(cache_key, None)
+    try:
+        return _mcp_call_project_tool(name, arguments, timeout=timeout)
+    finally:
+        _MCP_TOOL_CACHE.pop(cache_key, None)
+
+
+def _complete_recovery_confirmation(value: Any) -> str | None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            lowered = str(key).lower()
+            if isinstance(item, str) and (
+                "confirm" in lowered or "bevest" in lowered
+            ):
+                text = item.strip()
+                if text:
+                    return text
+        for item in value.values():
+            found = _complete_recovery_confirmation(item)
+            if found:
+                return found
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            found = _complete_recovery_confirmation(item)
+            if found:
+                return found
+    return None
+
+
+def _complete_recovery_zip_name(value: Any) -> str | None:
+    if isinstance(value, dict):
+        for item in value.values():
+            found = _complete_recovery_zip_name(item)
+            if found:
+                return found
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            found = _complete_recovery_zip_name(item)
+            if found:
+                return found
+    elif isinstance(value, str):
+        match = re.search(r"([^/\\\s]+\.zip)(?:\s|$)", value.strip())
+        if match:
+            return Path(match.group(1)).name
+    return None
+
+
+def _complete_recovery_state() -> dict[str, Any]:
+    try:
+        raw = json.loads(
+            COMPLETE_CRASH_RECOVERY_STATE_PATH.read_text(encoding="utf-8")
+        )
+        return raw if isinstance(raw, dict) else {}
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+
+def _save_complete_recovery_state(state: dict[str, Any]) -> None:
+    safe = dict(state)
+    for key in list(safe):
+        lowered = str(key).lower()
+        if "confirm" in lowered or "bevest" in lowered:
+            safe.pop(key, None)
+    write_atomic_json(COMPLETE_CRASH_RECOVERY_STATE_PATH, safe)
+
+
+def _int_or_zero(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def run_complete_crash_recovery(
+    year: int | None = None,
+    month: int | None = None,
+) -> dict[str, Any]:
+    """Maak de bestaande volledige RecoveryManager-backup en deep-verify hem."""
+    now = datetime.now(TZ)
+    resolved_year = int(year or now.year)
+    resolved_month = int(month or now.month)
+
+    if WORKFLOW_LOCK.locked():
+        result = {
+            "status": "busy",
+            "version": APP_VERSION,
+            "year": resolved_year,
+            "month": resolved_month,
+            "error": "Maandworkflow is actief; Crash Recovery is niet gestart.",
+            "checked_at": now.isoformat(),
+        }
+        _save_complete_recovery_state(result)
+        return result
+
+    if not COMPLETE_CRASH_RECOVERY_LOCK.acquire(blocking=False):
+        return {
+            "status": "busy",
+            "version": APP_VERSION,
+            "year": resolved_year,
+            "month": resolved_month,
+            "error": "Er loopt al een Crash Recovery-actie.",
+            "checked_at": now.isoformat(),
+        }
+
+    try:
+        _save_complete_recovery_state({
+            "status": "running",
+            "version": APP_VERSION,
+            "year": resolved_year,
+            "month": resolved_month,
+            "checked_at": datetime.now(TZ).isoformat(),
+        })
+
+        preview = _mcp_call_project_action(
+            "preview_month_closure",
+            {"year": resolved_year, "month": resolved_month},
+            timeout=30.0,
+        )
+        confirmation = _complete_recovery_confirmation(preview)
+        if not confirmation:
+            raise RuntimeError(
+                "RecoveryManager gaf geen geldige bevestiging voor complete backup."
+            )
+
+        created = _mcp_call_project_action(
+            "create_complete_backup",
+            {
+                "year": resolved_year,
+                "month": resolved_month,
+                "confirmation": confirmation,
+            },
+            timeout=900.0,
+        )
+        backup_name = _complete_recovery_zip_name(created)
+        if not backup_name:
+            raise RuntimeError("Nieuwe complete backupnaam kon niet worden vastgesteld.")
+
+        verified = _mcp_call_project_action(
+            "verify_complete_backup",
+            {
+                "year": resolved_year,
+                "month": resolved_month,
+                "backup_name": backup_name,
+                "deep_verify_files": True,
+            },
+            timeout=900.0,
+        )
+        if not isinstance(verified, dict):
+            verified = {}
+
+        manifest_count = _int_or_zero(verified.get("manifest_file_count"))
+        verified_files = _int_or_zero(verified.get("verified_files"))
+        hash_failures = verified.get("hash_failures") or []
+        if not isinstance(hash_failures, list):
+            hash_failures = [str(hash_failures)]
+
+        verify_status = str(verified.get("status") or "").lower()
+        deep_verified = bool(verified.get("deep_verified"))
+        valid = (
+            verify_status in {"valid", "ok", "verified"}
+            and deep_verified
+            and manifest_count > 0
+            and verified_files == manifest_count
+            and not hash_failures
+        )
+
+        result = {
+            "status": "verified" if valid else "error",
+            "version": APP_VERSION,
+            "year": resolved_year,
+            "month": resolved_month,
+            "backup_name": backup_name,
+            "sha256": str(
+                verified.get("backup_sha256")
+                or verified.get("sha256")
+                or ""
+            ),
+            "manifest_file_count": manifest_count,
+            "verified_files": verified_files,
+            "hash_failures": hash_failures,
+            "deep_verified": bool(valid),
+            "checked_at": datetime.now(TZ).isoformat(),
+            "restore_test_status": "not_run",
+        }
+        if not valid:
+            result["error"] = "Deep verification van complete Crash Recovery is niet volledig geslaagd."
+
+        _save_complete_recovery_state(result)
+        return result
+
+    except Exception as exc:
+        result = {
+            "status": "error",
+            "version": APP_VERSION,
+            "year": resolved_year,
+            "month": resolved_month,
+            "deep_verified": False,
+            "error": f"{type(exc).__name__}: {exc}",
+            "checked_at": datetime.now(TZ).isoformat(),
+        }
+        _save_complete_recovery_state(result)
+        return result
+    finally:
+        COMPLETE_CRASH_RECOVERY_LOCK.release()
+
+
+def run_complete_restore_staging() -> dict[str, Any]:
+    """Test uitsluitend de laatst deep-verified backup in RestoreStaging."""
+    state = _complete_recovery_state()
+
+    if WORKFLOW_LOCK.locked():
+        return {
+            "status": "busy",
+            "error": "Maandworkflow is actief; hersteltest is niet gestart.",
+            "source_project_modified": False,
+        }
+
+    if not COMPLETE_CRASH_RECOVERY_LOCK.acquire(blocking=False):
+        return {
+            "status": "busy",
+            "error": "Er loopt al een Crash Recovery-actie.",
+            "source_project_modified": False,
+        }
+
+    try:
+        if state.get("status") != "verified" or not state.get("deep_verified"):
+            return {
+                "status": "error",
+                "error": "Geen deep-verified complete Crash Recovery beschikbaar.",
+                "source_project_modified": False,
+            }
+
+        backup_name = str(state.get("backup_name") or "").strip()
+        year = _int_or_zero(state.get("year"))
+        month = _int_or_zero(state.get("month"))
+        if not backup_name or not year or not month:
+            return {
+                "status": "error",
+                "error": "Recoverymetadata is onvolledig.",
+                "source_project_modified": False,
+            }
+
+        preview = _mcp_call_project_action(
+            "preview_backup_restore",
+            {"year": year, "month": month, "backup_name": backup_name},
+            timeout=30.0,
+        )
+        confirmation = _complete_recovery_confirmation(preview)
+        if not confirmation:
+            raise RuntimeError(
+                "RecoveryManager gaf geen geldige bevestiging voor RestoreStaging."
+            )
+
+        staged = _mcp_call_project_action(
+            "stage_backup_restore",
+            {
+                "year": year,
+                "month": month,
+                "backup_name": backup_name,
+                "confirmation": confirmation,
+            },
+            timeout=900.0,
+        )
+        if not isinstance(staged, dict):
+            staged = {}
+
+        staging_path = str(
+            staged.get("staging")
+            or staged.get("staging_path")
+            or staged.get("path")
+            or ""
+        ).strip()
+        safe_path = (
+            staging_path == "/recovery/RestoreStaging"
+            or staging_path.startswith("/recovery/RestoreStaging/")
+        )
+        source_modified = staged.get("source_project_modified")
+
+        stage_status = str(staged.get("status") or "").lower()
+        extracted = _int_or_zero(staged.get("extracted"))
+        valid = (
+            safe_path
+            and source_modified is False
+            and (
+                stage_status in {"staged", "ok"}
+                or extracted > 0
+            )
+        )
+
+        result = {
+            "status": "staged" if valid else "error",
+            "backup_name": backup_name,
+            "staging_path": staging_path,
+            "source_project_modified": bool(source_modified),
+            "checked_at": datetime.now(TZ).isoformat(),
+        }
+        if not valid:
+            result["error"] = (
+                "Hersteltest voldeed niet aan de geïsoleerde RestoreStaging-veiligheidscontrole."
+            )
+
+        updated = dict(state)
+        updated["restore_test_status"] = result["status"]
+        updated["restore_test_checked_at"] = result["checked_at"]
+        updated["restore_staging_path"] = staging_path if safe_path else ""
+        updated["source_project_modified"] = bool(source_modified)
+        _save_complete_recovery_state(updated)
+        return result
+
+    except Exception as exc:
+        result = {
+            "status": "error",
+            "error": f"{type(exc).__name__}: {exc}",
+            "source_project_modified": False,
+            "checked_at": datetime.now(TZ).isoformat(),
+        }
+        updated = dict(state)
+        updated["restore_test_status"] = "error"
+        updated["restore_test_checked_at"] = result["checked_at"]
+        updated["restore_test_error"] = result["error"]
+        _save_complete_recovery_state(updated)
+        return result
+    finally:
+        COMPLETE_CRASH_RECOVERY_LOCK.release()
 
 
 def _mcp_read_project_text(relative_path: str, timeout: float = 6.0) -> str | None:
@@ -15026,6 +15366,22 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <p><a href="download-production-certificate">Download huidig productiecertificaat</a></p>
 </details></div>
 
+
+<div class="card" id="complete-crash-recovery">
+<h2>Complete Crash Recovery</h2>
+<div class="metrics">
+<div class="metric"><small>Status</small><strong id="complete-recovery-status">Nog niet uitgevoerd</strong></div>
+<div class="metric"><small>Backup</small><strong id="complete-recovery-name">-</strong></div>
+<div class="metric"><small>Deep verify</small><strong id="complete-recovery-count">-</strong></div>
+<div class="metric"><small>SHA-256</small><strong id="complete-recovery-sha">-</strong></div>
+</div>
+<p>
+<button id="run-complete-crash-recovery-button" type="button">Maak complete Crash Recovery</button>
+<button id="run-complete-restore-staging-button" type="button" class="secondary" disabled>Test herstel naar RestoreStaging</button>
+</p>
+<p id="complete-recovery-detail" class="hint">Gebruikt uitsluitend de bestaande RecoveryManager-backend. Sluit de maand niet af en overschrijft bij de hersteltest geen productiedata.</p>
+</div>
+
 <div class="card" id="recovery-v817"><details class="compact-details"><summary>Recovery v{APP_VERSION}</summary>
 <div class="metrics"><div class="metric"><small>Status</small><strong><span id="recovery-controller-status" class="pill {status_class(recovery_controller_status)}">{esc(recovery_controller_status)}</span></strong></div><div class="metric"><small>Herstelacties</small><strong id="recovery-controller-count">{esc(recovery_controller_count)}</strong></div><div class="metric"><small>Laatste controle</small><strong id="recovery-controller-checked">{esc(recovery_controller_checked)}</strong></div></div>
 <p id="recovery-controller-detail" class="hint">{esc(recovery_controller_detail)}</p>
@@ -15354,6 +15710,69 @@ if(certMgmtButton){{
     }}catch(err){{alert(String(err.message||err));}}finally{{certMgmtButton.disabled=false;}}
   }});
 }}
+
+function renderCompleteRecovery(result){{
+  const status=document.getElementById('complete-recovery-status');
+  const name=document.getElementById('complete-recovery-name');
+  const count=document.getElementById('complete-recovery-count');
+  const sha=document.getElementById('complete-recovery-sha');
+  const detail=document.getElementById('complete-recovery-detail');
+  const stage=document.getElementById('run-complete-restore-staging-button');
+  if(status) status.textContent=String(result.status||'Nog niet uitgevoerd');
+  if(name) name.textContent=String(result.backup_name||'-');
+  if(count){{
+    const verified=Number(result.verified_files||0);
+    const total=Number(result.manifest_file_count||0);
+    count.textContent=(verified&&total)?`${{verified}} / ${{total}}`:'-';
+  }}
+  if(sha) sha.textContent=String(result.sha256||'-');
+  if(detail){{
+    if(result.error) detail.textContent=String(result.error);
+    else if(result.restore_test_status==='staged') detail.textContent='Hersteltest geslaagd in geïsoleerde RestoreStaging.';
+    else if(result.status==='verified') detail.textContent='Complete Crash Recovery is deep geverifieerd. Augustus/lopende maand is niet afgesloten.';
+  }}
+  if(stage) stage.disabled=!(result.status==='verified' && result.deep_verified && result.backup_name);
+}}
+
+async function refreshCompleteRecovery(){{
+  try{{
+    const response=await fetch('api/crash-recovery/state',{{headers:{{'Accept':'application/json'}}}});
+    if(response.ok) renderCompleteRecovery(await response.json());
+  }}catch(_err){{}}
+}}
+
+const completeRecoveryButton=document.getElementById('run-complete-crash-recovery-button');
+const completeRestoreButton=document.getElementById('run-complete-restore-staging-button');
+
+if(completeRecoveryButton){{
+  completeRecoveryButton.addEventListener('click',async()=>{{
+    completeRecoveryButton.disabled=true;
+    if(completeRestoreButton) completeRestoreButton.disabled=true;
+    try{{
+      const response=await fetch('api/crash-recovery/complete',{{method:'POST',headers:{{'X-Requested-With':'fetch','Accept':'application/json'}}}});
+      const result=await response.json();
+      renderCompleteRecovery(result);
+      if(!response.ok) throw new Error(result.error||'Complete Crash Recovery mislukt');
+    }}catch(err){{alert(String(err.message||err));}}
+    finally{{completeRecoveryButton.disabled=false; await refreshCompleteRecovery();}}
+  }});
+}}
+
+if(completeRestoreButton){{
+  completeRestoreButton.addEventListener('click',async()=>{{
+    completeRestoreButton.disabled=true;
+    try{{
+      const response=await fetch('api/crash-recovery/stage',{{method:'POST',headers:{{'X-Requested-With':'fetch','Accept':'application/json'}}}});
+      const result=await response.json();
+      if(!response.ok) throw new Error(result.error||'RestoreStaging-test mislukt');
+      await refreshCompleteRecovery();
+    }}catch(err){{alert(String(err.message||err));}}
+    finally{{await refreshCompleteRecovery();}}
+  }});
+}}
+
+refreshCompleteRecovery();
+
 const recoveryButton=document.getElementById('run-recovery-controller-button');
 if(recoveryButton){{
   recoveryButton.addEventListener('click', async()=>{{
@@ -15863,6 +16282,19 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
+        complete_recovery_path = self.path.split("?", 1)[0].rstrip("/")
+        if complete_recovery_path.endswith("/api/crash-recovery/state"):
+            body = json.dumps(
+                _complete_recovery_state(),
+                ensure_ascii=False,
+                indent=2,
+            ).encode("utf-8")
+            self.send_body(
+                HTTPStatus.OK,
+                body,
+                "application/json; charset=utf-8",
+            )
+            return
         if self.path.startswith("/api/github-publisher/status"):
             body = json.dumps(github_publication_status(_publisher_options()), ensure_ascii=False, indent=2).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
@@ -16433,6 +16865,38 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, body, "application/json; charset=utf-8")
             return
 
+        if path.endswith("/api/crash-recovery/complete"):
+            result = run_complete_crash_recovery()
+            status = str(result.get("status") or "")
+            code = (
+                HTTPStatus.OK if status == "verified"
+                else HTTPStatus.CONFLICT if status == "busy"
+                else HTTPStatus.BAD_GATEWAY
+            )
+            body = json.dumps(
+                result,
+                ensure_ascii=False,
+                indent=2,
+            ).encode("utf-8")
+            self.send_body(code, body, "application/json; charset=utf-8")
+            return
+
+        if path.endswith("/api/crash-recovery/stage"):
+            result = run_complete_restore_staging()
+            status = str(result.get("status") or "")
+            code = (
+                HTTPStatus.OK if status == "staged"
+                else HTTPStatus.CONFLICT if status == "busy"
+                else HTTPStatus.BAD_REQUEST
+            )
+            body = json.dumps(
+                result,
+                ensure_ascii=False,
+                indent=2,
+            ).encode("utf-8")
+            self.send_body(code, body, "application/json; charset=utf-8")
+            return
+
         if path.endswith("/run-recovery-controller") or path == "/run-recovery-controller":
             try:
                 result = run_recovery_controller(trigger="manual")
@@ -16839,7 +17303,7 @@ def main() -> None:
     )
     if processed_retention.get("status") == "ok":
         LOGGER.info(
-            "HA-app processed-retentie v32.0.27: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            "HA-app processed-retentie v32.0.28: OK before=%s after=%s keep=%s kept=%s removed=%s",
             processed_retention.get("before"),
             processed_retention.get("after"),
             processed_retention.get("keep"),
@@ -16848,7 +17312,7 @@ def main() -> None:
         )
     else:
         LOGGER.error(
-            "HA-app processed-retentie v32.0.27: FOUT %s",
+            "HA-app processed-retentie v32.0.28: FOUT %s",
             processed_retention.get("error"),
         )
     signal.signal(signal.SIGTERM, stop_handler)
