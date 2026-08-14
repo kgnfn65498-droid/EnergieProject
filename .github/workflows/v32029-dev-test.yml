@@ -1,4 +1,4 @@
-name: v32.0.29 dev test
+name: v32.0.29 final candidate
 
 on:
   push:
@@ -9,90 +9,309 @@ permissions:
   contents: read
 
 jobs:
-  crash-recovery-export:
+  final-candidate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout exact tested source commit
         uses: actions/checkout@v4
+        with:
+          ref: 3c5336a5736d6b9f1c6eaa7f61b8312b072e0816
+          fetch-depth: 1
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
       - name: Install test dependencies
         run: python -m pip install --disable-pip-version-check pytest reportlab pypdf
-      - name: Run full regression suite
-        run: pytest -q
-      - name: Compile changed Python
-        run: python -m py_compile slimmemeterportal_import/rootfs/app/main.py slimmemeterportal_import/rootfs/app/crash_recovery_export.py
-      - name: No finalize_month in new export flow
+
+      - name: Reconfirm tested source before candidate build
         run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "3c5336a5736d6b9f1c6eaa7f61b8312b072e0816"
+          test "$(tr -d '\r\n ' < VERSIE.txt)" = "32.0.29"
+          pytest -q
+          python -m py_compile slimmemeterportal_import/rootfs/app/main.py slimmemeterportal_import/rootfs/app/crash_recovery_export.py
           python - <<'PY'
           import ast
           from pathlib import Path
           p = Path('slimmemeterportal_import/rootfs/app/main.py')
           source = p.read_text(encoding='utf-8')
           tree = ast.parse(source)
+          checked = set()
           for node in tree.body:
               if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in {
                   'run_complete_crash_recovery_export',
                   '_stream_complete_recovery_download',
                   '_cleanup_completed_export',
               }:
+                  checked.add(node.name)
                   segment = ast.get_source_segment(source, node) or ''
                   assert 'finalize_month' not in segment, node.name
-          print('NO_FINALIZE_MONTH_EXPORT_FLOW_OK')
+          assert checked == {
+              'run_complete_crash_recovery_export',
+              '_stream_complete_recovery_download',
+              '_cleanup_completed_export',
+          }, checked
+          print('SOURCE_RECONFIRM_OK')
           PY
-      - name: Build isolated HA app container
+
+      - name: Prepare canonical release stage and manifests
         run: |
+          set -eu
+          rm -rf "$RUNNER_TEMP/release_stage"
+          mkdir -p "$RUNNER_TEMP/release_stage"
+          python - <<'PY'
+          from __future__ import annotations
+          import hashlib
+          import json
+          import shutil
+          import subprocess
+          from pathlib import Path
+
+          root = Path.cwd()
+          stage = Path(__import__('os').environ['RUNNER_TEMP']) / 'release_stage'
+          excluded_exact = {
+              'MANIFEST.sha256',
+              'SHA256SUMS.json',
+              'tools/apply_v32029_crash_recovery_export.py',
+              'tools/apply_v32029_crash_recovery_gui.py',
+              'tools/apply_v32029_release_identity.py',
+          }
+          tracked = subprocess.check_output(
+              ['git', 'ls-files', '-z'],
+          ).decode('utf-8').split('\0')
+          copied = []
+          for rel in tracked:
+              if not rel:
+                  continue
+              if rel in excluded_exact:
+                  continue
+              if rel.startswith('.github/'):
+                  continue
+              if rel.startswith('docs/superpowers/'):
+                  continue
+              src = root / rel
+              if not src.is_file():
+                  continue
+              dst = stage / rel
+              dst.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(src, dst)
+              copied.append(rel)
+
+          def sha256(path: Path) -> str:
+              h = hashlib.sha256()
+              with path.open('rb') as f:
+                  for chunk in iter(lambda: f.read(1024 * 1024), b''):
+                      h.update(chunk)
+              return h.hexdigest()
+
+          files = []
+          for path in sorted(stage.rglob('*'), key=lambda p: p.as_posix()):
+              if path.is_file():
+                  rel = path.relative_to(stage).as_posix()
+                  files.append({
+                      'path': rel,
+                      'sha256': sha256(path),
+                      'size': path.stat().st_size,
+                  })
+          sha_json = {
+              'version': '32.0.29',
+              'files': files,
+          }
+          (stage / 'SHA256SUMS.json').write_text(
+              json.dumps(sha_json, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8',
+          )
+
+          manifest_lines = []
+          for path in sorted(stage.rglob('*'), key=lambda p: p.as_posix()):
+              if not path.is_file():
+                  continue
+              rel = path.relative_to(stage).as_posix()
+              if rel == 'MANIFEST.sha256':
+                  continue
+              manifest_lines.append(f'{sha256(path)}  {rel}')
+          (stage / 'MANIFEST.sha256').write_text(
+              '\n'.join(manifest_lines) + '\n',
+              encoding='utf-8',
+          )
+
+          required = [
+              'README.md', 'INSTALL.md', 'CHANGELOG.md',
+              'MANIFEST.sha256', 'SHA256SUMS.json',
+              'repository.yaml', 'VERSIE.txt',
+              'slimmemeterportal_import/rootfs/app/crash_recovery_export.py',
+          ]
+          for rel in required:
+              assert (stage / rel).is_file(), rel
+          assert (stage / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.0.29'
+          assert 'APP_VERSION = "32.0.29"' in (stage / 'slimmemeterportal_import/rootfs/app/main.py').read_text(encoding='utf-8')
+          assert 'version: "32.0.29"' in (stage / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+          forbidden = [
+              p.relative_to(stage).as_posix()
+              for p in stage.rglob('*')
+              if p.is_file() and (
+                  p.relative_to(stage).as_posix().startswith('.github/')
+                  or p.relative_to(stage).as_posix().startswith('docs/superpowers/')
+                  or p.name.startswith('apply_v32029_')
+              )
+          ]
+          assert not forbidden, forbidden
+          print(f'RELEASE_STAGE_OK copied={len(copied)} manifest={len(manifest_lines)}')
+          PY
+          (cd "$RUNNER_TEMP/release_stage" && sha256sum -c MANIFEST.sha256)
+
+      - name: Build the one definitive candidate ZIP
+        run: |
+          set -eu
+          test ! -e EnergieProject_v32.0.29.zip
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          import zipfile
+
+          stage = Path(os.environ['RUNNER_TEMP']) / 'release_stage'
+          output = Path.cwd() / 'EnergieProject_v32.0.29.zip'
+          if output.exists():
+              raise SystemExit('candidate ZIP already exists; refusing rebuild')
+          files = [p for p in stage.rglob('*') if p.is_file()]
+          with zipfile.ZipFile(output, 'x', compression=zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+              for path in sorted(files, key=lambda p: p.relative_to(stage).as_posix()):
+                  zf.write(path, path.relative_to(stage).as_posix())
+          print(f'CANDIDATE_BUILT_ONCE entries={len(files)} bytes={output.stat().st_size}')
+          PY
+          sha256sum EnergieProject_v32.0.29.zip | tee EnergieProject_v32.0.29.zip.sha256
+
+      - name: Verify exact candidate ZIP and extracted full suite
+        run: |
+          set -eu
+          python tools/release_zip.py test EnergieProject_v32.0.29.zip
+          rm -rf "$RUNNER_TEMP/candidate_extract"
+          mkdir -p "$RUNNER_TEMP/candidate_extract"
+          python tools/release_zip.py extract EnergieProject_v32.0.29.zip "$RUNNER_TEMP/candidate_extract"
+          cd "$RUNNER_TEMP/candidate_extract"
+          sha256sum -c MANIFEST.sha256
+          test "$(tr -d '\r\n ' < VERSIE.txt)" = "32.0.29"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('SHA256SUMS.json').read_text(encoding='utf-8'))
+          assert data['version'] == '32.0.29'
+          manifest_count = sum(1 for line in Path('MANIFEST.sha256').read_text(encoding='utf-8').splitlines() if line.strip())
+          assert manifest_count == len(data['files']) + 1, (manifest_count, len(data['files']))
+          print(f'MANIFEST_CONTRACT_OK manifest={manifest_count} sha_files={len(data["files"])}')
+          PY
+          pytest -q
+          python -m py_compile slimmemeterportal_import/rootfs/app/main.py slimmemeterportal_import/rootfs/app/crash_recovery_export.py
+          test ! -e .github/workflows/v32029-dev-test.yml
+          test ! -e docs/superpowers
+          test ! -e tools/apply_v32029_crash_recovery_export.py
+          test ! -e tools/apply_v32029_crash_recovery_gui.py
+          test ! -e tools/apply_v32029_release_identity.py
+          echo 'EXACT_CANDIDATE_TESTS_OK'
+
+      - name: Docker-start exact extracted candidate
+        run: |
+          set -eu
+          CAND="$RUNNER_TEMP/candidate_extract"
           docker build \
             --build-arg BUILD_FROM=python:3.12-alpine \
             --build-arg BUILD_VERSION=32.0.29 \
             --build-arg BUILD_ARCH=amd64 \
-            -t energie-v32029-smoke \
-            slimmemeterportal_import
-      - name: Start isolated HA app container
-        run: |
-          set -eu
-          ROOT="$RUNNER_TEMP/v32029-smoke"
+            -t energie-v32029-candidate \
+            "$CAND/slimmemeterportal_import"
+          ROOT="$RUNNER_TEMP/candidate-smoke"
           mkdir -p "$ROOT/data" "$ROOT/config" "$ROOT/share/EnergieProject/App" "$ROOT/share/EnergieProject/Data" "$ROOT/share/EnergieProject/Backups" "$ROOT/share/EnergieProject/Inbox" "$ROOT/share/EnergieProject/Infra"
           printf '{}\n' > "$ROOT/data/options.json"
-          docker run -d --name energie-v32029-smoke \
+          docker run -d --name energie-v32029-candidate \
             -p 18099:8099 \
             -v "$ROOT/data:/data" \
             -v "$ROOT/config:/config" \
             -v "$ROOT/share:/share/Energie_NAS" \
-            energie-v32029-smoke \
+            energie-v32029-candidate \
             python3 -u /app/main.py
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:18099/health >/tmp/health.json 2>/dev/null; then
+            if curl -fsS http://127.0.0.1:18099/health >/tmp/candidate-health.json 2>/dev/null; then
               break
             fi
             sleep 1
           done
-          curl -fsS http://127.0.0.1:18099/health | tee /tmp/health.json
+          curl -fsS http://127.0.0.1:18099/health | tee /tmp/candidate-health.json
           curl -fsS http://127.0.0.1:18099/ | grep -q 'SlimmeMeterPortal'
           curl -fsS http://127.0.0.1:18099/api/hassio_ingress/test | grep -q 'SlimmeMeterPortal'
-          curl -fsS http://127.0.0.1:18099/api/crash-recovery/state >/tmp/recovery-state.json
+          curl -fsS http://127.0.0.1:18099/api/crash-recovery/state >/tmp/candidate-recovery-state.json
           python - <<'PY'
           import json
           from pathlib import Path
-          health = json.loads(Path('/tmp/health.json').read_text())
-          assert health.get('status') in {'ok', 'healthy'}, health
-          state = json.loads(Path('/tmp/recovery-state.json').read_text())
-          assert isinstance(state, dict), state
-          print('HEALTH_HTTP_200_OK')
-          print('GUI_HTTP_200_OK')
-          print('INGRESS_HTTP_200_OK')
-          print('CRASH_RECOVERY_STATE_HTTP_200_OK')
+          h = json.loads(Path('/tmp/candidate-health.json').read_text())
+          assert h.get('status') in {'ok', 'healthy'}, h
+          assert h.get('version') == '32.0.29', h
+          assert isinstance(json.loads(Path('/tmp/candidate-recovery-state.json').read_text()), dict)
+          print('CANDIDATE_HEALTH_HTTP_200_OK')
+          print('CANDIDATE_GUI_HTTP_200_OK')
+          print('CANDIDATE_INGRESS_HTTP_200_OK')
+          print('CANDIDATE_RECOVERY_STATE_HTTP_200_OK')
           PY
-          if docker logs energie-v32029-smoke 2>&1 | grep -q 'Traceback (most recent call last)'; then
-            docker logs energie-v32029-smoke
-            echo 'STARTUP_TRACEBACK_FOUND' >&2
+          if docker logs energie-v32029-candidate 2>&1 | grep -q 'Traceback (most recent call last)'; then
+            docker logs energie-v32029-candidate
             exit 1
           fi
-          echo 'STARTUP_ZONDER_TRACEBACK_OK'
-      - name: Stop isolated container
-        if: always()
-        run: docker rm -f energie-v32029-smoke >/dev/null 2>&1 || true
+          docker rm -f energie-v32029-candidate >/dev/null
+          echo 'CANDIDATE_STARTUP_OK'
 
-# Temporary branch-only verification workflow; excluded from release ZIP.
+      - name: Simulate QNAP installer 32.0.28 to exact 32.0.29 candidate
+        run: |
+          set -eu
+          SIM="$RUNNER_TEMP/installer-sim/EnergieProject"
+          rm -rf "$RUNNER_TEMP/installer-sim"
+          mkdir -p "$SIM/App/tools" "$SIM/Data" "$SIM/Backups" "$SIM/Inbox/incoming" "$SIM/Inbox/processing" "$SIM/Inbox/processed" "$SIM/Inbox/failed" "$SIM/Infra"
+          printf '32.0.28\n' > "$SIM/App/VERSIE.txt"
+          cp "$RUNNER_TEMP/candidate_extract/tools/release_installer.sh" "$SIM/App/tools/release_installer.sh"
+          cp "$RUNNER_TEMP/candidate_extract/tools/release_zip.py" "$SIM/App/tools/release_zip.py"
+          cp EnergieProject_v32.0.29.zip "$SIM/Inbox/incoming/EnergieProject_v32.0.29.zip"
+          ENERGIE_ROOT="$SIM" \
+          ENERGIE_BACKUP_RETENTION=999 \
+          ENERGIE_PROCESSED_RETENTION=999 \
+          ENERGIE_INSTALLER_REEXEC=1 \
+            sh "$SIM/App/tools/release_installer.sh" | tee /tmp/installer-v32029.log
+          test "$(tr -d '\r\n ' < "$SIM/App/VERSIE.txt")" = "32.0.29"
+          test -f "$SIM/App/slimmemeterportal_import/rootfs/app/crash_recovery_export.py"
+          test -f "$SIM/Inbox/processed/EnergieProject_v32.0.29.zip"
+          test -f "$SIM/Inbox/ha_publication_required.json"
+          find "$SIM/Backups" -maxdepth 1 -type f -name 'EnergieProject_pre_32.0.29_*.tar.gz' | grep -q .
+          (cd "$SIM/App" && sha256sum -c MANIFEST.sha256 >/dev/null)
+          grep -q 'SUCCES: 32.0.28 -> 32.0.29' /tmp/installer-v32029.log
+          echo 'INSTALLER_SIMULATION_32.0.28_TO_32.0.29_OK'
+
+      - name: Final immutable candidate fingerprint
+        run: |
+          set -eu
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, zipfile
+          p = Path('EnergieProject_v32.0.29.zip')
+          h = hashlib.sha256(p.read_bytes()).hexdigest()
+          expected = Path('EnergieProject_v32.0.29.zip.sha256').read_text().split()[0]
+          assert h == expected
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              entries = len(z.infolist())
+          print(f'FINAL_CANDIDATE_SHA256={h}')
+          print(f'FINAL_CANDIDATE_BYTES={p.stat().st_size}')
+          print(f'FINAL_CANDIDATE_ENTRIES={entries}')
+          print('V32_0_29_FINAL_CANDIDATE_GATE_OK')
+          PY
+
+      - name: Upload the one definitive candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: EnergieProject_v32.0.29-final
+          path: |
+            EnergieProject_v32.0.29.zip
+            EnergieProject_v32.0.29.zip.sha256
+          compression-level: 0
+          if-no-files-found: error
+
+# Builds exactly one candidate ZIP from exact tested source commit 3c5336a... .
