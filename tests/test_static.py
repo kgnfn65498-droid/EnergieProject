@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "32.0.28"
+    assert cfg_version == app_version == "32.0.29"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "32.0.28"' in config
+    assert 'version: "32.0.29"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1156,8 +1156,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "32.0.28"' in config
-    assert 'APP_VERSION = "32.0.28"' in main
+    assert 'version: "32.0.29"' in config
+    assert 'APP_VERSION = "32.0.29"' in main
 
 
 def test_phase7_configuration_present():
@@ -2246,7 +2246,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.0.28"' in source
+    assert 'APP_VERSION = "32.0.29"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2433,7 +2433,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.0.28"' in source
+    assert 'APP_VERSION = "32.0.29"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -3865,11 +3865,11 @@ def test_v2400_action_handoff_runtime_present():
         assert x in main
 
 def test_v2400_version_consistency():
-    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.0.28"
+    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.0.29"
     config=(ROOT/"slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "32.0.28"' in config
-    assert 'APP_VERSION = "32.0.28"' in main
+    assert 'version: "32.0.29"' in config
+    assert 'APP_VERSION = "32.0.29"' in main
 
 def test_v2400_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
@@ -3932,11 +3932,11 @@ def test_v2430_variance_learning_runtime_present():
         assert x in main
 
 def test_v2430_version_consistency():
-    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.0.28"
+    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.0.29"
     config=(ROOT/"slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "32.0.28"' in config
-    assert 'APP_VERSION = "32.0.28"' in main
+    assert 'version: "32.0.29"' in config
+    assert 'APP_VERSION = "32.0.29"' in main
 
 def test_v2430_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
@@ -3962,12 +3962,12 @@ def test_v2440_completion_gate_present():
         assert x in main
 
 def test_v2440_version_and_changelog_consistency():
-    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.0.28"
+    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.0.29"
     config=(ROOT/"slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
     changelog=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.0.28"' in config
-    assert 'APP_VERSION = "32.0.28"' in main
+    assert 'version: "32.0.29"' in config
+    assert 'APP_VERSION = "32.0.29"' in main
     assert "## 32.0.10" in changelog and changelog.count("\n## ") == 1
 
 
@@ -4021,11 +4021,11 @@ def test_v2520_monthly_budget_impact_runtime_present():
         assert x in source
 
 def test_v2520_version_consistency():
-    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.0.28"
+    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.0.29"
     config=(ROOT/"slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "32.0.28"' in config
-    assert 'APP_VERSION = "32.0.28"' in main
+    assert 'version: "32.0.29"' in config
+    assert 'APP_VERSION = "32.0.29"' in main
 
 
 def test_v2530_report_publication_runtime_present():
@@ -4561,7 +4561,7 @@ def test_v3208_github_status_is_server_rendered_without_browser_fetch():
 
 def test_v3209_smp_content_coverage_and_current_transfer_route():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.0.28"' in source
+    assert 'APP_VERSION = "32.0.29"' in source
     assert "def validate_smp_content_coverage(" in source
     assert '"content_coverage_report.json"' in source
     assert '"smp_content_coverage"' in source
@@ -4570,7 +4570,7 @@ def test_v3209_smp_content_coverage_and_current_transfer_route():
 
 def test_v32010_current_month_smp_lag_is_not_software_error():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.0.28"' in source
+    assert 'APP_VERSION = "32.0.29"' in source
     assert '"partial_current_month"' in source
     assert '"available_through"' in source
     assert '"calendar_expected_through"' in source
@@ -4581,7 +4581,7 @@ def test_v32010_current_month_smp_lag_is_not_software_error():
 def test_v32011_home_assistant_is_central_api_import_layer():
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "32.0.28"' in config
+    assert 'version: "32.0.29"' in config
     assert 'workflow_mode: "full_month_workflow"' in config
     assert 'workflow_mode="full_month_workflow"' in main
 
@@ -4610,7 +4610,7 @@ def test_v32012_full_workflow_targets_current_month_and_analysis_is_ha_managed()
         import pytest
         pytest.skip("full-project Infra context not present in standalone release ZIP")
     analysis = analysis_path.read_text(encoding="utf-8")
-    assert 'version: "32.0.28"' in config
+    assert 'version: "32.0.29"' in config
     assert "full_workflow_use_previous_month: false" in config
     assert "full_workflow_use_previous_month=False" in main
     assert "SlimmeMeterPortal wordt bewust overgeslagen." not in analysis
@@ -4621,18 +4621,18 @@ def test_v32013_release_identity_is_synchronized():
     versie = (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert versie == "32.0.28"
-    assert 'version: "32.0.28"' in config
-    assert 'APP_VERSION = "32.0.28"' in main
+    assert versie == "32.0.29"
+    assert 'version: "32.0.29"' in config
+    assert 'APP_VERSION = "32.0.29"' in main
 
 
 def test_v32014_ha_smp_ipv4_and_dynamic_runtime_identity():
     versie = (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert versie == "32.0.28"
-    assert 'version: "32.0.28"' in config
-    assert 'APP_VERSION = "32.0.28"' in source
+    assert versie == "32.0.29"
+    assert 'version: "32.0.29"' in config
+    assert 'APP_VERSION = "32.0.29"' in source
     assert "_SMP_IPV4_RESOLVER_LOCK = threading.RLock()" in source
     assert "with _smp_ipv4_only_resolution():" in source
     assert '"transport": "ipv4_forced"' in source
@@ -4647,9 +4647,9 @@ def test_v32015_smp_content_coverage_uses_defined_workflow_month_key():
     source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     versie = (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
-    assert versie == "32.0.28"
-    assert 'version: "32.0.28"' in config
-    assert 'APP_VERSION = "32.0.28"' in source
+    assert versie == "32.0.29"
+    assert 'version: "32.0.29"' in config
+    assert 'APP_VERSION = "32.0.29"' in source
     define = '        workflow_month_key = f"{year:04d}_{month:02d}"'
     fixed = "        content_coverage = validate_smp_content_coverage(target, workflow_month_key)"
     buggy = "        content_coverage = validate_smp_content_coverage(target, month_key)"
@@ -4667,9 +4667,9 @@ def test_v32016_complete_smp_import_fix_and_diagnostics():
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     versie = (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
 
-    assert versie == "32.0.28"
-    assert 'version: "32.0.28"' in config
-    assert 'APP_VERSION = "32.0.28"' in source
+    assert versie == "32.0.29"
+    assert 'version: "32.0.29"' in config
+    assert 'APP_VERSION = "32.0.29"' in source
     assert 'month_key = f"{year:04d}_{month:02d}"' in source
     assert 'workflow_month_key = f"{year:04d}_{month:02d}"' in source
     assert "validate_smp_content_coverage(target, workflow_month_key)" in source
@@ -4700,9 +4700,9 @@ def test_v32017_smp_import_publishes_to_nas_month_input_without_replacing_month(
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     versie = (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
 
-    assert versie == "32.0.28"
-    assert 'version: "32.0.28"' in config
-    assert 'APP_VERSION = "32.0.28"' in source
+    assert versie == "32.0.29"
+    assert 'version: "32.0.29"' in config
+    assert 'APP_VERSION = "32.0.29"' in source
     assert "def publish_smp_import_to_nas_input" in source
     assert 'NAS_DATA_ROOT / "01_Input" / month_key' in source
     assert 'destination_root = ingress_root / "SlimmeMeterPortal"' in source
@@ -4733,9 +4733,9 @@ def test_v32018_smp_transfer_uses_existing_homeassistant_ingress():
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     versie = (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
 
-    assert versie == "32.0.28"
-    assert 'version: "32.0.28"' in config
-    assert 'APP_VERSION = "32.0.28"' in source
+    assert versie == "32.0.29"
+    assert 'version: "32.0.29"' in config
+    assert 'APP_VERSION = "32.0.29"' in source
     assert 'staging = destination_month / ".SlimmeMeterPortal.staging"' not in source
     assert 'backup = destination_month / ".SlimmeMeterPortal.backup"' not in source
     assert 'ingress_root = destination_month / "HomeAssistant"' in source
@@ -4832,8 +4832,8 @@ def test_v32023_ha_app_owns_processed_retention():
         'candidate.unlink()',
         'processed-retentie eindcontrole:',
         'cleanup_processed_release_retention_on_app_start(',
-        'HA-app processed-retentie v32.0.28: OK',
-        'HA-app processed-retentie v32.0.28: FOUT',
+        'HA-app processed-retentie v32.0.29: OK',
+        'HA-app processed-retentie v32.0.29: FOUT',
     ]:
         assert required in source
 
@@ -4893,6 +4893,6 @@ def test_v32026_release_identity_everywhere():
     versie=(ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip()
     config=(ROOT/"slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     source=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert versie == "32.0.28"
-    assert 'version: "32.0.28"' in config
-    assert 'APP_VERSION = "32.0.28"' in source
+    assert versie == "32.0.29"
+    assert 'version: "32.0.29"' in config
+    assert 'APP_VERSION = "32.0.29"' in source
