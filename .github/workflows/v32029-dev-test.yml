@@ -22,3 +22,5 @@ jobs:
         run: python -m pip install --disable-pip-version-check pytest
       - name: Run crash recovery export contract tests
         run: pytest -q tests/test_crash_recovery_export.py
+
+# Temporary branch-only workflow; remove before release candidate.
