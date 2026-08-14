@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install test dependencies
-        run: python -m pip install --disable-pip-version-check pytest reportlab
+        run: python -m pip install --disable-pip-version-check pytest reportlab pypdf
       - name: Verify branch needs no development patches
         run: |
           python tools/apply_v32029_crash_recovery_export.py
@@ -36,14 +36,15 @@ jobs:
           import ast
           from pathlib import Path
           p = Path('slimmemeterportal_import/rootfs/app/main.py')
-          tree = ast.parse(p.read_text(encoding='utf-8'))
+          source = p.read_text(encoding='utf-8')
+          tree = ast.parse(source)
           for node in tree.body:
               if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in {
                   'run_complete_crash_recovery_export',
                   '_stream_complete_recovery_download',
                   '_cleanup_completed_export',
               }:
-                  segment = ast.get_source_segment(p.read_text(encoding='utf-8'), node) or ''
+                  segment = ast.get_source_segment(source, node) or ''
                   assert 'finalize_month' not in segment, node.name
           print('NO_FINALIZE_MONTH_EXPORT_FLOW_OK')
           PY
