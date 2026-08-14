@@ -5274,6 +5274,11 @@ def _stream_complete_recovery_download(writer: Any) -> dict[str, Any]:
         COMPLETE_CRASH_RECOVERY_EXPORT_LOCK.release()
 
 
+def _crash_recovery_export_filename(now: datetime) -> str:
+    """Bestandsnaam voor browser/iCloud Crash Recovery zonder onveilige dubbele punt."""
+    return now.strftime("%Y-%m-%d %H.%M CrashRecovery EnergieProject.zip")
+
+
 def run_complete_crash_recovery_export(
     year: int | None = None,
     month: int | None = None,
@@ -5386,8 +5391,7 @@ def run_complete_crash_recovery_export(
 
         try:
             CRASH_RECOVERY_EXPORT_ROOT.mkdir(parents=True, exist_ok=True)
-            stamp = datetime.now(TZ).strftime("%Y%m%dT%H%M%S")
-            export_name = f"EnergieProject_Complete_Crash_Recovery_{stamp}.zip"
+            export_name = _crash_recovery_export_filename(datetime.now(TZ))
             export_path = CRASH_RECOVERY_EXPORT_ROOT / export_name
             built = build_recovery_export(NAS_LAYOUT_ROOT, export_path)
         finally:
