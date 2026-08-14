@@ -37,13 +37,11 @@ De bestaande, bewezen RecoveryManager blijft de bron van waarheid.
 3. `preview_backup_restore`
 4. `stage_backup_restore`
 5. controleer dat de bron niet is gewijzigd en dat het stagingpad uitsluitend onder `RestoreStaging` ligt;
-6. bepaal of de geverifieerde bron-ZIP al precies één top-level map `EnergieProject/` bevat;
-7. zo ja: gebruik die ZIP rechtstreeks als export;
-8. zo nee: bouw vanuit de geverifieerde RestoreStaging-inhoud een tijdelijke export-ZIP met exact één top-level map `EnergieProject/`;
-9. valideer de export-ZIP opnieuw met ZIP-integriteitstest en SHA-256;
-10. maak de export beschikbaar via een downloadroute in de HA-add-on;
-11. stream de ZIP naar de browser met `Content-Type: application/zip` en `Content-Disposition: attachment`;
-12. pas na volledige succesvolle stream: verwijder uitsluitend de tijdelijke bestanden die door deze export-run zijn aangemaakt.
+6. bouw vanuit de volledig geverifieerde projectinhoud een tijdelijke export-ZIP met exact één top-level map `EnergieProject/` en de hieronder vastgelegde inhoudsregels;
+7. valideer de export-ZIP opnieuw met ZIP-integriteitstest, bestandstelling en SHA-256;
+8. maak de export beschikbaar via een downloadroute in de HA-add-on;
+9. stream de ZIP naar de browser met `Content-Type: application/zip` en `Content-Disposition: attachment`;
+10. pas na volledige succesvolle stream: verwijder uitsluitend de tijdelijke bestanden die door deze export-run zijn aangemaakt.
 
 Deze aanpak voorkomt een tweede recovery-engine: RecoveryManager blijft create/verify/stage doen. Alleen de laatste gebruiksvriendelijke exportlaag komt erbij.
 
@@ -53,7 +51,7 @@ Deze aanpak voorkomt een tweede recovery-engine: RecoveryManager blijft create/v
 
 Voordeel: minste code en geen extra ZIP-stap.
 
-Nadeel: alleen acceptabel als de ZIP al gegarandeerd exact `EnergieProject/` als top-level map bevat. Dat mag niet worden aangenomen. De gebruiker moet de ZIP vanuit `AI Projecten` kunnen uitpakken zonder losse `App`, `Data`, `Backups`, `Inbox` of `Infra` naast elkaar te krijgen.
+Nadeel: de gebruikersbackup moet bijna de volledige actuele `EnergieProject`-map bevatten, maar bewust enkele oudere complete backup-in-backup-bestanden uitsluiten. Daarom moet de exportlaag de uiteindelijke inhoud expliciet samenstellen en controleren.
 
 ### Een tweede volledige backup-engine in Home Assistant bouwen
 
@@ -84,7 +82,7 @@ Per export-run mogen tijdelijk bestaan:
 - de door RecoveryManager gemaakte complete backup-ZIP;
 - bijbehorend manifest;
 - één RestoreStaging-directory;
-- indien nodig één gebruiksvriendelijke export-ZIP.
+- één gebruiksvriendelijke export-ZIP.
 
 Deze paden worden vóór cleanup exact uit de runstate afgeleid en moeten onder de vooraf toegestane backup-/RestoreStaging-locaties vallen. Geen glob-delete en geen retentie-cleanup gebruiken voor deze export.
 
@@ -119,12 +117,35 @@ EnergieProject_Complete_Crash_Recovery_<timestamp>.zip
 
 De vijf hoofdmappen moeten aanwezig zijn. Extra geldige projectbestanden binnen `EnergieProject/` zijn toegestaan. Er mogen geen bestanden buiten `EnergieProject/` in de export-ZIP staan.
 
+### Inhoudsregel: maximaal volledig, minimale uitsluiting
+
+De export neemt de **hele actuele `EnergieProject`-map** mee, uit alle hoofdmappen en submappen, inclusief onder `Backups` onder andere:
+
+- maandbackups zoals `EnergieProject_maandbackup*`;
+- manifests;
+- logs;
+- herstelhandleidingen en disaster-recoverydocumentatie;
+- release-/repair-/storagehistorie;
+- retentie- en workflowhistorie;
+- overige bestanden die onderdeel zijn van de project- en herstelgeschiedenis.
+
+Er geldt dus geen algemene opschoon- of minimalisatielijst voor `Backups`.
+
+**Alleen deze oudere complete backup-in-backup-artefacten worden uit de uiteindelijke iCloud-export uitgesloten:**
+
+- bestanden die voldoen aan `Energie_Complete_Backup_*.zip`;
+- volledige recovery-archieven die voldoen aan `FULL_RECOVERY*.tar.gz`.
+
+Bijbehorende inhoudelijke maandbackups, herstelpunten, documenten, logs en manifests blijven wel behouden. De uitsluiting is uitsluitend bedoeld om te voorkomen dat iedere nieuwe iCloud-Crash-Recovery vorige volledige Crash-Recovery-archieven opnieuw inpakt en daardoor onbeperkt groeit.
+
+macOS-bestanden zoals `.DS_Store` zijn systeemmetadata en hoeven niet als projectdata te worden beschouwd. Hun aanwezigheid of afwezigheid mag de herstelvalidatie niet laten falen.
+
 Het doelherstel is bewust eenvoudig:
 
-1. iCloud-ZIP terugplaatsen in `AI Projecten`;
+1. iCloud-ZIP terugplaatsen in `AI Projecten` of in een testmap daaronder;
 2. een eventueel beschadigde bestaande `EnergieProject` eerst veilig apart zetten;
 3. ZIP uitpakken;
-4. `AI Projecten/EnergieProject/` staat weer terug.
+4. op die locatie ontstaat precies één nieuwe map `EnergieProject/` met de projectinhoud terug.
 
 ## API/GUI
 
@@ -154,6 +175,7 @@ De latere spraak/commandolaag hoeft alleen `POST /api/crash-recovery/export` aan
 - Een deep verify met `verified_files != manifest_file_count` is altijd fout.
 - Een RestoreStaging-resultaat is alleen geldig bij `source_project_modified is False` en een pad onder `/recovery/RestoreStaging`.
 - Browserdownload wordt pas aangeboden als alle veiligheidschecks groen zijn.
+- De export mag geen willekeurige projectbestanden uitsluiten om de ZIP kleiner te maken; alleen de twee expliciete backup-in-backup-patronen hierboven en niet-inhoudelijke `.DS_Store`-metadata zijn toegestaan.
 
 ## Teststrategie
 
@@ -164,14 +186,18 @@ TDD en releasegate moeten minimaal bewijzen:
 3. `source_project_modified=True` wordt geweigerd;
 4. export-ZIP heeft exact top-level `EnergieProject/`;
 5. `App`, `Data`, `Backups`, `Inbox`, `Infra` zitten in de export;
-6. export-SHA klopt vóór download;
-7. succesvolle download streamt byte-identiek en triggert cleanup;
-8. afgebroken download verwijdert niets en is opnieuw downloadbaar;
-9. cleanup kan nooit buiten de run-specifieke allowlist verwijderen;
-10. `finalize_month` komt niet voor in de nieuwe flow;
-11. bestaande v32.0.28 recoverytests blijven groen;
-12. volledige statische suite en HA startup/selftest blijven groen;
-13. productie blijft 32.0.28 tot de volledige v32.0.29-releasegate geslaagd is.
+6. maandbackups, manifests, logs en herstelhandleidingen onder `Backups` blijven aanwezig;
+7. `Energie_Complete_Backup_*.zip` ontbreekt aantoonbaar uit de export;
+8. `FULL_RECOVERY*.tar.gz` ontbreekt aantoonbaar uit de export;
+9. overige bestanden onder `Backups` worden niet door een algemene filter weggegooid;
+10. export-SHA klopt vóór download;
+11. succesvolle download streamt byte-identiek en triggert cleanup;
+12. afgebroken download verwijdert niets en is opnieuw downloadbaar;
+13. cleanup kan nooit buiten de run-specifieke allowlist verwijderen;
+14. `finalize_month` komt niet voor in de nieuwe flow;
+15. bestaande v32.0.28 recoverytests blijven groen;
+16. volledige statische suite en HA startup/selftest blijven groen;
+17. productie blijft 32.0.28 tot de volledige v32.0.29-releasegate geslaagd is.
 
 ## Acceptatiecriteria
 
@@ -181,6 +207,8 @@ De feature is pas gereed wanneer een echte HA-run aantoonbaar:
 - RestoreStaging volledig groen uitvoert;
 - één downloadbare herstel-ZIP oplevert;
 - die ZIP na uitpakken precies `EnergieProject/` oplevert;
+- de volledige actuele projectinhoud bevat behalve de expliciet uitgesloten complete backup-in-backup-archieven;
+- maandbackups en overige belangrijke inhoud onder `Backups` behouden zijn;
 - browserdownload geen blijvende Crash-Recovery-ZIP op de NAS achterlaat;
 - de normale NAS-backups/retentie niet wijzigt;
 - augustus/lopende maand niet afsluit;
