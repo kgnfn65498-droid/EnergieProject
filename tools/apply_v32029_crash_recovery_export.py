@@ -23,9 +23,13 @@ def main() -> None:
             raise RuntimeError(f"weigering buiten featurebranch: {branch!r}")
 
     text = MAIN.read_text(encoding="utf-8")
-    if "def run_complete_crash_recovery_export(" in text:
+    if "def _stream_complete_recovery_download(" in text:
         print("V32_0_29_PATCH_ALREADY_PRESENT")
         return
+    if "def run_complete_crash_recovery_export(" in text:
+        raise RuntimeError(
+            "gedeeltelijke v32.0.29 patch aangetroffen; weiger verdere automatische mutatie"
+        )
 
     text = replace_once(
         text,
@@ -55,6 +59,187 @@ def main() -> None:
     )
 
     new_flow = r'''
+
+def _recovery_path_to_project_backup(path: str) -> Path | None:
+    """Map één /recovery-pad naar Backups zonder ooit erbuiten te kunnen komen."""
+    value = str(path or "").strip()
+    root = PROJECT_BACKUP_ROOT.resolve()
+    if value == "/recovery":
+        return root
+    if not value.startswith("/recovery/"):
+        return None
+    relative_text = value.removeprefix("/recovery/")
+    relative = Path(relative_text)
+    if relative.is_absolute() or ".." in relative.parts:
+        return None
+    candidate = (root / relative).resolve()
+    if candidate == root or root not in candidate.parents:
+        return None
+    return candidate
+
+
+def _validated_export_download_path(state: dict[str, Any]) -> Path:
+    """Valideer dat de laatst voorbereide export nog exact en ongewijzigd bestaat."""
+    status = str(state.get("status") or "")
+    download_status = str(state.get("download_status") or "")
+    if status not in {"ready_for_download", "retry_available"}:
+        raise RuntimeError("Geen Crash Recovery export gereed voor download.")
+    if download_status not in {"ready", "retry_available"}:
+        raise RuntimeError("Crash Recovery downloadstatus is niet gereed.")
+
+    raw_path = str(state.get("export_path") or "").strip()
+    expected_sha = str(state.get("export_sha256") or "").strip().lower()
+    if not raw_path or not expected_sha:
+        raise RuntimeError("Crash Recovery exportmetadata is onvolledig.")
+
+    root = CRASH_RECOVERY_EXPORT_ROOT.resolve()
+    candidate = Path(raw_path).resolve()
+    if candidate.suffix.lower() != ".zip" or root not in candidate.parents:
+        raise RuntimeError("Crash Recovery exportpad valt buiten de veilige exportroot.")
+    if not candidate.is_file():
+        raise RuntimeError("Crash Recovery exportbestand ontbreekt.")
+
+    actual_sha = sha256_file(candidate).lower()
+    if actual_sha != expected_sha:
+        raise RuntimeError("Crash Recovery export SHA-256 wijkt af van de geverifieerde SHA.")
+    return candidate
+
+
+def _cleanup_completed_export(state: dict[str, Any]) -> dict[str, Any]:
+    """Verwijder uitsluitend exact geregistreerde tijdelijke artefacten van deze run."""
+    if str(state.get("download_status") or "") != "downloaded":
+        return {
+            "status": "error",
+            "removed": [],
+            "warnings": ["Cleanup geweigerd voordat download volledig is afgerond."],
+        }
+
+    removed: list[str] = []
+    warnings: list[str] = []
+
+    export_raw = str(state.get("export_path") or "").strip()
+    if export_raw:
+        export_root = CRASH_RECOVERY_EXPORT_ROOT.resolve()
+        export_path = Path(export_raw).resolve()
+        if export_path.suffix.lower() == ".zip" and export_root in export_path.parents:
+            try:
+                if export_path.exists():
+                    export_path.unlink()
+                    removed.append(str(export_path))
+            except OSError as exc:
+                warnings.append(f"Export-ZIP cleanup mislukt: {exc}")
+        else:
+            warnings.append("Onveilig exportpad niet verwijderd.")
+
+    backup_name = str(state.get("backup_name") or "").strip()
+    if (
+        backup_name
+        and Path(backup_name).name == backup_name
+        and re.fullmatch(r"Energie_Complete_Backup_.*\.zip", backup_name)
+    ):
+        backup_root = PROJECT_BACKUP_ROOT.resolve()
+        backup_path = (backup_root / backup_name).resolve()
+        if backup_root in backup_path.parents:
+            try:
+                if backup_path.exists():
+                    backup_path.unlink()
+                    removed.append(str(backup_path))
+            except OSError as exc:
+                warnings.append(f"Complete-backup cleanup mislukt: {exc}")
+
+            manifest_name = f"{Path(backup_name).stem}_manifest.json"
+            manifest_path = (backup_root / "Manifests" / manifest_name).resolve()
+            manifests_root = (backup_root / "Manifests").resolve()
+            if manifests_root in manifest_path.parents:
+                try:
+                    if manifest_path.exists():
+                        manifest_path.unlink()
+                        removed.append(str(manifest_path))
+                except OSError as exc:
+                    warnings.append(f"Run-manifest cleanup mislukt: {exc}")
+    elif backup_name:
+        warnings.append("Niet-complete bronbackup bewust niet verwijderd.")
+
+    staging_raw = str(state.get("restore_staging_path") or "").strip()
+    if staging_raw:
+        if staging_raw.startswith("/recovery/RestoreStaging/"):
+            staging_path = _recovery_path_to_project_backup(staging_raw)
+            staging_root = (PROJECT_BACKUP_ROOT / "RestoreStaging").resolve()
+            if (
+                staging_path is not None
+                and staging_path != staging_root
+                and staging_root in staging_path.parents
+            ):
+                try:
+                    if staging_path.exists():
+                        if staging_path.is_dir():
+                            shutil.rmtree(staging_path)
+                        else:
+                            staging_path.unlink()
+                        removed.append(str(staging_path))
+                except OSError as exc:
+                    warnings.append(f"RestoreStaging cleanup mislukt: {exc}")
+        else:
+            warnings.append("Onveilig RestoreStaging-pad niet verwijderd.")
+
+    return {
+        "status": "warning" if warnings else "ok",
+        "removed": removed,
+        "warnings": warnings,
+    }
+
+
+def _stream_complete_recovery_download(writer: Any) -> dict[str, Any]:
+    """Stream de laatst geverifieerde export; cleanup alleen na volledige stream."""
+    if not COMPLETE_CRASH_RECOVERY_EXPORT_LOCK.acquire(blocking=False):
+        return {
+            "status": "busy",
+            "download_status": "busy",
+            "cleanup_status": "pending",
+            "error": "Er loopt al een Crash Recovery export/download.",
+        }
+
+    try:
+        state = _complete_recovery_state()
+        export_path = _validated_export_download_path(state)
+        try:
+            with export_path.open("rb") as handle:
+                while True:
+                    chunk = handle.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    writer.write(chunk)
+            flush = getattr(writer, "flush", None)
+            if callable(flush):
+                flush()
+        except (BrokenPipeError, ConnectionResetError) as exc:
+            updated = dict(state)
+            updated["status"] = "retry_available"
+            updated["download_status"] = "retry_available"
+            updated["cleanup_status"] = "pending"
+            updated["download_error"] = f"{type(exc).__name__}: browserverbinding afgebroken"
+            updated["checked_at"] = datetime.now(TZ).isoformat()
+            _save_complete_recovery_state(updated)
+            return updated
+
+        updated = dict(state)
+        updated["status"] = "downloaded"
+        updated["download_status"] = "downloaded"
+        updated["cleanup_status"] = "running"
+        updated["downloaded_at"] = datetime.now(TZ).isoformat()
+        updated["checked_at"] = updated["downloaded_at"]
+        _save_complete_recovery_state(updated)
+
+        cleanup = _cleanup_completed_export(updated)
+        updated["cleanup_status"] = str(cleanup.get("status") or "warning")
+        updated["cleanup_removed"] = list(cleanup.get("removed") or [])
+        updated["cleanup_warnings"] = list(cleanup.get("warnings") or [])
+        updated["checked_at"] = datetime.now(TZ).isoformat()
+        _save_complete_recovery_state(updated)
+        return updated
+    finally:
+        COMPLETE_CRASH_RECOVERY_EXPORT_LOCK.release()
+
 
 def run_complete_crash_recovery_export(
     year: int | None = None,
@@ -268,7 +453,8 @@ def run_complete_crash_recovery_export(
         "function renderCompleteRecovery(result){{\n",
         "function renderCompleteRecovery(result){{\n"
         "  const downloadButton=document.getElementById('download-complete-crash-recovery-button');\n"
-        "  if(downloadButton) downloadButton.disabled=!['ready_for_download','retry_available'].includes(String(result.status||''));\n",
+        "  const canDownload=['ready_for_download','retry_available'].includes(String(result.status||'')) || ['ready','retry_available'].includes(String(result.download_status||''));\n"
+        "  if(downloadButton) downloadButton.disabled=!canDownload;\n",
         "download state render",
     )
 
@@ -286,6 +472,38 @@ def run_complete_crash_recovery_export(
         "const response=await fetch('api/crash-recovery/export',{{method:'POST',headers:{{'X-Requested-With':'fetch','Accept':'application/json'}}}});",
         "primary export endpoint",
     )
+
+    get_anchor = '        if complete_recovery_path.endswith("/api/crash-recovery/state"):\n'
+    download_route = r'''        if complete_recovery_path.endswith("/api/crash-recovery/download"):
+            state = _complete_recovery_state()
+            try:
+                export_path = _validated_export_download_path(state)
+            except Exception as exc:
+                body = json.dumps(
+                    {"status": "error", "error": str(exc)},
+                    ensure_ascii=False,
+                ).encode("utf-8")
+                self.send_body(
+                    HTTPStatus.CONFLICT,
+                    body,
+                    "application/json; charset=utf-8",
+                )
+                return
+
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Length", str(export_path.stat().st_size))
+            self.send_header(
+                "Content-Disposition",
+                f'attachment; filename="{export_path.name}"',
+            )
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            _stream_complete_recovery_download(self.wfile)
+            return
+
+'''
+    text = replace_once(text, get_anchor, download_route + get_anchor, "download GET route")
 
     post_anchor = '        if path.endswith("/api/crash-recovery/complete"):\n'
     export_route = r'''        if path.endswith("/api/crash-recovery/export"):
