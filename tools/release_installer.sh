@@ -19,6 +19,7 @@ INCOMING="$INBOX/incoming"
 PROCESSING="$INBOX/processing"
 PROCESSED="$INBOX/processed"
 FAILED="$INBOX/failed"
+LOGDIR="$INBOX/logs"
 BACKUPS="$ROOT/Backups"
 BACKUP_RETENTION="${ENERGIE_BACKUP_RETENTION:-3}"
 PROCESSED_RETENTION="${ENERGIE_PROCESSED_RETENTION:-3}"
@@ -183,12 +184,13 @@ cleanup_processed_releases(){
 
 
 write_ha_publication_required(){
+  PROCESSED_SHA256="$1"
   TMP_PUBLICATION="$HA_PUBLICATION_REQUIRED.tmp.$$"
   cat > "$TMP_PUBLICATION" <<EOF
-{"status":"publication_required","version":"$NEW_VERSION","repository":"https://github.com/kgnfn65498-droid/EnergieProject","branch":"main","reason":"qnap_zip_mode_without_git"}
+{"status":"publication_required","version":"$NEW_VERSION","repository":"https://github.com/kgnfn65498-droid/EnergieProject","branch":"main","reason":"validated_qnap_release_ready_for_github","expected_previous_version":"$CURRENT_VERSION","expected_previous_manifest_sha256":"$CURRENT_MANIFEST_SHA256","target_manifest_sha256":"$TARGET_MANIFEST_SHA256","processed_zip":"EnergieProject_v$NEW_VERSION.zip","processed_zip_sha256":"$PROCESSED_SHA256"}
 EOF
   mv "$TMP_PUBLICATION" "$HA_PUBLICATION_REQUIRED"
-  log "HA-publicatie vereist voor v$NEW_VERSION; marker=$HA_PUBLICATION_REQUIRED"
+  log "HA-publicatiecontract gereed voor v$NEW_VERSION; marker=$HA_PUBLICATION_REQUIRED"
 }
 
 restore_backup(){
@@ -278,6 +280,10 @@ case "$NEW_VERSION" in *[!0-9.]*|'') fail "ongeldige versie in VERSIE.txt: $NEW_
 log "FASE 3/8: huidige installatie controleren"
 cd "$PROJECT"
 CURRENT_VERSION="$(tr -d '\r\n ' < VERSIE.txt 2>/dev/null || true)"
+CURRENT_MANIFEST_SHA256="$(sha256sum "$PROJECT/MANIFEST.sha256" 2>/dev/null | awk '{print $1}')"
+[ -n "$CURRENT_MANIFEST_SHA256" ] || fail "huidig MANIFEST.sha256 ontbreekt voor GitHub-publicatiecontract"
+TARGET_MANIFEST_SHA256="$(sha256sum "$STAGE/MANIFEST.sha256" 2>/dev/null | awk '{print $1}')"
+[ -n "$TARGET_MANIFEST_SHA256" ] || fail "release MANIFEST.sha256 ontbreekt voor GitHub-publicatiecontract"
 if command -v git >/dev/null 2>&1 && [ -d "$PROJECT/.git" ]; then
   GIT_AVAILABLE=1
   DIRTY="$(git status --porcelain --untracked-files=all)"
@@ -353,8 +359,7 @@ if [ "$GIT_AVAILABLE" -eq 1 ]; then
     fi
   fi
 else
-  write_ha_publication_required
-  log "Git-publicatie niet lokaal mogelijk; NAS-release is geïnstalleerd maar HA-update wacht op externe GitHub-publicatie"
+  log "Git-publicatie wordt na canonieke processed-archivering via het gevalideerde HA-publicatiecontract afgehandeld"
 fi
 
 log "FASE 8/8: eindcontrole en archivering"
@@ -373,6 +378,11 @@ CANONICAL_PROCESSED="$PROCESSED/EnergieProject_v${NEW_VERSION}.zip"
 rm -f "$CANONICAL_PROCESSED"
 mv "$ZIP_WORK" "$CANONICAL_PROCESSED"
 ZIP_WORK=""
+if [ "$GIT_AVAILABLE" -eq 0 ]; then
+  PROCESSED_SHA256="$(sha256sum "$CANONICAL_PROCESSED" 2>/dev/null | awk '{print $1}')"
+  [ -n "$PROCESSED_SHA256" ] || fail "processed release SHA256 kon niet worden bepaald"
+  write_ha_publication_required "$PROCESSED_SHA256"
+fi
 cleanup_old_backups
 cleanup_processed_releases
 log "SUCCES: $CURRENT_VERSION -> $NEW_VERSION; $FINAL_DETAIL; ZIP canoniek gearchiveerd als EnergieProject_v${NEW_VERSION}.zip in processed."

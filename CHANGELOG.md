@@ -1,3 +1,15 @@
+## v32.0.37 — veilige standaard GitHub-publicatie
+
+- Herstelt de latente v32.0.36-installerfout waarbij `LOGDIR` werd gebruikt zonder definitie; toekomstige releases definiëren `LOGDIR="$INBOX/logs"` expliciet.
+- Home Assistant resolveert de actuele projectshare dynamisch; `Project Energie` en `Project_Energie` zijn primair, `Energie_NAS` blijft compatibiliteitsfallback.
+- De bestaande dedicated Git-worktree onder `/config/github_publisher/worktree` blijft de enige Git-publicatieworktree; live `App` krijgt geen `.git`.
+- Iedere ZIP-only QNAP-release schrijft pas na canonieke `processed`-archivering een publicatiecontract met vorige/nieuwe manifesthash en processed-ZIP SHA256.
+- GitHub-publicatie blokkeert bij een onverwachte versie of manifest op `main`; force-push, automatische rebase en conflictoverschrijving zijn niet toegestaan.
+- Na push moet lokale HEAD exact gelijk zijn aan remote HEAD; alleen dan wordt het publicatiecontract opgeruimd.
+- GitHub-publicatie staat voor nieuwe/herstelde HA-installaties standaard aan.
+- Geen wijziging aan energie-, rapport-, import- of financiële logica.
+- Automatische maandafsluiting blijft UIT; augustus 2026 wordt niet afgesloten.
+
 ## v32.0.36 — Crash-recovery backuprechten en watcher-retentie
 
 - QNAP `Backups` wordt bij normale release-installatie blijvend als gedeelde beheermap (`2775`) ingesteld.

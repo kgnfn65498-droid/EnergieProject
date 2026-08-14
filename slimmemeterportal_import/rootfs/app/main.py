@@ -39,6 +39,7 @@ APP_MODULE_ROOT = Path(__file__).resolve().parent
 if str(APP_MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_MODULE_ROOT))
 from crash_recovery_export import build_recovery_export, verify_recovery_export, sha256_file
+from project_paths import resolve_nas_roots
 
 BASE_URL = "https://app.slimmemeterportal.nl"
 OPTIONS_PATH = Path("/data/options.json")
@@ -61,21 +62,15 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.36"
+APP_VERSION = "32.0.37"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
 PRODUCTION_CORE_REVISION = "9.4-core1"
 
-# v32.0.10: eenduidige 24/7 NAS-layout. De fysieke projectroot bevat uitsluitend
-# de vaste hoofdmappen App, Data, Backups, Inbox en Infra. De Home Assistant-share
-# kan naar de bovenliggende map of rechtstreeks naar EnergieProject wijzen; beide
-# mountvormen worden zonder legacy-foldernamen herkend.
-NAS_SHARE_ROOT = Path("/share/Energie_NAS")
-if (NAS_SHARE_ROOT / "App").is_dir() or (NAS_SHARE_ROOT / "Data").is_dir():
-    NAS_LAYOUT_ROOT = NAS_SHARE_ROOT
-else:
-    NAS_LAYOUT_ROOT = NAS_SHARE_ROOT / "EnergieProject"
+# v32.0.37: de HA netwerkopslag is hernoembaar. Resolveer de actuele projectshare
+# dynamisch; Project Energie is primair, Energie_NAS blijft uitsluitend compatibiliteitsfallback.
+NAS_SHARE_ROOT, NAS_LAYOUT_ROOT = resolve_nas_roots()
 NAS_PROJECT_ROOT = NAS_LAYOUT_ROOT / "App"
 NAS_DATA_ROOT = NAS_LAYOUT_ROOT / "Data"
 PROJECT_BACKUP_ROOT = NAS_LAYOUT_ROOT / "Backups"
@@ -95,6 +90,8 @@ NAS_RELEASE_INBOX = NAS_RELEASE_ROOT / "incoming"
 NAS_RELEASE_PROCESSING = NAS_RELEASE_ROOT / "processing"
 NAS_RELEASE_ARCHIVE = NAS_RELEASE_ROOT / "processed"
 NAS_RELEASE_FAILED = NAS_RELEASE_ROOT / "failed"
+HA_PUBLICATION_REQUIRED = NAS_RELEASE_ROOT / "ha_publication_required.json"
+GITHUB_RELEASE_STAGE = GITHUB_PUBLISH_DIR / "release_stage"
 CRASH_RECOVERY_CLEANUP_REQUEST_PATH = NAS_RELEASE_ROOT / "crash_recovery_cleanup_request.json"
 CRASH_RECOVERY_CLEANUP_RESULT_PATH = NAS_RELEASE_ROOT / "crash_recovery_cleanup_result.json"
 NAS_V10_LAYOUT = {
@@ -17001,6 +16998,150 @@ def _prepare_github_worktree(repo: str, branch: str, env: dict[str, str]):
     return True, "Git-worktree gereed"
 
 
+
+def _normalise_github_repository(value: str) -> str:
+    text = str(value or "").strip()
+    if text.startswith("git@github.com:"):
+        text = text[len("git@github.com:"):]
+    elif "github.com/" in text:
+        text = text.split("github.com/", 1)[1]
+    return text.removesuffix(".git").strip("/")
+
+def _load_github_publication_contract(options=None):
+    options = options or {}
+    if not HA_PUBLICATION_REQUIRED.is_file():
+        return False, {}, "Geen gevalideerde GitHub-publicatiemarkering aanwezig."
+    try:
+        contract = json.loads(HA_PUBLICATION_REQUIRED.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, {}, f"Publicatiemarkering onleesbaar: {type(exc).__name__}: {exc}"
+
+    required = (
+        "status",
+        "version",
+        "repository",
+        "branch",
+        "expected_previous_version",
+        "expected_previous_manifest_sha256",
+        "target_manifest_sha256",
+        "processed_zip",
+        "processed_zip_sha256",
+    )
+    missing = [key for key in required if not str(contract.get(key) or "").strip()]
+    if missing:
+        return False, contract, "Publicatiemarkering mist: " + ", ".join(missing)
+    if contract.get("status") != "publication_required":
+        return False, contract, "Publicatiemarkering heeft ongeldige status."
+
+    local_version = ""
+    try:
+        local_version = (NAS_PROJECT_ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
+    except Exception:
+        pass
+    if str(contract.get("version")) != local_version:
+        return False, contract, f"Marker-versie {contract.get('version')} wijkt af van NAS-versie {local_version or 'onbekend'}."
+
+    configured_branch = str(options.get("github_branch") or "main").strip()
+    if str(contract.get("branch")) != configured_branch:
+        return False, contract, "Marker-branch wijkt af van geconfigureerde GitHub-branch."
+
+    configured_repo = _normalise_github_repository(
+        str(options.get("github_repository_ssh") or "git@github.com:kgnfn65498-droid/EnergieProject.git")
+    )
+    marker_repo = _normalise_github_repository(str(contract.get("repository") or ""))
+    if marker_repo != configured_repo:
+        return False, contract, "Marker-repository wijkt af van geconfigureerde GitHub-repository."
+
+    processed = NAS_RELEASE_ARCHIVE / str(contract.get("processed_zip"))
+    if not processed.is_file():
+        return False, contract, f"Gevalideerde processed release ontbreekt: {processed.name}"
+    if sha256_file(processed) != str(contract.get("processed_zip_sha256")):
+        return False, contract, "Processed release SHA256 wijkt af van publicatiecontract."
+
+    manifest = NAS_PROJECT_ROOT / "MANIFEST.sha256"
+    if not manifest.is_file() or sha256_file(manifest) != str(contract.get("target_manifest_sha256")):
+        return False, contract, "Live App manifest wijkt af van publicatiecontract."
+
+    return True, contract, "Publicatiecontract en processed release zijn geldig."
+
+def _prepare_validated_publication_source(contract):
+    processed = NAS_RELEASE_ARCHIVE / str(contract.get("processed_zip"))
+    shutil.rmtree(GITHUB_RELEASE_STAGE, ignore_errors=True)
+    GITHUB_RELEASE_STAGE.mkdir(parents=True, exist_ok=True)
+    try:
+        with zipfile.ZipFile(processed, "r") as zf:
+            for info in zf.infolist():
+                rel = Path(info.filename)
+                if rel.is_absolute() or ".." in rel.parts:
+                    return False, GITHUB_RELEASE_STAGE, f"Onveilig pad in processed ZIP: {info.filename}"
+            bad = zf.testzip()
+            if bad:
+                return False, GITHUB_RELEASE_STAGE, f"Processed ZIP integriteit fout bij: {bad}"
+            zf.extractall(GITHUB_RELEASE_STAGE)
+
+        version = (GITHUB_RELEASE_STAGE / "VERSIE.txt").read_text(encoding="utf-8").strip()
+        if version != str(contract.get("version")):
+            return False, GITHUB_RELEASE_STAGE, "Uitgepakte processed release heeft verkeerde versie."
+
+        manifest = GITHUB_RELEASE_STAGE / "MANIFEST.sha256"
+        if sha256_file(manifest) != str(contract.get("target_manifest_sha256")):
+            return False, GITHUB_RELEASE_STAGE, "Uitgepakte processed release heeft verkeerd manifest."
+
+        for line in manifest.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            if "  " not in line:
+                return False, GITHUB_RELEASE_STAGE, "Ongeldige manifestregel in processed release."
+            expected, rel_text = line.split("  ", 1)
+            rel = Path(rel_text)
+            if rel.is_absolute() or ".." in rel.parts:
+                return False, GITHUB_RELEASE_STAGE, f"Onveilig manifestpad: {rel_text}"
+            target = GITHUB_RELEASE_STAGE / rel
+            if not target.is_file() or sha256_file(target) != expected:
+                return False, GITHUB_RELEASE_STAGE, f"Manifestverificatie mislukt: {rel_text}"
+    except Exception as exc:
+        shutil.rmtree(GITHUB_RELEASE_STAGE, ignore_errors=True)
+        return False, GITHUB_RELEASE_STAGE, f"Processed release uitpakken/verifiëren mislukt: {type(exc).__name__}: {exc}"
+
+    return True, GITHUB_RELEASE_STAGE, "Processed ZIP diep geverifieerd als enige GitHub-publicatiebron."
+
+def _verify_github_remote_baseline(contract):
+    try:
+        remote_version = (GITHUB_WORKTREE / "VERSIE.txt").read_text(encoding="utf-8").strip()
+        remote_manifest_sha = sha256_file(GITHUB_WORKTREE / "MANIFEST.sha256")
+    except Exception as exc:
+        return False, f"GitHub baseline onleesbaar: {type(exc).__name__}: {exc}"
+
+    target_version = str(contract.get("version"))
+    if remote_version == target_version:
+        if remote_manifest_sha != str(contract.get("target_manifest_sha256")):
+            return False, "GitHub bevat doelversie maar met onverwacht manifest; publicatie geblokkeerd."
+        return True, "GitHub staat al exact op de gevalideerde doelrelease."
+
+    expected_version = str(contract.get("expected_previous_version"))
+    expected_manifest = str(contract.get("expected_previous_manifest_sha256"))
+    if remote_version != expected_version:
+        return False, f"GitHub main wijzigde onverwacht: verwacht v{expected_version}, gevonden v{remote_version}."
+    if remote_manifest_sha != expected_manifest:
+        return False, "GitHub main manifest wijzigde onverwacht; publicatie geblokkeerd."
+    return True, "GitHub baseline exact gelijk aan verwachte vorige release."
+
+def _complete_github_publication_contract(contract) -> bool:
+    try:
+        current = json.loads(HA_PUBLICATION_REQUIRED.read_text(encoding="utf-8"))
+        if (
+            str(current.get("version")) == str(contract.get("version"))
+            and str(current.get("processed_zip_sha256")) == str(contract.get("processed_zip_sha256"))
+        ):
+            HA_PUBLICATION_REQUIRED.unlink()
+            shutil.rmtree(GITHUB_RELEASE_STAGE, ignore_errors=True)
+            return True
+    except FileNotFoundError:
+        return True
+    except Exception:
+        LOGGER.exception("GitHub-publicatiemarkering kon na succesvolle verificatie niet worden opgeruimd.")
+    return False
+
 def publish_github_release(options=None):
     options = options or {}
     LOGGER.info("GitHub-publicatie: statuscontrole gestart.")
@@ -17010,6 +17151,14 @@ def publish_github_release(options=None):
     publish_status = {k: v for k, v in status.items() if k != "last_publication"}
     if not bool(options.get("github_publication_enabled", False)):
         return {**publish_status, "published": False, "message": "Automatische GitHub-publicatie staat uit"}
+    contract_ok, contract, contract_message = _load_github_publication_contract(options)
+    if not contract_ok:
+        return {**publish_status, "published": False, "publication_contract": contract, "message": contract_message}
+    publish_status["publication_contract"] = contract
+    source_ok, release_source, source_message = _prepare_validated_publication_source(contract)
+    if not source_ok:
+        return {**publish_status, "published": False, "message": source_message}
+    publish_status["publication_source"] = str(release_source)
     if not status.get("key_ready") or not NAS_PROJECT_ROOT.exists():
         return {**publish_status, "published": False}
     repo = str(options.get("github_repository_ssh") or status["repository"])
@@ -17020,8 +17169,12 @@ def publish_github_release(options=None):
     if not ready:
         return {**publish_status, "published": False, "message": message}
 
+    baseline_ok, baseline_message = _verify_github_remote_baseline(contract)
+    if not baseline_ok:
+        return {**publish_status, "published": False, "message": baseline_message}
+
     try:
-        _sync_project_to_github_worktree(NAS_PROJECT_ROOT, GITHUB_WORKTREE)
+        _sync_project_to_github_worktree(release_source, GITHUB_WORKTREE)
     except Exception as exc:
         return {**publish_status, "published": False, "message": f"Git-worktree synchronisatie mislukt: {exc}"}
 
@@ -17054,6 +17207,8 @@ def publish_github_release(options=None):
         result["remote_head"] = remote_head
         result["published"] = bool(local_head and local_head == remote_head)
         result["message"] = "GitHub-publicatie geslaagd" if result["published"] else "GitHub-push uitgevoerd maar remote verificatie wijkt af"
+        if result["published"]:
+            result["publication_marker_cleared"] = _complete_github_publication_contract(contract)
     else:
         result["message"] = f"GitHub-publicatie mislukt: {err or out}"
     try:
@@ -18331,7 +18486,7 @@ def main() -> None:
     )
     if processed_retention.get("status") == "ok":
         LOGGER.info(
-            "HA-app processed-retentie v32.0.36: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            "HA-app processed-retentie v32.0.37: OK before=%s after=%s keep=%s kept=%s removed=%s",
             processed_retention.get("before"),
             processed_retention.get("after"),
             processed_retention.get("keep"),
@@ -18340,7 +18495,7 @@ def main() -> None:
         )
     else:
         LOGGER.error(
-            "HA-app processed-retentie v32.0.36: FOUT %s",
+            "HA-app processed-retentie v32.0.37: FOUT %s",
             processed_retention.get("error"),
         )
     signal.signal(signal.SIGTERM, stop_handler)

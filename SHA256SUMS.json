@@ -1,5 +1,5 @@
 {
-  "version": "32.0.36",
+  "version": "32.0.37",
   "files": [
     {
       "path": ".gitignore",
@@ -13,8 +13,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "873d664fe59cf2cb96dc7ce3dda58592b01b34e221043583584b1b86a11f9c8a",
-      "size": 68621
+      "sha256": "d79dcef3b4459eb0b8dbc7e68466017c2c543746d17c012d94709359db888fce",
+      "size": 69814
     },
     {
       "path": "INSTALL.md",
@@ -53,7 +53,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "e80733e123507227ebf2552ca2be04ff47b89b8675cfc00df2e6ef95a3f551e9",
+      "sha256": "415206fb3acf0bb911e7d244efe45299b5b9836e8f2d6092cd84c3922459d81b",
       "size": 8
     },
     {
@@ -68,8 +68,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "6fcdb3bafb2406bcd003c9c660839d8aa35bc20ec751278e970eadec1f4588b8",
-      "size": 300
+      "sha256": "099248145420634b31de0ec6762907429421b9d17410aaaecd26e7198bcab669",
+      "size": 485
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -88,8 +88,8 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "cbd29573f20cb954e10e0d61bc671b6304e98f8966f68e545661786af72a0b72",
-      "size": 5801
+      "sha256": "8c46c77c3b2341194a450293eaf0a30c952c03bba0b2da13ee0e4c1d4af50993",
+      "size": 5800
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/crash_recovery_export.py",
@@ -98,8 +98,13 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "43083251b6dd00904d9bc6365756ad2687910f9bdf62e704669e32e7945f92c1",
-      "size": 876891
+      "sha256": "515a30424c3684f5defa9ca9ab704f52fc326a0d73c54132262f241bbf83bbe2",
+      "size": 884796
+    },
+    {
+      "path": "slimmemeterportal_import/rootfs/app/project_paths.py",
+      "sha256": "d3db163aecf5f2e4c6a93ca866d1ecbee68ff1ffa044b5d1b9139cf7ebf277b3",
+      "size": 1415
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -408,13 +413,13 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "966228ed80e405b4b24eba5d2d5f94a02cd8f8e44b66e5d84d70d4f3ac6690b9",
-      "size": 236456
+      "sha256": "e05240c807b53b2e7f6e40f3d4109a5819e56c3df3e38ea680abda3251d88aa2",
+      "size": 236715
     },
     {
-      "path": "tests/test_v32036_backup_permissions.py",
-      "sha256": "9f3f4fdfa4e0979a78f2adf6e3a48e975987cb6d2ed6fdddeee3ae41a63000ff",
-      "size": 1887
+      "path": "tests/test_v32037_safe_github_publication.py",
+      "sha256": "b4c9f586ba081bf3e255b44fceb248eabd189a721b18c567ee18fd6801be283c",
+      "size": 3103
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
@@ -428,8 +433,8 @@
     },
     {
       "path": "tools/release_installer.sh",
-      "sha256": "85c4f5c12ba0bfc512303ee561cdf110f4fc1974a26b6351c724d38d0ca9ee69",
-      "size": 15293
+      "sha256": "b67760a78133903203be623917a102226fe6b73cb64af38f29cfd9e76eea22a3",
+      "size": 16250
     },
     {
       "path": "tools/release_watcher.sh",
