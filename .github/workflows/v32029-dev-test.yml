@@ -6,7 +6,7 @@ on:
       - feature/v32.0.29-crash-recovery-export
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   crash-recovery-export:
@@ -18,28 +18,34 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install pytest
-        run: python -m pip install --disable-pip-version-check pytest
-      - name: Apply guarded integration patch
-        run: python tools/apply_v32029_crash_recovery_export.py
-      - name: Apply guarded GUI patch
-        run: python tools/apply_v32029_crash_recovery_gui.py
-      - name: Apply guarded release identity patch
-        run: python tools/apply_v32029_release_identity.py
-      - name: Run crash recovery export and identity tests
-        run: pytest -q tests/test_crash_recovery_export.py tests/test_complete_crash_recovery_runtime.py tests/test_crash_recovery_download.py tests/test_crash_recovery_gui.py tests/test_v32029_release_identity.py
+      - name: Install test dependencies
+        run: python -m pip install --disable-pip-version-check pytest reportlab
+      - name: Verify branch needs no development patches
+        run: |
+          python tools/apply_v32029_crash_recovery_export.py
+          python tools/apply_v32029_crash_recovery_gui.py
+          python tools/apply_v32029_release_identity.py
+          git diff --exit-code -- slimmemeterportal_import/rootfs/app/main.py slimmemeterportal_import/config.yaml VERSIE.txt tests/test_static.py CHANGELOG.md
+      - name: Run full regression suite
+        run: pytest -q
       - name: Compile changed Python
         run: python -m py_compile slimmemeterportal_import/rootfs/app/main.py slimmemeterportal_import/rootfs/app/crash_recovery_export.py
-      - name: Commit verified release identity to feature branch
+      - name: No finalize_month in new export flow
         run: |
-          if git diff --quiet -- slimmemeterportal_import/rootfs/app/main.py slimmemeterportal_import/config.yaml VERSIE.txt tests/test_static.py CHANGELOG.md; then
-            echo "No release identity change to commit"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add slimmemeterportal_import/rootfs/app/main.py slimmemeterportal_import/config.yaml VERSIE.txt tests/test_static.py CHANGELOG.md
-          git commit -m "chore: set v32.0.29 crash recovery export identity"
-          git push origin HEAD:feature/v32.0.29-crash-recovery-export
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          p = Path('slimmemeterportal_import/rootfs/app/main.py')
+          tree = ast.parse(p.read_text(encoding='utf-8'))
+          for node in tree.body:
+              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in {
+                  'run_complete_crash_recovery_export',
+                  '_stream_complete_recovery_download',
+                  '_cleanup_completed_export',
+              }:
+                  segment = ast.get_source_segment(p.read_text(encoding='utf-8'), node) or ''
+                  assert 'finalize_month' not in segment, node.name
+          print('NO_FINALIZE_MONTH_EXPORT_FLOW_OK')
+          PY
 
 # Temporary branch-only workflow; remove before release candidate.
