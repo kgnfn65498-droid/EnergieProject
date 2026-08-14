@@ -1,0 +1,22 @@
+name: v32.0.30 dev test
+
+on:
+  push:
+    branches:
+      - feature/v32.0.30-crash-recovery-heartbeat
+
+permissions:
+  contents: read
+
+jobs:
+  heartbeat-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependencies
+        run: python -m pip install --disable-pip-version-check pytest reportlab pypdf
+      - name: Run crash recovery export tests
+        run: pytest -q tests/test_crash_recovery_export.py
