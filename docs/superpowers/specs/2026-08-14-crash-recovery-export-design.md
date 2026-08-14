@@ -65,7 +65,7 @@ Nadeel: dupliceert RecoveryManager, vergroot risico op verschillen tussen backup
 
 ### Blijvend
 
-Alleen kleine statusmetadata in Home Assistant, bijvoorbeeld:
+Alleen kleine statusmetadata in Home Assistant:
 
 - exportstatus;
 - bestandsnaam;
@@ -101,7 +101,7 @@ De downloadroute:
 - bij `BrokenPipeError`, `ConnectionResetError` of andere streamfout blijft de tijdelijke export beschikbaar voor retry;
 - bij succesvolle stream wordt de run als `downloaded` gemarkeerd en wordt cleanup uitgevoerd;
 - cleanup verwijdert alleen de exact geregistreerde bestanden/directories van deze run;
-- cleanup-fout maakt de download niet ongeldig maar wordt zichtbaar als waarschuwing en kan apart opnieuw worden geprobeerd.
+- cleanup-fout maakt de download niet ongeldig maar wordt zichtbaar als waarschuwing en kan via de expliciete cleanup-route opnieuw worden geprobeerd.
 
 ## Herstelvriendelijke ZIP
 
@@ -138,9 +138,9 @@ Nieuw:
 
 - `POST /api/crash-recovery/export` — complete flow create + deep verify + RestoreStaging + export-preparatie;
 - `GET /api/crash-recovery/download` — stream de laatst voorbereide export;
-- optioneel `POST /api/crash-recovery/cleanup` uitsluitend voor een eerder mislukte automatische cleanup.
+- `POST /api/crash-recovery/cleanup` — uitsluitend beschikbaar wanneer een eerdere automatische cleanup van dezelfde run niet volledig is geslaagd.
 
-De bestaande twee knoppen blijven bruikbaar voor diagnose. Normale gebruikersflow wordt één primaire actie **Maak complete Crash Recovery** met daarna automatisch de downloadmogelijkheid.
+De bestaande twee diagnosehandelingen blijven intern/API-compatibel. In de normale GUI wordt **Maak complete Crash Recovery** de primaire actie voor de hele create/verify/stage/export-flow en verschijnt daarna **Download Crash Recovery ZIP**. Een aparte RestoreStaging-knop mag zichtbaar blijven onder diagnose, maar is niet meer nodig in de normale gebruikersflow.
 
 De latere spraak/commandolaag hoeft alleen `POST /api/crash-recovery/export` aan te roepen en de download-URL terug te geven. Die koppeling is niet onderdeel van v32.0.29.
 
