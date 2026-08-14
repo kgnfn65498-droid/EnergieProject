@@ -21,47 +21,62 @@ jobs:
       - name: Run crash recovery and release identity tests
         run: pytest -q tests/test_crash_recovery_export.py tests/test_crash_recovery_download.py tests/test_v32030_release_identity.py
 
-  apply-main-filename-patch:
+  apply-release-identity:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Patch main.py when needed
+      - name: Patch v32.0.30 release identity when needed
         run: |
           python - <<'PY'
           from pathlib import Path
-          p = Path('slimmemeterportal_import/rootfs/app/main.py')
-          source = p.read_text(encoding='utf-8')
-          if 'def _crash_recovery_export_filename(' in source:
-              print('FILENAME_HELPER_ALREADY_PRESENT')
-              raise SystemExit(0)
-          marker = 'def run_complete_crash_recovery_export(\n'
-          helper = (
-              'def _crash_recovery_export_filename(now: datetime) -> str:\n'
-              '    """Bestandsnaam voor browser/iCloud Crash Recovery zonder onveilige dubbele punt."""\n'
-              '    return now.strftime("%Y-%m-%d %H.%M CrashRecovery EnergieProject.zip")\n\n\n'
-          )
-          assert source.count(marker) == 1
-          source = source.replace(marker, helper + marker, 1)
-          old = (
-              '            stamp = datetime.now(TZ).strftime("%Y%m%dT%H%M%S")\n'
-              '            export_name = f"EnergieProject_Complete_Crash_Recovery_{stamp}.zip"\n'
-          )
-          new = '            export_name = _crash_recovery_export_filename(datetime.now(TZ))\n'
-          assert source.count(old) == 1
-          source = source.replace(old, new, 1)
-          p.write_text(source, encoding='utf-8')
+
+          def replace_exact(path: str, old: str, new: str, expected: int | None = None) -> None:
+              p = Path(path)
+              source = p.read_text(encoding='utf-8')
+              count = source.count(old)
+              if expected is not None and count not in {0, expected}:
+                  raise SystemExit(f'{path}: expected {expected} occurrences of {old!r}, found {count}')
+              if count:
+                  p.write_text(source.replace(old, new), encoding='utf-8')
+                  print(f'PATCHED {path}: {count} occurrence(s)')
+
+          Path('VERSIE.txt').write_text('32.0.30\n', encoding='utf-8')
+          replace_exact('slimmemeterportal_import/config.yaml', 'version: "32.0.29"', 'version: "32.0.30"', 1)
+          replace_exact('slimmemeterportal_import/rootfs/app/main.py', 'APP_VERSION = "32.0.29"', 'APP_VERSION = "32.0.30"', 1)
+          replace_exact('slimmemeterportal_import/rootfs/app/main.py', 'HA-app processed-retentie v32.0.29', 'HA-app processed-retentie v32.0.30')
+          replace_exact('tests/test_static.py', '32.0.29', '32.0.30')
+
+          changelog = Path('CHANGELOG.md')
+          text = changelog.read_text(encoding='utf-8')
+          heading = '## v32.0.30 — Crash Recovery heartbeat-snapshot\n'
+          if not text.startswith(heading):
+              entry = (
+                  heading
+                  + '\n'
+                  + '- Crash Recovery legt `Data/01_Input/_scheduler/quarter_hour_heartbeat.json` als één stabiele byte-snapshot vast, zodat normale scheduler-heartbeats de export niet meer onterecht afbreken.\n'
+                  + '- Alle andere projectbestanden blijven onder de bestaande strenge size/mtime-wijzigingscontrole; symlink- en backup-in-backup-regels blijven ongewijzigd.\n'
+                  + '- Browserdownload krijgt de filesystem-veilige naam `YYYY-MM-DD HH.MM CrashRecovery EnergieProject.zip`.\n'
+                  + '- Geen wijziging aan maandafsluiting, juli-status, `finalize_month`, RestoreStaging of normale backupretentie.\n\n'
+              )
+              changelog.write_text(entry + text, encoding='utf-8')
+              print('PATCHED CHANGELOG.md')
+
+          old_identity = Path('tests/test_v32029_release_identity.py')
+          if old_identity.exists():
+              old_identity.unlink()
+              print('REMOVED obsolete v32.0.29 identity test')
           PY
           git diff --check
-      - name: Commit patch only when changed
+      - name: Commit identity patch only when changed
         run: |
-          if git diff --quiet -- slimmemeterportal_import/rootfs/app/main.py; then
-            echo FILENAME_PATCH_NOT_NEEDED
+          if git diff --quiet; then
+            echo RELEASE_IDENTITY_PATCH_NOT_NEEDED
             exit 0
           fi
           git config user.name 'EnergieProject CI'
           git config user.email 'energieproject@local'
-          git add slimmemeterportal_import/rootfs/app/main.py
-          git commit -m 'feat: use readable crash recovery download name'
+          git add -A
+          git commit -m 'release: set v32.0.30 identity'
           git push origin HEAD:feature/v32.0.30-crash-recovery-heartbeat
