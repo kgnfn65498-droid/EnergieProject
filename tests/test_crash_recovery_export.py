@@ -205,21 +205,81 @@ def test_build_export_snapshots_scheduler_heartbeat_while_live_file_keeps_changi
         ) == original
 
 
-def test_build_export_still_rejects_other_project_file_changes(tmp_path, monkeypatch):
+def test_build_export_keeps_point_in_time_snapshot_when_normal_file_changes_after_snapshot(tmp_path, monkeypatch):
     m = load_export_module("crash_export_other_mutation")
     project = _make_project(tmp_path)
     live = project / "Data" / "live.json"
-    _write(live, b'{"value":1}\n')
+    original = b'{"value":1}\n'
+    updated = b'{"value":2}\n'
+    _write(live, original)
     _write(project / "App" / "main.py", b"ok\n")
 
     _mutate_after_member_is_written(
         monkeypatch,
         live,
         "EnergieProject/Data/live.json",
-        b'{"value":2}\n',
+        updated,
     )
 
     output = tmp_path / "other-change-export.zip"
-    with pytest.raises(RuntimeError, match="Projectinhoud wijzigde"):
-        m.build_recovery_export(project, output)
-    assert not output.exists()
+    result = m.build_recovery_export(project, output)
+
+    assert result.file_count == 2
+    assert live.read_bytes() == updated
+    with zipfile.ZipFile(output) as archive:
+        assert archive.read("EnergieProject/Data/live.json") == original
+
+
+def test_snapshot_rejects_file_that_changes_while_it_is_being_read(tmp_path, monkeypatch):
+    m = load_export_module("crash_export_unstable_read")
+    source = tmp_path / "unstable.log"
+    source.write_bytes(b"abcdef")
+    real_fstat = m.os.fstat
+    calls = {"count": 0}
+
+    class FakeStat:
+        def __init__(self, size, mtime_ns):
+            self.st_size = size
+            self.st_mtime_ns = mtime_ns
+
+    def unstable_fstat(fd):
+        stat = real_fstat(fd)
+        calls["count"] += 1
+        return FakeStat(stat.st_size, stat.st_mtime_ns + calls["count"])
+
+    monkeypatch.setattr(m.os, "fstat", unstable_fstat)
+
+    with pytest.raises(m._SnapshotChanged, match="wijzigde tijdens het lezen"):
+        m._snapshot_file_to_temp(
+            source,
+            temp_dir=tmp_path,
+            relative=pathlib.Path("Data/unstable.log"),
+            attempts=2,
+        )
+
+    assert not list(tmp_path.glob(".crash-recovery-snapshot-*"))
+
+
+def test_build_export_snapshots_watcher_heartbeat_while_live_watcher_replaces_it(tmp_path, monkeypatch):
+    m = load_export_module("crash_export_watcher_heartbeat_snapshot")
+    project = _make_project(tmp_path)
+    heartbeat = project / "Inbox" / ".watcher.heartbeat"
+    original = b"100\n"
+    updated = b"105\n"
+    _write(heartbeat, original)
+    _write(project / "App" / "main.py", b"ok\n")
+
+    _mutate_after_member_is_written(
+        monkeypatch,
+        heartbeat,
+        "EnergieProject/Inbox/.watcher.heartbeat",
+        updated,
+    )
+
+    output = tmp_path / "watcher-heartbeat-export.zip"
+    result = m.build_recovery_export(project, output)
+
+    assert result.file_count == 2
+    assert heartbeat.read_bytes() == updated
+    with zipfile.ZipFile(output) as archive:
+        assert archive.read("EnergieProject/Inbox/.watcher.heartbeat") == original

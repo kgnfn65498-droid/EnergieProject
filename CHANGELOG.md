@@ -1,3 +1,13 @@
+## v32.0.31 — Crash Recovery live-snapshot
+
+- Vervangt pad-specifieke heartbeat-uitzonderingen door een structurele live-snapshot per projectbestand.
+- Scheduler- en watcher-heartbeats mogen na hun stabiele snapshot normaal doorlopen; de export faalt niet meer op hun latere mtime-wijziging.
+- Een bestand dat tijdens het daadwerkelijke lezen verandert blijft hard afgekeurd; de volledige ZIP-build wordt maximaal drie keer veilig herstart.
+- Bestandsset wordt voor en na de snapshot vergeleken; nieuwe/verwijderde projectpaden tijdens de build veroorzaken een veilige retry.
+- Browserdownloadnaam blijft `YYYY-MM-DD HH.MM CrashRecovery EnergieProject.zip`.
+- Add-on changelog is bijgewerkt en ontbrekende Crash Recovery-releases 32.0.29/32.0.30 zijn teruggevuld.
+- Geen wijziging aan maandafsluiting, juli-status, `finalize_month`, RestoreStaging of backupretentie.
+
 ## v32.0.30 — Crash Recovery heartbeat-snapshot
 
 - Crash Recovery legt `Data/01_Input/_scheduler/quarter_hour_heartbeat.json` als één stabiele byte-snapshot vast, zodat normale scheduler-heartbeats de export niet meer onterecht afbreken.
