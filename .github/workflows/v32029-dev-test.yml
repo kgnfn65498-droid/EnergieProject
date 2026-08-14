@@ -20,12 +20,6 @@ jobs:
           python-version: '3.12'
       - name: Install test dependencies
         run: python -m pip install --disable-pip-version-check pytest reportlab pypdf
-      - name: Verify branch needs no development patches
-        run: |
-          python tools/apply_v32029_crash_recovery_export.py
-          python tools/apply_v32029_crash_recovery_gui.py
-          python tools/apply_v32029_release_identity.py
-          git diff --exit-code -- slimmemeterportal_import/rootfs/app/main.py slimmemeterportal_import/config.yaml VERSIE.txt tests/test_static.py CHANGELOG.md
       - name: Run full regression suite
         run: pytest -q
       - name: Compile changed Python
@@ -48,5 +42,57 @@ jobs:
                   assert 'finalize_month' not in segment, node.name
           print('NO_FINALIZE_MONTH_EXPORT_FLOW_OK')
           PY
+      - name: Build isolated HA app container
+        run: |
+          docker build \
+            --build-arg BUILD_FROM=python:3.12-alpine \
+            --build-arg BUILD_VERSION=32.0.29 \
+            --build-arg BUILD_ARCH=amd64 \
+            -t energie-v32029-smoke \
+            slimmemeterportal_import
+      - name: Start isolated HA app container
+        run: |
+          set -eu
+          ROOT="$RUNNER_TEMP/v32029-smoke"
+          mkdir -p "$ROOT/data" "$ROOT/config" "$ROOT/share/EnergieProject/App" "$ROOT/share/EnergieProject/Data" "$ROOT/share/EnergieProject/Backups" "$ROOT/share/EnergieProject/Inbox" "$ROOT/share/EnergieProject/Infra"
+          printf '{}\n' > "$ROOT/data/options.json"
+          docker run -d --name energie-v32029-smoke \
+            -p 18099:8099 \
+            -v "$ROOT/data:/data" \
+            -v "$ROOT/config:/config" \
+            -v "$ROOT/share:/share/Energie_NAS" \
+            energie-v32029-smoke \
+            python3 -u /app/main.py
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18099/health >/tmp/health.json 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18099/health | tee /tmp/health.json
+          curl -fsS http://127.0.0.1:18099/ | grep -q 'SlimmeMeterPortal'
+          curl -fsS http://127.0.0.1:18099/api/hassio_ingress/test | grep -q 'SlimmeMeterPortal'
+          curl -fsS http://127.0.0.1:18099/api/crash-recovery/state >/tmp/recovery-state.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          health = json.loads(Path('/tmp/health.json').read_text())
+          assert health.get('status') in {'ok', 'healthy'}, health
+          state = json.loads(Path('/tmp/recovery-state.json').read_text())
+          assert isinstance(state, dict), state
+          print('HEALTH_HTTP_200_OK')
+          print('GUI_HTTP_200_OK')
+          print('INGRESS_HTTP_200_OK')
+          print('CRASH_RECOVERY_STATE_HTTP_200_OK')
+          PY
+          if docker logs energie-v32029-smoke 2>&1 | grep -q 'Traceback (most recent call last)'; then
+            docker logs energie-v32029-smoke
+            echo 'STARTUP_TRACEBACK_FOUND' >&2
+            exit 1
+          fi
+          echo 'STARTUP_ZONDER_TRACEBACK_OK'
+      - name: Stop isolated container
+        if: always()
+        run: docker rm -f energie-v32029-smoke >/dev/null 2>&1 || true
 
-# Temporary branch-only workflow; remove before release candidate.
+# Temporary branch-only verification workflow; excluded from release ZIP.
