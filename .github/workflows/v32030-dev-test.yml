@@ -1,4 +1,4 @@
-name: v32.0.30 dev test
+name: v32.0.30 source gate
 
 on:
   push:
@@ -6,10 +6,10 @@ on:
       - feature/v32.0.30-crash-recovery-heartbeat
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  crash-recovery-regression:
+  source-gate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,65 +18,78 @@ jobs:
           python-version: '3.12'
       - name: Install test dependencies
         run: python -m pip install --disable-pip-version-check pytest reportlab pypdf
-      - name: Run crash recovery and release identity tests
-        run: pytest -q tests/test_crash_recovery_export.py tests/test_crash_recovery_download.py tests/test_v32030_release_identity.py
-
-  apply-release-identity:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Patch v32.0.30 release identity when needed
+      - name: Full source regression and safety gate
         run: |
+          set -eu
+          test "$(tr -d '\r\n ' < VERSIE.txt)" = "32.0.30"
+          pytest -q
+          python -m py_compile slimmemeterportal_import/rootfs/app/main.py slimmemeterportal_import/rootfs/app/crash_recovery_export.py
           python - <<'PY'
+          import ast
           from pathlib import Path
-
-          def replace_exact(path: str, old: str, new: str, expected: int | None = None) -> None:
-              p = Path(path)
-              source = p.read_text(encoding='utf-8')
-              count = source.count(old)
-              if expected is not None and count not in {0, expected}:
-                  raise SystemExit(f'{path}: expected {expected} occurrences of {old!r}, found {count}')
-              if count:
-                  p.write_text(source.replace(old, new), encoding='utf-8')
-                  print(f'PATCHED {path}: {count} occurrence(s)')
-
-          Path('VERSIE.txt').write_text('32.0.30\n', encoding='utf-8')
-          replace_exact('slimmemeterportal_import/config.yaml', 'version: "32.0.29"', 'version: "32.0.30"', 1)
-          replace_exact('slimmemeterportal_import/rootfs/app/main.py', 'APP_VERSION = "32.0.29"', 'APP_VERSION = "32.0.30"', 1)
-          replace_exact('slimmemeterportal_import/rootfs/app/main.py', 'HA-app processed-retentie v32.0.29', 'HA-app processed-retentie v32.0.30')
-          replace_exact('tests/test_static.py', '32.0.29', '32.0.30')
-
-          changelog = Path('CHANGELOG.md')
-          text = changelog.read_text(encoding='utf-8')
-          heading = '## v32.0.30 — Crash Recovery heartbeat-snapshot\n'
-          if not text.startswith(heading):
-              entry = (
-                  heading
-                  + '\n'
-                  + '- Crash Recovery legt `Data/01_Input/_scheduler/quarter_hour_heartbeat.json` als één stabiele byte-snapshot vast, zodat normale scheduler-heartbeats de export niet meer onterecht afbreken.\n'
-                  + '- Alle andere projectbestanden blijven onder de bestaande strenge size/mtime-wijzigingscontrole; symlink- en backup-in-backup-regels blijven ongewijzigd.\n'
-                  + '- Browserdownload krijgt de filesystem-veilige naam `YYYY-MM-DD HH.MM CrashRecovery EnergieProject.zip`.\n'
-                  + '- Geen wijziging aan maandafsluiting, juli-status, `finalize_month`, RestoreStaging of normale backupretentie.\n\n'
-              )
-              changelog.write_text(entry + text, encoding='utf-8')
-              print('PATCHED CHANGELOG.md')
-
-          old_identity = Path('tests/test_v32029_release_identity.py')
-          if old_identity.exists():
-              old_identity.unlink()
-              print('REMOVED obsolete v32.0.29 identity test')
+          p = Path('slimmemeterportal_import/rootfs/app/main.py')
+          source = p.read_text(encoding='utf-8')
+          tree = ast.parse(source)
+          expected = {
+              'run_complete_crash_recovery_export',
+              '_stream_complete_recovery_download',
+              '_cleanup_completed_export',
+          }
+          checked = set()
+          for node in tree.body:
+              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in expected:
+                  checked.add(node.name)
+                  segment = ast.get_source_segment(source, node) or ''
+                  assert 'finalize_month' not in segment, node.name
+          assert checked == expected, checked
+          assert 'APP_VERSION = "32.0.30"' in source
+          assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
+          print('NO_FINALIZE_MONTH_EXPORT_FLOW_OK')
           PY
-          git diff --check
-      - name: Commit identity patch only when changed
+      - name: Docker startup gate from exact source
         run: |
-          if git diff --quiet; then
-            echo RELEASE_IDENTITY_PATCH_NOT_NEEDED
-            exit 0
+          set -eu
+          docker build \
+            --build-arg BUILD_FROM=python:3.12-alpine \
+            --build-arg BUILD_VERSION=32.0.30 \
+            --build-arg BUILD_ARCH=amd64 \
+            -t energie-v32030-source \
+            slimmemeterportal_import
+          ROOT="$RUNNER_TEMP/source-smoke"
+          mkdir -p "$ROOT/data" "$ROOT/config" "$ROOT/share/EnergieProject/App" "$ROOT/share/EnergieProject/Data" "$ROOT/share/EnergieProject/Backups" "$ROOT/share/EnergieProject/Inbox" "$ROOT/share/EnergieProject/Infra"
+          printf '{}\n' > "$ROOT/data/options.json"
+          docker run -d --name energie-v32030-source \
+            -p 18099:8099 \
+            -v "$ROOT/data:/data" \
+            -v "$ROOT/config:/config" \
+            -v "$ROOT/share:/share/Energie_NAS" \
+            energie-v32030-source \
+            python3 -u /app/main.py
+          trap 'docker rm -f energie-v32030-source >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18099/health >/tmp/source-health.json 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18099/health | tee /tmp/source-health.json
+          curl -fsS http://127.0.0.1:18099/ | grep -q 'SlimmeMeterPortal'
+          curl -fsS http://127.0.0.1:18099/api/hassio_ingress/test | grep -q 'SlimmeMeterPortal'
+          curl -fsS http://127.0.0.1:18099/api/crash-recovery/state >/tmp/source-recovery-state.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          h = json.loads(Path('/tmp/source-health.json').read_text())
+          assert h.get('status') in {'ok', 'healthy'}, h
+          assert h.get('version') == '32.0.30', h
+          assert isinstance(json.loads(Path('/tmp/source-recovery-state.json').read_text()), dict)
+          print('SOURCE_HEALTH_HTTP_200_OK')
+          print('SOURCE_GUI_HTTP_200_OK')
+          print('SOURCE_INGRESS_HTTP_200_OK')
+          print('SOURCE_RECOVERY_STATE_HTTP_200_OK')
+          PY
+          if docker logs energie-v32030-source 2>&1 | grep -q 'Traceback (most recent call last)'; then
+            docker logs energie-v32030-source
+            exit 1
           fi
-          git config user.name 'EnergieProject CI'
-          git config user.email 'energieproject@local'
-          git add -A
-          git commit -m 'release: set v32.0.30 identity'
-          git push origin HEAD:feature/v32.0.30-crash-recovery-heartbeat
+          echo SOURCE_STARTUP_ZONDER_TRACEBACK_OK
