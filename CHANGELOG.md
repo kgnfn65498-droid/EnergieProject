@@ -1,3 +1,10 @@
+## v32.0.29 — Crash Recovery browser/iCloud export
+
+- Complete Crash Recovery levert na create/deep verify en veilige `RestoreStaging` één herstelvriendelijke browser-ZIP met exact top-level `EnergieProject/`.
+- De export bevat de volledige actuele projectinhoud, inclusief normale maandbackups, manifests, logs en herstelhandleidingen. Alleen `Energie_Complete_Backup_*.zip`, `FULL_RECOVERY*.tar.gz` en `.DS_Store` worden niet opnieuw ingepakt.
+- Na een volledig succesvolle browserdownload worden uitsluitend run-specifieke tijdelijke Crash-Recovery-artefacten op de NAS opgeruimd; een afgebroken download blijft retrybaar en verwijdert niets.
+- Geen `finalize_month`, geen live restore en geen wijziging van de normale NAS-backupretentie.
+
 ## v32.0.27 — HA Ingress GUI render fail-safe
 
 - Root cause opgelost waarbij de GUI tijdens renderen een schrijvende productiecertificaatcontrole kon starten voordat `/config/output` bestond.
