@@ -12,6 +12,9 @@ EXCLUDED_BASENAME_PATTERNS = (
     "Energie_Complete_Backup_*.zip",
     "FULL_RECOVERY*.tar.gz",
 )
+SNAPSHOT_RUNTIME_PATHS = frozenset({
+    PurePosixPath("Data/01_Input/_scheduler/quarter_hour_heartbeat.json"),
+})
 
 
 @dataclass(frozen=True)
@@ -19,6 +22,7 @@ class ProjectFile:
     relative_path: Path
     size: int
     mtime_ns: int
+    snapshot_bytes: bytes | None = None
 
 
 @dataclass(frozen=True)
@@ -74,6 +78,34 @@ def _require_project_roots(project_root: Path) -> None:
         )
 
 
+def _snapshot_runtime_file(path: Path, relative: Path) -> ProjectFile:
+    """Capture one stable version of an explicitly approved changing runtime file."""
+    for _attempt in range(2):
+        try:
+            before = path.stat()
+            data = path.read_bytes()
+            after = path.stat()
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                "Projectinhoud wijzigde tijdens Crash Recovery snapshot: "
+                f"{relative} verdween."
+            ) from exc
+        if (
+            before.st_size == after.st_size == len(data)
+            and before.st_mtime_ns == after.st_mtime_ns
+        ):
+            return ProjectFile(
+                relative_path=relative,
+                size=len(data),
+                mtime_ns=after.st_mtime_ns,
+                snapshot_bytes=data,
+            )
+    raise RuntimeError(
+        "Projectinhoud bleef wijzigen tijdens Crash Recovery snapshot: "
+        f"{relative}."
+    )
+
+
 def collect_project_files(project_root: Path) -> list[ProjectFile]:
     project_root = project_root.resolve()
     _require_project_roots(project_root)
@@ -88,6 +120,10 @@ def collect_project_files(project_root: Path) -> list[ProjectFile]:
             continue
         relative = path.relative_to(project_root)
         if not should_include_project_file(relative):
+            continue
+        relative_posix = PurePosixPath(relative.as_posix())
+        if relative_posix in SNAPSHOT_RUNTIME_PATHS:
+            files.append(_snapshot_runtime_file(path, relative))
             continue
         stat = path.stat()
         files.append(
@@ -129,9 +165,14 @@ def build_recovery_export(project_root: Path, output_zip: Path) -> ExportBuildRe
                 arcname = PurePosixPath("EnergieProject") / PurePosixPath(
                     item.relative_path.as_posix()
                 )
-                archive.write(source, arcname.as_posix())
+                if item.snapshot_bytes is not None:
+                    archive.writestr(arcname.as_posix(), item.snapshot_bytes)
+                else:
+                    archive.write(source, arcname.as_posix())
 
         for item in inventory:
+            if item.snapshot_bytes is not None:
+                continue
             source = project_root / item.relative_path
             try:
                 stat = source.stat()
