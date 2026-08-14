@@ -1,3 +1,7 @@
+## v6.0 patch — 2026-08-14
+- `feed_in_compensation=None` wordt veilig als niet beschikbaar gerenderd; geen unary-minus TypeError meer.
+- Numerieke compensaties blijven ongewijzigd weergegeven.
+
 # Changelog
 
 ## v6.0

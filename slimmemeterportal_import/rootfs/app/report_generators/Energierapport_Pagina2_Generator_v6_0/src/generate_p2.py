@@ -225,7 +225,7 @@ def build(data, out):
     left1=colw*.49
     panel(c,margin,y4,left1,ch); panel(c,margin+left1+gap,y4,colw-left1-gap,ch)
     txt(c,margin+10,y4+ch-14,'Kostenoverzicht (t/m juli)',5.8,TEXT,'Helvetica-Bold')
-    cc=data['costs']; items=[('Stroomkosten',cc['electricity']),('Terugleververgoeding',-cc['feed_in_compensation']),('Netto stroomkosten',(cc['electricity'] + cc['feed_in_compensation']) if isinstance(cc.get('electricity'), (int,float)) and isinstance(cc.get('feed_in_compensation'), (int,float)) else None),('Gaskosten',cc['gas']),('Vaste kosten / netbeheer',cc['grid_costs'])]
+    cc=data['costs']; items=[('Stroomkosten',cc['electricity']),('Terugleververgoeding',-cc['feed_in_compensation'] if isinstance(cc.get('feed_in_compensation'), (int,float)) else None),('Netto stroomkosten',(cc['electricity'] + cc['feed_in_compensation']) if isinstance(cc.get('electricity'), (int,float)) and isinstance(cc.get('feed_in_compensation'), (int,float)) else None),('Gaskosten',cc['gas']),('Vaste kosten / netbeheer',cc['grid_costs'])]
     for i,(lab,val) in enumerate(items):
         yy=y4+ch-28-i*8.6
         txt(c,margin+10,yy,lab,4.25); txt(c,margin+left1-8,yy,euro(val) if i<4 else 'apart op nota',4.25,TEXT,'Helvetica-Bold','right')

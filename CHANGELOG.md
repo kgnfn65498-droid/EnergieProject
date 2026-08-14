@@ -1,3 +1,10 @@
+## v32.0.35 — Pagina 2 onbekende terugleververgoeding
+
+- Herstelt de historische pagina-2-generator wanneer `feed_in_compensation` niet gevalideerd beschikbaar is en daarom `None` is.
+- De generator probeert niet langer `-None` te berekenen; onbekende terugleververgoeding blijft expliciet niet beschikbaar in plaats van als €0 te worden ingevuld.
+- Numerieke terugleververgoeding behoudt de bestaande negatieve presentatie in het kostenoverzicht.
+- Geen wijziging aan SlimmeMeterPortal-fallback, juli-brondata, automatische maandafsluiting, Crash Recovery, NextEnergy of `finalize_month`.
+
 ## v32.0.34 — SMP analyse/rapport-fallback
 
 - Gebruikt volledige SlimmeMeterPortal-maanddekking als expliciete fallback voor netafname, teruglevering en gas wanneer historische P1/P1g-detaildata ontbreekt of ongeldig is.
