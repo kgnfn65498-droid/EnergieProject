@@ -1,3 +1,11 @@
+## v32.0.38 — automatische publicatieketen end-to-end validatie
+
+- Onderhoudsrelease zonder functionele wijziging aan energie-, import-, rapport- of financiële logica.
+- Valideert de standaardketen Incoming -> watcher -> NAS -> publication-contract -> GitHub -> Home Assistant.
+- Behoudt dedicated Git-worktree, remote-baselinecontrole en verbod op force-push.
+- Behoudt watcher-retenties 999/999.
+- Automatische maandafsluiting blijft UIT; augustus 2026 blijft open.
+
 ## v32.0.37 — veilige standaard GitHub-publicatie
 
 - Herstelt de latente v32.0.36-installerfout waarbij `LOGDIR` werd gebruikt zonder definitie; toekomstige releases definiëren `LOGDIR="$INBOX/logs"` expliciet.
