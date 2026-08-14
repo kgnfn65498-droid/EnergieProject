@@ -18,8 +18,8 @@ jobs:
           python-version: '3.12'
       - name: Install test dependencies
         run: python -m pip install --disable-pip-version-check pytest reportlab pypdf
-      - name: Run crash recovery tests
-        run: pytest -q tests/test_crash_recovery_export.py tests/test_crash_recovery_download.py
+      - name: Run crash recovery and release identity tests
+        run: pytest -q tests/test_crash_recovery_export.py tests/test_crash_recovery_download.py tests/test_v32030_release_identity.py
 
   apply-main-filename-patch:
     runs-on: ubuntu-latest
