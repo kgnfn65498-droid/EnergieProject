@@ -1,3 +1,11 @@
+## v32.0.33 — Juli ingress/fallback
+
+- Maakt de vaste `Data/01_Input/YYYY_MM/HomeAssistant`-ingress veilig zelf aan wanneer die bij een historische maand nog ontbreekt.
+- SlimmeMeterPortal kan daardoor de volledige meterdata publiceren voor juli 2026, ook wanneer lokale P1/HomeWizard-historie pas halverwege juli beschikbaar kwam.
+- De bestaande `HomeAssistant/SlimmeMeterPortal`-structuur, staging/checksum/swap-publicatie en idempotency/completion-marker blijven intact.
+- Onbruikbare of onbeschrijfbare NAS-ingress blijft fail-closed.
+- Geen wijziging aan augustus 2026, Crash Recovery, watcher-cleanup, GitHub-publicatie of `finalize_month`.
+
 ## v32.0.32 — Crash Recovery watcher-cleanup
 
 - Verplaatst NAS-cleanup na een volledige Crash-Recovery-download van de Home Assistant-container naar de bestaande QNAP/Docker-watcher.

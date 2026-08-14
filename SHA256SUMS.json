@@ -1,5 +1,5 @@
 {
-  "version": "32.0.32",
+  "version": "32.0.33",
   "files": [
     {
       "path": ".gitignore",
@@ -13,8 +13,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "1cbf2333120d103ef1b5c63f07d8b6ced803860f6b867293001f5949abbbc69a",
-      "size": 65619
+      "sha256": "19a4a0e8900e07c962783fc5629480a5cbec211060cc8202638bb3ffdcdc18db",
+      "size": 66269
     },
     {
       "path": "INSTALL.md",
@@ -53,7 +53,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "e9a2fdcba9674b2bf9faf0a74d64d4e0c3e8eff0dfab298a4cc7dcb8a8552aa7",
+      "sha256": "d5591ac129e254eb4e87c32022c6bb6df2c3a0a790a31e7d005b1c96cb5f273f",
       "size": 8
     },
     {
@@ -68,8 +68,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "f0688a65d951df5aa1f3881c456f34f9d899c757932230f00a280fcbb6d7fd31",
-      "size": 819
+      "sha256": "e680c4e85f00cc28e2733e5609cc71bfac1b43b32c7c591cf421b12a0ec89ee1",
+      "size": 642
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -88,7 +88,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "572dfe9af3564918570e7e6950b4a7130fc0f746d3fbbf85971965268409160a",
+      "sha256": "7e23d40ad813d20fb96b980ce0d0eeca5218f3471e99143d6d2f76fcd791b20c",
       "size": 5801
     },
     {
@@ -98,8 +98,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "19dab99bfeb42c258a24cdbe2c9d9ebb0eba374c3f6436a854cdb54a07b8073b",
-      "size": 855837
+      "sha256": "6764fab460f641ed1d556c6a976853c705aafa0dadcb9f99b977b286c1722439",
+      "size": 855790
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -397,14 +397,19 @@
       "size": 1381
     },
     {
-      "path": "tests/test_static.py",
-      "sha256": "166aab99768a6f88c1844f541e742328765d2dc18b5dc0d74eeeafb6e04f1290",
-      "size": 236294
+      "path": "tests/test_july_ingress_fallback.py",
+      "sha256": "7225f977cd732fa9e813fc521bd4f507808c26c80a88bde2fef09dc3129a81f8",
+      "size": 1949
     },
     {
-      "path": "tests/test_v32032_release_identity.py",
-      "sha256": "13a04677287bfbe742cdd209831d99414604fdb528a657c0f60e32d95947bb5d",
-      "size": 1492
+      "path": "tests/test_static.py",
+      "sha256": "382b3dd6c40b63807031ed995b468093f3c124a4449afa032e90891a90533351",
+      "size": 236393
+    },
+    {
+      "path": "tests/test_v32033_release_identity.py",
+      "sha256": "7b59600bad3a5dde8a17be3c675c1b764455b7fbfcc84561ea0f5c957f49f9c9",
+      "size": 1644
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",

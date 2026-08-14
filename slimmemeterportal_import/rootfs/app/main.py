@@ -61,7 +61,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.32"
+APP_VERSION = "32.0.33"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -4230,15 +4230,15 @@ def publish_smp_import_to_nas_input(source: Path, month_key: str) -> dict[str, A
 
     destination_month = NAS_DATA_ROOT / "01_Input" / month_key
 
-    # v32.0.18: Home Assistant schrijft niet meer rechtstreeks in de NAS-maandroot.
-    # De door de NAS aangemaakte HomeAssistant-submap is de vaste HA-ingress.
+    # v32.0.33: de vaste HomeAssistant-ingress blijft leidend, maar mag niet
+    # afhankelijk zijn van eerder aanwezige lokale P1/HomeWizard-historie.
     ingress_root = destination_month / "HomeAssistant"
-    if not ingress_root.is_dir():
+    try:
+        ingress_root.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
         raise RuntimeError(
-            f"HA-ingress ontbreekt voor {month_key}: {ingress_root}. "
-            "Laat eerst de normale Home Assistant energiesnapshot/kwartiercollector "
-            "de maandmap voorbereiden."
-        )
+            f"HA-ingress kan niet worden voorbereid voor {month_key}: {ingress_root}: {exc}"
+        ) from exc
 
     destination_root = ingress_root / "SlimmeMeterPortal"
     staging = ingress_root / ".SlimmeMeterPortal.staging"
@@ -17813,7 +17813,7 @@ def main() -> None:
     )
     if processed_retention.get("status") == "ok":
         LOGGER.info(
-            "HA-app processed-retentie v32.0.32: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            "HA-app processed-retentie v32.0.33: OK before=%s after=%s keep=%s kept=%s removed=%s",
             processed_retention.get("before"),
             processed_retention.get("after"),
             processed_retention.get("keep"),
@@ -17822,7 +17822,7 @@ def main() -> None:
         )
     else:
         LOGGER.error(
-            "HA-app processed-retentie v32.0.32: FOUT %s",
+            "HA-app processed-retentie v32.0.33: FOUT %s",
             processed_retention.get("error"),
         )
     signal.signal(signal.SIGTERM, stop_handler)
