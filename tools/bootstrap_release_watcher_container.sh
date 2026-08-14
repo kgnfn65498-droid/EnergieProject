@@ -52,6 +52,8 @@ rmdir "$INBOX/.watcher.lock" 2>/dev/null || true
   -e ENERGIE_WATCH_INTERVAL=5 \
   -e ENERGIE_ZIP_STABLE_POLLS=3 \
   -e ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS=30 \
+  -e ENERGIE_BACKUP_RETENTION=999 \
+  -e ENERGIE_PROCESSED_RETENTION=999 \
   -v "$ROOT:/energy" \
   "$IMAGE" \
   sh /energy/App/tools/release_watcher.sh >/dev/null

@@ -1,5 +1,5 @@
 {
-  "version": "32.0.35",
+  "version": "32.0.36",
   "files": [
     {
       "path": ".gitignore",
@@ -13,8 +13,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "2c2ac664c7c0f5f160da55f5b62fdded1d0c7ec6482f0208ee29b9f1e7976570",
-      "size": 67912
+      "sha256": "873d664fe59cf2cb96dc7ce3dda58592b01b34e221043583584b1b86a11f9c8a",
+      "size": 68621
     },
     {
       "path": "INSTALL.md",
@@ -53,7 +53,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "4f33c11a154bfc08e7f33206daa97c4e52a5ffa98c0da651fc08cc81ff44c0c0",
+      "sha256": "e80733e123507227ebf2552ca2be04ff47b89b8675cfc00df2e6ef95a3f551e9",
       "size": 8
     },
     {
@@ -68,8 +68,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "d772a2f69ffd03160cc0b4feafc142b59add006e3ccb61c1257716db8af3af47",
-      "size": 409
+      "sha256": "6fcdb3bafb2406bcd003c9c660839d8aa35bc20ec751278e970eadec1f4588b8",
+      "size": 300
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -88,7 +88,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "e4322fd0ef99aacdd67797db685c4cce2ea8a3dcd1783a0b5de613cd564f540c",
+      "sha256": "cbd29573f20cb954e10e0d61bc671b6304e98f8966f68e545661786af72a0b72",
       "size": 5801
     },
     {
@@ -98,7 +98,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "eabe97f135b56caa24441be84d4f29117414f34cc815612b51202293f77664cc",
+      "sha256": "43083251b6dd00904d9bc6365756ad2687910f9bdf62e704669e32e7945f92c1",
       "size": 876891
     },
     {
@@ -408,18 +408,18 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "987bad6bee83c30b2b794d8ff5e56ab01796b660b03aaa7e2cbad0ff63c675a8",
+      "sha256": "966228ed80e405b4b24eba5d2d5f94a02cd8f8e44b66e5d84d70d4f3ac6690b9",
       "size": 236456
     },
     {
-      "path": "tests/test_v32035_release_identity.py",
-      "sha256": "500f097717e365c9e9553e34582953da492bca73f7ebe9264ca8b7efa9467a6e",
-      "size": 1718
+      "path": "tests/test_v32036_backup_permissions.py",
+      "sha256": "9f3f4fdfa4e0979a78f2adf6e3a48e975987cb6d2ed6fdddeee3ae41a63000ff",
+      "size": 1887
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
-      "sha256": "8972043dc14ea669dda19a6d57afbdcf58c1e10152852c0120020af33b604d1b",
-      "size": 2040
+      "sha256": "3654903d0a2ae51af82074ef13e8242ddbc0217aa6f0f736faf55c0b2d05aae3",
+      "size": 2115
     },
     {
       "path": "tools/crash_recovery_cleanup.py",
@@ -428,8 +428,8 @@
     },
     {
       "path": "tools/release_installer.sh",
-      "sha256": "421fb735f89cbee8693c76ca7589c9fd983ba6572f1bef38cd8d83745bf1a885",
-      "size": 14954
+      "sha256": "85c4f5c12ba0bfc512303ee561cdf110f4fc1974a26b6351c724d38d0ca9ee69",
+      "size": 15293
     },
     {
       "path": "tools/release_watcher.sh",

@@ -1,3 +1,13 @@
+## v32.0.36 — Crash-recovery backuprechten en watcher-retentie
+
+- QNAP `Backups` wordt bij normale release-installatie blijvend als gedeelde beheermap (`2775`) ingesteld.
+- Nieuwe pre-release backups krijgen groep `everyone` en modus `660`, zodat ze via Finder/SMB verwijderbaar blijven.
+- De watcher-bootstrap legt `ENERGIE_BACKUP_RETENTION=999` en `ENERGIE_PROCESSED_RETENTION=999` expliciet vast.
+- NAS-container crash-recovery blijft Finder/SMB-beheerbaar met ZIP/SHA/VERIFY op `660`.
+- Home Assistant app-identiteit is gesynchroniseerd op v32.0.36.
+- Geen wijziging aan energie-, rapport-, import- of financiële logica.
+- Automatische maandafsluiting blijft UIT; augustus 2026 wordt niet afgesloten.
+
 ## v32.0.35 — Pagina 2 onbekende terugleververgoeding
 
 - Herstelt de historische pagina-2-generator wanneer `feed_in_compensation` niet gevalideerd beschikbaar is en daarom `None` is.

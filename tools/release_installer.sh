@@ -228,7 +228,11 @@ fail(){
 
 trap 'cleanup' EXIT INT TERM
 
-mkdir -p "$INCOMING" "$PROCESSING" "$PROCESSED" "$FAILED" "$BACKUPS"
+mkdir -p "$INCOMING" "$PROCESSING" "$PROCESSED" "$FAILED" "$LOGDIR" "$BACKUPS"
+
+# v32.0.36: backups blijven via QNAP Finder/SMB door de beheerder verwijderbaar.
+chgrp everyone "$BACKUPS" 2>/dev/null || true
+chmod 2775 "$BACKUPS" || fail "Backups-map groepsbeheer instellen mislukt"
 mkdir "$LOCK" 2>/dev/null || { log "FOUT: installer is al actief"; exit 1; }
 log "FASE 1/8: inboxcontrole"
 
@@ -302,6 +306,8 @@ STAMP="$(date '+%Y%m%d-%H%M%S')"
 BACKUP="$BACKUPS/EnergieProject_pre_${NEW_VERSION}_${STAMP}.tar.gz"
 tar --exclude='./.git' -czf "$BACKUP" . || fail "backup maken mislukt"
 tar -tzf "$BACKUP" >/dev/null 2>&1 || fail "backup-validatie mislukt"
+chgrp everyone "$BACKUP" 2>/dev/null || true
+chmod 660 "$BACKUP" || fail "pre-release backup groepsrechten instellen mislukt"
 log "Backup gevalideerd: $BACKUP"
 
 log "FASE 5/8: release-worktree vervangen"
