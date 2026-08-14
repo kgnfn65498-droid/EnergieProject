@@ -1,3 +1,13 @@
+## v32.0.34 — SMP analyse/rapport-fallback
+
+- Gebruikt volledige SlimmeMeterPortal-maanddekking als expliciete fallback voor netafname, teruglevering en gas wanneer historische P1/P1g-detaildata ontbreekt of ongeldig is.
+- P1/P1g blijft per metriek leidend wanneer die bron geldig is; SMP wordt nooit bij P1 opgeteld, zodat dubbeltelling is uitgesloten.
+- Analyse en officiële rapportadapter gebruiken dezelfde bronselectie en leggen de gekozen bron per metriek vast.
+- Historische rapport-readiness accepteert complete SMP-kernmetriek zonder oude HomeWizard/socket/Enphase-detailbestanden verplicht te maken.
+- Succesvolle rapportage publiceert atomair naar `Data/02_Output/Rapportages/YYYY_MM`; voor de huidige reparatie is het doel `Rapportages/2026_07`.
+- Nieuwe gerichte actie `Herbouw historisch rapport` herstelt alleen analyse/rapport-output voor een bestaande maand en start geen 11-stappen-maandworkflow.
+- Geen wijziging aan augustus 2026, automatische maandafsluiting, Crash Recovery, NextEnergy-contractlogica of `finalize_month`.
+
 ## v32.0.33 — Juli ingress/fallback
 
 - Maakt de vaste `Data/01_Input/YYYY_MM/HomeAssistant`-ingress veilig zelf aan wanneer die bij een historische maand nog ontbreekt.

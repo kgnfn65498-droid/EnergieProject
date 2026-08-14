@@ -1,8 +1,10 @@
 # Changelog
 
-## 32.0.33 - Juli ingress/fallback
-- De vaste `Data/01_Input/YYYY_MM/HomeAssistant`-ingress wordt veilig en idempotent aangemaakt als die nog ontbreekt.
-- SlimmeMeterPortal-publicatie blijft daardoor mogelijk voor een afgesloten maand waarin lokale P1/HomeWizard-historie pas later in de maand beschikbaar kwam.
-- De bestaande `HomeAssistant/SlimmeMeterPortal`-layout, staging/checksum/swap-logica en duurzame completion-marker blijven ongewijzigd.
-- Een onbruikbare of onbeschrijfbare NAS-ingress blijft een harde fout.
-- Geen wijziging aan Crash Recovery, watcher-cleanup, GitHub-publicatie, augustus 2026 of `finalize_month`.
+## 32.0.34 - SMP analyse/rapport-fallback
+- Volledige SlimmeMeterPortal-dekking kan netafname, teruglevering en gas leveren wanneer historische P1/P1g-detaildata ontbreekt.
+- P1/P1g blijft per metriek leidend; SMP wordt nooit op dezelfde metriek opgeteld.
+- Analyse en rapportadapter gebruiken dezelfde bronselectie en tonen de gekozen bron.
+- Historische rapportage wordt niet meer overgeslagen alleen door ontbrekende HomeWizard/socket/Enphase-detailbestanden wanneer de SMP-kernmetriek volledig is.
+- Succesvolle rapportuitvoer wordt atomair gepubliceerd naar `Data/02_Output/Rapportages/YYYY_MM`, inclusief `2026_07`.
+- De gerichte actie `Herbouw historisch rapport` repareert rapportage zonder de maandworkflow opnieuw te starten.
+- Geen wijziging aan augustus 2026, automatische maandafsluiting, Crash Recovery, NextEnergy of `finalize_month`.

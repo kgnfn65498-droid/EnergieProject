@@ -61,7 +61,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.33"
+APP_VERSION = "32.0.34"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1473,7 +1473,7 @@ def validate_pre_report_workflow(
         if epex_status not in {"ok", "completed"}:
             errors.append(f"EPEX-validatie is niet gereed: {epex_status}.")
 
-    report_input = report_input_readiness(month_key, options)
+    report_input = report_input_readiness(month_key, options, historical=historical_mode)
     if report_input.get("status") != "ready":
         missing = list(report_input.get("missing") or [])
         empty = list(report_input.get("empty") or [])
@@ -1753,34 +1753,32 @@ def build_report_adapter_data(
     p1e_rows = read_csv_rows(input_folder / "P1e.csv")
     p1g_rows = read_csv_rows(input_folder / "P1g.csv")
     enphase_rows = read_csv_rows(input_folder / "Enphase.csv")
+    resolved_energy = _month_energy_metrics(month_key, input_folder=input_folder)
+    resolved_metrics = resolved_energy.get("metrics") or {}
+    resolved_quality = resolved_energy.get("quality") or {}
     report_financial = load_financial_analysis_for_report(input_folder, month_key)
     financial_context = report_financial.get("financial_context") or {}
     supplier_context = report_financial.get("supplier_context") or {}
     financial_projection = financial_context.get("financial_projection") or {}
     projection_detail = financial_context.get("projection_detail") or {}
 
-    import_kwh = cumulative_delta(
-        p1e_rows,
-        (
-            "total_power_import_kwh",
-            "energy_import_kwh",
-            "import_kwh",
-            "meter_reading_import_kwh",
-        ),
-    )
-    export_kwh = cumulative_delta(
-        p1e_rows,
-        (
-            "total_power_export_kwh",
-            "energy_export_kwh",
-            "export_kwh",
-            "meter_reading_export_kwh",
-        ),
-    )
-    gas_m3 = cumulative_delta(
-        p1g_rows,
-        ("total_gas_m3", "gas_m3", "meter_reading_gas_m3"),
-    )
+    import_kwh = resolved_metrics.get("grid_import_kwh")
+    export_kwh = resolved_metrics.get("grid_export_kwh")
+    gas_m3 = resolved_metrics.get("gas_m3")
+    missing_core = [
+        name for name, value in (
+            ("grid_import_kwh", import_kwh),
+            ("grid_export_kwh", export_kwh),
+            ("gas_m3", gas_m3),
+        ) if value is None
+    ]
+    if missing_core:
+        raise RuntimeError(
+            "Rapportadapter mist bruikbare kernmetriek(en): " + ", ".join(missing_core)
+        )
+    import_kwh = float(import_kwh)
+    export_kwh = float(export_kwh)
+    gas_m3 = float(gas_m3)
     production_kwh = cumulative_delta(
         enphase_rows,
         (
@@ -1978,6 +1976,12 @@ def build_report_adapter_data(
             "self_supply_pct": round(self_supply_pct, 3),
         },
         "files": [str(path) for path in outputs.values()],
+        "energy_sources": {
+            "grid_import": resolved_quality.get("grid_import_source"),
+            "grid_export": resolved_quality.get("grid_export_source"),
+            "gas": resolved_quality.get("gas_source"),
+            "solar_production": resolved_quality.get("production_source"),
+        },
         "financial_report_integration": {
             "analysis_source": report_financial.get("source"),
             "projection_status": financial_projection.get("status"),
@@ -2162,6 +2166,112 @@ def publish_month_output(
         report_output_last_folder=str(output_folder),
         report_output_last_files=published,
         report_output_last_error=None if not errors else "; ".join(errors),
+    )
+    return result
+
+
+def publish_durable_report_package(
+    handoff: dict[str, Any],
+    source_folder: Path,
+) -> dict[str, Any]:
+    """Atomically publish one validated report month into Data/02_Output/Rapportages."""
+    month_key = str(handoff.get("month") or "")
+    parse_month_key(month_key)
+    contract = handoff.get("output_contract") or {}
+    expected_names = [
+        str(contract.get("report_pdf") or ""),
+        str(contract.get("recovery_update_zip") or ""),
+    ]
+    errors: list[str] = []
+    sources: list[Path] = []
+    checksums: dict[str, str] = {}
+    for name in expected_names:
+        source = source_folder / name
+        if not name or not source.is_file() or source.stat().st_size == 0:
+            errors.append(f"Duurzame rapportuitvoer ontbreekt of is leeg: {source}")
+            continue
+        sources.append(source)
+        checksums[name] = sha256_file(source)
+
+    destination_root = NAS_DATA_ROOT / "02_Output" / "Rapportages"
+    destination = destination_root / month_key
+    staging = destination_root / f".{month_key}.staging"
+    backup = destination_root / f".{month_key}.backup"
+    if errors or len(sources) != 2:
+        return {
+            "version": APP_VERSION,
+            "status": "failed",
+            "month": month_key,
+            "folder": str(destination),
+            "files": [],
+            "errors": errors,
+        }
+
+    destination_root.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(staging, ignore_errors=True)
+    shutil.rmtree(backup, ignore_errors=True)
+    published: list[str] = []
+    try:
+        staging.mkdir(parents=True, exist_ok=False)
+        for source in sources:
+            target = staging / source.name
+            shutil.copy2(source, target)
+            if sha256_file(target) != checksums[source.name]:
+                raise RuntimeError(f"Checksum verschilt in rapportstaging: {target}")
+            published.append(str(destination / source.name))
+
+        manifest = {
+            "version": APP_VERSION,
+            "created_at": datetime.now(TZ).isoformat(),
+            "status": "completed",
+            "month": month_key,
+            "source_folder": str(source_folder),
+            "files": [
+                {
+                    "name": source.name,
+                    "sha256": checksums[source.name],
+                    "size_bytes": source.stat().st_size,
+                }
+                for source in sources
+            ],
+        }
+        write_atomic_json(staging / "report_manifest.json", manifest)
+
+        if destination.exists():
+            destination.replace(backup)
+        staging.replace(destination)
+        shutil.rmtree(backup, ignore_errors=True)
+    except Exception as exc:
+        shutil.rmtree(staging, ignore_errors=True)
+        if backup.exists():
+            if destination.exists():
+                shutil.rmtree(destination, ignore_errors=True)
+            backup.replace(destination)
+        return {
+            "version": APP_VERSION,
+            "status": "failed",
+            "month": month_key,
+            "folder": str(destination),
+            "files": [],
+            "errors": [f"{type(exc).__name__}: {exc}"],
+        }
+
+    result = {
+        "version": APP_VERSION,
+        "created_at": datetime.now(TZ).isoformat(),
+        "status": "completed",
+        "month": month_key,
+        "folder": str(destination),
+        "files": published,
+        "errors": [],
+    }
+    update_state(
+        durable_report_last_created=result["created_at"],
+        durable_report_last_month=month_key,
+        durable_report_last_status="completed",
+        durable_report_last_folder=str(destination),
+        durable_report_last_files=published,
+        durable_report_last_error=None,
     )
     return result
 
@@ -2638,10 +2748,22 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
 
     validation = validate_report_outputs(handoff, output_folder)
     publication = publish_month_output(handoff, work_folder)
+    durable_publication = (
+        publish_durable_report_package(handoff, output_folder)
+        if validation["status"] == "ok" and publication["status"] == "completed"
+        else {
+            "status": "failed",
+            "month": month_key,
+            "folder": str(NAS_DATA_ROOT / "02_Output" / "Rapportages" / month_key),
+            "files": [],
+            "errors": ["Duurzame publicatie overgeslagen omdat eerdere rapportvalidatie/publicatie niet groen is."],
+        }
+    )
     status = (
         "completed"
         if validation["status"] == "ok"
         and publication["status"] == "completed"
+        and durable_publication.get("status") == "completed"
         else "failed"
     )
     result = {
@@ -2653,6 +2775,7 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
         "merge": merge,
         "recovery": recovery,
         "publication": publication,
+        "durable_publication": durable_publication,
         "output_folder": str(output_folder),
         "validation": validation,
     }
@@ -2662,7 +2785,11 @@ def execute_local_report_service(options: Options, handoff_path: str | Path, han
         report_service_last_output=str(output_folder),
         report_service_last_error=(
             None if status == "completed"
-            else "; ".join(validation["errors"] + publication["errors"])
+            else "; ".join(
+                list(validation.get("errors") or [])
+                + list(publication.get("errors") or [])
+                + list(durable_publication.get("errors") or [])
+            )
         ),
     )
     return result
@@ -2825,7 +2952,12 @@ def audit_completed_month_workflow(month_key: str) -> dict[str, Any]:
 
 
 
-def validate_report_input_files(input_folder: Path) -> dict[str, Any]:
+def validate_report_input_files(
+    input_folder: Path,
+    *,
+    month_key: str | None = None,
+    historical: bool = False,
+) -> dict[str, Any]:
     expected = {
         "P1e.csv",
         "P1g.csv",
@@ -2844,9 +2976,41 @@ def validate_report_input_files(input_folder: Path) -> dict[str, Any]:
         if path.is_file() and path.stat().st_size > 0
     }
     missing = sorted(expected - found)
+    if historical and month_key:
+        resolved = _month_energy_metrics(month_key, input_folder=input_folder)
+        metrics = resolved.get("metrics") or {}
+        core = {
+            "grid_import_kwh": metrics.get("grid_import_kwh"),
+            "grid_export_kwh": metrics.get("grid_export_kwh"),
+            "gas_m3": metrics.get("gas_m3"),
+        }
+        missing_core = sorted(name for name, value in core.items() if value is None)
+        result = {
+            "status": "ok" if not missing_core else "error",
+            "input_folder": str(input_folder),
+            "historical": True,
+            "expected": sorted(expected),
+            "found": sorted(found),
+            "missing": missing_core,
+            "detail_files_missing": missing,
+            "core_metrics": core,
+            "energy_sources": {
+                "grid_import": (resolved.get("quality") or {}).get("grid_import_source"),
+                "grid_export": (resolved.get("quality") or {}).get("grid_export_source"),
+                "gas": (resolved.get("quality") or {}).get("gas_source"),
+            },
+        }
+        if missing_core:
+            raise RuntimeError(
+                "Historische rapportinput mist bruikbare kernmetriek(en): "
+                + ", ".join(missing_core)
+            )
+        return result
+
     result = {
         "status": "ok" if not missing else "error",
         "input_folder": str(input_folder),
+        "historical": False,
         "expected": sorted(expected),
         "found": sorted(found),
         "missing": missing,
@@ -2868,8 +3032,12 @@ def run_report_generation_from_handoff(
     handoff = load_report_handoff(handoff_path)
     handoff["_request_path"] = str(handoff_path)
     month_key = str(handoff["month"])
+    year, month = parse_month_key(month_key)
+    historical_mode = date(year, month, 1) < datetime.now(TZ).date().replace(day=1)
     input_validation = validate_report_input_files(
-        Path(str(handoff["input_folder"]))
+        Path(str(handoff["input_folder"])),
+        month_key=month_key,
+        historical=historical_mode,
     )
     validation = validate_report_handoff_files(handoff)
 
@@ -4230,7 +4398,7 @@ def publish_smp_import_to_nas_input(source: Path, month_key: str) -> dict[str, A
 
     destination_month = NAS_DATA_ROOT / "01_Input" / month_key
 
-    # v32.0.33: de vaste HomeAssistant-ingress blijft leidend, maar mag niet
+    # v32.0.34: de vaste HomeAssistant-ingress blijft leidend, maar mag niet
     # afhankelijk zijn van eerder aanwezige lokale P1/HomeWizard-historie.
     ingress_root = destination_month / "HomeAssistant"
     try:
@@ -5865,9 +6033,228 @@ def _epex_month_context(month_key: str) -> dict[str, Any]:
     }
 
 
-def _month_energy_metrics(month_key: str) -> dict[str, Any]:
+def _smp_numeric(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(str(value).replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+
+
+def _smp_usage_value(
+    usage: dict[str, Any],
+    primary: str,
+    high: str,
+    low: str,
+) -> tuple[float | None, bool]:
+    direct = _smp_numeric(usage.get(primary))
+    if direct is not None:
+        return direct, True
+    high_value = _smp_numeric(usage.get(high))
+    low_value = _smp_numeric(usage.get(low))
+    if high_value is None and low_value is None:
+        return None, False
+    return (high_value or 0.0) + (low_value or 0.0), True
+
+
+def _smp_source_candidates(month_key: str) -> list[Path]:
+    return [
+        NAS_DATA_ROOT / "01_Input" / month_key / "HomeAssistant" / "SlimmeMeterPortal",
+        NAS_DATA_ROOT / "01_Input" / month_key / "SlimmeMeterPortal",
+        OUTPUT_ROOT / month_key,
+    ]
+
+
+def load_smp_month_metrics(month_key: str) -> dict[str, Any]:
+    """Resolve authoritative closed-month grid/gas totals from SMP raw evidence."""
+    year, month = parse_month_key(month_key)
+    last_day = date(year, month, monthrange(year, month)[1]).isoformat()
+    base = {
+        "status": "unavailable",
+        "source": "SlimmeMeterPortal",
+        "source_root": None,
+        "coverage_status": "not_available",
+        "grid_import_kwh": None,
+        "grid_export_kwh": None,
+        "gas_m3": None,
+        "days_expected": 0,
+        "days_covered": 0,
+        "errors": [],
+    }
+    incomplete: dict[str, Any] | None = None
+    selected: Path | None = None
+    coverage: dict[str, Any] = {}
+    for candidate in _smp_source_candidates(month_key):
+        coverage_path = candidate / "content_coverage_report.json"
+        if not coverage_path.is_file():
+            continue
+        try:
+            value = json.loads(coverage_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            if incomplete is None:
+                incomplete = {
+                    **base,
+                    "status": "error",
+                    "source_root": str(candidate),
+                    "coverage_status": "unreadable",
+                    "errors": [f"content_coverage_report.json niet leesbaar: {exc}"],
+                }
+            continue
+        if not isinstance(value, dict):
+            continue
+        complete = bool(
+            value.get("status") == "ok"
+            and not (value.get("missing_days") or [])
+            and not (value.get("empty_days") or [])
+            and not (value.get("errors") or [])
+            and str(value.get("available_through") or "") == last_day
+            and str(value.get("calendar_expected_through") or last_day) == last_day
+        )
+        if complete:
+            selected = candidate
+            coverage = value
+            break
+        if incomplete is None:
+            incomplete = {
+                **base,
+                "status": "incomplete",
+                "source_root": str(candidate),
+                "coverage_status": str(value.get("status") or "incomplete"),
+                "days_expected": int(value.get("days_expected") or 0),
+                "days_covered": int(value.get("days_with_measurements") or 0),
+                "errors": list(value.get("errors") or []),
+            }
+
+    if selected is None:
+        return incomplete or base
+
+    raw_root = selected / "raw"
+    if not raw_root.is_dir():
+        return {
+            **base,
+            "status": "error",
+            "source_root": str(selected),
+            "coverage_status": "ok",
+            "days_expected": int(coverage.get("days_expected") or 0),
+            "days_covered": int(coverage.get("days_with_measurements") or 0),
+            "errors": [f"SMP raw-map ontbreekt: {raw_root}"],
+        }
+
+    import_total = 0.0
+    export_total = 0.0
+    gas_total = 0.0
+    import_seen = False
+    export_seen = False
+    gas_seen = False
+    gas_readings: list[float] = []
+    errors: list[str] = []
+    month_prefix = f"{year:04d}-{month:02d}-"
+
+    for raw_path in sorted(raw_root.glob("*.json")):
+        if month_prefix not in raw_path.name:
+            continue
+        connection_type = raw_path.name.split("_", 1)[0].strip().lower()
+        try:
+            payload = json.loads(raw_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            errors.append(f"{raw_path.name}: JSON niet leesbaar: {exc}")
+            continue
+        usages = payload.get("usages") if isinstance(payload, dict) else None
+        if not isinstance(usages, list):
+            errors.append(f"{raw_path.name}: usages ontbreekt of is geen lijst.")
+            continue
+        for usage in usages:
+            if not isinstance(usage, dict):
+                continue
+            if connection_type in {"elektriciteit", "electricity"}:
+                value, present = _smp_usage_value(
+                    usage,
+                    "delivery",
+                    "delivery_high",
+                    "delivery_low",
+                )
+                if present and value is not None:
+                    import_total += value
+                    import_seen = True
+                value, present = _smp_usage_value(
+                    usage,
+                    "returned_delivery",
+                    "returned_delivery_high",
+                    "returned_delivery_low",
+                )
+                if present and value is not None:
+                    export_total += value
+                    export_seen = True
+            elif connection_type == "gas":
+                delivery = _smp_numeric(usage.get("delivery"))
+                if delivery is not None:
+                    gas_total += delivery
+                    gas_seen = True
+                else:
+                    reading, reading_present = _smp_usage_value(
+                        usage,
+                        "delivery_reading_combined",
+                        "delivery_reading_high",
+                        "delivery_reading_low",
+                    )
+                    if not reading_present:
+                        reading = None
+                        for key in ("meter_reading_m3", "meter_reading", "reading", "meterstand"):
+                            reading = _smp_numeric(usage.get(key))
+                            if reading is not None:
+                                break
+                    if reading is not None:
+                        gas_readings.append(reading)
+
+    if errors:
+        return {
+            **base,
+            "status": "error",
+            "source_root": str(selected),
+            "coverage_status": "ok",
+            "days_expected": int(coverage.get("days_expected") or 0),
+            "days_covered": int(coverage.get("days_with_measurements") or 0),
+            "errors": errors,
+        }
+    if not gas_seen and len(gas_readings) >= 2:
+        gas_total = max(0.0, gas_readings[-1] - gas_readings[0])
+        gas_seen = True
+
+    return {
+        **base,
+        "status": "ready",
+        "source_root": str(selected),
+        "coverage_status": "ok",
+        "grid_import_kwh": _round_metric(import_total) if import_seen else None,
+        "grid_export_kwh": _round_metric(export_total) if export_seen else None,
+        "gas_m3": _round_metric(gas_total) if gas_seen else None,
+        "days_expected": int(coverage.get("days_expected") or 0),
+        "days_covered": int(coverage.get("days_with_measurements") or 0),
+        "errors": [],
+    }
+
+
+def _month_input_metric_allowed(folder: Path, filename: str) -> bool:
+    validation_path = folder / "month_input_validation.json"
+    if not validation_path.is_file():
+        return True
+    try:
+        validation = json.loads(validation_path.read_text(encoding="utf-8"))
+    except Exception:
+        return True
+    if not isinstance(validation, dict):
+        return True
+    if str(validation.get("status") or "").lower() in {"error", "failed", "invalid"}:
+        return False
+    blocked = set(validation.get("missing") or []) | set(validation.get("empty") or [])
+    blocked |= set(validation.get("missing_required") or []) | set(validation.get("empty_required") or [])
+    return filename not in blocked
+
+
+def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> dict[str, Any]:
     parse_month_key(month_key)
-    folder = MONTH_INPUT_ROOT / month_key
+    folder = input_folder or (MONTH_INPUT_ROOT / month_key)
     p1e_path = folder / "P1e.csv"
     p1g_path = folder / "P1g.csv"
     enphase_path = folder / "Enphase.csv"
@@ -5875,9 +6262,10 @@ def _month_energy_metrics(month_key: str) -> dict[str, Any]:
     p1g_rows = read_csv_rows(p1g_path)
     enphase_rows = read_csv_rows(enphase_path)
 
-    has_p1e = p1e_path.is_file() and bool(p1e_rows)
-    has_p1g = p1g_path.is_file() and bool(p1g_rows)
+    has_p1e = p1e_path.is_file() and bool(p1e_rows) and _month_input_metric_allowed(folder, "P1e.csv")
+    has_p1g = p1g_path.is_file() and bool(p1g_rows) and _month_input_metric_allowed(folder, "P1g.csv")
     has_enphase = enphase_path.is_file() and bool(enphase_rows)
+    smp = load_smp_month_metrics(month_key)
 
     import_kwh = cumulative_delta(
         p1e_rows,
@@ -5888,6 +6276,21 @@ def _month_energy_metrics(month_key: str) -> dict[str, Any]:
         ("total_power_export_kwh", "energy_export_kwh", "export_kwh", "meter_reading_export_kwh"),
     ) if has_p1e else None
     gas_m3 = cumulative_delta(p1g_rows, ("total_gas_m3", "gas_m3", "meter_reading_gas_m3")) if has_p1g else None
+
+    grid_import_source = "p1" if import_kwh is not None else "not_available"
+    grid_export_source = "p1" if export_kwh is not None else "not_available"
+    gas_source = "p1g" if gas_m3 is not None else "not_available"
+    if smp.get("status") == "ready":
+        if import_kwh is None and smp.get("grid_import_kwh") is not None:
+            import_kwh = float(smp["grid_import_kwh"])
+            grid_import_source = "slimmemeterportal_fallback"
+        if export_kwh is None and smp.get("grid_export_kwh") is not None:
+            export_kwh = float(smp["grid_export_kwh"])
+            grid_export_source = "slimmemeterportal_fallback"
+        if gas_m3 is None and smp.get("gas_m3") is not None:
+            gas_m3 = float(smp["gas_m3"])
+            gas_source = "slimmemeterportal_fallback"
+
     production_kwh = cumulative_delta(
         enphase_rows,
         ("energy_kwh", "lifetime_energy_kwh", "production_kwh", "value_kwh", "value"),
@@ -5930,6 +6333,8 @@ def _month_energy_metrics(month_key: str) -> dict[str, Any]:
             ("P1e", "P1e.csv"), ("P1g", "P1g.csv"), ("Enphase", "Enphase.csv"),
         ) if (folder / file_name).is_file()
     ]
+    if any(source == "slimmemeterportal_fallback" for source in (grid_import_source, grid_export_source, gas_source)):
+        available_sources.append("SlimmeMeterPortal")
 
     def metric(value: float | None) -> float | None:
         return _round_metric(value) if value is not None else None
@@ -5955,6 +6360,10 @@ def _month_energy_metrics(month_key: str) -> dict[str, Any]:
             "production_source": production_source,
             "solar_balance_status": solar_balance_status,
             "available_sources": available_sources,
+            "grid_import_source": grid_import_source,
+            "grid_export_source": grid_export_source,
+            "gas_source": gas_source,
+            "smp": smp,
             "missing_is_null": True,
         },
     }
@@ -10734,8 +11143,12 @@ def required_month_input_files(options: Options, *, historical: bool = False) ->
     return required
 
 
-def report_input_readiness(month_key: str, options: Options) -> dict[str, Any]:
-    """Check whether the official report chain has its complete input contract."""
+def report_input_readiness(
+    month_key: str,
+    options: Options,
+    historical: bool = False,
+) -> dict[str, Any]:
+    """Check whether the official report chain has usable month input."""
     folder = MONTH_INPUT_ROOT / month_key
     expected = expected_month_input_files(options)
     missing: list[str] = []
@@ -10746,9 +11159,36 @@ def report_input_readiness(month_key: str, options: Options) -> dict[str, Any]:
             missing.append(filename)
         elif path.stat().st_size == 0:
             empty.append(filename)
+
+    if historical:
+        resolved = _month_energy_metrics(month_key, input_folder=folder)
+        metrics = resolved.get("metrics") or {}
+        core = {
+            "grid_import_kwh": metrics.get("grid_import_kwh"),
+            "grid_export_kwh": metrics.get("grid_export_kwh"),
+            "gas_m3": metrics.get("gas_m3"),
+        }
+        missing_core = sorted(name for name, value in core.items() if value is None)
+        return {
+            "status": "ready" if not missing_core else "incomplete",
+            "folder": str(folder),
+            "historical": True,
+            "expected": expected,
+            "missing": sorted(missing),
+            "empty": sorted(empty),
+            "core_metrics": core,
+            "missing_core_metrics": missing_core,
+            "energy_sources": {
+                "grid_import": (resolved.get("quality") or {}).get("grid_import_source"),
+                "grid_export": (resolved.get("quality") or {}).get("grid_export_source"),
+                "gas": (resolved.get("quality") or {}).get("gas_source"),
+            },
+        }
+
     return {
         "status": "ready" if not missing and not empty else "incomplete",
         "folder": str(folder),
+        "historical": False,
         "expected": expected,
         "missing": sorted(missing),
         "empty": sorted(empty),
@@ -12526,8 +12966,8 @@ def run_full_month_workflow(
                 errors.append("Rapportoverdracht voorbereiden: report_handoff ontbreekt.")
                 failed_step = "Rapportoverdracht voorbereiden"
             else:
-                readiness = report_input_readiness(month_key, options)
                 historical_mode = not collect_live_snapshots
+                readiness = report_input_readiness(month_key, options, historical=historical_mode)
                 if historical_mode and readiness.get("status") != "ready":
                     now_iso = datetime.now(TZ).isoformat()
                     append_workflow_step(
@@ -13068,6 +13508,58 @@ def historical_month_allowed(month_key: str) -> str:
     if selected > current:
         raise ValueError("Een toekomstige maand kan niet worden afgesloten.")
     return f"{year:04d}_{month:02d}"
+
+
+def rebuild_historical_report(month_key: str) -> dict[str, Any]:
+    """Rebuild only analysis/report output for an already stored historical month."""
+    month_key = historical_month_allowed(month_key)
+    year, month = parse_month_key(month_key)
+    options = Options.load()
+    readiness = report_input_readiness(month_key, options, historical=True)
+    if readiness.get("status") != "ready":
+        raise RuntimeError(
+            "Historische rapportherbouw geblokkeerd; kernmetriek ontbreekt: "
+            + ", ".join(readiness.get("missing_core_metrics") or [])
+        )
+
+    input_folder = MONTH_INPUT_ROOT / month_key
+    if not input_folder.is_dir():
+        raise RuntimeError(f"Historische maandinput ontbreekt: {input_folder}")
+    transfer_folder = NAS_DATA_ROOT / "01_Input" / month_key
+    transfer_folder.mkdir(parents=True, exist_ok=True)
+
+    central_validation: dict[str, Any] = {"status": "ok", "source": "historical_smp_fallback"}
+    for candidate in _smp_source_candidates(month_key):
+        path = candidate / "central_validation.json"
+        if not path.is_file():
+            continue
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(value, dict):
+                central_validation = value
+                break
+        except Exception:
+            continue
+
+    handoff = create_report_handoff(
+        year,
+        month,
+        str(input_folder),
+        str(transfer_folder),
+        None,
+        central_validation,
+    )
+    result = run_report_generation_from_handoff(options, handoff["request"])
+    result = {**result, "targeted_rebuild": True, "month": month_key, "readiness": readiness}
+    update_state(
+        historical_report_rebuild_last_month=month_key,
+        historical_report_rebuild_last_status=result.get("status"),
+        historical_report_rebuild_last_result=result,
+        historical_report_rebuild_last_error=(
+            None if result.get("status") == "completed" else str(result.get("error") or result)
+        ),
+    )
+    return result
 
 
 def read_monitoring_status() -> dict[str, Any]:
@@ -15721,6 +16213,8 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 {resume_html}
 <form method="post" action="run-historical-month"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit" class="workflow-action"{disabled_attr}>Verwerk historische maand</button></form>
 <p class="hint">Bij historische verwerking worden geen live snapshots toegevoegd.</p>
+<form method="post" action="rebuild-historical-report"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit"{disabled_attr}>Herbouw historisch rapport</button></form>
+<p class="hint">Herbouwt alleen analyse/rapport-output voor een bestaande historische maand; start geen maandworkflow en raakt de lopende maand niet.</p>
 <form method="post" action="cancel"><button type="submit" class="danger">Annuleer actieve import</button></form>
 </div>
 <div class="control-group"><h3>Import en controle</h3>
@@ -17568,6 +18062,30 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
+        if path.endswith("/rebuild-historical-report") or path == "/rebuild-historical-report":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
+            selected = (form.get("month") or [""])[0].strip().replace("-", "_")
+            try:
+                result = rebuild_historical_report(selected)
+                code = HTTPStatus.OK if result.get("status") == "completed" else HTTPStatus.BAD_REQUEST
+            except Exception as exc:
+                result = {"status": "error", "error": str(exc)}
+                code = HTTPStatus.BAD_REQUEST
+            if code == HTTPStatus.OK:
+                self.send_redirect("./")
+            else:
+                self.send_body(
+                    code,
+                    (
+                        "<html><meta charset='utf-8'><p>"
+                        + html.escape(json.dumps(result, ensure_ascii=False))
+                        + "</p><p><a href='./'>Terug naar operationele console</a></p></html>"
+                    ).encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
+            return
+
         if path.endswith("/run-historical-month") or path == "/run-historical-month":
             length = int(self.headers.get("Content-Length", "0") or 0)
             form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
@@ -17813,7 +18331,7 @@ def main() -> None:
     )
     if processed_retention.get("status") == "ok":
         LOGGER.info(
-            "HA-app processed-retentie v32.0.33: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            "HA-app processed-retentie v32.0.34: OK before=%s after=%s keep=%s kept=%s removed=%s",
             processed_retention.get("before"),
             processed_retention.get("after"),
             processed_retention.get("keep"),
@@ -17822,7 +18340,7 @@ def main() -> None:
         )
     else:
         LOGGER.error(
-            "HA-app processed-retentie v32.0.33: FOUT %s",
+            "HA-app processed-retentie v32.0.34: FOUT %s",
             processed_retention.get("error"),
         )
     signal.signal(signal.SIGTERM, stop_handler)
