@@ -61,7 +61,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.31"
+APP_VERSION = "32.0.32"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -95,6 +95,8 @@ NAS_RELEASE_INBOX = NAS_RELEASE_ROOT / "incoming"
 NAS_RELEASE_PROCESSING = NAS_RELEASE_ROOT / "processing"
 NAS_RELEASE_ARCHIVE = NAS_RELEASE_ROOT / "processed"
 NAS_RELEASE_FAILED = NAS_RELEASE_ROOT / "failed"
+CRASH_RECOVERY_CLEANUP_REQUEST_PATH = NAS_RELEASE_ROOT / "crash_recovery_cleanup_request.json"
+CRASH_RECOVERY_CLEANUP_RESULT_PATH = NAS_RELEASE_ROOT / "crash_recovery_cleanup_result.json"
 NAS_V10_LAYOUT = {
     "App": NAS_PROJECT_ROOT,
     "Data": NAS_DATA_ROOT,
@@ -4818,9 +4820,10 @@ def _complete_recovery_state() -> dict[str, Any]:
         raw = json.loads(
             COMPLETE_CRASH_RECOVERY_STATE_PATH.read_text(encoding="utf-8")
         )
-        return raw if isinstance(raw, dict) else {}
+        state = raw if isinstance(raw, dict) else {}
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
+    return _reconcile_crash_recovery_cleanup_state(state)
 
 
 def _save_complete_recovery_state(state: dict[str, Any]) -> None:
@@ -5138,8 +5141,122 @@ def _validated_export_download_path(state: dict[str, Any]) -> Path:
     return candidate
 
 
+def _cleanup_request_identity(state: dict[str, Any]) -> tuple[str, str, str]:
+    backup_name = str(state.get("backup_name") or "").strip()
+    if (
+        not backup_name
+        or Path(backup_name).name != backup_name
+        or not re.fullmatch(r"Energie_Complete_Backup_[A-Za-z0-9_.-]+\.zip", backup_name)
+    ):
+        raise RuntimeError("Crash Recovery cleanup backupnaam is ongeldig.")
+
+    manifest_name = f"{Path(backup_name).stem}_manifest.json"
+    staging_raw = str(state.get("restore_staging_path") or "").strip()
+    staging_path = _recovery_path_to_project_backup(staging_raw)
+    staging_root = (PROJECT_BACKUP_ROOT / "RestoreStaging").resolve()
+    if (
+        not staging_raw.startswith("/recovery/RestoreStaging/")
+        or staging_path is None
+        or staging_path == staging_root
+        or staging_root not in staging_path.parents
+    ):
+        raise RuntimeError("Crash Recovery cleanup RestoreStaging-pad is ongeldig.")
+    return backup_name, manifest_name, staging_raw
+
+
+def _queue_crash_recovery_cleanup(state: dict[str, Any]) -> dict[str, Any]:
+    """Schrijf één strikt watcher-cleanupverzoek; nooit een willekeurig NAS-pad."""
+    if str(state.get("download_status") or "") != "downloaded":
+        raise RuntimeError("Crash Recovery cleanup mag pas na volledige download starten.")
+
+    backup_name, manifest_name, staging_raw = _cleanup_request_identity(state)
+    entropy = "|".join(
+        [
+            backup_name,
+            staging_raw,
+            str(state.get("export_sha256") or state.get("backup_sha256") or ""),
+            datetime.now(TZ).isoformat(),
+        ]
+    )
+    request_id = "cr-" + hashlib.sha256(entropy.encode("utf-8")).hexdigest()[:24]
+    request = {
+        "schema": 1,
+        "request_id": request_id,
+        "source_version": APP_VERSION,
+        "backup_name": backup_name,
+        "manifest_name": manifest_name,
+        "restore_staging_path": staging_raw,
+        "requested_at": datetime.now(TZ).isoformat(),
+    }
+    write_atomic_json(CRASH_RECOVERY_CLEANUP_REQUEST_PATH, request)
+    return request
+
+
+def _cleanup_result_for_request(request_id: str) -> dict[str, Any] | None:
+    if not request_id:
+        return None
+    try:
+        raw = json.loads(CRASH_RECOVERY_CLEANUP_RESULT_PATH.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(raw, dict) or str(raw.get("request_id") or "") != request_id:
+        return None
+    return raw
+
+
+def _reconcile_crash_recovery_cleanup_state(state: dict[str, Any]) -> dict[str, Any]:
+    """Reconcile watcherresultaat en migreer één oude v32.0.31 cleanup-warning veilig."""
+    if not isinstance(state, dict) or str(state.get("download_status") or "") != "downloaded":
+        return state
+
+    updated = dict(state)
+    request_id = str(updated.get("cleanup_request_id") or "").strip()
+    result = _cleanup_result_for_request(request_id)
+    if result is not None:
+        if str(result.get("status") or "") == "ok":
+            updated["cleanup_status"] = "ok"
+            updated["cleanup_removed"] = list(result.get("removed") or [])
+            updated["cleanup_already_absent"] = list(result.get("already_absent") or [])
+            updated["cleanup_warnings"] = list(result.get("warnings") or [])
+            updated["cleanup_checked_at"] = str(result.get("checked_at") or datetime.now(TZ).isoformat())
+        else:
+            updated["cleanup_status"] = "warning"
+            warnings = list(result.get("warnings") or [])
+            error = str(result.get("error") or "Watcher-cleanup is niet volledig geslaagd.")
+            if error:
+                warnings.append(error)
+            updated["cleanup_warnings"] = warnings
+            updated["cleanup_checked_at"] = str(result.get("checked_at") or datetime.now(TZ).isoformat())
+        if updated != state:
+            _save_complete_recovery_state(updated)
+        return updated
+
+    cleanup_status = str(updated.get("cleanup_status") or "")
+    old_version = str(updated.get("version") or "")
+    should_migrate = cleanup_status == "warning" and old_version == "32.0.31" and not request_id
+    should_recover_missing_request = cleanup_status == "pending_watcher" and not request_id
+    if should_migrate or should_recover_missing_request:
+        try:
+            request = _queue_crash_recovery_cleanup(updated)
+            updated["cleanup_status"] = "pending_watcher"
+            updated["cleanup_request_id"] = request["request_id"]
+            updated["cleanup_requested_at"] = request["requested_at"]
+            if should_migrate:
+                updated["cleanup_migrated_from"] = old_version
+            _save_complete_recovery_state(updated)
+        except Exception as exc:
+            updated["cleanup_status"] = "warning"
+            warnings = list(updated.get("cleanup_warnings") or [])
+            message = f"Watcher-cleanup kon niet worden aangeboden: {type(exc).__name__}: {exc}"
+            if message not in warnings:
+                warnings.append(message)
+            updated["cleanup_warnings"] = warnings
+            _save_complete_recovery_state(updated)
+    return updated
+
+
 def _cleanup_completed_export(state: dict[str, Any]) -> dict[str, Any]:
-    """Verwijder uitsluitend exact geregistreerde tijdelijke artefacten van deze run."""
+    """Ruim alleen de lokale browserexport op en draag NAS-cleanup over aan de watcher."""
     if str(state.get("download_status") or "") != "downloaded":
         return {
             "status": "error",
@@ -5158,67 +5275,28 @@ def _cleanup_completed_export(state: dict[str, Any]) -> dict[str, Any]:
             try:
                 if export_path.exists():
                     export_path.unlink()
-                    removed.append(str(export_path))
+                    removed.append("browser_export")
             except OSError as exc:
                 warnings.append(f"Export-ZIP cleanup mislukt: {exc}")
         else:
             warnings.append("Onveilig exportpad niet verwijderd.")
 
-    backup_name = str(state.get("backup_name") or "").strip()
-    if (
-        backup_name
-        and Path(backup_name).name == backup_name
-        and re.fullmatch(r"Energie_Complete_Backup_.*\.zip", backup_name)
-    ):
-        backup_root = PROJECT_BACKUP_ROOT.resolve()
-        backup_path = (backup_root / backup_name).resolve()
-        if backup_root in backup_path.parents:
-            try:
-                if backup_path.exists():
-                    backup_path.unlink()
-                    removed.append(str(backup_path))
-            except OSError as exc:
-                warnings.append(f"Complete-backup cleanup mislukt: {exc}")
-
-            manifest_name = f"{Path(backup_name).stem}_manifest.json"
-            manifest_path = (backup_root / "Manifests" / manifest_name).resolve()
-            manifests_root = (backup_root / "Manifests").resolve()
-            if manifests_root in manifest_path.parents:
-                try:
-                    if manifest_path.exists():
-                        manifest_path.unlink()
-                        removed.append(str(manifest_path))
-                except OSError as exc:
-                    warnings.append(f"Run-manifest cleanup mislukt: {exc}")
-    elif backup_name:
-        warnings.append("Niet-complete bronbackup bewust niet verwijderd.")
-
-    staging_raw = str(state.get("restore_staging_path") or "").strip()
-    if staging_raw:
-        if staging_raw.startswith("/recovery/RestoreStaging/"):
-            staging_path = _recovery_path_to_project_backup(staging_raw)
-            staging_root = (PROJECT_BACKUP_ROOT / "RestoreStaging").resolve()
-            if (
-                staging_path is not None
-                and staging_path != staging_root
-                and staging_root in staging_path.parents
-            ):
-                try:
-                    if staging_path.exists():
-                        if staging_path.is_dir():
-                            shutil.rmtree(staging_path)
-                        else:
-                            staging_path.unlink()
-                        removed.append(str(staging_path))
-                except OSError as exc:
-                    warnings.append(f"RestoreStaging cleanup mislukt: {exc}")
-        else:
-            warnings.append("Onveilig RestoreStaging-pad niet verwijderd.")
+    try:
+        request = _queue_crash_recovery_cleanup(state)
+    except Exception as exc:
+        warnings.append(f"Watcher-cleanup kon niet worden aangeboden: {type(exc).__name__}: {exc}")
+        return {
+            "status": "warning",
+            "removed": removed,
+            "warnings": warnings,
+        }
 
     return {
-        "status": "warning" if warnings else "ok",
+        "status": "pending_watcher",
         "removed": removed,
         "warnings": warnings,
+        "request_id": request["request_id"],
+        "requested_at": request["requested_at"],
     }
 
 
@@ -5267,6 +5345,9 @@ def _stream_complete_recovery_download(writer: Any) -> dict[str, Any]:
         updated["cleanup_status"] = str(cleanup.get("status") or "warning")
         updated["cleanup_removed"] = list(cleanup.get("removed") or [])
         updated["cleanup_warnings"] = list(cleanup.get("warnings") or [])
+        if cleanup.get("request_id"):
+            updated["cleanup_request_id"] = str(cleanup.get("request_id"))
+            updated["cleanup_requested_at"] = str(cleanup.get("requested_at") or "")
         updated["checked_at"] = datetime.now(TZ).isoformat()
         _save_complete_recovery_state(updated)
         return updated
@@ -16114,6 +16195,7 @@ function renderCompleteRecovery(result){{
     else if(result.status==='retry_available'||result.download_status==='retry_available') detail.textContent='De download is afgebroken; niets is opgeruimd. Je kunt opnieuw downloaden.';
     else if(result.status==='ready_for_download') detail.textContent='Crash Recovery is volledig geverifieerd en RestoreStaging is geslaagd. Download de ZIP en bewaar hem zelf in iCloud.';
     else if(result.status==='downloaded'&&result.cleanup_status==='ok') detail.textContent='Download afgerond; tijdelijke Crash-Recovery-bestanden op de NAS zijn opgeruimd.';
+    else if(result.status==='downloaded'&&result.cleanup_status==='pending_watcher') detail.textContent='Download afgerond; NAS-cleanup wordt automatisch door de watcher uitgevoerd.';
     else if(result.status==='downloaded') detail.textContent='Download afgerond; tijdelijke cleanup heeft aandacht nodig.';
     else if(result.restore_test_status==='staged') detail.textContent='Hersteltest geslaagd in geïsoleerde RestoreStaging.';
     else if(result.status==='verified') detail.textContent='Complete Crash Recovery is deep geverifieerd. Augustus/lopende maand is niet afgesloten.';
@@ -17731,7 +17813,7 @@ def main() -> None:
     )
     if processed_retention.get("status") == "ok":
         LOGGER.info(
-            "HA-app processed-retentie v32.0.31: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            "HA-app processed-retentie v32.0.32: OK before=%s after=%s keep=%s kept=%s removed=%s",
             processed_retention.get("before"),
             processed_retention.get("after"),
             processed_retention.get("keep"),
@@ -17740,7 +17822,7 @@ def main() -> None:
         )
     else:
         LOGGER.error(
-            "HA-app processed-retentie v32.0.31: FOUT %s",
+            "HA-app processed-retentie v32.0.32: FOUT %s",
             processed_retention.get("error"),
         )
     signal.signal(signal.SIGTERM, stop_handler)

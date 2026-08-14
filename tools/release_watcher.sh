@@ -24,6 +24,9 @@ WATCHER_LOCK="$INBOX/.watcher.lock"
 STATUSFILE="$INBOX/latest_release_status.txt"
 HEARTBEAT="$INBOX/.watcher.heartbeat"
 ZIP_HELPER_SOURCE="$PROJECT/tools/release_zip.py"
+CRASH_CLEANUP_REQUEST="$INBOX/crash_recovery_cleanup_request.json"
+CRASH_CLEANUP_RESULT="$INBOX/crash_recovery_cleanup_result.json"
+CRASH_CLEANUP_HELPER="$PROJECT/tools/crash_recovery_cleanup.py"
 HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
 INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"
 STABLE_POLLS="${ENERGIE_ZIP_STABLE_POLLS:-3}"
@@ -141,6 +144,34 @@ touch_heartbeat(){
   mv "$HEARTBEAT.tmp.$$" "$HEARTBEAT"
 }
 
+process_crash_recovery_cleanup(){
+  [ -f "$CRASH_CLEANUP_REQUEST" ] || return 0
+  if ! command -v python3 >/dev/null 2>&1; then
+    log "FOUT: Crash Recovery cleanup wacht; python3 ontbreekt in watchercontainer"
+    return 1
+  fi
+  if [ ! -f "$CRASH_CLEANUP_HELPER" ]; then
+    log "FOUT: Crash Recovery cleanup helper ontbreekt: $CRASH_CLEANUP_HELPER"
+    return 1
+  fi
+
+  if python3 "$CRASH_CLEANUP_HELPER" \
+      --root "$ROOT" \
+      --request "$CRASH_CLEANUP_REQUEST" \
+      --result "$CRASH_CLEANUP_RESULT" >> "$LOGDIR/release_watcher.log" 2>&1; then
+    log "Crash Recovery cleanup afgerond"
+    rm -f "$CRASH_CLEANUP_REQUEST" 2>/dev/null || log "WAARSCHUWING: cleanup-request kon na verwerking niet worden verwijderd"
+    return 0
+  fi
+
+  log "FOUT: Crash Recovery cleanup niet volledig geslaagd; resultaat blijft beschikbaar"
+  # Een geschreven resultaat is bewijs van een afgehandelde poging; verwijder het
+  # request om een oneindige 5-seconden-retrylus te voorkomen. HA kan veilig een
+  # nieuw request met dezelfde exacte artefacten aanbieden.
+  [ -f "$CRASH_CLEANUP_RESULT" ] && rm -f "$CRASH_CLEANUP_REQUEST" 2>/dev/null || true
+  return 1
+}
+
 run_installer(){
   [ -f "$INSTALLER_SOURCE" ] || { log "FOUT: installer ontbreekt: $INSTALLER_SOURCE"; return 1; }
   TMP_INSTALLER="/tmp/energie_release_installer.watcher.$$.sh"
@@ -215,6 +246,7 @@ fi
 
 while :; do
   touch_heartbeat
+  process_crash_recovery_cleanup || true
   set -- "$INCOMING"/*.zip
   if [ -e "$1" ]; then
     COUNT=$#

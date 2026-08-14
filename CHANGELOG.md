@@ -1,3 +1,13 @@
+## v32.0.32 — Crash Recovery watcher-cleanup
+
+- Verplaatst NAS-cleanup na een volledige Crash-Recovery-download van de Home Assistant-container naar de bestaande QNAP/Docker-watcher.
+- Home Assistant verwijdert alleen de lokale browserexport en schrijft daarna één strikt cleanup-verzoek met de exacte complete-backupnaam, het daarvan afgeleide manifest en één concrete RestoreStaging-run.
+- Nieuwe `tools/crash_recovery_cleanup.py` valideert alle paden opnieuw in de watchercontext; maandbackups, `FULL_RECOVERY*.tar.gz`, release-ZIP's en willekeurige paden zijn verboden.
+- Cleanup is idempotent: reeds verdwenen exacte runartefacten gelden als veilig afgehandeld.
+- Een gedownloade v32.0.31 Crash Recovery met cleanup-warning wordt zonder nieuwe backup/export automatisch opnieuw aan de watcher aangeboden.
+- De backend blijft GUI-onafhankelijk zodat dezelfde Crash-Recovery-keten later via een spraakopdracht kan worden gestart.
+- Geen wijziging aan maandafsluiting, juli-status, `finalize_month`, backupretentie of automatische iCloud-upload.
+
 ## v32.0.31 — Crash Recovery live-snapshot
 
 - Vervangt pad-specifieke heartbeat-uitzonderingen door een structurele live-snapshot per projectbestand.
