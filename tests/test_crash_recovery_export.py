@@ -3,6 +3,8 @@ import pathlib
 import sys
 import zipfile
 
+import pytest
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APP_ROOT = ROOT / "slimmemeterportal_import" / "rootfs" / "app"
 MODULE = APP_ROOT / "crash_recovery_export.py"
@@ -50,11 +52,16 @@ def _write(path: pathlib.Path, data: bytes = b"x") -> None:
     path.write_bytes(data)
 
 
-def test_build_export_contains_whole_project_except_explicit_exclusions(tmp_path):
-    m = load_export_module("crash_export_build")
+def _make_project(tmp_path: pathlib.Path) -> pathlib.Path:
     project = tmp_path / "EnergieProject"
     for root_name in ("App", "Data", "Backups", "Inbox", "Infra"):
         (project / root_name).mkdir(parents=True, exist_ok=True)
+    return project
+
+
+def test_build_export_contains_whole_project_except_explicit_exclusions(tmp_path):
+    m = load_export_module("crash_export_build")
+    project = _make_project(tmp_path)
 
     _write(project / "App" / "main.py", b"print('ok')\n")
     _write(project / "Data" / "02_Output" / "2026_07" / "rapport.pdf", b"PDF")
@@ -144,3 +151,75 @@ def test_sha256_file_is_stable(tmp_path):
     path = tmp_path / "x.bin"
     path.write_bytes(b"abc")
     assert m.sha256_file(path) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+
+
+def _mutate_after_member_is_written(monkeypatch, live_path: pathlib.Path, member_name: str, new_bytes: bytes) -> None:
+    original_write = zipfile.ZipFile.write
+    original_writestr = zipfile.ZipFile.writestr
+    changed = {"done": False}
+
+    def maybe_mutate(name: str) -> None:
+        if not changed["done"] and name == member_name:
+            live_path.write_bytes(new_bytes)
+            changed["done"] = True
+
+    def wrapped_write(self, filename, arcname=None, *args, **kwargs):
+        result = original_write(self, filename, arcname, *args, **kwargs)
+        maybe_mutate(str(arcname or filename).replace("\\", "/"))
+        return result
+
+    def wrapped_writestr(self, zinfo_or_arcname, data, *args, **kwargs):
+        result = original_writestr(self, zinfo_or_arcname, data, *args, **kwargs)
+        name = getattr(zinfo_or_arcname, "filename", zinfo_or_arcname)
+        maybe_mutate(str(name).replace("\\", "/"))
+        return result
+
+    monkeypatch.setattr(zipfile.ZipFile, "write", wrapped_write)
+    monkeypatch.setattr(zipfile.ZipFile, "writestr", wrapped_writestr)
+
+
+def test_build_export_snapshots_scheduler_heartbeat_while_live_file_keeps_changing(tmp_path, monkeypatch):
+    m = load_export_module("crash_export_heartbeat_snapshot")
+    project = _make_project(tmp_path)
+    heartbeat = project / "Data" / "01_Input" / "_scheduler" / "quarter_hour_heartbeat.json"
+    original = b'{"heartbeat":"before"}\n'
+    updated = b'{"heartbeat":"after"}\n'
+    _write(heartbeat, original)
+    _write(project / "App" / "main.py", b"ok\n")
+
+    _mutate_after_member_is_written(
+        monkeypatch,
+        heartbeat,
+        "EnergieProject/Data/01_Input/_scheduler/quarter_hour_heartbeat.json",
+        updated,
+    )
+
+    output = tmp_path / "heartbeat-export.zip"
+    result = m.build_recovery_export(project, output)
+
+    assert result.file_count == 2
+    assert heartbeat.read_bytes() == updated
+    with zipfile.ZipFile(output) as archive:
+        assert archive.read(
+            "EnergieProject/Data/01_Input/_scheduler/quarter_hour_heartbeat.json"
+        ) == original
+
+
+def test_build_export_still_rejects_other_project_file_changes(tmp_path, monkeypatch):
+    m = load_export_module("crash_export_other_mutation")
+    project = _make_project(tmp_path)
+    live = project / "Data" / "live.json"
+    _write(live, b'{"value":1}\n')
+    _write(project / "App" / "main.py", b"ok\n")
+
+    _mutate_after_member_is_written(
+        monkeypatch,
+        live,
+        "EnergieProject/Data/live.json",
+        b'{"value":2}\n',
+    )
+
+    output = tmp_path / "other-change-export.zip"
+    with pytest.raises(RuntimeError, match="Projectinhoud wijzigde"):
+        m.build_recovery_export(project, output)
+    assert not output.exists()

@@ -1,3 +1,10 @@
+## v32.0.30 — Crash Recovery heartbeat-snapshot
+
+- Crash Recovery legt `Data/01_Input/_scheduler/quarter_hour_heartbeat.json` als één stabiele byte-snapshot vast, zodat normale scheduler-heartbeats de export niet meer onterecht afbreken.
+- Alle andere projectbestanden blijven onder de bestaande strenge size/mtime-wijzigingscontrole; symlink- en backup-in-backup-regels blijven ongewijzigd.
+- Browserdownload krijgt de filesystem-veilige naam `YYYY-MM-DD HH.MM CrashRecovery EnergieProject.zip`.
+- Geen wijziging aan maandafsluiting, juli-status, `finalize_month`, RestoreStaging of normale backupretentie.
+
 ## v32.0.29 — Crash Recovery browser/iCloud export
 
 - Complete Crash Recovery levert na create/deep verify en veilige `RestoreStaging` één herstelvriendelijke browser-ZIP met exact top-level `EnergieProject/`.

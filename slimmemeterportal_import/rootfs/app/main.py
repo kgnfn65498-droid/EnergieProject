@@ -61,7 +61,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.0.29"
+APP_VERSION = "32.0.30"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -5274,6 +5274,11 @@ def _stream_complete_recovery_download(writer: Any) -> dict[str, Any]:
         COMPLETE_CRASH_RECOVERY_EXPORT_LOCK.release()
 
 
+def _crash_recovery_export_filename(now: datetime) -> str:
+    """Bestandsnaam voor browser/iCloud Crash Recovery zonder onveilige dubbele punt."""
+    return now.strftime("%Y-%m-%d %H.%M CrashRecovery EnergieProject.zip")
+
+
 def run_complete_crash_recovery_export(
     year: int | None = None,
     month: int | None = None,
@@ -5386,8 +5391,7 @@ def run_complete_crash_recovery_export(
 
         try:
             CRASH_RECOVERY_EXPORT_ROOT.mkdir(parents=True, exist_ok=True)
-            stamp = datetime.now(TZ).strftime("%Y%m%dT%H%M%S")
-            export_name = f"EnergieProject_Complete_Crash_Recovery_{stamp}.zip"
+            export_name = _crash_recovery_export_filename(datetime.now(TZ))
             export_path = CRASH_RECOVERY_EXPORT_ROOT / export_name
             built = build_recovery_export(NAS_LAYOUT_ROOT, export_path)
         finally:
@@ -17727,7 +17731,7 @@ def main() -> None:
     )
     if processed_retention.get("status") == "ok":
         LOGGER.info(
-            "HA-app processed-retentie v32.0.29: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            "HA-app processed-retentie v32.0.30: OK before=%s after=%s keep=%s kept=%s removed=%s",
             processed_retention.get("before"),
             processed_retention.get("after"),
             processed_retention.get("keep"),
@@ -17736,7 +17740,7 @@ def main() -> None:
         )
     else:
         LOGGER.error(
-            "HA-app processed-retentie v32.0.29: FOUT %s",
+            "HA-app processed-retentie v32.0.30: FOUT %s",
             processed_retention.get("error"),
         )
     signal.signal(signal.SIGTERM, stop_handler)
