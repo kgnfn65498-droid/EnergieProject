@@ -224,3 +224,11 @@ def test_download_route_is_real_get_endpoint():
     assert 'endswith("/api/crash-recovery/download")' in source
     assert 'Content-Type", "application/zip"' in source
     assert "Content-Disposition" in source
+
+
+def test_crash_recovery_export_filename_is_readable_and_filesystem_safe():
+    m = load_main("download_readable_filename")
+    when = m.datetime(2026, 8, 14, 10, 30, tzinfo=m.TZ)
+    name = m._crash_recovery_export_filename(when)
+    assert name == "2026-08-14 10.30 CrashRecovery EnergieProject.zip"
+    assert ":" not in name
