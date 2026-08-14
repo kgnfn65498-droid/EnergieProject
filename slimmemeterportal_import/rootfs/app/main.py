@@ -15745,6 +15745,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <div class="metric"><small>Status</small><strong id="complete-recovery-status">Nog niet uitgevoerd</strong></div>
 <div class="metric"><small>Backup</small><strong id="complete-recovery-name">-</strong></div>
 <div class="metric"><small>Deep verify</small><strong id="complete-recovery-count">-</strong></div>
+<div class="metric"><small>Export bestanden</small><strong id="complete-recovery-export-count">-</strong></div>
 <div class="metric"><small>SHA-256</small><strong id="complete-recovery-sha">-</strong></div>
 </div>
 <p>
@@ -16091,19 +16092,25 @@ function renderCompleteRecovery(result){{
   const status=document.getElementById('complete-recovery-status');
   const name=document.getElementById('complete-recovery-name');
   const count=document.getElementById('complete-recovery-count');
+  const exportCount=document.getElementById('complete-recovery-export-count');
   const sha=document.getElementById('complete-recovery-sha');
   const detail=document.getElementById('complete-recovery-detail');
   const stage=document.getElementById('run-complete-restore-staging-button');
   if(status) status.textContent=String(result.status||'Nog niet uitgevoerd');
-  if(name) name.textContent=String(result.backup_name||'-');
+  if(name) name.textContent=String(result.export_name||result.backup_name||'-');
   if(count){{
     const verified=Number(result.verified_files||0);
     const total=Number(result.manifest_file_count||0);
     count.textContent=(verified&&total)?`${{verified}} / ${{total}}`:'-';
   }}
-  if(sha) sha.textContent=String(result.sha256||'-');
+  if(exportCount) exportCount.textContent=String(result.export_file_count||'-');
+  if(sha) sha.textContent=String(result.export_sha256||result.backup_sha256||result.sha256||'-');
   if(detail){{
     if(result.error) detail.textContent=String(result.error);
+    else if(result.status==='retry_available'||result.download_status==='retry_available') detail.textContent='De download is afgebroken; niets is opgeruimd. Je kunt opnieuw downloaden.';
+    else if(result.status==='ready_for_download') detail.textContent='Crash Recovery is volledig geverifieerd en RestoreStaging is geslaagd. Download de ZIP en bewaar hem zelf in iCloud.';
+    else if(result.status==='downloaded'&&result.cleanup_status==='ok') detail.textContent='Download afgerond; tijdelijke Crash-Recovery-bestanden op de NAS zijn opgeruimd.';
+    else if(result.status==='downloaded') detail.textContent='Download afgerond; tijdelijke cleanup heeft aandacht nodig.';
     else if(result.restore_test_status==='staged') detail.textContent='Hersteltest geslaagd in geïsoleerde RestoreStaging.';
     else if(result.status==='verified') detail.textContent='Complete Crash Recovery is deep geverifieerd. Augustus/lopende maand is niet afgesloten.';
   }}
