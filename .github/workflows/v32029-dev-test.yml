@@ -23,7 +23,7 @@ jobs:
       - name: Apply guarded integration patch
         run: python tools/apply_v32029_crash_recovery_export.py
       - name: Run crash recovery export tests
-        run: pytest -q tests/test_crash_recovery_export.py tests/test_complete_crash_recovery_runtime.py tests/test_crash_recovery_download.py
+        run: pytest -q tests/test_crash_recovery_export.py tests/test_complete_crash_recovery_runtime.py tests/test_crash_recovery_download.py tests/test_crash_recovery_gui.py
       - name: Compile changed Python
         run: python -m py_compile slimmemeterportal_import/rootfs/app/main.py slimmemeterportal_import/rootfs/app/crash_recovery_export.py
       - name: Commit verified integration patch to feature branch
