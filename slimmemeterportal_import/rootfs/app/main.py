@@ -40,7 +40,7 @@ if str(APP_MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_MODULE_ROOT))
 from crash_recovery_export import build_recovery_export, verify_recovery_export, sha256_file
 from project_paths import resolve_nas_roots
-from historical_energy_excel import publish_historical_energy_workbook
+from historical_energy_excel import bootstrap_historical_energy_workbook, publish_historical_energy_workbook
 
 BASE_URL = "https://app.slimmemeterportal.nl"
 OPTIONS_PATH = Path("/data/options.json")
@@ -63,7 +63,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.1.0"
+APP_VERSION = "32.1.1"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -18552,7 +18552,7 @@ def main() -> None:
     )
     if processed_retention.get("status") == "ok":
         LOGGER.info(
-            "HA-app processed-retentie v32.1.0: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            "HA-app processed-retentie v32.1.1: OK before=%s after=%s keep=%s kept=%s removed=%s",
             processed_retention.get("before"),
             processed_retention.get("after"),
             processed_retention.get("keep"),
@@ -18561,7 +18561,7 @@ def main() -> None:
         )
     else:
         LOGGER.error(
-            "HA-app processed-retentie v32.1.0: FOUT %s",
+            "HA-app processed-retentie v32.1.1: FOUT %s",
             processed_retention.get("error"),
         )
     signal.signal(signal.SIGTERM, stop_handler)
@@ -18570,6 +18570,39 @@ def main() -> None:
     threading.Thread(target=scheduler, daemon=True).start()
     server = ThreadingHTTPServer(("0.0.0.0", 8099), Handler)
     LOGGER.info("SlimmeMeterPortal Import v%s gestart.", APP_VERSION)
+
+    def startup_historical_energy_excel() -> None:
+        try:
+            time.sleep(1)
+            result = bootstrap_historical_energy_workbook(NAS_LAYOUT_ROOT)
+            result = dict(result)
+            result["trigger"] = "startup-bootstrap"
+            result["finished_at"] = datetime.now(TZ).isoformat()
+            update_state(last_historical_energy_excel=result)
+            LOGGER.info(
+                "Historische Energie-Excel startup-bootstrap v%s: %s; maand=%s; master=%s; archief=%s",
+                APP_VERSION,
+                result.get("status"),
+                result.get("month"),
+                result.get("master"),
+                result.get("archive"),
+            )
+        except Exception as exc:
+            result = {
+                "status": "error",
+                "trigger": "startup-bootstrap",
+                "finished_at": datetime.now(TZ).isoformat(),
+                "error": f"{type(exc).__name__}: {exc}",
+                "previous_master_preserved": True,
+            }
+            update_state(last_historical_energy_excel=result)
+            LOGGER.exception("Historische Energie-Excel startup-bootstrap mislukt; app blijft beschikbaar.")
+
+    threading.Thread(
+        target=startup_historical_energy_excel,
+        daemon=True,
+        name="historical-energy-excel-startup",
+    ).start()
 
     def startup_self_test() -> None:
         try:

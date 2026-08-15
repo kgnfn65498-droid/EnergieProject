@@ -1,4 +1,4 @@
-# Testinstructies v32.1.0
+# Testinstructies v32.1.1
 
 ## Automatisch vóór release
 1. Python-syntaxcontrole op alle Pythonbestanden.
@@ -9,10 +9,11 @@
 6. Release-ZIP: `unzip -t`, MANIFEST.sha256 en SHA256SUMS.json volledig verifiëren.
 
 ## Home Assistant na installatie
-- Update naar 32.1.0 moet via de normale NAS → GitHub → Home Assistant-keten verschijnen.
+- Update naar 32.1.1 moet via de normale NAS → GitHub → Home Assistant-keten verschijnen.
 - Open de SlimmeMeterPortal GUI en controleer dat de app normaal start.
 - Automatische maandafsluiting moet UIT blijven.
-- Bij eerstvolgende gevalideerde volledige maand moet `Data/02_Output/Rapportages/Energie_verbruik_historie.xlsx` worden vernieuwd en een maandkopie onder `Rapportages/Archief` ontstaan.
+- Direct na app-start moet bij ontbrekende master automatisch `Data/02_Output/Rapportages/Energie_verbruik_historie.xlsx` ontstaan, plus het archief van de nieuwste volledig gevalideerde maand.
+- Hiervoor mag geen maandworkflow of maandafsluiting nodig zijn.
 - Bij een lopende maand mag de master PARTIEEL tonen, maar er mag nog geen bevroren archiefkopie voor die maand worden gemaakt.
 
 ## Bewezen releasepad behouden

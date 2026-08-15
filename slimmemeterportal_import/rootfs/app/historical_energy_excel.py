@@ -784,6 +784,93 @@ def build_historical_energy_workbook(
     return {"status":"ok","path":str(output_path),"month":month_key,"validation":validation}
 
 
+def latest_complete_month_key(project_root: Path) -> str:
+    """Return the newest fully validated calendar month available to the project."""
+    candidates: set[tuple[int, int]] = set()
+
+    for item in load_seed()["periods"]:
+        if str(item.get("status") or "").upper() != "VOLLEDIG":
+            continue
+        start = _parse_iso_date(item["from"])
+        candidates.add((start.year, start.month))
+
+    input_root = project_root / "Data" / "01_Input"
+    if input_root.is_dir():
+        for child in input_root.iterdir():
+            if not child.is_dir() or not re.fullmatch(r"\d{4}_(0[1-9]|1[0-2])", child.name):
+                continue
+            actuals = read_project_month_actuals(project_root, child.name)
+            if actuals is None:
+                continue
+            if str(actuals.get("status") or "").upper() == "VOLLEDIG":
+                candidates.add(_month_tuple(child.name))
+
+    if not candidates:
+        raise RuntimeError("Geen volledig gevalideerde maand beschikbaar voor Energiehistorie-bootstrap.")
+    year, month = max(candidates)
+    return f"{year:04d}_{month:02d}"
+
+
+def _build_missing_archive_without_replacing_master(project_root: Path, month_key: str) -> dict[str, Any]:
+    reports = project_root / MASTER_RELATIVE.parent
+    archive_root = project_root / ARCHIVE_RELATIVE
+    archive_root.mkdir(parents=True, exist_ok=True)
+    periods, target_status = periods_for_publish(project_root, month_key, include_partial_current=False)
+    if target_status != "VOLLEDIG":
+        raise RuntimeError(f"Bootstrap-archief vereist VOLLEDIG, gevonden: {target_status}")
+    archive_path = archive_root / f"Energie_verbruik_historie_{month_key}.xlsx"
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{archive_path.stem}.", suffix=".xlsx", dir=archive_root)
+    os.close(fd)
+    temp_path = Path(tmp_name)
+    try:
+        build_historical_energy_workbook(project_root, month_key, periods=periods, output_path=temp_path)
+        validation = validate_xlsx(temp_path)
+        if validation.get("status") != "ok":
+            raise RuntimeError("XLSX-validatie mislukt: " + "; ".join(validation.get("errors") or []))
+        temp_path.replace(archive_path)
+        return {
+            "status": "completed_archive_only",
+            "month": month_key,
+            "archive": str(archive_path),
+            "archive_sha256": _hash_file(archive_path),
+            "master_preserved": True,
+        }
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+def bootstrap_historical_energy_workbook(project_root: Path) -> dict[str, Any]:
+    """Ensure the first master and latest complete-month archive exist after app startup."""
+    month_key = latest_complete_month_key(project_root)
+    master = project_root / MASTER_RELATIVE
+    archive = project_root / ARCHIVE_RELATIVE / f"Energie_verbruik_historie_{month_key}.xlsx"
+
+    master_ok = master.is_file() and validate_xlsx(master).get("status") == "ok"
+    archive_ok = archive.is_file() and validate_xlsx(archive).get("status") == "ok"
+    if master_ok and archive_ok:
+        return {
+            "status": "skipped_existing",
+            "month": month_key,
+            "master": str(master),
+            "archive": str(archive),
+        }
+
+    if not master_ok:
+        result = publish_historical_energy_workbook(
+            project_root,
+            month_key,
+            include_partial_current=False,
+        )
+        result = dict(result)
+        result["bootstrap"] = True
+        return result
+
+    result = _build_missing_archive_without_replacing_master(project_root, month_key)
+    result["master"] = str(master)
+    result["bootstrap"] = True
+    return result
+
+
 def publish_historical_energy_workbook(
     project_root: Path,
     month_key: str,

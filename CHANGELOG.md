@@ -1,3 +1,11 @@
+## v32.1.1 — maandelijkse Energiehistorie Excel startup-bootstrap
+
+- Herstelt de ontbrekende eerste publicatie van `Energie_verbruik_historie.xlsx` na installatie van v32.1.0.
+- Bij app-start wordt, alleen wanneer nodig, de nieuwste volledig gevalideerde maand gekozen en de master automatisch opgebouwd zonder een maandworkflow te starten.
+- Als de master al geldig is maar het laatste maandarchief ontbreekt, wordt alleen dat archief opgebouwd; de bestaande master blijft intact.
+- De bootstrap is idempotent en blijft een niet-destructieve sidecar: fouten blokkeren de app of maandworkflow niet.
+- Automatische maandafsluiting blijft UIT; `finalize_month` wordt niet aangeroepen; watcher-retenties en normale Incoming → NAS → GitHub → HA-keten blijven ongewijzigd.
+
 ## v32.1.0 — maandelijkse Energiehistorie Excel
 
 - Maakt `Energie_verbruik_historie.xlsx` een niet-destructieve sidecar na een geslaagde maandworkflow; een Excel-fout maakt de maandworkflow zelf niet ongeldig.
