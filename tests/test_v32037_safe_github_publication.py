@@ -21,7 +21,7 @@ def test_v32037_dynamic_project_energie_mount_resolution():
         share = Path(td)
         mount = share / "Project Energie"
         (mount / "App").mkdir(parents=True)
-        (mount / "App" / "VERSIE.txt").write_text("32.1.2\n", encoding="utf-8")
+        (mount / "App" / "VERSIE.txt").write_text("32.1.3\n", encoding="utf-8")
         (mount / "Inbox").mkdir()
         resolved_mount, resolved_layout = module.resolve_nas_roots(share)
         assert resolved_mount == mount
@@ -31,10 +31,10 @@ def test_v32037_publication_contract_is_fail_closed():
     main = MAIN.read_text(encoding="utf-8")
     installer = INSTALLER.read_text(encoding="utf-8")
     config = CONFIG.read_text(encoding="utf-8")
-    assert 'version: "32.1.2"' in config
+    assert 'version: "32.1.3"' in config
     assert "automatic_month_close_enabled: false" in config
     assert "github_publication_enabled: true" in config
-    assert 'APP_VERSION = "32.1.2"' in main
+    assert 'APP_VERSION = "32.1.3"' in main
     assert 'HA_PUBLICATION_REQUIRED = NAS_RELEASE_ROOT / "ha_publication_required.json"' in main
     assert "def _load_github_publication_contract" in main
     assert "def _prepare_validated_publication_source" in main

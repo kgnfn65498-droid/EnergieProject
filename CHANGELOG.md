@@ -1,3 +1,12 @@
+## v32.1.3 — SMP maandtotalen uit meterstandgrenzen
+
+- Herstelt de historische Excel-bootstrap die op juli 2026 stopte met `Volledige historische actual wijkt af`.
+- Berekent SMP-maandtotalen primair uit cumulatieve begin/eind-meterstanden in plaats van de op 0,01 afgeronde kwartier-/uurverbruiken op te tellen.
+- Eerste intervalwaarde reconstrueert de exacte beginmeterstand wanneer de eerste registratie na 00:00 valt.
+- Valt alleen terug op som van intervalwaarden wanneer bruikbare cumulatieve meterstanden ontbreken.
+- Behoudt de bestaande conflictbeveiliging: echte afwijkingen tussen twee volledige historische actuals blijven geblokkeerd.
+- Automatische maandafsluiting blijft UIT; `finalize_month` wordt niet gebruikt.
+
 ## v32.1.2 — live NAS-resolutie voor Energiehistorie Excel
 
 - Oorzaak opgelost: de HA-app kon bij module-import een nog niet gemounte `/share` zien en daarna een lokale fallback blijven gebruiken, waardoor de Excel niet in het echte QNAP-project verscheen.

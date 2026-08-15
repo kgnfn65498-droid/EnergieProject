@@ -254,6 +254,16 @@ def _smp_csv_month_actuals(month_dir: Path, month_key: str) -> dict[str, Any] | 
     day_dates: set[date] = set()
 
     for csv_path in elec:
+        interval_import = 0.0
+        interval_export = 0.0
+        first_import_reading: float | None = None
+        first_export_reading: float | None = None
+        first_import_usage = 0.0
+        first_export_usage = 0.0
+        last_import_reading: float | None = None
+        last_export_reading: float | None = None
+        usage_index = 0
+        first_reading_index: int | None = None
         with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
             for row in csv.DictReader(handle):
                 usages = json.loads(row.get("usages") or "[]")
@@ -262,15 +272,69 @@ def _smp_csv_month_actuals(month_dir: Path, month_key: str) -> dict[str, Any] | 
                 for usage in usages:
                     delivery = (_dutch_number(usage.get("delivery_high")) or 0.0) + (_dutch_number(usage.get("delivery_low")) or 0.0)
                     returned = (_dutch_number(usage.get("returned_delivery_high")) or 0.0) + (_dutch_number(usage.get("returned_delivery_low")) or 0.0)
-                    import_kwh += delivery
-                    export_kwh += returned
+                    interval_import += delivery
+                    interval_export += returned
+                    import_reading = _dutch_number(usage.get("delivery_reading_combined"))
+                    export_reading = _dutch_number(usage.get("returned_delivery_reading_combined"))
+                    if import_reading is not None and export_reading is not None:
+                        if first_import_reading is None:
+                            first_import_reading = import_reading
+                            first_export_reading = export_reading
+                            first_import_usage = delivery
+                            first_export_usage = returned
+                            first_reading_index = usage_index
+                        last_import_reading = import_reading
+                        last_export_reading = export_reading
+                    usage_index += 1
+        if (
+            first_reading_index == 0
+            and first_import_reading is not None
+            and first_export_reading is not None
+            and last_import_reading is not None
+            and last_export_reading is not None
+            and last_import_reading >= first_import_reading - first_import_usage
+            and last_export_reading >= first_export_reading - first_export_usage
+        ):
+            # SMP-detailverbruiken zijn afgerond op 0,01. Over een hele maand kan
+            # de som daarvan afwijken van de echte meterstanddelta. Gebruik daarom
+            # de cumulatieve meterstanden aan de grenzen; de eerste intervalwaarde
+            # reconstrueert de meterstand op het begin van de maand.
+            import_kwh += last_import_reading - first_import_reading + first_import_usage
+            export_kwh += last_export_reading - first_export_reading + first_export_usage
+        else:
+            import_kwh += interval_import
+            export_kwh += interval_export
 
     for csv_path in gas_files:
+        interval_gas = 0.0
+        first_gas_reading: float | None = None
+        first_gas_usage = 0.0
+        last_gas_reading: float | None = None
+        usage_index = 0
+        first_reading_index: int | None = None
         with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
             for row in csv.DictReader(handle):
                 usages = json.loads(row.get("usages") or "[]")
                 for usage in usages:
-                    gas_m3 += _dutch_number(usage.get("delivery")) or 0.0
+                    delivery = _dutch_number(usage.get("delivery")) or 0.0
+                    interval_gas += delivery
+                    gas_reading = _dutch_number(usage.get("delivery_reading"))
+                    if gas_reading is not None:
+                        if first_gas_reading is None:
+                            first_gas_reading = gas_reading
+                            first_gas_usage = delivery
+                            first_reading_index = usage_index
+                        last_gas_reading = gas_reading
+                    usage_index += 1
+        if (
+            first_reading_index == 0
+            and first_gas_reading is not None
+            and last_gas_reading is not None
+            and last_gas_reading >= first_gas_reading - first_gas_usage
+        ):
+            gas_m3 += last_gas_reading - first_gas_reading + first_gas_usage
+        else:
+            gas_m3 += interval_gas
 
     year, month = (int(part) for part in month_key.split("_"))
     expected_days = calendar.monthrange(year, month)[1]

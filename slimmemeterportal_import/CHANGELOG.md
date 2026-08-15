@@ -1,7 +1,6 @@
 # Changelog
 
-## 32.1.2 - Live NAS-resolutie Energiehistorie Excel
-- Startup en maand-sidecar gebruiken de werkelijk gemounte NAS-root op uitvoermoment in plaats van de import-time fallback.
-- Wacht veilig op de netwerkshare zonder lokale projectmappen als fallback aan te maken.
-- Schrijft een bootstrap-statusbestand naast de historische master voor directe runtimecontrole.
-- Houdt automatische maandafsluiting uitgeschakeld en wijzigt de bestaande maanddata niet.
+## 32.1.3 - Betrouwbare SMP maandtotalen voor Energiehistorie Excel
+- Gebruikt cumulatieve meterstandgrenzen voor import, teruglevering en gas zodat afronding per kwartier/uur geen vals juli-conflict meer veroorzaakt.
+- Behoudt fallback naar intervalsom als meterstanden ontbreken.
+- Behoudt de historische conflictbeveiliging en automatische maandafsluiting UIT.
