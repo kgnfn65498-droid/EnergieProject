@@ -1,4 +1,4 @@
-# Testinstructies v32.2.0 — Knowledge Base
+# Testinstructies v32.2.1 — Knowledge Base
 
 ## Automatisch vóór release
 - Nieuwe v32.2-structuurtest moet eerst RED zijn op ongewijzigde v32.1.3-kopie en daarna GREEN na implementatie.
@@ -32,7 +32,7 @@
 - Automatische maandafsluiting blijft UIT; `finalize_month` wordt niet gebruikt.
 
 ## Home Assistant na installatie
-- Update naar 32.2.0 via de normale NAS → GitHub → Home Assistant-keten.
+- Update naar 32.2.1 via de normale NAS → GitHub → Home Assistant-keten.
 - Open de GUI en controleer dat de app normaal start.
 - Controleer `Structuurmigratie_v32.2_status.json`: status `completed`, canonical paths wijzen naar KnowledgeBase en Verbruikshistorie.
 - Controleer de bootstrapstatus in `Verbruikshistorie/`; bij reeds geldige master + juli-archief verwacht `skipped_existing`.
@@ -49,7 +49,7 @@
 6. Release-ZIP: `unzip -t`, MANIFEST.sha256 en SHA256SUMS.json volledig verifiëren.
 
 ## Home Assistant na installatie
-- Update naar 32.2.0 moet via de normale NAS → GitHub → Home Assistant-keten verschijnen.
+- Update naar 32.2.1 moet via de normale NAS → GitHub → Home Assistant-keten verschijnen.
 - Open de SlimmeMeterPortal GUI en controleer dat de app normaal start.
 - Automatische maandafsluiting moet UIT blijven.
 - Direct na app-start moet bij ontbrekende master automatisch `Data/02_Output/Rapportages/Verbruikshistorie/Energie_verbruik_historie.xlsx` ontstaan, plus het archief van de nieuwste volledig gevalideerde maand.
@@ -63,7 +63,7 @@
 Gebruik GEEN handmatige Git-commit of Git-push.
 Historische EPEX-referentiedekking voor juli liep eerder gedeeltelijk t/m 2026-07-29; v32.1 verandert die oude referentie niet.
 
-## Extra regressie v32.2.0
+## Extra regressie v32.2.1
 - `pytest -q tests/test_v3213_smp_meter_reading_totals.py`.
 - Na installatie en app-start moet `Data/02_Output/Rapportages/Verbruikshistorie/Energie_verbruik_historie_bootstrap_status.json` status `completed` tonen.
 - Daarna moeten `Energie_verbruik_historie.xlsx` en `Archief/Energie_verbruik_historie_2026_07.xlsx` bestaan.

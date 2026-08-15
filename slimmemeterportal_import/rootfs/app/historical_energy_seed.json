@@ -1,6 +1,6 @@
 {
   "schema": "energie_history_seed_v1",
-  "version": "32.2.0",
+  "version": "32.2.1",
   "generated_from": "Energie_verbruik_historie_SCHOON.xlsx + validated project history",
   "history_through": "2026-07-31",
   "periods": [

@@ -1,5 +1,5 @@
 {
-  "version": "32.2.0",
+  "version": "32.2.1",
   "files": [
     {
       "path": ".gitignore",
@@ -13,8 +13,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "26edf2788e6862ee63fb7f64d7d819a455a9c46fa4c82a35270fb6f0e503dc6b",
-      "size": 74882
+      "sha256": "77f92c229f2240ee7be61d2037c62cc5f143c8b60037d09fa155b54b799d2f51",
+      "size": 75925
     },
     {
       "path": "INSTALL.md",
@@ -48,12 +48,12 @@
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "sha256": "7fa1f462f6d0b283cafab69008186151a8ed78ade06b235d985276d5802da9c2",
+      "sha256": "372333e6ff16749b40e9357b2a2e8252df4833c4302bed5cd8a026eda23d6ecb",
       "size": 5237
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "36f1486a8d6833fc8a62d34f0daf41297c96ca8cb368dd5d8b52eec793df9e6a",
+      "sha256": "4c1dbf333f9469bdd54b851390e26451ae966096d6615d630c9c418a983c8b41",
       "size": 7
     },
     {
@@ -68,8 +68,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "2dd58e2b57f04925f0eb4a0b806e557ed404cd723a5195dd05a22d3284b46395",
-      "size": 372
+      "sha256": "40fbc780725beac89041e3e4734043684c0a62b7ea75b3890b72b5297992c7cf",
+      "size": 506
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -88,7 +88,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "98c0cb872c0148d44003afa16339ceb7a3ae0f33137f033c723687f219cbe6d1",
+      "sha256": "5bccb16eec489606b049102b041af2314396ec01a58b73845699ad1c18725939",
       "size": 5799
     },
     {
@@ -103,12 +103,12 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/historical_energy_seed.json",
-      "sha256": "3f290ff897a2870d60fc877b409d3e026db83ccc13fab8aa7d02e521630aa8cb",
+      "sha256": "3a7f5716bf0332acec3b06fb33961093579b9b37b168adcad75fc5c19dcfca68",
       "size": 79229
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "7743b27e031a4f2412678ef9f94facebe9ddc41674e857a334b10a21e8a7eec9",
+      "sha256": "24c2e66519003f5a274e00d6882c6c694fa8c46919da2b558155c4c2f5f6788f",
       "size": 889967
     },
     {
@@ -118,8 +118,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/project_structure.py",
-      "sha256": "93433c45ed63ca979d14061f486d1b78c20a7b5d3bd717ad9f5387cf20b7f36e",
-      "size": 15509
+      "sha256": "a0e21b6e74696aaac8d24254fd883785ca606f9baa32207d69c7022b05590934",
+      "size": 20360
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -433,37 +433,37 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "bf0be67dfde1a57f7b33f6ea3471a5d1d3c728a73ab4a5a9ffd6394693ba963d",
+      "sha256": "c0b291c2ee8c3dfc50f96ef1440c36fe3279e2e7b04316f65a6c33844b207693",
       "size": 236411
     },
     {
       "path": "tests/test_v32035_release_identity.py",
-      "sha256": "686f3225b55b5a7fcbda44e3f85eb740f291561389d53f3f3708a5811f4f85ad",
-      "size": 1775
+      "sha256": "bb320afaa6910ca1ba8944351f87d0965af90ac283b2558412cbbd34bc208baa",
+      "size": 1778
     },
     {
       "path": "tests/test_v32037_safe_github_publication.py",
-      "sha256": "39a89d41cf93e50eadc5cf08777fab91ab6414ecba0d9b2ce0f224db41182334",
+      "sha256": "bfd183165083720824e49d6711750f684bc24977abb073d6ebb2c980f699188b",
       "size": 3100
     },
     {
       "path": "tests/test_v32038_automatic_publication_chain.py",
-      "sha256": "9184eb9527e56b1ac00b9534ff7fe9f6811b98f61218c3ffb5eeafe61a913547",
+      "sha256": "8a5663517e5ef7d8450a2313c5a02be0ecadc12a5501a6ed7de886222e17b787",
       "size": 2571
     },
     {
       "path": "tests/test_v3210_historical_energy_excel.py",
-      "sha256": "a340375918678debf2fa3897b7125c6b477635d045614aec70a26648d1847380",
+      "sha256": "9411e3056d38d2a7e064c3dcbec5e0d0997969b7a5b41cc9b1e7f89ac166ad6d",
       "size": 2658
     },
     {
       "path": "tests/test_v3211_startup_excel_bootstrap.py",
-      "sha256": "bcd37a7e4f0b6dfa2cd1d299a0eb83c86faa640affcc40f76b30ac7edef7ad26",
+      "sha256": "7e6af3556be32b81c78a6b0b2b6c971c2d9841fc6be111307522cdae881b86cc",
       "size": 3022
     },
     {
       "path": "tests/test_v3212_startup_excel_live_nas.py",
-      "sha256": "0ab9b07c4e59c0d4d619da3f138a41261cc6d9ade940a0b727a7ebd9a890562f",
+      "sha256": "83a4a7396b7b1bdf5afa7e1e6d04a25d2ef3d08400c554460c826e7879797680",
       "size": 2499
     },
     {
@@ -473,8 +473,8 @@
     },
     {
       "path": "tests/test_v3220_knowledge_base_structure.py",
-      "sha256": "74f792b06cef0a73e8bbaf3653d029f7644fa0f3e3a3d6000226b393609e75a0",
-      "size": 7171
+      "sha256": "dfa674f2e1b808715bffdfd9447f53226effa2a99d59b866d904fe98de9f8254",
+      "size": 12828
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",

@@ -104,7 +104,7 @@ def test_v3220_conflict_is_fail_closed(tmp_path: Path):
 @pytest.mark.skipif(not STRUCTURE.is_file(), reason="RED gate")
 def test_v3220_main_migrates_before_bootstrap_and_sidecar():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.2.0"' in source
+    assert 'APP_VERSION = "32.2.1"' in source
     assert "from project_structure import HISTORICAL_BOOTSTRAP_STATUS_RELATIVE, migrate_project_structure" in source
     start = source.index("def startup_historical_energy_excel")
     end = source.index("threading.Thread(\n        target=startup_historical_energy_excel", start)
@@ -131,6 +131,111 @@ def test_v3220_active_writers_have_no_legacy_write_paths():
 
 
 def test_v3220_release_identity():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.2.0"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.2.1"
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
-    assert 'version: "32.2.0"' in config
+    assert 'version: "32.2.1"' in config
+
+@pytest.mark.skipif(not STRUCTURE.is_file(), reason="RED gate")
+def test_v3221_existing_readonly_knowledge_base_is_rehomed_without_data_loss(tmp_path: Path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("project_structure_v3221_readonly_kb", STRUCTURE)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+
+    reports = tmp_path / "Data/02_Output/Rapportages"
+    kb = reports / "KnowledgeBase"
+    kb.mkdir(parents=True)
+    (kb / "00_START_HIER.md").write_text("# start\n", encoding="utf-8")
+    (reports / "EnergieProject_Roadmap.md").write_text("# roadmap\n", encoding="utf-8")
+    (reports / "Apparatuur_index.md").write_text("# apparatuur\n", encoding="utf-8")
+    (reports / "Mobiele_socket_meetlog.md").write_text("# socket\n", encoding="utf-8")
+
+    real_probe = module._directory_accepts_atomic_write
+    original_kb = kb.resolve()
+
+    def fake_probe(path: Path) -> bool:
+        # Simuleer exact de QNAP-runtime: de reeds bestaande KB-map is niet
+        # schrijfbaar voor HA; een nieuw door HA aangemaakte KB-map wel.
+        if path.resolve() == original_kb and not (reports / ".KnowledgeBase_v32.2_rehome").exists():
+            return False
+        return real_probe(path)
+
+    monkeypatch.setattr(module, "_directory_accepts_atomic_write", fake_probe)
+    result = module.migrate_project_structure(tmp_path)
+
+    assert result["status"] == "completed"
+    assert result["knowledge_base_rehomed"] is True
+    assert (kb / "00_START_HIER.md").read_text(encoding="utf-8").startswith("# start")
+    assert (kb / "EnergieProject_Roadmap.md").is_file()
+    assert (kb / "Apparatuur_index.md").is_file()
+    assert (kb / "Mobiele_socket_meetlog.md").is_file()
+    assert not (reports / ".KnowledgeBase_v32.2_rehome").exists()
+
+@pytest.mark.skipif(not STRUCTURE.is_file(), reason="RED gate")
+def test_v3221_recovers_exact_partial_v3220_runtime_state(tmp_path: Path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("project_structure_v3221_partial", STRUCTURE)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+
+    reports = tmp_path / "Data/02_Output/Rapportages"
+    kb = reports / "KnowledgeBase"
+    history = reports / "Verbruikshistorie"
+    old_archive = reports / "Archief"
+    kb.mkdir(parents=True)
+    history.mkdir(parents=True)
+    old_archive.mkdir(parents=True)
+
+    # Exacte live toestand na de mislukte 32.2.0-startup: history-bestanden zijn
+    # al verhuisd, KnowledgeBase-doelen en juli-archief nog niet.
+    (history / "Energie_verbruik_historie.xlsx").write_bytes(b"master-live")
+    (history / "Energie_verbruik_historie_bootstrap_status.json").write_text('{"status":"error"}\n', encoding="utf-8")
+    (history / "Historische_data_index.md").write_text("# history\n", encoding="utf-8")
+    (history / "Energie_verbruik_historie_design.md").write_text("# design\n", encoding="utf-8")
+    (old_archive / "Energie_verbruik_historie_2026_07.xlsx").write_bytes(b"july-archive")
+    (reports / "EnergieProject_Roadmap.md").write_text("# roadmap\nData/02_Output/Rapportages/Energie_verbruik_historie.xlsx\n", encoding="utf-8")
+    (reports / "Apparatuur_index.md").write_text("# apparatuur\n", encoding="utf-8")
+    (reports / "Mobiele_socket_meetlog.md").write_text("# socket\n", encoding="utf-8")
+    (kb / "00_START_HIER.md").write_text("# start\nData/02_Output/Rapportages/EnergieProject_Roadmap.md\n", encoding="utf-8")
+
+    # Een bestaande, geldige pre-migratiebackup zoals live aanwezig.
+    backup_root = tmp_path / module.STRUCTURE_BACKUP_RELATIVE
+    backup_root.mkdir(parents=True)
+    backup_copy = backup_root / "Data/02_Output/Rapportages/KnowledgeBase/00_START_HIER.md"
+    backup_copy.parent.mkdir(parents=True)
+    backup_copy.write_text("# start\nData/02_Output/Rapportages/EnergieProject_Roadmap.md\n", encoding="utf-8")
+    manifest = {
+        "version": "32.2.0",
+        "files": [{
+            "path": "Data/02_Output/Rapportages/KnowledgeBase/00_START_HIER.md",
+            "sha256": hashlib.sha256(backup_copy.read_bytes()).hexdigest(),
+            "size": backup_copy.stat().st_size,
+        }],
+    }
+    (backup_root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    real_probe = module._directory_accepts_atomic_write
+    original_kb = kb.resolve()
+    def fake_probe(path: Path) -> bool:
+        if path.resolve() == original_kb and not (reports / ".KnowledgeBase_v32.2_rehome").exists():
+            return False
+        return real_probe(path)
+    monkeypatch.setattr(module, "_directory_accepts_atomic_write", fake_probe)
+
+    result = module.migrate_project_structure(tmp_path)
+    assert result["status"] == "completed"
+    assert result["knowledge_base_rehomed"] is True
+    assert (history / "Energie_verbruik_historie.xlsx").read_bytes() == b"master-live"
+    assert (history / "Archief/Energie_verbruik_historie_2026_07.xlsx").read_bytes() == b"july-archive"
+    assert (kb / "EnergieProject_Roadmap.md").is_file()
+    assert (kb / "Apparatuur_index.md").is_file()
+    assert (kb / "Mobiele_socket_meetlog.md").is_file()
+    assert not (reports / "EnergieProject_Roadmap.md").exists()
+    assert not (reports / "Apparatuur_index.md").exists()
+    assert not (reports / "Mobiele_socket_meetlog.md").exists()
+    assert not (old_archive / "Energie_verbruik_historie_2026_07.xlsx").exists()
+    assert (tmp_path / module.STRUCTURE_STATUS_RELATIVE).is_file()
+
+    second = module.migrate_project_structure(tmp_path)
+    assert second["status"] == "completed"
+    assert second["idempotent"] is True

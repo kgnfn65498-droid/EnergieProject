@@ -8,7 +8,7 @@ from pathlib import Path
 import shutil
 from typing import Any
 
-STRUCTURE_VERSION = "32.2.0"
+STRUCTURE_VERSION = "32.2.1"
 REPORTS_RELATIVE = Path("Data/02_Output/Rapportages")
 KNOWLEDGE_BASE_RELATIVE = REPORTS_RELATIVE / "KnowledgeBase"
 HISTORY_RELATIVE = REPORTS_RELATIVE / "Verbruikshistorie"
@@ -19,6 +19,7 @@ HISTORICAL_DESIGN_RELATIVE = HISTORY_RELATIVE / "Energie_verbruik_historie_desig
 HISTORICAL_BOOTSTRAP_STATUS_RELATIVE = HISTORY_RELATIVE / "Energie_verbruik_historie_bootstrap_status.json"
 STRUCTURE_STATUS_RELATIVE = KNOWLEDGE_BASE_RELATIVE / "Structuurmigratie_v32.2_status.json"
 STRUCTURE_BACKUP_RELATIVE = Path("Backups/StructureMigration_v32.2/pre_migration")
+KNOWLEDGE_BASE_REHOME_RELATIVE = REPORTS_RELATIVE / ".KnowledgeBase_v32.2_rehome"
 
 LEGACY_MASTER_RELATIVE = REPORTS_RELATIVE / "Energie_verbruik_historie.xlsx"
 LEGACY_ARCHIVE_RELATIVE = REPORTS_RELATIVE / "Archief"
@@ -80,6 +81,120 @@ LOCATION_MARKER = "<!-- V32.2 LOCATION CONTRACT -->"
 class StructureMigrationConflict(RuntimeError):
     pass
 
+
+
+def _directory_accepts_atomic_write(directory: Path) -> bool:
+    """Return True only when this runtime can create and atomically publish a file."""
+    directory.mkdir(parents=True, exist_ok=True)
+    probe = directory / f".v3221-write-probe.{os.getpid()}.tmp"
+    published = directory / f".v3221-write-probe.{os.getpid()}.ok"
+    try:
+        probe.write_text("probe\n", encoding="utf-8")
+        os.replace(probe, published)
+        published.unlink()
+        return True
+    except OSError:
+        try:
+            probe.unlink(missing_ok=True)
+        except OSError:
+            pass
+        try:
+            published.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return False
+
+
+def _tree_file_hashes(root: Path) -> dict[str, str]:
+    hashes: dict[str, str] = {}
+    if not root.exists():
+        return hashes
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink():
+            raise StructureMigrationConflict(f"Symlink niet toegestaan in KnowledgeBase-rehome: {path}")
+        if path.is_file():
+            hashes[path.relative_to(root).as_posix()] = _sha256(path)
+    return hashes
+
+
+def _copy_tree_verified(source: Path, target: Path) -> None:
+    source_hashes = _tree_file_hashes(source)
+    target.mkdir(parents=True, exist_ok=True)
+    for relative, expected in source_hashes.items():
+        src = source / relative
+        dst = target / relative
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
+        if _sha256(dst) != expected:
+            raise StructureMigrationConflict(f"KnowledgeBase-rehome hash wijkt af: {relative}")
+    if _tree_file_hashes(target) != source_hashes:
+        raise StructureMigrationConflict("KnowledgeBase-rehome boom wijkt af na kopie")
+
+
+def _ensure_writable_knowledge_base(project_root: Path) -> bool:
+    """Rehome a pre-existing KB directory when HA cannot atomically write in it.
+
+    QNAP report tooling can create a directory with ownership/ACL different from
+    the Home Assistant add-on. Renaming from the writable parent preserves the
+    original byte-for-byte while a new runtime-owned directory is created.
+    """
+    kb = project_root / KNOWLEDGE_BASE_RELATIVE
+    rehome = project_root / KNOWLEDGE_BASE_REHOME_RELATIVE
+
+    if not kb.exists():
+        if rehome.exists():
+            kb.mkdir(parents=True, exist_ok=True)
+            _copy_tree_verified(rehome, kb)
+            if not _directory_accepts_atomic_write(kb):
+                raise StructureMigrationConflict("Nieuwe KnowledgeBase-map blijft niet schrijfbaar")
+            return True
+        kb.mkdir(parents=True, exist_ok=True)
+        if not _directory_accepts_atomic_write(kb):
+            raise StructureMigrationConflict("Nieuwe KnowledgeBase-map is niet schrijfbaar")
+        return False
+
+    if not kb.is_dir() or kb.is_symlink():
+        raise StructureMigrationConflict(f"KnowledgeBase is geen gewone map: {KNOWLEDGE_BASE_RELATIVE}")
+
+    if _directory_accepts_atomic_write(kb):
+        if rehome.exists():
+            original_paths = set(_tree_file_hashes(rehome))
+            current_paths = set(_tree_file_hashes(kb))
+            missing = sorted(original_paths - current_paths)
+            if missing:
+                raise StructureMigrationConflict(f"Achtergebleven KnowledgeBase-rehome mist actief bestand: {missing[0]}")
+            return True
+        return False
+
+    if rehome.exists():
+        raise StructureMigrationConflict("KnowledgeBase is niet schrijfbaar en rehome-backup bestaat al")
+
+    kb.rename(rehome)
+    kb.mkdir(parents=True, exist_ok=True)
+    try:
+        _copy_tree_verified(rehome, kb)
+        if not _directory_accepts_atomic_write(kb):
+            raise StructureMigrationConflict("Gerehomede KnowledgeBase-map is niet schrijfbaar")
+    except Exception:
+        # Laat de originele rehome-map altijd staan voor herstelbewijs.
+        raise
+    return True
+
+
+def _finish_knowledge_base_rehome(project_root: Path, rehomed: bool) -> None:
+    if not rehomed:
+        return
+    rehome = project_root / KNOWLEDGE_BASE_REHOME_RELATIVE
+    kb = project_root / KNOWLEDGE_BASE_RELATIVE
+    if rehome.is_dir():
+        original_paths = set(_tree_file_hashes(rehome))
+        current_paths = set(_tree_file_hashes(kb))
+        missing = sorted(original_paths - current_paths)
+        if missing:
+            raise StructureMigrationConflict(f"Rehome-opruiming geblokkeerd; bestand ontbreekt: {missing[0]}")
+        # De pre-migratiebackup bevat de originele hashes. Na succesvolle
+        # document-rewrite mogen actieve Markdownbestanden bewust verschillen.
+        shutil.rmtree(rehome)
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -213,8 +328,8 @@ def _rewrite_active_docs(project_root: Path) -> list[str]:
     changed: list[str] = []
     location_block = (
         "\n\n" + LOCATION_MARKER + "\n"
-        "## Actueel locatiecontract v32.2.0\n\n"
-        "Vanaf v32.2.0 zijn de canonieke actieve locaties:\n"
+        "## Actueel locatiecontract v32.2.1\n\n"
+        "Vanaf v32.2.1 zijn de canonieke actieve locaties:\n"
         "- Knowledge Base + Roadmap + apparatuur-/socketindex: `Data/02_Output/Rapportages/KnowledgeBase/`.\n"
         "- Historische energie-master, bronindex, bootstrapstatus en maandarchief: `Data/02_Output/Rapportages/Verbruikshistorie/`.\n"
         "- Eerdere locatiebeschrijvingen in historische passages zijn niet leidend voor actuele vragen.\n"
@@ -258,7 +373,6 @@ def _write_status(project_root: Path, payload: dict[str, Any]) -> None:
 
 def migrate_project_structure(project_root: Path) -> dict[str, Any]:
     project_root = Path(project_root)
-    (project_root / KNOWLEDGE_BASE_RELATIVE).mkdir(parents=True, exist_ok=True)
     (project_root / HISTORY_RELATIVE).mkdir(parents=True, exist_ok=True)
     (project_root / HISTORY_ARCHIVE_RELATIVE).mkdir(parents=True, exist_ok=True)
 
@@ -294,6 +408,7 @@ def migrate_project_structure(project_root: Path) -> dict[str, Any]:
         "status": "not_needed",
     }
 
+    knowledge_base_rehomed = _ensure_writable_knowledge_base(project_root)
     moves = [_copy_verify_remove(project_root, source_rel, target_rel) for source_rel, target_rel in all_pairs]
     _cleanup_legacy_archive(project_root)
     changed_docs = _rewrite_active_docs(project_root)
@@ -305,6 +420,7 @@ def migrate_project_structure(project_root: Path) -> dict[str, Any]:
         "backup": STRUCTURE_BACKUP_RELATIVE.as_posix() if manifest.get("files") else None,
         "moves": moves,
         "changed_docs": changed_docs,
+        "knowledge_base_rehomed": knowledge_base_rehomed,
         "canonical": {
             "knowledge_base": KNOWLEDGE_BASE_RELATIVE.as_posix(),
             "roadmap": ROADMAP_RELATIVE.as_posix(),
@@ -314,4 +430,5 @@ def migrate_project_structure(project_root: Path) -> dict[str, Any]:
         },
     }
     _write_status(project_root, payload)
+    _finish_knowledge_base_rehome(project_root, knowledge_base_rehomed)
     return payload

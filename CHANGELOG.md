@@ -1,3 +1,12 @@
+## v32.2.1 — Knowledge Base NAS-permissieherstel
+
+- Herstelt de live v32.2.0-startupfout waarbij een reeds via de NAS/MCP aangemaakte `KnowledgeBase/` niet atomair beschrijfbaar was door de Home Assistant-runtime.
+- Detecteert de schrijfbaarheid met een echte create/atomic-replace probe in plaats van alleen POSIX-modusbits.
+- Rehomet een niet-schrijfbare bestaande KnowledgeBase veilig via de schrijfbare rapportroot, kopieert alle bestaande bestanden met SHA-256-verificatie terug en verwijdert de tijdelijke rehome-map pas na volledig geslaagde migratiestatus.
+- Kan de exact half-uitgevoerde v32.2.0-toestand hervatten: reeds verhuisde history-bestanden blijven behouden; Roadmap, apparatuurindex, mobiele-socketlog en juli-archief worden daarna alsnog verplaatst.
+- De bestaande `Backups/StructureMigration_v32.2/pre_migration/manifest.json` blijft herstelbewijs en wordt gevalideerd en hergebruikt.
+- Geen wijziging aan energieactuals, Excel-berekeningen, automatische maandafsluiting, `finalize_month`, watcherketen of rapportkern.
+
 ## v32.2.0 — Knowledge Base
 
 - Centraliseert actieve Knowledge Base, Roadmap, apparatuurindex en mobiele-socketlog onder `Data/02_Output/Rapportages/KnowledgeBase/`.
