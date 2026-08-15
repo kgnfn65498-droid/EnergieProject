@@ -1,3 +1,14 @@
+## v32.1.0 — maandelijkse Energiehistorie Excel
+
+- Maakt `Energie_verbruik_historie.xlsx` een niet-destructieve sidecar na een geslaagde maandworkflow; een Excel-fout maakt de maandworkflow zelf niet ongeldig.
+- Bouwt iedere run vanuit een schoon workbook; geen patch/re-export-keten, macro’s, PowerQuery of werkbladformules.
+- Kalenderjaar is primair voor dashboards en jaar-op-jaarvergelijkingen; contract-/afrekenjaren blijven apart.
+- Herbouwt uit de historische seed plus alle volledig gevalideerde projectmaanden t/m de doelmaand, zodat eerdere nieuwe maanden bij volgende runs behouden blijven.
+- Volledige maand: atomische masterpublicatie plus byte-identiek maandarchief `Archief/Energie_verbruik_historie_YYYY_MM.xlsx`.
+- Lopende/onvolledige maand blijft PARTIEEL en krijgt geen bevroren maandarchief.
+- Regressiebeveiliging tegen 2008-datumverschuiving, corrupte Excel-reparatiemelding, overlap/dubbeltelling en overschrijven van een geldige master bij buildfout.
+- Automatische maandafsluiting blijft UIT; `finalize_month` wordt niet gebruikt. Watcher-retenties blijven 999/999 en de bewezen NAS -> GitHub -> Home Assistant-keten blijft behouden.
+
 ## v32.0.38 — automatische publicatieketen end-to-end validatie
 
 - Onderhoudsrelease zonder functionele wijziging aan energie-, import-, rapport- of financiële logica.
