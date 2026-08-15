@@ -20,7 +20,7 @@ def _load_paths():
 def _make_layout(root: Path) -> Path:
     layout = root / "Project Energie"
     (layout / "App").mkdir(parents=True)
-    (layout / "App" / "VERSIE.txt").write_text("32.1.3\n", encoding="utf-8")
+    (layout / "App" / "VERSIE.txt").write_text("32.2.0\n", encoding="utf-8")
     (layout / "Inbox").mkdir()
     return layout
 
@@ -47,18 +47,20 @@ def test_wait_for_live_nas_retries_instead_of_returning_unmounted_fallback(tmp_p
 
 def test_startup_excel_uses_fresh_live_nas_root_and_writes_status_file():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.1.3"' in source
+    assert 'APP_VERSION = "32.2.0"' in source
     start = source.index("def startup_historical_energy_excel")
     end = source.index("threading.Thread(\n        target=startup_historical_energy_excel", start)
     block = source[start:end]
     assert "wait_for_existing_nas_roots" in block
     assert "bootstrap_historical_energy_workbook(live_nas_layout_root)" in block
     assert "bootstrap_historical_energy_workbook(NAS_LAYOUT_ROOT)" not in block
-    assert "Energie_verbruik_historie_bootstrap_status.json" in block
+    assert "HISTORICAL_BOOTSTRAP_STATUS_RELATIVE" in block
+    assert "migrate_project_structure(live_nas_layout_root)" in block
 
     sidecar_start = source.index("def run_historical_energy_excel_sidecar")
     sidecar_end = source.index("def create_project_backup", sidecar_start)
     sidecar = source[sidecar_start:sidecar_end]
     assert "wait_for_existing_nas_roots" in sidecar
+    assert "migrate_project_structure(live_nas_layout_root)" in sidecar
     assert "publish_historical_energy_workbook(\n            live_nas_layout_root," in sidecar
     assert "publish_historical_energy_workbook(\n            NAS_LAYOUT_ROOT," not in sidecar

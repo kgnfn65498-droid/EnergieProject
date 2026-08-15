@@ -40,6 +40,7 @@ if str(APP_MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_MODULE_ROOT))
 from crash_recovery_export import build_recovery_export, verify_recovery_export, sha256_file
 from project_paths import resolve_nas_roots, wait_for_existing_nas_roots
+from project_structure import HISTORICAL_BOOTSTRAP_STATUS_RELATIVE, migrate_project_structure
 from historical_energy_excel import bootstrap_historical_energy_workbook, publish_historical_energy_workbook
 
 BASE_URL = "https://app.slimmemeterportal.nl"
@@ -63,7 +64,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.1.3"
+APP_VERSION = "32.2.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -13439,12 +13440,14 @@ def run_historical_energy_excel_sidecar(
             attempts=12,
             delay_seconds=2.0,
         )
+        migration_result = migrate_project_structure(live_nas_layout_root)
         result = publish_historical_energy_workbook(
             live_nas_layout_root,
             month_key,
             include_partial_current=include_partial_current,
         )
         result = dict(result)
+        result["structure_migration"] = migration_result
         result["trigger"] = trigger
         result["started_at"] = started_at
         result["finished_at"] = datetime.now(TZ).isoformat()
@@ -18556,7 +18559,7 @@ def main() -> None:
     )
     if processed_retention.get("status") == "ok":
         LOGGER.info(
-            "HA-app processed-retentie v32.1.3: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            "HA-app processed-retentie v32.2.0: OK before=%s after=%s keep=%s kept=%s removed=%s",
             processed_retention.get("before"),
             processed_retention.get("after"),
             processed_retention.get("keep"),
@@ -18565,7 +18568,7 @@ def main() -> None:
         )
     else:
         LOGGER.error(
-            "HA-app processed-retentie v32.1.3: FOUT %s",
+            "HA-app processed-retentie v32.2.0: FOUT %s",
             processed_retention.get("error"),
         )
     signal.signal(signal.SIGTERM, stop_handler)
@@ -18582,12 +18585,11 @@ def main() -> None:
                 attempts=60,
                 delay_seconds=5.0,
             )
+            migration_result = migrate_project_structure(live_nas_layout_root)
             result = bootstrap_historical_energy_workbook(live_nas_layout_root)
             result = dict(result)
-            status_path = (
-                live_nas_layout_root
-                / "Data/02_Output/Rapportages/Energie_verbruik_historie_bootstrap_status.json"
-            )
+            result["structure_migration"] = migration_result
+            status_path = live_nas_layout_root / HISTORICAL_BOOTSTRAP_STATUS_RELATIVE
             result["trigger"] = "startup-bootstrap"
             result["finished_at"] = datetime.now(TZ).isoformat()
             result["nas_layout_root"] = str(live_nas_layout_root)
@@ -18611,10 +18613,7 @@ def main() -> None:
             }
             try:
                 if "live_nas_layout_root" in locals():
-                    status_path = (
-                        live_nas_layout_root
-                        / "Data/02_Output/Rapportages/Energie_verbruik_historie_bootstrap_status.json"
-                    )
+                    status_path = live_nas_layout_root / HISTORICAL_BOOTSTRAP_STATUS_RELATIVE
                     write_atomic_json(status_path, result)
             except Exception:
                 LOGGER.exception("Historische Energie-Excel bootstrap-foutstatus kon niet op NAS worden geschreven.")

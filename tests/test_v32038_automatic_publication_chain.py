@@ -17,11 +17,11 @@ def _load_paths():
     return module
 
 def test_v32038_release_identity():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.1.3"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.2.0"
     config = CONFIG.read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
-    assert 'version: "32.1.3"' in config
-    assert 'APP_VERSION = "32.1.3"' in main
+    assert 'version: "32.2.0"' in config
+    assert 'APP_VERSION = "32.2.0"' in main
 
 def test_v32038_automatic_publication_contract_remains_fail_closed():
     config = CONFIG.read_text(encoding="utf-8")
@@ -47,7 +47,7 @@ def test_v32038_project_energie_mount_and_retention_safety():
         share = Path(td)
         mount = share / "Project Energie"
         (mount / "App").mkdir(parents=True)
-        (mount / "App" / "VERSIE.txt").write_text("32.1.3\n", encoding="utf-8")
+        (mount / "App" / "VERSIE.txt").write_text("32.2.0\n", encoding="utf-8")
         (mount / "Inbox").mkdir()
         resolved_mount, resolved_layout = module.resolve_nas_roots(share)
         assert resolved_mount == mount

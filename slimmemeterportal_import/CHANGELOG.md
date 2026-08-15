@@ -1,6 +1,6 @@
 # Changelog
 
-## 32.1.3 - Betrouwbare SMP maandtotalen voor Energiehistorie Excel
-- Gebruikt cumulatieve meterstandgrenzen voor import, teruglevering en gas zodat afronding per kwartier/uur geen vals juli-conflict meer veroorzaakt.
-- Behoudt fallback naar intervalsom als meterstanden ontbreken.
-- Behoudt de historische conflictbeveiliging en automatische maandafsluiting UIT.
+## 32.2.0 - Knowledge Base structuurmigratie
+- Centraliseert Knowledge Base/Roadmap en geeft Energieverbruik-historie een eigen map.
+- Migreert bestaande bestanden met pre-migratiebackup, SHA-256-verificatie, idempotentie en fail-closed conflictgedrag.
+- Behoudt juli-actuals, de historische Excel-inhoud, PARTIEEL-regels en automatische maandafsluiting UIT.

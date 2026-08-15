@@ -24,8 +24,8 @@ def test_startup_bootstrap_creates_master_and_latest_full_archive_without_month_
     result = hx.bootstrap_historical_energy_workbook(tmp_path)
     assert result["status"] == "completed"
     assert result["month"] == "2026_07"
-    master = tmp_path / "Data/02_Output/Rapportages/Energie_verbruik_historie.xlsx"
-    archive = tmp_path / "Data/02_Output/Rapportages/Archief/Energie_verbruik_historie_2026_07.xlsx"
+    master = tmp_path / "Data/02_Output/Rapportages/Verbruikshistorie/Energie_verbruik_historie.xlsx"
+    archive = tmp_path / "Data/02_Output/Rapportages/Verbruikshistorie/Archief/Energie_verbruik_historie_2026_07.xlsx"
     assert master.is_file()
     assert archive.is_file()
     assert hx.validate_xlsx(master)["status"] == "ok"
@@ -34,7 +34,7 @@ def test_startup_bootstrap_creates_master_and_latest_full_archive_without_month_
 
 def test_startup_bootstrap_is_idempotent_when_master_and_archive_are_already_valid(tmp_path: Path):
     first = hx.bootstrap_historical_energy_workbook(tmp_path)
-    master = tmp_path / "Data/02_Output/Rapportages/Energie_verbruik_historie.xlsx"
+    master = tmp_path / "Data/02_Output/Rapportages/Verbruikshistorie/Energie_verbruik_historie.xlsx"
     before = hashlib.sha256(master.read_bytes()).hexdigest()
     second = hx.bootstrap_historical_energy_workbook(tmp_path)
     after = hashlib.sha256(master.read_bytes()).hexdigest()
@@ -45,7 +45,7 @@ def test_startup_bootstrap_is_idempotent_when_master_and_archive_are_already_val
 
 def test_v3211_main_starts_excel_bootstrap_independently_of_month_workflow():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.1.3"' in source
+    assert 'APP_VERSION = "32.2.0"' in source
     assert "bootstrap_historical_energy_workbook" in source
     assert "def startup_historical_energy_excel" in source
     main_start = source.index("def main()")
@@ -63,6 +63,6 @@ def test_v3211_main_starts_excel_bootstrap_independently_of_month_workflow():
 def test_v3211_safety_contract_is_unchanged():
     source = MAIN.read_text(encoding="utf-8")
     config = CONFIG.read_text(encoding="utf-8")
-    assert 'version: "32.1.3"' in config
+    assert 'version: "32.2.0"' in config
     assert "automatic_month_close_enabled: false" in config
     assert "finalize_month(" not in (APP / "historical_energy_excel.py").read_text(encoding="utf-8")

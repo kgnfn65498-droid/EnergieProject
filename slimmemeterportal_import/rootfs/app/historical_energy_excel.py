@@ -19,8 +19,7 @@ import xlsxwriter
 
 APP_ROOT = Path(__file__).resolve().parent
 SEED_PATH = APP_ROOT / "historical_energy_seed.json"
-MASTER_RELATIVE = Path("Data/02_Output/Rapportages/Energie_verbruik_historie.xlsx")
-ARCHIVE_RELATIVE = Path("Data/02_Output/Rapportages/Archief")
+from project_structure import HISTORY_ARCHIVE_RELATIVE as ARCHIVE_RELATIVE, HISTORY_MASTER_RELATIVE as MASTER_RELATIVE
 SHEET_NAMES = [
     "Dashboard",
     "Dashboard 2026",

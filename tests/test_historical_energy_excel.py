@@ -91,7 +91,7 @@ def test_build_clean_workbook_is_value_only_and_valid(tmp_path: Path):
 
 
 def test_month_publish_is_atomic_and_archive_matches_master(tmp_path: Path):
-    reports = tmp_path / "Data" / "02_Output" / "Rapportages"
+    reports = tmp_path / "Data" / "02_Output" / "Rapportages" / "Verbruikshistorie"
     reports.mkdir(parents=True)
     prior = reports / "Energie_verbruik_historie.xlsx"
     prior.write_bytes(b"previous-valid-master")
@@ -111,7 +111,7 @@ def test_month_publish_is_atomic_and_archive_matches_master(tmp_path: Path):
 
 
 def test_failed_validation_preserves_existing_master(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    reports = tmp_path / "Data" / "02_Output" / "Rapportages"
+    reports = tmp_path / "Data" / "02_Output" / "Rapportages" / "Verbruikshistorie"
     reports.mkdir(parents=True)
     master = reports / "Energie_verbruik_historie.xlsx"
     master.write_bytes(b"previous-valid-master")
@@ -150,7 +150,7 @@ def test_partial_month_updates_master_but_does_not_create_frozen_archive(tmp_pat
     )
     assert result["status"] == "completed"
     assert result["archive_status"] == "skipped_partial"
-    assert not (tmp_path / "Data/02_Output/Rapportages/Archief/Energie_verbruik_historie_2026_08.xlsx").exists()
+    assert not (tmp_path / "Data/02_Output/Rapportages/Verbruikshistorie/Archief/Energie_verbruik_historie_2026_08.xlsx").exists()
 
 
 def test_month_upsert_never_downgrades_full_month_to_partial():

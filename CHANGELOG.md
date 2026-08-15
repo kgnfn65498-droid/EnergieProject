@@ -1,3 +1,14 @@
+## v32.2.0 — Knowledge Base
+
+- Centraliseert actieve Knowledge Base, Roadmap, apparatuurindex en mobiele-socketlog onder `Data/02_Output/Rapportages/KnowledgeBase/`.
+- Verplaatst de historische energie-master, bronindex, ontwerp, bootstrapstatus en maandarchieven naar `Data/02_Output/Rapportages/Verbruikshistorie/`.
+- Gebruikt één centrale padmodule voor alle nieuwe historische write-paths.
+- Voert de Data-migratie idempotent en fail-closed uit: vóór mutatie ontstaat een geverifieerde pre-migratiebackup; ieder bestand wordt na kopiëren met SHA-256 gecontroleerd; conflicterende oude/nieuwe inhoud wordt nooit overschreven.
+- De bestaande `Energie_verbruik_historie.xlsx` wordt bij de verhuizing niet opnieuw berekend; byte-identieke inhoud blijft behouden.
+- Startup en maandelijkse Excel-sidecar voeren de structuurcontrole uit vóór bootstrap/publicatie zodat geen oud pad opnieuw wordt aangemaakt.
+- API-testbestanden en overige rapportroot-cleanup vallen bewust buiten deze release.
+- Juli 2026-actuals, PARTIEEL-regels, automatische maandafsluiting UIT, `finalize_month`-verbod, production core en releaseketen blijven inhoudelijk ongewijzigd.
+
 ## v32.1.3 — SMP maandtotalen uit meterstandgrenzen
 
 - Herstelt de historische Excel-bootstrap die op juli 2026 stopte met `Volledige historische actual wijkt af`.
