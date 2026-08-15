@@ -64,7 +64,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.2.1"
+APP_VERSION = "32.2.2"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -18559,7 +18559,7 @@ def main() -> None:
     )
     if processed_retention.get("status") == "ok":
         LOGGER.info(
-            "HA-app processed-retentie v32.2.1: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            "HA-app processed-retentie v32.2.2: OK before=%s after=%s keep=%s kept=%s removed=%s",
             processed_retention.get("before"),
             processed_retention.get("after"),
             processed_retention.get("keep"),
@@ -18568,7 +18568,7 @@ def main() -> None:
         )
     else:
         LOGGER.error(
-            "HA-app processed-retentie v32.2.1: FOUT %s",
+            "HA-app processed-retentie v32.2.2: FOUT %s",
             processed_retention.get("error"),
         )
     signal.signal(signal.SIGTERM, stop_handler)

@@ -20,7 +20,7 @@ def _load_paths():
 def _make_layout(root: Path) -> Path:
     layout = root / "Project Energie"
     (layout / "App").mkdir(parents=True)
-    (layout / "App" / "VERSIE.txt").write_text("32.2.1\n", encoding="utf-8")
+    (layout / "App" / "VERSIE.txt").write_text("32.2.2\n", encoding="utf-8")
     (layout / "Inbox").mkdir()
     return layout
 
@@ -47,7 +47,7 @@ def test_wait_for_live_nas_retries_instead_of_returning_unmounted_fallback(tmp_p
 
 def test_startup_excel_uses_fresh_live_nas_root_and_writes_status_file():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.2.1"' in source
+    assert 'APP_VERSION = "32.2.2"' in source
     start = source.index("def startup_historical_energy_excel")
     end = source.index("threading.Thread(\n        target=startup_historical_energy_excel", start)
     block = source[start:end]

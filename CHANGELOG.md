@@ -1,3 +1,11 @@
+## v32.2.2 — Knowledge Base cleanup/idempotentieherstel
+
+- Herstelt de laatste live 32.2.1-naloopfout: QNAP kan de oude `.KnowledgeBase_v32.2_rehome` door eigenaarschap/ACL niet verwijderen.
+- Cleanup na een al geverifieerde migratie is nu best-effort en kan de startup niet meer rood maken.
+- Een volgende startup na een voltooide migratie valideert de canonieke doelen en raakt een achtergebleven onleesbare rehome-map niet meer aan.
+- Bestaande pre-migratiebackup blijft herstelbewijs; geen data wordt opnieuw gegenereerd.
+- Geen wijziging aan energieactuals, Excel-berekeningen, automatische maandafsluiting, `finalize_month`, watcherketen of rapportkern.
+
 ## v32.2.1 — Knowledge Base NAS-permissieherstel
 
 - Herstelt de live v32.2.0-startupfout waarbij een reeds via de NAS/MCP aangemaakte `KnowledgeBase/` niet atomair beschrijfbaar was door de Home Assistant-runtime.

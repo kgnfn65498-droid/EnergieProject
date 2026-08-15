@@ -8,7 +8,7 @@ from pathlib import Path
 import shutil
 from typing import Any
 
-STRUCTURE_VERSION = "32.2.1"
+STRUCTURE_VERSION = "32.2.2"
 REPORTS_RELATIVE = Path("Data/02_Output/Rapportages")
 KNOWLEDGE_BASE_RELATIVE = REPORTS_RELATIVE / "KnowledgeBase"
 HISTORY_RELATIVE = REPORTS_RELATIVE / "Verbruikshistorie"
@@ -181,20 +181,31 @@ def _ensure_writable_knowledge_base(project_root: Path) -> bool:
     return True
 
 
-def _finish_knowledge_base_rehome(project_root: Path, rehomed: bool) -> None:
+def _finish_knowledge_base_rehome(project_root: Path, rehomed: bool) -> bool:
+    """Best-effort cleanup after a verified rehome.
+
+    Returns True when cleanup must be deferred because QNAP ownership/ACL
+    prevents this runtime from deleting the old rehome directory. The verified
+    pre-migration backup and active canonical tree remain authoritative.
+    """
     if not rehomed:
-        return
+        return False
     rehome = project_root / KNOWLEDGE_BASE_REHOME_RELATIVE
     kb = project_root / KNOWLEDGE_BASE_RELATIVE
-    if rehome.is_dir():
-        original_paths = set(_tree_file_hashes(rehome))
-        current_paths = set(_tree_file_hashes(kb))
-        missing = sorted(original_paths - current_paths)
-        if missing:
-            raise StructureMigrationConflict(f"Rehome-opruiming geblokkeerd; bestand ontbreekt: {missing[0]}")
-        # De pre-migratiebackup bevat de originele hashes. Na succesvolle
-        # document-rewrite mogen actieve Markdownbestanden bewust verschillen.
+    if not rehome.is_dir():
+        return False
+    original_paths = set(_tree_file_hashes(rehome))
+    current_paths = set(_tree_file_hashes(kb))
+    missing = sorted(original_paths - current_paths)
+    if missing:
+        raise StructureMigrationConflict(f"Rehome-opruiming geblokkeerd; bestand ontbreekt: {missing[0]}")
+    # De pre-migratiebackup bevat de originele hashes. Na succesvolle
+    # document-rewrite mogen actieve Markdownbestanden bewust verschillen.
+    try:
         shutil.rmtree(rehome)
+    except PermissionError:
+        return True
+    return False
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -328,8 +339,8 @@ def _rewrite_active_docs(project_root: Path) -> list[str]:
     changed: list[str] = []
     location_block = (
         "\n\n" + LOCATION_MARKER + "\n"
-        "## Actueel locatiecontract v32.2.1\n\n"
-        "Vanaf v32.2.1 zijn de canonieke actieve locaties:\n"
+        "## Actueel locatiecontract v32.2.2\n\n"
+        "Vanaf v32.2.2 zijn de canonieke actieve locaties:\n"
         "- Knowledge Base + Roadmap + apparatuur-/socketindex: `Data/02_Output/Rapportages/KnowledgeBase/`.\n"
         "- Historische energie-master, bronindex, bootstrapstatus en maandarchief: `Data/02_Output/Rapportages/Verbruikshistorie/`.\n"
         "- Eerdere locatiebeschrijvingen in historische passages zijn niet leidend voor actuele vragen.\n"
@@ -392,11 +403,22 @@ def migrate_project_structure(project_root: Path) -> dict[str, Any]:
             ) from exc
         if (
             previous.get("status") == "completed"
-            and previous.get("version") == STRUCTURE_VERSION
             and not any((project_root / source_rel).is_file() for source_rel, _ in all_pairs)
+            and all((project_root / required).is_file() for required in (
+                ROADMAP_RELATIVE,
+                APPARATUUR_INDEX_RELATIVE,
+                MOBILE_SOCKET_LOG_RELATIVE,
+                HISTORY_MASTER_RELATIVE,
+                HISTORICAL_DATA_INDEX_RELATIVE,
+                HISTORICAL_DESIGN_RELATIVE,
+                HISTORICAL_BOOTSTRAP_STATUS_RELATIVE,
+            ))
         ):
             result = dict(previous)
+            result["version"] = STRUCTURE_VERSION
             result["idempotent"] = True
+            result["cleanup_deferred"] = (project_root / KNOWLEDGE_BASE_REHOME_RELATIVE).exists()
+            _write_status(project_root, result)
             return result
     for source_rel, target_rel in all_pairs:
         _preflight_pair(project_root, source_rel, target_rel)
@@ -429,6 +451,7 @@ def migrate_project_structure(project_root: Path) -> dict[str, Any]:
             "archive": HISTORY_ARCHIVE_RELATIVE.as_posix(),
         },
     }
+    cleanup_deferred = _finish_knowledge_base_rehome(project_root, knowledge_base_rehomed)
+    payload["cleanup_deferred"] = cleanup_deferred
     _write_status(project_root, payload)
-    _finish_knowledge_base_rehome(project_root, knowledge_base_rehomed)
     return payload

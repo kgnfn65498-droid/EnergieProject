@@ -104,7 +104,7 @@ def test_v3220_conflict_is_fail_closed(tmp_path: Path):
 @pytest.mark.skipif(not STRUCTURE.is_file(), reason="RED gate")
 def test_v3220_main_migrates_before_bootstrap_and_sidecar():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.2.1"' in source
+    assert 'APP_VERSION = "32.2.2"' in source
     assert "from project_structure import HISTORICAL_BOOTSTRAP_STATUS_RELATIVE, migrate_project_structure" in source
     start = source.index("def startup_historical_energy_excel")
     end = source.index("threading.Thread(\n        target=startup_historical_energy_excel", start)
@@ -131,9 +131,9 @@ def test_v3220_active_writers_have_no_legacy_write_paths():
 
 
 def test_v3220_release_identity():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.2.1"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.2.2"
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
-    assert 'version: "32.2.1"' in config
+    assert 'version: "32.2.2"' in config
 
 @pytest.mark.skipif(not STRUCTURE.is_file(), reason="RED gate")
 def test_v3221_existing_readonly_knowledge_base_is_rehomed_without_data_loss(tmp_path: Path, monkeypatch):
@@ -239,3 +239,80 @@ def test_v3221_recovers_exact_partial_v3220_runtime_state(tmp_path: Path, monkey
     second = module.migrate_project_structure(tmp_path)
     assert second["status"] == "completed"
     assert second["idempotent"] is True
+
+
+def test_v3222_cleanup_permission_error_after_completed_migration_is_nonfatal(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location('project_structure_v3222_cleanup', STRUCTURE)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+    reports = tmp_path / module.REPORTS_RELATIVE
+    kb = tmp_path / module.KNOWLEDGE_BASE_RELATIVE
+    reports.mkdir(parents=True, exist_ok=True)
+    kb.mkdir(parents=True, exist_ok=True)
+    (kb / 'README.md').write_text('# kb\n', encoding='utf-8')
+    (reports / 'EnergieProject_Roadmap.md').write_text('# roadmap\n', encoding='utf-8')
+    (reports / 'Apparatuur_index.md').write_text('# apparatuur\n', encoding='utf-8')
+    (reports / 'Mobiele_socket_meetlog.md').write_text('# socket\n', encoding='utf-8')
+
+    real_rmtree = module.shutil.rmtree
+    def blocked_rmtree(path, *args, **kwargs):
+        if Path(path).name == '.KnowledgeBase_v32.2_rehome':
+            raise PermissionError(13, 'Permission denied', str(path))
+        return real_rmtree(path, *args, **kwargs)
+
+    calls = {'kb': 0}
+    def writable_probe(directory):
+        if directory.name == 'KnowledgeBase':
+            calls['kb'] += 1
+            return calls['kb'] > 1
+        return True
+    monkeypatch.setattr(module, '_directory_accepts_atomic_write', writable_probe)
+    monkeypatch.setattr(module.shutil, 'rmtree', blocked_rmtree)
+
+    result = module.migrate_project_structure(tmp_path)
+    assert result['status'] == 'completed'
+    assert result.get('cleanup_deferred') is True
+    assert (tmp_path / module.STRUCTURE_STATUS_RELATIVE).is_file()
+
+
+def test_v3222_completed_prior_migration_ignores_unreadable_stale_rehome(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location('project_structure_v3222_stale', STRUCTURE)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+
+    for rel in (
+        module.ROADMAP_RELATIVE,
+        module.APPARATUUR_INDEX_RELATIVE,
+        module.MOBILE_SOCKET_LOG_RELATIVE,
+        module.HISTORY_MASTER_RELATIVE,
+        module.HISTORICAL_DATA_INDEX_RELATIVE,
+        module.HISTORICAL_DESIGN_RELATIVE,
+        module.HISTORICAL_BOOTSTRAP_STATUS_RELATIVE,
+    ):
+        path = tmp_path / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'canonical\n')
+
+    status = tmp_path / module.STRUCTURE_STATUS_RELATIVE
+    status.write_text(json.dumps({'status':'completed','version':'32.2.1','canonical':{}}), encoding='utf-8')
+    rehome = tmp_path / module.KNOWLEDGE_BASE_REHOME_RELATIVE
+    rehome.mkdir(parents=True)
+    (rehome / 'old.md').write_text('old\n', encoding='utf-8')
+
+    real_tree_hashes = module._tree_file_hashes
+    def guarded_tree_hashes(root):
+        if Path(root) == rehome:
+            raise AssertionError('stale rehome must not be traversed after completed migration')
+        return real_tree_hashes(root)
+    monkeypatch.setattr(module, '_tree_file_hashes', guarded_tree_hashes)
+
+    result = module.migrate_project_structure(tmp_path)
+    assert result['status'] == 'completed'
+    assert result['version'] == '32.2.2'
+    assert result['idempotent'] is True
+    assert result['cleanup_deferred'] is True
+    saved = json.loads(status.read_text(encoding='utf-8'))
+    assert saved['version'] == '32.2.2'
+    assert saved['cleanup_deferred'] is True
