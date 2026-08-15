@@ -1,3 +1,11 @@
+## v32.1.2 — live NAS-resolutie voor Energiehistorie Excel
+
+- Oorzaak opgelost: de HA-app kon bij module-import een nog niet gemounte `/share` zien en daarna een lokale fallback blijven gebruiken, waardoor de Excel niet in het echte QNAP-project verscheen.
+- Startup-bootstrap resolveert en wacht nu opnieuw op een aantoonbaar bestaand EnergieProject op de HA-netwerkshare; de fallback wordt nooit gebruikt voor Excel-schrijfacties.
+- De maandelijkse Excel-sidecar resolveert eveneens de live NAS-root vlak vóór publicatie.
+- Na startup wordt `Data/02_Output/Rapportages/Energie_verbruik_historie_bootstrap_status.json` op de NAS geschreven voor controleerbaar bewijs.
+- Geen maandafsluiting; augustus blijft PARTIEEL; watcher-retenties blijven 999/999.
+
 ## v32.1.1 — maandelijkse Energiehistorie Excel startup-bootstrap
 
 - Herstelt de ontbrekende eerste publicatie van `Energie_verbruik_historie.xlsx` na installatie van v32.1.0.

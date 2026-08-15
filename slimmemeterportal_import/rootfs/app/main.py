@@ -39,7 +39,7 @@ APP_MODULE_ROOT = Path(__file__).resolve().parent
 if str(APP_MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_MODULE_ROOT))
 from crash_recovery_export import build_recovery_export, verify_recovery_export, sha256_file
-from project_paths import resolve_nas_roots
+from project_paths import resolve_nas_roots, wait_for_existing_nas_roots
 from historical_energy_excel import bootstrap_historical_energy_workbook, publish_historical_energy_workbook
 
 BASE_URL = "https://app.slimmemeterportal.nl"
@@ -63,7 +63,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.1.1"
+APP_VERSION = "32.1.2"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -13435,8 +13435,12 @@ def run_historical_energy_excel_sidecar(
     """Bouw de Energiehistorie-Excel na een geslaagde workflow zonder die workflow te laten falen."""
     started_at = datetime.now(TZ).isoformat()
     try:
+        _, live_nas_layout_root = wait_for_existing_nas_roots(
+            attempts=12,
+            delay_seconds=2.0,
+        )
         result = publish_historical_energy_workbook(
-            NAS_LAYOUT_ROOT,
+            live_nas_layout_root,
             month_key,
             include_partial_current=include_partial_current,
         )
@@ -18552,7 +18556,7 @@ def main() -> None:
     )
     if processed_retention.get("status") == "ok":
         LOGGER.info(
-            "HA-app processed-retentie v32.1.1: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            "HA-app processed-retentie v32.1.2: OK before=%s after=%s keep=%s kept=%s removed=%s",
             processed_retention.get("before"),
             processed_retention.get("after"),
             processed_retention.get("keep"),
@@ -18561,7 +18565,7 @@ def main() -> None:
         )
     else:
         LOGGER.error(
-            "HA-app processed-retentie v32.1.1: FOUT %s",
+            "HA-app processed-retentie v32.1.2: FOUT %s",
             processed_retention.get("error"),
         )
     signal.signal(signal.SIGTERM, stop_handler)
@@ -18574,10 +18578,20 @@ def main() -> None:
     def startup_historical_energy_excel() -> None:
         try:
             time.sleep(1)
-            result = bootstrap_historical_energy_workbook(NAS_LAYOUT_ROOT)
+            _, live_nas_layout_root = wait_for_existing_nas_roots(
+                attempts=60,
+                delay_seconds=5.0,
+            )
+            result = bootstrap_historical_energy_workbook(live_nas_layout_root)
             result = dict(result)
+            status_path = (
+                live_nas_layout_root
+                / "Data/02_Output/Rapportages/Energie_verbruik_historie_bootstrap_status.json"
+            )
             result["trigger"] = "startup-bootstrap"
             result["finished_at"] = datetime.now(TZ).isoformat()
+            result["nas_layout_root"] = str(live_nas_layout_root)
+            write_atomic_json(status_path, result)
             update_state(last_historical_energy_excel=result)
             LOGGER.info(
                 "Historische Energie-Excel startup-bootstrap v%s: %s; maand=%s; master=%s; archief=%s",
@@ -18595,6 +18609,15 @@ def main() -> None:
                 "error": f"{type(exc).__name__}: {exc}",
                 "previous_master_preserved": True,
             }
+            try:
+                if "live_nas_layout_root" in locals():
+                    status_path = (
+                        live_nas_layout_root
+                        / "Data/02_Output/Rapportages/Energie_verbruik_historie_bootstrap_status.json"
+                    )
+                    write_atomic_json(status_path, result)
+            except Exception:
+                LOGGER.exception("Historische Energie-Excel bootstrap-foutstatus kon niet op NAS worden geschreven.")
             update_state(last_historical_energy_excel=result)
             LOGGER.exception("Historische Energie-Excel startup-bootstrap mislukt; app blijft beschikbaar.")
 
