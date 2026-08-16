@@ -1,7 +1,7 @@
-# Testinstructies v32.3.2 — assistant runtime observability
+# Testinstructies v32.3.3 — assistant runtime mount-timing hotfix
 
 1. Valideer ZIP-integriteit en `MANIFEST.sha256`.
-2. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.2.
+2. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.3.
 3. Draai volledige pytest-regressie plus `tests/test_v3232_assistant_runtime_self_probe.py`.
 4. Na live-installatie moet `Data/03_Systeem/Projectmanager/State/assistant_runtime_acceptance.json` verschijnen.
 5. Alleen `status=PASS` met alle checks groen opent de volgende Voice-acceptatiestap; deze release activeert Voice niet.

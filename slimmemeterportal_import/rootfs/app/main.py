@@ -43,7 +43,11 @@ from project_paths import resolve_nas_roots, wait_for_existing_nas_roots
 from project_structure import HISTORICAL_BOOTSTRAP_STATUS_RELATIVE, migrate_project_structure
 from historical_energy_excel import bootstrap_historical_energy_workbook, publish_historical_energy_workbook
 from energy_conversation import EnergyConversationEngine
-from assistant_runtime_probe import MAX_REQUEST_BYTES as MAX_ASSISTANT_REQUEST_BYTES, run_assistant_runtime_probe
+from assistant_runtime_probe import (
+    MAX_REQUEST_BYTES as MAX_ASSISTANT_REQUEST_BYTES,
+    resolve_runtime_acceptance_path,
+    run_assistant_runtime_probe,
+)
 
 BASE_URL = "https://app.slimmemeterportal.nl"
 OPTIONS_PATH = Path("/data/options.json")
@@ -66,7 +70,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.2"
+APP_VERSION = "32.3.3"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -80,7 +84,6 @@ NAS_DATA_ROOT = NAS_LAYOUT_ROOT / "Data"
 PROJECT_BACKUP_ROOT = NAS_LAYOUT_ROOT / "Backups"
 NAS_RELEASE_ROOT = NAS_LAYOUT_ROOT / "Inbox"
 NAS_INFRA_ROOT = NAS_LAYOUT_ROOT / "Infra"
-ASSISTANT_RUNTIME_ACCEPTANCE_PATH = NAS_DATA_ROOT / "03_Systeem" / "Projectmanager" / "State" / "assistant_runtime_acceptance.json"
 PROJECT_BACKUP_RETENTION = 3
 PROJECT_BACKUP_PREFIX = "EnergieProject_maandbackup"
 ENERGIE_MCP_URL = os.environ.get("ENERGIE_MCP_URL", "http://192.168.1.200:8000/mcp").rstrip("/")
@@ -19161,14 +19164,16 @@ def main() -> None:
     threading.Thread(target=startup_self_test, daemon=True).start()
 
     def startup_assistant_runtime_self_probe() -> None:
+        acceptance_path: Path | None = None
         try:
             time.sleep(2.0)
+            acceptance_path = resolve_runtime_acceptance_path(wait_for_existing_nas_roots)
             result = run_assistant_runtime_probe(app_version=APP_VERSION)
             result["checked_at"] = datetime.now(TZ).isoformat()
             result["release"] = APP_VERSION
             result["read_only_probe"] = True
-            result["output_path"] = str(ASSISTANT_RUNTIME_ACCEPTANCE_PATH)
-            write_atomic_json(ASSISTANT_RUNTIME_ACCEPTANCE_PATH, result)
+            result["output_path"] = str(acceptance_path)
+            write_atomic_json(acceptance_path, result)
             LOGGER.info(
                 "Assistant runtime self-probe v%s: %s; voice_gate=%s",
                 APP_VERSION,
@@ -19184,12 +19189,13 @@ def main() -> None:
                 "read_only_probe": True,
                 "checked_at": datetime.now(TZ).isoformat(),
                 "error": f"{type(exc).__name__}: {exc}",
-                "output_path": str(ASSISTANT_RUNTIME_ACCEPTANCE_PATH),
+                "output_path": str(acceptance_path) if acceptance_path is not None else None,
             }
-            try:
-                write_atomic_json(ASSISTANT_RUNTIME_ACCEPTANCE_PATH, result)
-            except Exception:
-                LOGGER.exception("Assistant runtime self-probe foutstatus kon niet worden geschreven.")
+            if acceptance_path is not None:
+                try:
+                    write_atomic_json(acceptance_path, result)
+                except Exception:
+                    LOGGER.exception("Assistant runtime self-probe foutstatus kon niet worden geschreven.")
             LOGGER.exception("Assistant runtime self-probe mislukt; Voice-gate blijft gesloten.")
 
     threading.Thread(

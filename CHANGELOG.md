@@ -1,3 +1,10 @@
+## v32.3.3 — Assistant runtime mount-timing hotfix
+
+- Herstelt uitsluitend de startup-timing van het v32.3.2 assistant acceptance-resultaat: het doelpad wordt niet meer bij module-import vastgezet.
+- De self-probe wacht nu fail-closed op de werkelijk bestaande QNAP-projectmount via `wait_for_existing_nas_roots()` en bepaalt daarna pas `Data/03_Systeem/Projectmanager/State/assistant_runtime_acceptance.json`.
+- Bij ontbrekende NAS-mount wordt geen fallbackprojectstructuur aangemaakt en blijft de Voice-gate gesloten.
+- Assistant endpoints, energielogica, augustusstatus, NextEnergy-model, maandafsluiting, MCP-rechten en system-pad guard zijn inhoudelijk ongewijzigd.
+
 ## v32.3.2 — Assistant runtime observability
 
 - Voegt één fixed-target, read-only assistant runtime self-probe toe die uitsluitend via loopback `127.0.0.1:8099` de bestaande `/api/assistant/health` en `/api/assistant/context` contracten controleert.

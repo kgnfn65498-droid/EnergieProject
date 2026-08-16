@@ -4,7 +4,8 @@ import json
 import time
 import urllib.error
 import urllib.request
-from typing import Any
+from pathlib import Path
+from typing import Any, Callable
 
 
 PROBE_ORIGIN = "http://127.0.0.1:8099"
@@ -16,6 +17,14 @@ PROBE_ROUTES = {
 MAX_RESPONSE_BYTES = 256 * 1024
 MAX_REQUEST_BYTES = 32 * 1024
 REQUEST_TIMEOUT_SECONDS = 5.0
+ASSISTANT_RUNTIME_ACCEPTANCE_RELATIVE = Path("Data/03_Systeem/Projectmanager/State/assistant_runtime_acceptance.json")
+
+
+def resolve_runtime_acceptance_path(
+    wait_for_roots: Callable[..., tuple[Path, Path]],
+) -> Path:
+    _, live_nas_layout_root = wait_for_roots(attempts=60, delay_seconds=5.0)
+    return live_nas_layout_root / ASSISTANT_RUNTIME_ACCEPTANCE_RELATIVE
 
 
 def _decode_json(raw: bytes) -> Any:
