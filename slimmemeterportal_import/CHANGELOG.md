@@ -1,7 +1,8 @@
 # Changelog
 
-## 32.3.4 - Assistant acceptance writable-handoff hotfix
-- Schrijft het read-only assistant acceptance-resultaat naar `Inbox/logs/assistant_runtime_acceptance.json`, een bestaande HA-schrijfbare handoff.
-- Vermijdt directe write naar de bewust 0755 Projectmanager-State-map; geen ACL/rechtenverruiming.
-- Projectmanager valideert/promoveert het bewijs daarna gecontroleerd naar canonieke State.
-- Geen wijziging aan assistant-inhoud, energieactuals, automatische maandafsluiting, `finalize_month`, MCP-rechten of system-pad guard.
+## 32.3.5 - Assistant fast-context runtime hotfix
+- `/api/assistant/context` gebruikt een begrensde maandcontext in plaats van de zware jaarbrede beheeranalyse.
+- Home Assistant kwartierdata voor import/export/gas wordt in één read-only snapshotpass gelezen.
+- Assistant-bronnen worden op runtime tegen de daadwerkelijk gemounte QNAP-root geresolved.
+- De 5-seconden probe, fixed loopbackroutes en alle write/action-guards blijven ongewijzigd.
+- Geen rechtenverruiming, device-control, contractmutatie, maandafsluiting of `finalize_month`.

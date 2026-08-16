@@ -1,3 +1,13 @@
+# Testinstructies v32.3.5 — assistant fast-context runtime hotfix
+
+1. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.5.
+2. Verifieer dat `ASSISTANT_ENGINE` `build_assistant_analysis_context` gebruikt en de beheerendpoint `build_analysis_context` behoudt.
+3. Verifieer met de gerichte test dat één kwartier-snapshotpass meerdere kernentiteiten tegelijk uitleest.
+4. Draai gesprekspartner-, probe-, mount-timing-, writable-handoff- en fast-context regressies.
+5. Draai daarna de volledige pytest-suite, Python compile, shellsyntax, manifestcontrole en ZIP-integriteit.
+6. Live acceptance blijft: health + augustus PARTIAL/kwartier + sessie juli + finance zonder invoice-actual + apparatuur/KB + negatieve route + negatieve payload, elk binnen de bestaande 5-secondenlimiet.
+7. Automatische maandafsluiting blijft UIT; `finalize_month` niet gebruiken.
+
 # Testinstructies v32.3.4 — assistant acceptance writable handoff
 
 1. Valideer ZIP-integriteit, `MANIFEST.sha256` en `SHA256SUMS.json`.

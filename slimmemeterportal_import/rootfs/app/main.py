@@ -39,10 +39,11 @@ APP_MODULE_ROOT = Path(__file__).resolve().parent
 if str(APP_MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_MODULE_ROOT))
 from crash_recovery_export import build_recovery_export, verify_recovery_export, sha256_file
-from project_paths import resolve_nas_roots, wait_for_existing_nas_roots
+from project_paths import find_existing_nas_roots, resolve_nas_roots, wait_for_existing_nas_roots
 from project_structure import HISTORICAL_BOOTSTRAP_STATUS_RELATIVE, migrate_project_structure
 from historical_energy_excel import bootstrap_historical_energy_workbook, publish_historical_energy_workbook
 from energy_conversation import EnergyConversationEngine
+from assistant_fast_context import load_quarter_hour_series_once
 from assistant_runtime_probe import (
     MAX_REQUEST_BYTES as MAX_ASSISTANT_REQUEST_BYTES,
     resolve_runtime_acceptance_path,
@@ -70,7 +71,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.4"
+APP_VERSION = "32.3.5"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -114,6 +115,33 @@ NAS_V10_LAYOUT = {
     "failed": NAS_RELEASE_FAILED,
 }
 LEGACY_NAS_DIRECTORIES = ()
+
+
+def _runtime_nas_roots_now() -> tuple[Path, Path]:
+    """Prefer the currently mounted QNAP project; keep import-time fallback fail-closed."""
+    resolved = find_existing_nas_roots()
+    if resolved is not None:
+        return resolved
+    return NAS_SHARE_ROOT, NAS_LAYOUT_ROOT
+
+
+def _runtime_nas_data_root() -> Path:
+    # Preserve an already-valid explicit/test/runtime root. Only repair the
+    # import-time fail-closed fallback when it is not actually mounted.
+    if NAS_DATA_ROOT.is_dir() and (NAS_DATA_ROOT / "01_Input").is_dir():
+        return NAS_DATA_ROOT
+    return _runtime_nas_roots_now()[1] / "Data"
+
+
+def _runtime_nas_project_root() -> Path:
+    if NAS_PROJECT_ROOT.is_dir():
+        return NAS_PROJECT_ROOT
+    return _runtime_nas_roots_now()[1] / "App"
+
+
+def _assistant_runtime_data_root() -> Path:
+    return _runtime_nas_data_root()
+
 
 
 # v7.6.0: automatische maandafsluiting is rechtstreeks vanuit de operationele
@@ -5957,11 +5985,13 @@ def _epex_mcp_month_context(month_key: str) -> dict[str, Any] | None:
 
 def _resolve_epex_history_root() -> Path | None:
     """Vind EPEX op bekende HA-mounts en via begrensde autodetectie."""
+    runtime_share, runtime_layout = _runtime_nas_roots_now()
+    runtime_data = runtime_layout / "Data"
     candidates = (
-        NAS_SHARE_ROOT / "05_Maanddata" / "EPEX",
-        NAS_SHARE_ROOT / "EPEX",
-        NAS_DATA_ROOT / "05_Maanddata" / "EPEX",
-        NAS_DATA_ROOT / "EPEX",
+        runtime_share / "05_Maanddata" / "EPEX",
+        runtime_share / "EPEX",
+        runtime_data / "05_Maanddata" / "EPEX",
+        runtime_data / "EPEX",
         Path("/media/Energie_NAS") / "05_Maanddata" / "EPEX",
         Path("/media/Energie_NAS") / "EPEX",
     )
@@ -6058,15 +6088,21 @@ def _epex_index() -> dict[str, dict[str, str]]:
 
 
 def _epex_month_context(month_key: str) -> dict[str, Any]:
-    if EPEX_HISTORY_ROOT is None:
+    history_root = EPEX_HISTORY_ROOT or _resolve_epex_history_root()
+    if history_root is None:
         mcp_context = _epex_mcp_month_context(month_key)
         if mcp_context is not None:
             return mcp_context
 
     year = int(month_key[:4])
     month_dash = month_key.replace("_", "-")
-    index_row = _epex_index().get(month_dash, {})
-    year_root = EPEX_HISTORY_ROOT / str(year) if EPEX_HISTORY_ROOT is not None else None
+    if history_root is EPEX_HISTORY_ROOT:
+        index_row = _epex_index().get(month_dash, {})
+    else:
+        rows = _read_epex_rows(history_root / "EPEX_index.csv") if history_root is not None else []
+        index = {str(row.get("maand") or "").strip(): row for row in rows if row.get("maand")}
+        index_row = index.get(month_dash, {})
+    year_root = history_root / str(year) if history_root is not None else None
     electricity_path = year_root / f"{month_dash}_stroom.csv" if year_root is not None else Path("/nonexistent/epex_stroom.csv")
     gas_path = year_root / f"{month_dash}_gas.csv" if year_root is not None else Path("/nonexistent/epex_gas.csv")
 
@@ -6081,8 +6117,8 @@ def _epex_month_context(month_key: str) -> dict[str, Any]:
 
     return {
         "source": "05_Maanddata/EPEX",
-        "resolved_path": str(EPEX_HISTORY_ROOT) if EPEX_HISTORY_ROOT is not None else None,
-        "source_found": EPEX_HISTORY_ROOT is not None,
+        "resolved_path": str(history_root) if history_root is not None else None,
+        "source_found": history_root is not None,
         "coverage": {
             "status": coverage_status,
             "first_date": index_row.get("eerste_datum") or None,
@@ -6125,9 +6161,10 @@ def _smp_usage_value(
 
 
 def _smp_source_candidates(month_key: str) -> list[Path]:
+    data_root = _runtime_nas_data_root()
     return [
-        NAS_DATA_ROOT / "01_Input" / month_key / "HomeAssistant" / "SlimmeMeterPortal",
-        NAS_DATA_ROOT / "01_Input" / month_key / "SlimmeMeterPortal",
+        data_root / "01_Input" / month_key / "HomeAssistant" / "SlimmeMeterPortal",
+        data_root / "01_Input" / month_key / "SlimmeMeterPortal",
         OUTPUT_ROOT / month_key,
     ]
 
@@ -6537,8 +6574,9 @@ def _aggregate_analysis_period(items: list[dict[str, Any]]) -> dict[str, Any]:
 def _ha_month_entity_snapshot_series(month_key: str, entity_id: str) -> list[dict[str, Any]]:
     """Lees HA-entiteit uit de definitieve Data-root; MCP blijft read-only fallback."""
     series: list[dict[str, Any]] = []
+    runtime_data_root = _runtime_nas_data_root()
     local_folders = (
-        NAS_DATA_ROOT / "01_Input" / month_key / "HomeAssistant" / "QuarterHour",
+        runtime_data_root / "01_Input" / month_key / "HomeAssistant" / "QuarterHour",
         MONTH_INPUT_ROOT / month_key / "HomeAssistant" / "QuarterHour",
     )
     for folder in local_folders:
@@ -6566,7 +6604,7 @@ def _ha_month_entity_snapshot_series(month_key: str, entity_id: str) -> list[dic
                     "snapshot_timestamp": file_match.group(1),
                     "entity_timestamp": entity.get("last_updated") or entity.get("last_changed"),
                     "value": value,
-                    "transport": "nas_data_filesystem_read_only" if folder.is_relative_to(NAS_DATA_ROOT) else "local_filesystem_read_only",
+                    "transport": "nas_data_filesystem_read_only" if folder.is_relative_to(runtime_data_root) else "local_filesystem_read_only",
                 })
                 break
         if series:
@@ -6696,10 +6734,19 @@ def _quarter_hour_month_metrics(month_key: str) -> dict[str, Any]:
         "grid_export_kwh": "sensor.p1_meter_energie_export",
         "gas_m3": "sensor.gas_meter_gas",
     }
-    series_by_metric = {
-        metric: _ha_month_entity_snapshot_series(month_key, entity_id)
-        for metric, entity_id in entity_map.items()
-    }
+    direct_series = load_quarter_hour_series_once(
+        _assistant_runtime_data_root(), month_key, entity_map.values()
+    )
+    if any(direct_series.values()):
+        series_by_metric = {
+            metric: direct_series.get(entity_id, [])
+            for metric, entity_id in entity_map.items()
+        }
+    else:
+        series_by_metric = {
+            metric: _ha_month_entity_snapshot_series(month_key, entity_id)
+            for metric, entity_id in entity_map.items()
+        }
     stamps_by_metric = {
         metric: {item["snapshot_timestamp"]: float(item["value"]) for item in series}
         for metric, series in series_by_metric.items()
@@ -6860,7 +6907,7 @@ def _nextenergy_month_telemetry(month_key: str) -> dict[str, Any]:
         timestamps: list[str] = []
 
         # Primair productiepad na NAS-consolidatie: rechtstreeks uit Data/01_Input.
-        nas_folder = NAS_DATA_ROOT / "01_Input" / month_key / "HomeAssistant" / "QuarterHour"
+        nas_folder = _runtime_nas_data_root() / "01_Input" / month_key / "HomeAssistant" / "QuarterHour"
         if nas_folder.is_dir():
             for snapshot in sorted(nas_folder.glob("home_assistant_quarter_*.json")):
                 try:
@@ -7060,8 +7107,11 @@ CONTRACT_COSTS_FILE = NAS_PROJECT_ROOT / "00_Config" / "nextenergy_contract_cost
 
 def load_nextenergy_contract_costs() -> dict[str, Any]:
     """Lees uitsluitend expliciete NextEnergy-contractwaarden; onbekend blijft null."""
+    contract_costs_file = CONTRACT_COSTS_FILE
+    if not contract_costs_file.is_file():
+        contract_costs_file = _runtime_nas_project_root() / "00_Config" / "nextenergy_contract_costs.json"
     result: dict[str, Any] = {
-        "source": str(CONTRACT_COSTS_FILE),
+        "source": str(contract_costs_file),
         "available": False,
         "valid": False,
         "supplier": "NextEnergy",
@@ -7082,12 +7132,12 @@ def load_nextenergy_contract_costs() -> dict[str, Any]:
         "solar_bonus": None,
         "validation_errors": [],
     }
-    if not CONTRACT_COSTS_FILE.is_file():
+    if not contract_costs_file.is_file():
         result["validation_errors"] = ["contract_costs_file_not_found"]
         return result
 
     try:
-        raw = json.loads(CONTRACT_COSTS_FILE.read_text(encoding="utf-8"))
+        raw = json.loads(contract_costs_file.read_text(encoding="utf-8"))
     except Exception as exc:
         result["validation_errors"] = [f"contract_costs_file_unreadable:{type(exc).__name__}"]
         return result
@@ -11436,7 +11486,7 @@ ASSISTANT_KNOWLEDGE_FILES = (
 
 def _assistant_knowledge_context(query: str, domains: list[str]) -> dict[str, Any]:
     """Return small read-only excerpts from the canonical Knowledge Base."""
-    root = NAS_DATA_ROOT / "02_Output" / "Rapportages" / "KnowledgeBase"
+    root = _assistant_runtime_data_root() / "02_Output" / "Rapportages" / "KnowledgeBase"
     tokens = [
         token for token in re.findall(r"[a-zA-ZÀ-ÿ0-9_-]{3,}", str(query).casefold())
         if token not in {"wat", "weet", "van", "mijn", "deze", "maand", "hoeveel", "over", "voor"}
@@ -11471,9 +11521,48 @@ def _assistant_knowledge_context(query: str, domains: list[str]) -> dict[str, An
     }
 
 
+def build_assistant_analysis_context(year: int | None = None) -> dict[str, Any]:
+    """Build only the month evidence needed by the read-only assistant.
+
+    Unlike the management analysis endpoint this deliberately skips year/quarter
+    rollups and historical NextEnergy telemetry diagnostics. Those remain available
+    through build_analysis_context(); assistant questions need bounded latency.
+    """
+    months: list[dict[str, Any]] = []
+    input_root = _assistant_runtime_data_root() / "01_Input"
+    if input_root.is_dir():
+        for folder in sorted(input_root.iterdir()):
+            if not folder.is_dir() or not re.fullmatch(r"\d{4}_\d{2}", folder.name):
+                continue
+            if year is not None and int(folder.name[:4]) != year:
+                continue
+            try:
+                months.append(_month_energy_metrics(folder.name, input_folder=folder))
+            except Exception as exc:
+                months.append({
+                    "month": folder.name,
+                    "year": int(folder.name[:4]),
+                    "quarter": (int(folder.name[5:7]) - 1) // 3 + 1,
+                    "metrics": {},
+                    "quality": {"status": "error", "error": str(exc)},
+                    "financial_context": {},
+                })
+
+    supplier_context = _supplier_contract_context()
+    apply_nextenergy_contract_costs(supplier_context)
+    return {
+        "schema": ANALYSIS_CONTEXT_SCHEMA,
+        "version": APP_VERSION,
+        "assistant_fast_path": True,
+        "scope": {"year_filter": year, "month_count": len(months)},
+        "months": months,
+        "supplier_context": supplier_context,
+    }
+
+
 ASSISTANT_ENGINE = EnergyConversationEngine(
     app_version=APP_VERSION,
-    analysis_provider=build_analysis_context,
+    analysis_provider=build_assistant_analysis_context,
     knowledge_provider=_assistant_knowledge_context,
     now_provider=lambda: datetime.now(TZ),
     session_ttl_seconds=7200,

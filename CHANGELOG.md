@@ -1,16 +1,21 @@
+## v32.3.5 — Assistant fast-context runtime hotfix
+
+- Vervangt voor `/api/assistant/context` de zware jaarbrede beheeranalyse door een begrensde read-only maandcontext op de canonieke `Data/01_Input`-root.
+- Leest de drie actuele cumulatieve Home Assistant-kernmeters in één JSON-snapshotpass in plaats van dezelfde kwartiermap herhaald te parsen.
+- Resolveert assistant-data, SlimmeMeterPortal, EPEX, NextEnergy-contractbestand en Knowledge Base op vraagmoment tegen de daadwerkelijk gemounte QNAP-root; import-time fallback blijft alleen fail-closed fallback.
+- Behoudt de 5-seconden runtimeprobe, fixed loopbackroutes, 32 KiB requestlimiet, 256 KiB responslimiet en alle write/action-guards.
+- Geen device-control, contractmutatie, maandafsluiting, `finalize_month`, rechtenverruiming of generieke netwerk-/filesystemactie toegevoegd.
+
 ## v32.3.4 — Assistant acceptance writable-handoff hotfix
 
-- Herstelt uitsluitend de runtime-acceptance-uitvoer: de HA-add-on schrijft het self-probe bewijs niet meer rechtstreeks naar `Data/03_Systeem/Projectmanager/State`, omdat die map bewust 0755 is en niet schrijfbaar voor de add-on-runtime.
-- De bestaande live-mountresolutie blijft behouden, maar het resultaat gaat atomisch naar de reeds bestaande, gecontroleerde handoff `Inbox/logs/assistant_runtime_acceptance.json` (QNAP mode 0777).
-- De Projectmanager kan dit read-only bewijs daarna valideren en via zijn bestaande smalle `/system`-writecontract naar de canonieke State promoveren; er worden geen rechten verruimd.
-- De zeven assistantchecks, vaste loopbackroutes, request/response-limieten, Voice fail-closed gedrag, energieactuals, augustus PARTIAL-status, NextEnergy-model, maandafsluiting, `finalize_month` en MCP system-pad guard blijven inhoudelijk ongewijzigd.
+- Schrijft het read-only assistant acceptance-resultaat naar `Inbox/logs/assistant_runtime_acceptance.json`, een bestaande HA-schrijfbare handoff.
+- Vermijdt directe write naar de bewust 0755 Projectmanager-State-map; geen ACL/rechtenverruiming.
+- Projectmanager valideert/promoveert het bewijs daarna gecontroleerd naar canonieke State.
 
 ## v32.3.3 — Assistant runtime mount-timing hotfix
 
-- Herstelt uitsluitend de startup-timing van het v32.3.2 assistant acceptance-resultaat: het doelpad wordt niet meer bij module-import vastgezet.
-- De self-probe wacht nu fail-closed op de werkelijk bestaande QNAP-projectmount via `wait_for_existing_nas_roots()` en bepaalt daarna pas `Data/03_Systeem/Projectmanager/State/assistant_runtime_acceptance.json`.
-- Bij ontbrekende NAS-mount wordt geen fallbackprojectstructuur aangemaakt en blijft de Voice-gate gesloten.
-- Assistant endpoints, energielogica, augustusstatus, NextEnergy-model, maandafsluiting, MCP-rechten en system-pad guard zijn inhoudelijk ongewijzigd.
+- Resolveert het acceptance-handoffpad pas nadat de echte QNAP-projectmount aantoonbaar beschikbaar is.
+- Voorkomt dat een import-time fallbackpad als blijvend runtime-doel wordt gebruikt.
 
 ## v32.3.2 — Assistant runtime observability
 
