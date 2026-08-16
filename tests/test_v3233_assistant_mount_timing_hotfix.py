@@ -28,7 +28,7 @@ def test_runtime_acceptance_path_is_resolved_from_live_nas_mount_at_probe_time()
     target = m.resolve_runtime_acceptance_path(fake_wait_for_roots)
     assert calls == [(60, 5.0)]
     assert target == Path(
-        "/share/Project Energie/EnergieProject/Data/03_Systeem/Projectmanager/State/assistant_runtime_acceptance.json"
+        "/share/Project Energie/EnergieProject/Inbox/logs/assistant_runtime_acceptance.json"
     )
 
 
@@ -40,12 +40,12 @@ def test_main_resolves_acceptance_path_at_probe_time_and_has_no_import_time_abso
 
 
 def test_release_identity_is_v3233_mount_timing_hotfix():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.3"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.4"
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
     root_changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     addon_changelog = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.3.3"' in config
-    assert 'APP_VERSION = "32.3.3"' in main
-    assert root_changelog.startswith("## v32.3.3 — Assistant runtime mount-timing hotfix")
-    assert addon_changelog.startswith("# Changelog\n\n## 32.3.3 - Assistant runtime mount-timing hotfix")
+    assert 'version: "32.3.4"' in config
+    assert 'APP_VERSION = "32.3.4"' in main
+    assert root_changelog.startswith("## v32.3.4 — Assistant acceptance writable-handoff hotfix")
+    assert addon_changelog.startswith("# Changelog\n\n## 32.3.4 - Assistant acceptance writable-handoff hotfix")

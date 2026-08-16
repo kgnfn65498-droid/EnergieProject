@@ -17,7 +17,7 @@ PROBE_ROUTES = {
 MAX_RESPONSE_BYTES = 256 * 1024
 MAX_REQUEST_BYTES = 32 * 1024
 REQUEST_TIMEOUT_SECONDS = 5.0
-ASSISTANT_RUNTIME_ACCEPTANCE_RELATIVE = Path("Data/03_Systeem/Projectmanager/State/assistant_runtime_acceptance.json")
+ASSISTANT_RUNTIME_ACCEPTANCE_RELATIVE = Path("Inbox/logs/assistant_runtime_acceptance.json")
 
 
 def resolve_runtime_acceptance_path(

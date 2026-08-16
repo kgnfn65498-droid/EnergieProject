@@ -1,3 +1,17 @@
+# Testinstructies v32.3.4 — assistant acceptance writable handoff
+
+1. Valideer ZIP-integriteit, `MANIFEST.sha256` en `SHA256SUMS.json`.
+2. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.4.
+3. Draai volledige pytest-regressie plus `tests/test_v3234_assistant_acceptance_handoff.py`.
+4. Na live-installatie moet `Inbox/logs/assistant_runtime_acceptance.json` verschijnen; directe runtime-write naar `Data/03_Systeem/Projectmanager/State` is niet toegestaan/vereist.
+5. Projectmanager leest en valideert dit handoff-bestand en promoveert het daarna via het bestaande smalle system-writecontract naar `Data/03_Systeem/Projectmanager/State/assistant_runtime_acceptance.json`.
+6. Alleen `status=PASS` met alle zeven checks groen opent de volgende Voice-acceptatiestap; deze release activeert Voice niet.
+7. Bevestig augustus 2026 als PARTIAL met Home Assistant-kwartierbron, dezelfde sessie naar juli, NextEnergy zonder factuuractual en apparaatantwoord met Knowledge Base-bron.
+8. Bevestig negatieve checks: onbekende assistant-route 404 en extra write/action-veld 400.
+9. Automatische maandafsluiting blijft UIT; `finalize_month` niet gebruiken.
+
+---
+
 # Testinstructies v32.3.3 — assistant runtime mount-timing hotfix
 
 1. Valideer ZIP-integriteit en `MANIFEST.sha256`.

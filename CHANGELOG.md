@@ -1,3 +1,10 @@
+## v32.3.4 — Assistant acceptance writable-handoff hotfix
+
+- Herstelt uitsluitend de runtime-acceptance-uitvoer: de HA-add-on schrijft het self-probe bewijs niet meer rechtstreeks naar `Data/03_Systeem/Projectmanager/State`, omdat die map bewust 0755 is en niet schrijfbaar voor de add-on-runtime.
+- De bestaande live-mountresolutie blijft behouden, maar het resultaat gaat atomisch naar de reeds bestaande, gecontroleerde handoff `Inbox/logs/assistant_runtime_acceptance.json` (QNAP mode 0777).
+- De Projectmanager kan dit read-only bewijs daarna valideren en via zijn bestaande smalle `/system`-writecontract naar de canonieke State promoveren; er worden geen rechten verruimd.
+- De zeven assistantchecks, vaste loopbackroutes, request/response-limieten, Voice fail-closed gedrag, energieactuals, augustus PARTIAL-status, NextEnergy-model, maandafsluiting, `finalize_month` en MCP system-pad guard blijven inhoudelijk ongewijzigd.
+
 ## v32.3.3 — Assistant runtime mount-timing hotfix
 
 - Herstelt uitsluitend de startup-timing van het v32.3.2 assistant acceptance-resultaat: het doelpad wordt niet meer bij module-import vastgezet.
