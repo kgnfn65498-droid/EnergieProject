@@ -4,14 +4,22 @@
   "supplier_fixed_costs_eur_per_month": null,
   "supplier_markup_eur_per_kwh": null,
   "export_compensation_eur_per_kwh": null,
+  "export_compensation_formula": null,
   "gas_supplier_formula": null,
+  "electricity_fixed_delivery_eur_per_month": null,
+  "gas_fixed_delivery_eur_per_month": null,
+  "electricity_energy_tax_eur_per_kwh": null,
+  "gas_energy_tax_eur_per_m3": null,
+  "energy_tax_reduction_eur_per_year": null,
+  "distribution_electricity_eur_per_year": null,
+  "distribution_gas_eur_per_year": null,
+  "contract_advance_eur_per_month": null,
+  "solar_bonus": null,
   "_instructions": [
-    "Vul alleen officiële contractwaarden in.",
-    "Laat onbekende waarden null.",
-    "De software gebruikt geen aannames of standaardtarieven.",
-    "gas_supplier_formula ondersteunt later: type, fixed_eur_per_m3, markup_eur_per_m3, notes.",
-    "Voor dynamische teruglevering kan export_compensation_formula type market_price_minus_markup gebruiken; vul alleen contractueel bevestigde waarden in.",
-    "gas_supplier_formula.type ondersteunt fixed of market_price_plus_markup; onbekende contractformules blijven geblokkeerd."
-  ],
-  "export_compensation_formula": null
+    "Vul alleen officiële contractwaarden in; geen klantnummer, adres, IBAN of andere persoonsgegevens.",
+    "Laat onbekende waarden null; de software gebruikt geen aannames of standaardtarieven.",
+    "supplier_fixed_costs_eur_per_month blijft de backward-compatible stroom-vastkostenwaarde.",
+    "De jaarlijkse vermindering energiebelasting wordt exact één keer toegepast, nooit per product.",
+    "Zonnebonus wordt alleen berekend wanneer zonne-oorsprong en meetdekking expliciet bevestigd zijn."
+  ]
 }

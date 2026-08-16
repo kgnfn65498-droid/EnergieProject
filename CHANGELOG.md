@@ -1,3 +1,14 @@
+## v32.3.0 — Kwartierdata, NextEnergy-contractmodel en gesprekspartner
+
+- Gebouwd vanaf de door de gebruiker aangeleverde en manifest-identieke live v32.2.2-basis.
+- Lopende maand gebruikt gevalideerde Home Assistant-kwartierdata primair; cumulatieve metergrenzen bepalen import, export en gas en de rapportage toont de werkelijke PARTIËLE dekking.
+- Officiële NextEnergy-contractcomponenten per 16-07-2026 zijn gemodelleerd zonder factuuractuals te verzinnen; de live stroomprijs wordt niet dubbel belast met opslag/energiebelasting.
+- Zonnebonus volgt de officiële 50%-regel, alleen 06:00–22:00, alleen bij positieve beursprijs, alleen bij bevestigde zonne-export en met 6.000-kWh-contractjaarcap.
+- Nieuwe read-only gesprekspartnerbackend met sessiecontext, bronroutering, PARTIEEL/VOLLEDIG-kwaliteit en maximaal drie evidence-backed observaties.
+- Nieuwe HTTP-contracten: `GET /api/assistant/health` en `POST /api/assistant/context`.
+- Home Assistant Voice/Assist blijft een vervolgstap na echte liveacceptatie van deze backend.
+- Geen structurele padwijziging, geen automatische maandafsluiting en geen `finalize_month` voor augustus.
+
 ## v32.2.2 — Knowledge Base cleanup/idempotentieherstel
 
 - Herstelt de laatste live 32.2.1-naloopfout: QNAP kan de oude `.KnowledgeBase_v32.2_rehome` door eigenaarschap/ACL niet verwijderen.

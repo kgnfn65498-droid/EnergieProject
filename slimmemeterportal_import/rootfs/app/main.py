@@ -42,6 +42,7 @@ from crash_recovery_export import build_recovery_export, verify_recovery_export,
 from project_paths import resolve_nas_roots, wait_for_existing_nas_roots
 from project_structure import HISTORICAL_BOOTSTRAP_STATUS_RELATIVE, migrate_project_structure
 from historical_energy_excel import bootstrap_historical_energy_workbook, publish_historical_energy_workbook
+from energy_conversation import EnergyConversationEngine
 
 BASE_URL = "https://app.slimmemeterportal.nl"
 OPTIONS_PATH = Path("/data/options.json")
@@ -64,7 +65,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.2.2"
+APP_VERSION = "32.3.0"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1738,6 +1739,44 @@ def load_financial_analysis_for_report(input_folder: Path, month_key: str) -> di
     return {"source": None, "financial_context": {}, "supplier_context": {}}
 
 
+def _report_period_from_resolved_quality(month_key: str, quality: dict[str, Any]) -> dict[str, Any]:
+    """Describe the actual evidence window; never label a partial current month as full."""
+    year, month = int(month_key[:4]), int(month_key[5:7])
+    month_name = datetime(year, month, 1, tzinfo=TZ).strftime("%B %Y")
+    quarter = quality.get("quarter_hour") if isinstance(quality, dict) else None
+    if isinstance(quarter, dict) and quarter.get("available"):
+        first_stamp = quarter.get("first_snapshot")
+        last_stamp = quarter.get("last_snapshot")
+        try:
+            first_local = datetime.strptime(str(first_stamp), "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc).astimezone(TZ)
+            last_local = datetime.strptime(str(last_stamp), "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc).astimezone(TZ)
+        except (TypeError, ValueError):
+            first_local = last_local = None
+        if first_local and last_local:
+            return {
+                "completeness": "PARTIAL",
+                "source": "home_assistant_quarter_hour_primary",
+                "sample_count": int(quarter.get("sample_count") or 0),
+                "missing_slot_count": int(quarter.get("missing_slot_count") or 0),
+                "period_start_date": first_local.date().isoformat(),
+                "period_end_date": last_local.date().isoformat(),
+                "period_label": f"{first_local.day} t/m {last_local.day} {month_name}",
+                "coverage_status": quarter.get("coverage_status") or "partial_current_month",
+            }
+    days = monthrange(year, month)[1]
+    current = month_key == datetime.now(TZ).strftime("%Y_%m")
+    return {
+        "completeness": "PARTIAL" if current else "FULL_OR_SOURCE_GATED",
+        "source": "legacy_resolved_month_source",
+        "sample_count": None,
+        "missing_slot_count": None,
+        "period_start_date": f"{year:04d}-{month:02d}-01",
+        "period_end_date": f"{year:04d}-{month:02d}-{days:02d}",
+        "period_label": f"1 t/m {days} {month_name}",
+        "coverage_status": "current_month_source_dependent" if current else "source_dependent",
+    }
+
+
 def build_report_adapter_data(
     options: Options,
     handoff: dict[str, Any],
@@ -1755,6 +1794,7 @@ def build_report_adapter_data(
     resolved_energy = _month_energy_metrics(month_key, input_folder=input_folder)
     resolved_metrics = resolved_energy.get("metrics") or {}
     resolved_quality = resolved_energy.get("quality") or {}
+    report_coverage = _report_period_from_resolved_quality(month_key, resolved_quality)
     report_financial = load_financial_analysis_for_report(input_folder, month_key)
     financial_context = report_financial.get("financial_context") or {}
     supplier_context = report_financial.get("supplier_context") or {}
@@ -1802,7 +1842,7 @@ def build_report_adapter_data(
 
     page1 = load_generator_example("page_1")
     page1["rapport"].update({
-        "periode": f"1 t/m {days} {month_name}",
+        "periode": report_coverage["period_label"],
         "rapportdatum": datetime.now(TZ).strftime("%d-%m-%Y"),
         "maand": month_upper,
         "pagina": 1,
@@ -1918,9 +1958,13 @@ def build_report_adapter_data(
     pages = load_generator_example("pages_3_13")
     pages["meta"].update({
         "month": month_name,
-        "period": f"1 t/m {days} {month_name}",
+        "period": report_coverage["period_label"],
         "days": days,
-        "status": "ECHTE MAANDDATA - voorlopige financiële modellering",
+        "status": (
+            "ECHTE MAANDDATA - PARTIEEL - voorlopige financiële modellering"
+            if report_coverage["completeness"] == "PARTIAL"
+            else "ECHTE MAANDDATA - voorlopige financiële modellering"
+        ),
     })
     pages["dashboard"].update({
         "house": round(house_use, 1),
@@ -1975,6 +2019,7 @@ def build_report_adapter_data(
             "self_supply_pct": round(self_supply_pct, 3),
         },
         "files": [str(path) for path in outputs.values()],
+        "coverage": report_coverage,
         "energy_sources": {
             "grid_import": resolved_quality.get("grid_import_source"),
             "grid_export": resolved_quality.get("grid_export_source"),
@@ -6307,6 +6352,18 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
             gas_m3 = float(smp["gas_m3"])
             gas_source = "slimmemeterportal_fallback"
 
+    quarter_hour = {"available": False, "coverage_status": "not_applicable_closed_month"}
+    if month_key == datetime.now(TZ).strftime("%Y_%m"):
+        quarter_hour = _quarter_hour_month_metrics(month_key)
+        if quarter_hour.get("available"):
+            quarter_metrics = quarter_hour.get("metrics") or {}
+            import_kwh = quarter_metrics.get("grid_import_kwh")
+            export_kwh = quarter_metrics.get("grid_export_kwh")
+            gas_m3 = quarter_metrics.get("gas_m3")
+            grid_import_source = "home_assistant_quarter_hour_primary"
+            grid_export_source = "home_assistant_quarter_hour_primary"
+            gas_source = "home_assistant_quarter_hour_primary"
+
     production_kwh = cumulative_delta(
         enphase_rows,
         ("energy_kwh", "lifetime_energy_kwh", "production_kwh", "value_kwh", "value"),
@@ -6351,6 +6408,8 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
     ]
     if any(source == "slimmemeterportal_fallback" for source in (grid_import_source, grid_export_source, gas_source)):
         available_sources.append("SlimmeMeterPortal")
+    if any(source == "home_assistant_quarter_hour_primary" for source in (grid_import_source, grid_export_source, gas_source)):
+        available_sources.append("HomeAssistantQuarterHour")
 
     def metric(value: float | None) -> float | None:
         return _round_metric(value) if value is not None else None
@@ -6380,6 +6439,7 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
             "grid_export_source": grid_export_source,
             "gas_source": gas_source,
             "smp": smp,
+            "quarter_hour": quarter_hour,
             "missing_is_null": True,
         },
     }
@@ -6619,6 +6679,87 @@ def _ha_month_entity_snapshot_series(month_key: str, entity_id: str) -> list[dic
 
 
 
+def _quarter_hour_month_metrics(month_key: str) -> dict[str, Any]:
+    """Resolve current-month P1/gas totals from one consistent HA quarter-hour window.
+
+    Cumulative meters are evaluated only on timestamps present for all three core
+    entities. A reset/decrease invalidates the quarter-hour candidate instead of
+    silently summing across a reset.
+    """
+    entity_map = {
+        "grid_import_kwh": "sensor.p1_meter_energie_import",
+        "grid_export_kwh": "sensor.p1_meter_energie_export",
+        "gas_m3": "sensor.gas_meter_gas",
+    }
+    series_by_metric = {
+        metric: _ha_month_entity_snapshot_series(month_key, entity_id)
+        for metric, entity_id in entity_map.items()
+    }
+    stamps_by_metric = {
+        metric: {item["snapshot_timestamp"]: float(item["value"]) for item in series}
+        for metric, series in series_by_metric.items()
+    }
+    common_stamps: set[str] | None = None
+    for values in stamps_by_metric.values():
+        stamps = set(values)
+        common_stamps = stamps if common_stamps is None else common_stamps & stamps
+    common = sorted(common_stamps or set())
+    base = {
+        "available": False,
+        "month": month_key,
+        "source": "home_assistant_quarter_hour",
+        "metrics": {"grid_import_kwh": None, "grid_export_kwh": None, "gas_m3": None},
+        "sample_count": len(common),
+        "expected_slot_count": 0,
+        "missing_slot_count": 0,
+        "coverage_ratio": 0.0,
+        "coverage_status": "not_available",
+        "first_snapshot": common[0] if common else None,
+        "last_snapshot": common[-1] if common else None,
+        "invalid_cumulative_entities": [],
+        "entity_ids": entity_map,
+        "missing_is_null": True,
+    }
+    if len(common) < 2:
+        return base
+
+    first_dt = datetime.strptime(common[0], "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+    last_dt = datetime.strptime(common[-1], "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+    span_seconds = max(0.0, (last_dt - first_dt).total_seconds())
+    expected = int(span_seconds // 900) + 1
+    base["expected_slot_count"] = expected
+    base["missing_slot_count"] = max(0, expected - len(common))
+    base["coverage_ratio"] = round(min(1.0, len(common) / expected), 6) if expected else 0.0
+    base["coverage_status"] = (
+        "partial_current_month"
+        if month_key == datetime.now(TZ).strftime("%Y_%m")
+        else "observed_window"
+    )
+
+    invalid: list[str] = []
+    metrics: dict[str, float | None] = {}
+    for metric, entity_id in entity_map.items():
+        values = stamps_by_metric[metric]
+        previous = values[common[0]]
+        reset = False
+        for stamp in common[1:]:
+            current = values[stamp]
+            if current + 1e-9 < previous:
+                reset = True
+                break
+            previous = current
+        if reset:
+            invalid.append(entity_id)
+            metrics[metric] = None
+        else:
+            metrics[metric] = _round_metric(values[common[-1]] - values[common[0]])
+
+    base["metrics"] = metrics
+    base["invalid_cumulative_entities"] = invalid
+    base["available"] = not invalid and all(value is not None for value in metrics.values())
+    return base
+
+
 def _nextenergy_consumption_weighted_month(month_key: str) -> dict[str, Any]:
     """Koppel P1-importdelta's aan de NextEnergy-prijs uit dezelfde snapshots."""
     output = {
@@ -6852,9 +6993,9 @@ def _supplier_contract_context() -> dict[str, Any]:
     """Bekende contractcontext + live NextEnergy-prijstelemetrie zonder bedragen te verzinnen."""
     contract = {
         "supplier": "NextEnergy",
-        "contract_start": "2026-07-15",
+        "contract_start": "2026-07-16",
         "electricity_pricing": "dynamic",
-        "gas_pricing": "variable",
+        "gas_pricing": "dynamic",
         "monthly_advance_eur": 150.0,
         "termination_notice_workdays": 5,
     }
@@ -6925,6 +7066,15 @@ def load_nextenergy_contract_costs() -> dict[str, Any]:
         "export_compensation_eur_per_kwh": None,
         "export_compensation_formula": None,
         "gas_supplier_formula": None,
+        "electricity_fixed_delivery_eur_per_month": None,
+        "gas_fixed_delivery_eur_per_month": None,
+        "electricity_energy_tax_eur_per_kwh": None,
+        "gas_energy_tax_eur_per_m3": None,
+        "energy_tax_reduction_eur_per_year": None,
+        "distribution_electricity_eur_per_year": None,
+        "distribution_gas_eur_per_year": None,
+        "contract_advance_eur_per_month": None,
+        "solar_bonus": None,
         "validation_errors": [],
     }
     if not CONTRACT_COSTS_FILE.is_file():
@@ -6957,6 +7107,14 @@ def load_nextenergy_contract_costs() -> dict[str, Any]:
         "supplier_fixed_costs_eur_per_month",
         "supplier_markup_eur_per_kwh",
         "export_compensation_eur_per_kwh",
+        "electricity_fixed_delivery_eur_per_month",
+        "gas_fixed_delivery_eur_per_month",
+        "electricity_energy_tax_eur_per_kwh",
+        "gas_energy_tax_eur_per_m3",
+        "energy_tax_reduction_eur_per_year",
+        "distribution_electricity_eur_per_year",
+        "distribution_gas_eur_per_year",
+        "contract_advance_eur_per_month",
     ):
         value = raw.get(field)
         if value is not None:
@@ -6987,6 +7145,37 @@ def load_nextenergy_contract_costs() -> dict[str, Any]:
                 errors.append(f"export_compensation_formula.{key}_must_be_non_negative_number_or_null")
     result["export_compensation_formula"] = export_formula
 
+    solar_bonus = raw.get("solar_bonus")
+    if solar_bonus is not None and not isinstance(solar_bonus, dict):
+        errors.append("solar_bonus_must_be_object_or_null")
+        solar_bonus = None
+    if isinstance(solar_bonus, dict):
+        allowed_solar = {
+            "percentage", "start_hour_local", "end_hour_local",
+            "positive_market_price_only", "annual_eligible_export_cap_kwh",
+            "solar_export_source_mode", "notes",
+        }
+        unknown_solar = sorted(set(solar_bonus) - allowed_solar)
+        if unknown_solar:
+            errors.append("solar_bonus_unknown_fields:" + ",".join(unknown_solar))
+        percentage = solar_bonus.get("percentage")
+        if not isinstance(percentage, (int, float)) or isinstance(percentage, bool) or not (0 <= percentage <= 1):
+            errors.append("solar_bonus.percentage_must_be_between_0_and_1")
+        for key in ("start_hour_local", "end_hour_local"):
+            value = solar_bonus.get(key)
+            if not isinstance(value, int) or isinstance(value, bool) or not (0 <= value <= 24):
+                errors.append(f"solar_bonus.{key}_must_be_hour")
+        cap = solar_bonus.get("annual_eligible_export_cap_kwh")
+        if not isinstance(cap, (int, float)) or isinstance(cap, bool) or cap < 0:
+            errors.append("solar_bonus.annual_eligible_export_cap_kwh_must_be_non_negative_number")
+        positive_only = solar_bonus.get("positive_market_price_only")
+        if not isinstance(positive_only, bool):
+            errors.append("solar_bonus.positive_market_price_only_must_be_boolean")
+        source_mode = solar_bonus.get("solar_export_source_mode")
+        if source_mode not in (None, "solar_only_current_installation", "explicit_confirmation_required"):
+            errors.append("solar_bonus.solar_export_source_mode_unsupported")
+    result["solar_bonus"] = solar_bonus
+
     gas_formula = raw.get("gas_supplier_formula")
     if gas_formula is not None and not isinstance(gas_formula, dict):
         errors.append("gas_supplier_formula_must_be_object_or_null")
@@ -7013,20 +7202,28 @@ def load_nextenergy_contract_costs() -> dict[str, Any]:
 
 
 def build_contract_validation_status(contract_costs: dict[str, Any]) -> dict[str, Any]:
-    """Maak expliciet zichtbaar welke officiële all-in contractcomponenten ontbreken."""
+    """Expose official modeled-contract completeness separately from invoice actuals."""
     component_checks = {
-        "supplier_fixed_costs": isinstance(contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float)),
+        "electricity_fixed_delivery": isinstance(contract_costs.get("electricity_fixed_delivery_eur_per_month"), (int, float)),
+        "gas_fixed_delivery": isinstance(contract_costs.get("gas_fixed_delivery_eur_per_month"), (int, float)),
         "supplier_markup": isinstance(contract_costs.get("supplier_markup_eur_per_kwh"), (int, float)),
         "export_compensation": (
             isinstance(contract_costs.get("export_compensation_eur_per_kwh"), (int, float))
             or isinstance(contract_costs.get("export_compensation_formula"), dict)
         ),
         "gas_supplier_formula": isinstance(contract_costs.get("gas_supplier_formula"), dict),
+        "electricity_energy_tax": isinstance(contract_costs.get("electricity_energy_tax_eur_per_kwh"), (int, float)),
+        "gas_energy_tax": isinstance(contract_costs.get("gas_energy_tax_eur_per_m3"), (int, float)),
+        "energy_tax_reduction": isinstance(contract_costs.get("energy_tax_reduction_eur_per_year"), (int, float)),
+        "distribution_electricity": isinstance(contract_costs.get("distribution_electricity_eur_per_year"), (int, float)),
+        "distribution_gas": isinstance(contract_costs.get("distribution_gas_eur_per_year"), (int, float)),
+        "solar_bonus": isinstance(contract_costs.get("solar_bonus"), dict),
     }
     missing = [key for key, value in component_checks.items() if not value]
     file_valid = bool(contract_costs.get("valid"))
+    modeled_ready = bool(file_valid and not missing)
     return {
-        "schema": "nextenergy_contract_validation_v1",
+        "schema": "nextenergy_contract_validation_v2",
         "file_available": bool(contract_costs.get("available")),
         "file_valid": file_valid,
         "effective_from": contract_costs.get("effective_from"),
@@ -7034,18 +7231,28 @@ def build_contract_validation_status(contract_costs: dict[str, Any]) -> dict[str
         "validated_component_count": sum(1 for value in component_checks.values() if value),
         "required_component_count": len(component_checks),
         "missing_components": missing,
-        "all_required_components_present": bool(file_valid and not missing),
+        "all_required_components_present": modeled_ready,
+        "modeled_contract_components_ready": modeled_ready,
+        "invoice_actuals_present": False,
+        "invoice_actuals_required_for_invoice_actual_claim": True,
         "validation_errors": list(contract_costs.get("validation_errors") or []),
-        "policy": "official_contract_values_only_no_assumptions",
+        "policy": "official_contract_values_only_no_assumptions_invoice_actuals_separate",
     }
 
 
 def apply_nextenergy_contract_costs(supplier_context: dict[str, Any]) -> None:
-    """Koppel alleen gevalideerde contractcomponenten aan het cost model."""
+    """Attach validated official contract components while keeping invoice actuals separate."""
     contract_costs = load_nextenergy_contract_costs()
+    validation = build_contract_validation_status(contract_costs)
     supplier_context["contract_costs"] = contract_costs
-    supplier_context["contract_validation"] = build_contract_validation_status(contract_costs)
+    supplier_context["contract_validation"] = validation
     model = supplier_context.setdefault("cost_model", {})
+    contract = supplier_context.setdefault("contract", {})
+
+    model["invoice_actuals_known"] = False
+    model["modeled_contract_components_ready"] = bool(validation.get("modeled_contract_components_ready"))
+    if isinstance(contract_costs.get("contract_advance_eur_per_month"), (int, float)):
+        contract["original_contract_advance_eur"] = float(contract_costs["contract_advance_eur_per_month"])
 
     if not contract_costs.get("valid"):
         model["supplier_fixed_costs_known"] = False
@@ -7055,8 +7262,8 @@ def apply_nextenergy_contract_costs(supplier_context: dict[str, Any]) -> None:
         return
 
     model["supplier_fixed_costs_known"] = isinstance(
-        contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float)
-    )
+        contract_costs.get("electricity_fixed_delivery_eur_per_month"), (int, float)
+    ) or isinstance(contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float))
     model["supplier_markup_known"] = isinstance(
         contract_costs.get("supplier_markup_eur_per_kwh"), (int, float)
     )
@@ -7064,10 +7271,16 @@ def apply_nextenergy_contract_costs(supplier_context: dict[str, Any]) -> None:
         isinstance(contract_costs.get("export_compensation_eur_per_kwh"), (int, float))
         or isinstance(contract_costs.get("export_compensation_formula"), dict)
     )
-    model["gas_supplier_formula_known"] = isinstance(
-        contract_costs.get("gas_supplier_formula"), dict
+    model["gas_supplier_formula_known"] = isinstance(contract_costs.get("gas_supplier_formula"), dict)
+    model["energy_tax_known"] = all(
+        isinstance(contract_costs.get(key), (int, float))
+        for key in ("electricity_energy_tax_eur_per_kwh", "gas_energy_tax_eur_per_m3", "energy_tax_reduction_eur_per_year")
     )
-
+    model["distribution_costs_known"] = all(
+        isinstance(contract_costs.get(key), (int, float))
+        for key in ("distribution_electricity_eur_per_year", "distribution_gas_eur_per_year")
+    )
+    model["solar_bonus_rule_known"] = isinstance(contract_costs.get("solar_bonus"), dict)
 
 
 def calculate_export_compensation(
@@ -7178,6 +7391,216 @@ def calculate_gas_supplier_cost(
     result["supplier_gas_cost_eur"] = round(float(gas_m3) * effective, 2)
     return result
 
+
+
+def calculate_observed_nextenergy_electricity_cost(
+    *,
+    observed_variable_cost_eur: float | None,
+    observed_import_kwh: float | None,
+    coverage_days: float | None,
+    days_in_month: int,
+    contract_costs: dict[str, Any],
+) -> dict[str, Any]:
+    """Add only fixed delivery to observed NextEnergy variable price cost.
+
+    The configured NextEnergy live-price entity represents the delivered variable
+    electricity price. Its observed value already includes the supplier markup and
+    electricity energy tax; adding either again would double count them.
+    """
+    result = {
+        "available": False,
+        "observed_supplier_electricity_cost_eur": None,
+        "fixed_delivery_cost_prorated_eur": None,
+        "supplier_markup_included_in_observed_price": True,
+        "energy_tax_included_in_observed_price": True,
+        "observed_import_kwh": observed_import_kwh,
+        "reason": None,
+    }
+    fixed = contract_costs.get("electricity_fixed_delivery_eur_per_month")
+    if fixed is None:
+        fixed = contract_costs.get("supplier_fixed_costs_eur_per_month")
+    if not isinstance(observed_variable_cost_eur, (int, float)):
+        result["reason"] = "observed_variable_cost_not_available"
+        return result
+    if not isinstance(coverage_days, (int, float)) or coverage_days < 0 or days_in_month <= 0:
+        result["reason"] = "coverage_not_available"
+        return result
+    if not isinstance(fixed, (int, float)):
+        result["reason"] = "electricity_fixed_delivery_not_available"
+        return result
+    fixed_prorated = float(fixed) * (float(coverage_days) / float(days_in_month))
+    result.update({
+        "available": True,
+        "fixed_delivery_cost_prorated_eur": round(fixed_prorated, 2),
+        "observed_supplier_electricity_cost_eur": round(float(observed_variable_cost_eur) + fixed_prorated, 2),
+        "reason": "observed_nextenergy_variable_price_plus_prorated_fixed_delivery",
+    })
+    return result
+
+
+def calculate_solar_bonus_interval(
+    *,
+    export_kwh: float | None,
+    market_price_eur_per_kwh: float | None,
+    timestamp_utc: str | None,
+    contract_costs: dict[str, Any],
+    solar_origin_confirmed: bool,
+    meter_data_complete: bool,
+    annual_export_before_interval_kwh: float = 0.0,
+) -> dict[str, Any]:
+    """Calculate the contractual solar bonus for one interval, never by assumption."""
+    result = {
+        "available": False,
+        "eligible_export_kwh": None,
+        "bonus_eur": None,
+        "reason": None,
+    }
+    bonus = contract_costs.get("solar_bonus")
+    if not isinstance(bonus, dict):
+        result["reason"] = "solar_bonus_contract_rule_not_available"
+        return result
+    if not solar_origin_confirmed:
+        result["reason"] = "solar_origin_not_confirmed"
+        return result
+    if not meter_data_complete:
+        result["reason"] = "meter_data_incomplete"
+        return result
+    if not isinstance(export_kwh, (int, float)) or export_kwh < 0:
+        result["reason"] = "export_kwh_not_available"
+        return result
+    if not isinstance(market_price_eur_per_kwh, (int, float)):
+        result["reason"] = "market_price_not_available"
+        return result
+    if not timestamp_utc:
+        result["reason"] = "timestamp_not_available"
+        return result
+    try:
+        local_dt = datetime.strptime(timestamp_utc, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc).astimezone(TZ)
+    except ValueError:
+        result["reason"] = "timestamp_invalid"
+        return result
+
+    percentage = bonus.get("percentage")
+    start_hour = bonus.get("start_hour_local")
+    end_hour = bonus.get("end_hour_local")
+    cap = bonus.get("annual_eligible_export_cap_kwh")
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (percentage, start_hour, end_hour, cap)):
+        result["reason"] = "solar_bonus_contract_rule_incomplete"
+        return result
+
+    result["available"] = True
+    if not (int(start_hour) <= local_dt.hour < int(end_hour)):
+        result.update({"eligible_export_kwh": 0.0, "bonus_eur": 0.0, "reason": "outside_bonus_hours"})
+        return result
+    if bool(bonus.get("positive_market_price_only")) and float(market_price_eur_per_kwh) <= 0:
+        result.update({"eligible_export_kwh": 0.0, "bonus_eur": 0.0, "reason": "non_positive_market_price"})
+        return result
+
+    remaining = max(0.0, float(cap) - max(0.0, float(annual_export_before_interval_kwh)))
+    eligible = min(float(export_kwh), remaining)
+    result["eligible_export_kwh"] = round(eligible, 6)
+    result["bonus_eur"] = round(eligible * float(market_price_eur_per_kwh) * float(percentage), 2)
+    result["reason"] = "annual_cap_reached" if eligible <= 0 and export_kwh > 0 else "eligible"
+    return result
+
+
+def calculate_nextenergy_modeled_period_cost(
+    *,
+    grid_import_kwh: float | None,
+    grid_export_kwh: float | None,
+    gas_m3: float | None,
+    electricity_market_import_cost_eur: float | None,
+    electricity_market_export_value_eur: float | None,
+    gas_market_cost_eur: float | None,
+    solar_bonus_eur: float | None,
+    coverage_days: float | None,
+    days_in_month: int,
+    contract_costs: dict[str, Any],
+) -> dict[str, Any]:
+    """Model contract costs from explicit official components; never an invoice actual."""
+    result: dict[str, Any] = {
+        "available": False,
+        "modeled_contract_cost_eur": None,
+        "invoice_actual_eur": None,
+        "energy_tax_reduction_eur": None,
+        "missing_components": [],
+        "scope": "modeled_contract_cost_not_invoice_actual",
+    }
+    required_values = {
+        "grid_import_kwh": grid_import_kwh,
+        "grid_export_kwh": grid_export_kwh,
+        "gas_m3": gas_m3,
+        "electricity_market_import_cost_eur": electricity_market_import_cost_eur,
+        "electricity_market_export_value_eur": electricity_market_export_value_eur,
+        "gas_market_cost_eur": gas_market_cost_eur,
+        "solar_bonus_eur": solar_bonus_eur,
+        "coverage_days": coverage_days,
+        "electricity_fixed_delivery_eur_per_month": contract_costs.get("electricity_fixed_delivery_eur_per_month"),
+        "gas_fixed_delivery_eur_per_month": contract_costs.get("gas_fixed_delivery_eur_per_month"),
+        "supplier_markup_eur_per_kwh": contract_costs.get("supplier_markup_eur_per_kwh"),
+        "electricity_energy_tax_eur_per_kwh": contract_costs.get("electricity_energy_tax_eur_per_kwh"),
+        "gas_energy_tax_eur_per_m3": contract_costs.get("gas_energy_tax_eur_per_m3"),
+        "energy_tax_reduction_eur_per_year": contract_costs.get("energy_tax_reduction_eur_per_year"),
+        "distribution_electricity_eur_per_year": contract_costs.get("distribution_electricity_eur_per_year"),
+        "distribution_gas_eur_per_year": contract_costs.get("distribution_gas_eur_per_year"),
+    }
+    gas_formula = contract_costs.get("gas_supplier_formula") or {}
+    gas_markup = gas_formula.get("markup_eur_per_m3") if isinstance(gas_formula, dict) else None
+    required_values["gas_supplier_markup_eur_per_m3"] = gas_markup
+    export_formula = contract_costs.get("export_compensation_formula") or {}
+    export_fee = export_formula.get("markup_eur_per_kwh", 0.0) if isinstance(export_formula, dict) else None
+    required_values["export_fee_eur_per_kwh"] = export_fee
+
+    missing = [key for key, value in required_values.items() if not isinstance(value, (int, float)) or isinstance(value, bool)]
+    if days_in_month <= 0:
+        missing.append("days_in_month")
+    if missing:
+        result["missing_components"] = missing
+        return result
+
+    coverage = max(0.0, float(coverage_days))
+    monthly_ratio = coverage / float(days_in_month)
+    annual_ratio = coverage / 365.0
+    supplier_markup = float(grid_import_kwh) * float(contract_costs["supplier_markup_eur_per_kwh"])
+    electricity_tax = float(grid_import_kwh) * float(contract_costs["electricity_energy_tax_eur_per_kwh"])
+    gas_markup_cost = float(gas_m3) * float(gas_markup)
+    gas_tax = float(gas_m3) * float(contract_costs["gas_energy_tax_eur_per_m3"])
+    supplier_fixed = (
+        float(contract_costs["electricity_fixed_delivery_eur_per_month"])
+        + float(contract_costs["gas_fixed_delivery_eur_per_month"])
+    ) * monthly_ratio
+    distribution = (
+        float(contract_costs["distribution_electricity_eur_per_year"])
+        + float(contract_costs["distribution_gas_eur_per_year"])
+    ) * annual_ratio
+    reduction = float(contract_costs["energy_tax_reduction_eur_per_year"]) * annual_ratio
+    export_fee_cost = float(grid_export_kwh) * float(export_fee)
+    total = (
+        float(electricity_market_import_cost_eur) + supplier_markup + electricity_tax
+        + float(gas_market_cost_eur) + gas_markup_cost + gas_tax
+        + supplier_fixed + distribution - reduction
+        - float(electricity_market_export_value_eur) + export_fee_cost - float(solar_bonus_eur)
+    )
+    result.update({
+        "available": True,
+        "modeled_contract_cost_eur": round(total, 2),
+        "energy_tax_reduction_eur": round(reduction, 2),
+        "components": {
+            "electricity_market_import_eur": round(float(electricity_market_import_cost_eur), 2),
+            "electricity_supplier_markup_eur": round(supplier_markup, 2),
+            "electricity_energy_tax_eur": round(electricity_tax, 2),
+            "gas_market_eur": round(float(gas_market_cost_eur), 2),
+            "gas_supplier_markup_eur": round(gas_markup_cost, 2),
+            "gas_energy_tax_eur": round(gas_tax, 2),
+            "supplier_fixed_delivery_eur": round(supplier_fixed, 2),
+            "distribution_eur": round(distribution, 2),
+            "energy_tax_reduction_eur": round(reduction, 2),
+            "export_market_credit_eur": round(float(electricity_market_export_value_eur), 2),
+            "export_fee_eur": round(export_fee_cost, 2),
+            "solar_bonus_eur": round(float(solar_bonus_eur), 2),
+        },
+    })
+    return result
 
 
 def build_cost_saving_decision_support(
@@ -7393,24 +7816,16 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             and isinstance(contract_costs.get("supplier_markup_eur_per_kwh"), (int, float))
             else None
         )
-        observed_fixed_prorated = (
-            round(float(contract_costs.get("supplier_fixed_costs_eur_per_month")) * min(1.0, float(coverage_days) / 30.0), 2)
-            if isinstance(contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float))
-            and coverage_days is not None
-            else None
+        contract_month_days = monthrange(int(str(month.get("month"))[:4]), int(str(month.get("month"))[5:7]))[1]
+        observed_supplier_cost = calculate_observed_nextenergy_electricity_cost(
+            observed_variable_cost_eur=weighted.get("observed_import_cost_eur"),
+            observed_import_kwh=weighted.get("import_kwh_observed"),
+            coverage_days=coverage_days,
+            days_in_month=contract_month_days,
+            contract_costs=contract_costs,
         )
-        observed_supplier_electricity_cost = (
-            round(
-                float(weighted.get("observed_import_cost_eur"))
-                + float(observed_supplier_markup or 0.0)
-                + float(observed_fixed_prorated or 0.0),
-                2,
-            )
-            if isinstance(weighted.get("observed_import_cost_eur"), (int, float))
-            and isinstance(contract_costs.get("supplier_markup_eur_per_kwh"), (int, float))
-            and isinstance(contract_costs.get("supplier_fixed_costs_eur_per_month"), (int, float))
-            else None
-        )
+        observed_fixed_prorated = observed_supplier_cost.get("fixed_delivery_cost_prorated_eur")
+        observed_supplier_electricity_cost = observed_supplier_cost.get("observed_supplier_electricity_cost_eur")
         month_metrics = month.get("metrics") or {}
         price_context = month.get("price_context") or {}
         electricity_price_context = price_context.get("electricity") or {}
@@ -7435,6 +7850,8 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "scope": "electricity_observed_window_only",
             "market_variable_cost_eur": weighted.get("observed_import_cost_eur"),
             "supplier_markup_cost_eur": observed_supplier_markup,
+            "supplier_markup_included_in_observed_price": True,
+            "energy_tax_included_in_observed_price": True,
             "fixed_delivery_cost_prorated_eur": observed_fixed_prorated,
             "observed_supplier_electricity_cost_eur": observed_supplier_electricity_cost,
             "gas_included": False,
@@ -7463,8 +7880,7 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             "candidate_30d_supplier_electricity_cost_eur": (
                 round(
                     float(candidate_variable_cost_30d)
-                    + float(candidate_import_30d) * float(contract_costs.get("supplier_markup_eur_per_kwh"))
-                    + float(contract_costs.get("supplier_fixed_costs_eur_per_month")),
+                    + float(contract_costs.get("electricity_fixed_delivery_eur_per_month") if isinstance(contract_costs.get("electricity_fixed_delivery_eur_per_month"), (int, float)) else contract_costs.get("supplier_fixed_costs_eur_per_month")),
                     2,
                 )
                 if isinstance(candidate_variable_cost_30d, (int, float))
@@ -7519,8 +7935,8 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
             else None
         )
         projected_supplier_electricity_30d = (
-            round(float(projected_variable_cost_30d) + float(projected_markup_30d) + float(projected_fixed_30d), 2)
-            if all(isinstance(value, (int, float)) for value in (projected_variable_cost_30d, projected_markup_30d, projected_fixed_30d))
+            round(float(projected_variable_cost_30d) + float(projected_fixed_30d), 2)
+            if all(isinstance(value, (int, float)) for value in (projected_variable_cost_30d, projected_fixed_30d))
             else None
         )
         financial["financial_projection"] = {
@@ -11002,6 +11418,62 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
         "quarters": quarters,
         "years": years,
     }
+
+
+ASSISTANT_KNOWLEDGE_FILES = (
+    "Knowledge_Base.md",
+    "Apparatuur_index.md",
+    "Knowledge_Base_Leveranciers_Besluitvorming.md",
+    "EnergieProject_Roadmap.md",
+    "ACTUELE_STATUS.md",
+)
+
+
+def _assistant_knowledge_context(query: str, domains: list[str]) -> dict[str, Any]:
+    """Return small read-only excerpts from the canonical Knowledge Base."""
+    root = NAS_DATA_ROOT / "02_Output" / "Rapportages" / "KnowledgeBase"
+    tokens = [
+        token for token in re.findall(r"[a-zA-ZÀ-ÿ0-9_-]{3,}", str(query).casefold())
+        if token not in {"wat", "weet", "van", "mijn", "deze", "maand", "hoeveel", "over", "voor"}
+    ]
+    matches: list[dict[str, Any]] = []
+    for name in ASSISTANT_KNOWLEDGE_FILES:
+        path = root / name
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            folded = line.casefold()
+            if not line.strip() or not tokens or not any(token in folded for token in tokens):
+                continue
+            matches.append({
+                "source": name,
+                "line": line_number,
+                "text": line.strip()[:500],
+            })
+            if len(matches) >= 8:
+                break
+        if len(matches) >= 8:
+            break
+    return {
+        "status": "ok",
+        "domains": list(domains),
+        "matches": matches,
+        "searched_files": list(ASSISTANT_KNOWLEDGE_FILES),
+    }
+
+
+ASSISTANT_ENGINE = EnergyConversationEngine(
+    app_version=APP_VERSION,
+    analysis_provider=build_analysis_context,
+    knowledge_provider=_assistant_knowledge_context,
+    now_provider=lambda: datetime.now(TZ),
+    session_ttl_seconds=7200,
+    max_sessions=100,
+)
 
 
 def analysis_overview(context: dict[str, Any]) -> dict[str, Any]:
@@ -17524,6 +17996,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        if path.endswith("/api/assistant/health") or path == "/api/assistant/health":
+            body = json.dumps(ASSISTANT_ENGINE.health(), ensure_ascii=False, indent=2).encode("utf-8")
+            self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+            return
         if path.endswith("/status.json") or path == "/status.json":
             body = json.dumps(
                 persist_normalized_status(Options.load()),
@@ -17769,6 +18245,30 @@ class Handler(BaseHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        if path.endswith("/api/assistant/context") or path == "/api/assistant/context":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            raw = self.rfile.read(length)
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+                if not isinstance(payload, dict):
+                    raise ValueError("JSON body must be an object")
+                query = payload.get("query")
+                session_id = payload.get("session_id")
+                if not isinstance(query, str) or not query.strip():
+                    raise ValueError("query is required")
+                if session_id is not None and not isinstance(session_id, str):
+                    raise ValueError("session_id must be a string")
+                result = ASSISTANT_ENGINE.context(query, session_id=session_id)
+                body = json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8")
+                self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+            except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+                body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.BAD_REQUEST, body, "application/json; charset=utf-8")
+            except Exception as exc:
+                LOGGER.exception("Assistant context failed")
+                body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, body, "application/json; charset=utf-8")
+            return
         if path.endswith("/set-automatic-month-close-enabled") or path == "/set-automatic-month-close-enabled":
             length = int(self.headers.get("Content-Length", "0") or 0)
             form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
@@ -18559,7 +19059,8 @@ def main() -> None:
     )
     if processed_retention.get("status") == "ok":
         LOGGER.info(
-            "HA-app processed-retentie v32.2.2: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            "HA-app processed-retentie v%s: OK before=%s after=%s keep=%s kept=%s removed=%s",
+            APP_VERSION,
             processed_retention.get("before"),
             processed_retention.get("after"),
             processed_retention.get("keep"),
@@ -18568,7 +19069,8 @@ def main() -> None:
         )
     else:
         LOGGER.error(
-            "HA-app processed-retentie v32.2.2: FOUT %s",
+            "HA-app processed-retentie v%s: FOUT %s",
+            APP_VERSION,
             processed_retention.get("error"),
         )
     signal.signal(signal.SIGTERM, stop_handler)
