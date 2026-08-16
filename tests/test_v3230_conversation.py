@@ -21,7 +21,7 @@ def load_module(name="energy_conversation_test"):
 def analysis_fixture():
     return {
         "schema": "energy_analysis_context_v1",
-        "version": "32.3.0",
+        "version": "32.3.1",
         "months": [
             {
                 "month": "2026_07",
@@ -73,7 +73,7 @@ def test_conversation_module_exists_red_gate():
 def test_current_month_gas_query_returns_partial_evidence():
     m = load_module("conversation_current")
     engine = m.EnergyConversationEngine(
-        app_version="32.3.0",
+        app_version="32.3.1",
         analysis_provider=lambda year=None: analysis_fixture(),
         knowledge_provider=lambda query, domains: {"matches": []},
         now_provider=lambda: datetime(2026, 8, 16, 18, 0, tzinfo=TZ),
@@ -91,7 +91,7 @@ def test_current_month_gas_query_returns_partial_evidence():
 def test_followup_inherits_domain_and_moves_to_previous_month():
     m = load_module("conversation_followup")
     engine = m.EnergyConversationEngine(
-        app_version="32.3.0",
+        app_version="32.3.1",
         analysis_provider=lambda year=None: analysis_fixture(),
         knowledge_provider=lambda query, domains: {"matches": []},
         now_provider=lambda: datetime(2026, 8, 16, 18, 0, tzinfo=TZ),
@@ -108,7 +108,7 @@ def test_followup_inherits_domain_and_moves_to_previous_month():
 def test_finance_query_exposes_contract_quality_without_invoice_claim():
     m = load_module("conversation_finance")
     engine = m.EnergyConversationEngine(
-        app_version="32.3.0",
+        app_version="32.3.1",
         analysis_provider=lambda year=None: analysis_fixture(),
         knowledge_provider=lambda query, domains: {"matches": []},
         now_provider=lambda: datetime(2026, 8, 16, 18, 0, tzinfo=TZ),
@@ -129,7 +129,7 @@ def test_apparatus_query_uses_read_only_knowledge_provider():
         calls.append((query, tuple(domains)))
         return {"matches": [{"source": "Apparatuur_index.md", "text": "Airco Mitsubishi"}]}
     engine = m.EnergyConversationEngine(
-        app_version="32.3.0",
+        app_version="32.3.1",
         analysis_provider=lambda year=None: analysis_fixture(),
         knowledge_provider=knowledge,
         now_provider=lambda: datetime(2026, 8, 16, 18, 0, tzinfo=TZ),
@@ -162,7 +162,7 @@ def test_expired_session_does_not_inherit_old_domain(monkeypatch):
     clock = {"value": 1000.0}
     monkeypatch.setattr(m.time, "monotonic", lambda: clock["value"])
     engine = m.EnergyConversationEngine(
-        app_version="32.3.0",
+        app_version="32.3.1",
         analysis_provider=lambda year=None: analysis_fixture(),
         knowledge_provider=lambda query, domains: {"matches": []},
         now_provider=lambda: datetime(2026, 8, 16, 18, 0, tzinfo=TZ),
@@ -178,7 +178,7 @@ def test_expired_session_does_not_inherit_old_domain(monkeypatch):
 def test_session_cache_is_bounded_and_health_is_read_only():
     m = load_module("conversation_bounded")
     engine = m.EnergyConversationEngine(
-        app_version="32.3.0",
+        app_version="32.3.1",
         analysis_provider=lambda year=None: analysis_fixture(),
         knowledge_provider=lambda query, domains: {"matches": []},
         now_provider=lambda: datetime(2026, 8, 16, 18, 0, tzinfo=TZ),
@@ -196,7 +196,7 @@ def test_session_cache_is_bounded_and_health_is_read_only():
 def test_unknown_month_remains_unknown_instead_of_inventing_values():
     m = load_module("conversation_unknown")
     engine = m.EnergyConversationEngine(
-        app_version="32.3.0",
+        app_version="32.3.1",
         analysis_provider=lambda year=None: analysis_fixture(),
         knowledge_provider=lambda query, domains: {"matches": []},
         now_provider=lambda: datetime(2026, 8, 16, 18, 0, tzinfo=TZ),
@@ -210,7 +210,7 @@ def test_unknown_month_remains_unknown_instead_of_inventing_values():
 def test_invalid_session_id_is_rejected():
     m = load_module("conversation_session_guard")
     engine = m.EnergyConversationEngine(
-        app_version="32.3.0",
+        app_version="32.3.1",
         analysis_provider=lambda year=None: analysis_fixture(),
         knowledge_provider=lambda query, domains: {"matches": []},
         now_provider=lambda: datetime(2026, 8, 16, 18, 0, tzinfo=TZ),

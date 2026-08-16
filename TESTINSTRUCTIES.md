@@ -1,11 +1,11 @@
-# Testinstructies v32.3.0 — kwartierdata, NextEnergy en gesprekspartner
+# Testinstructies v32.3.1 — kwartierdata, NextEnergy en gesprekspartner
 
 ## Automatisch vóór release
 1. `pytest -q tests/test_v3230_phase1.py tests/test_v3230_conversation.py`.
 2. Volledige `pytest -q`.
 3. Compile alle Pythonbestanden.
 4. `sh -n` op alle shellscripts.
-5. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.0.
+5. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.1.
 6. Rebuild en controleer `MANIFEST.sha256` en `SHA256SUMS.json` op hash én grootte.
 7. Bouw de uiteindelijke ZIP zonder bovenliggende map, test CRC/path-safety, pak opnieuw schoon uit en herhaal manifest-, compile- en regressiecontroles vanuit de ZIP zelf.
 
@@ -22,7 +22,7 @@
 - Projecttermijn €150 en oorspronkelijk contracttermijn €118 blijven afzonderlijk gelabeld.
 
 ## Gesprekspartner
-- `/api/assistant/health` is read-only en meldt release-identiteit 32.3.0.
+- `/api/assistant/health` is read-only en meldt release-identiteit 32.3.1.
 - `/api/assistant/context` accepteert `query` en optioneel `session_id`.
 - `deze maand` blijft PARTIEEL; `en vorige maand?` erft domein binnen dezelfde sessie.
 - Apparatuurvragen gebruiken alleen read-only canonieke Knowledge Base-bronnen.
@@ -42,3 +42,13 @@
 - Historische EPEX-referentiedekking voor juli kon eerder gedeeltelijk zijn; dit wijzigt de gevalideerde juli-energieactuals niet.
 - Gebruik GEEN handmatige Git-commit of Git-push.
 - De historische gedeeltelijke EPEX-referentiedekking voor juli liep eerder t/m 2026-07-29; dit blijft alleen historische referentiecontext.
+
+## Hotfix-aanvulling v32.3.1 — MCP system-pad guard
+
+- Na installatie moet `Inbox/logs/mcp_system_path_guard_hotfix_v3231.json` `status=ok` melden.
+- Guardstatus is `patched` of `already_guarded`; cleanupstatus is `removed_exact_duplicate_tree` of `already_absent`.
+- `Data/03_Systeem/Data` moet daarna afwezig zijn; canoniek `Data/03_Systeem/Projectmanager` blijft intact.
+- Herstart daarna uitsluitend `energie-filesystem-mcp` in Container Station zodat de actieve Python-runtime de nieuwe guard inlaadt.
+- Negatieve acceptatietest: een system-write met `Data/03_Systeem/...` als argument moet vóór enige write een `ValueError` geven; `Projectmanager/...` blijft het geldige relatieve formaat.
+- Onbekende inhoud, extra entries of afwijkende MCP-broncode moeten de hotfix fail-closed blokkeren.
+

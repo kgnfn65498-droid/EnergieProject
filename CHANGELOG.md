@@ -1,3 +1,13 @@
+## v32.3.1 — Kwartierdata, NextEnergy-contractmodel en gesprekspartner + MCP system-pad guard hotfix
+
+- Herstelt de structurele foutklasse waarbij `write_system_text_file` en `create_system_directory` een relatief pad dat al met `Data/03_Systeem` begon opnieuw onder de system-root konden plaatsen.
+- Nieuwe watcher-hotfix patcht `Infra/Docker/native-mcp/tools_filesystem.py` alleen wanneer de verwachte `_system_path`-bronvorm exact één keer aanwezig is, compileert de nieuwe bron vóór atomische vervanging en bewaart de pre-patchbron onder `Backups/MCPHotfix/v32.3.1/`.
+- De runtime-guard weigert zowel `Data/03_Systeem/...`, `./Data/03_Systeem/...` als backslashvarianten; normale relatieve paden zoals `Projectmanager/Runs/...` blijven toegestaan.
+- Dezelfde onderhoudsactie verwijdert uitsluitend de bekende 3.278-byte v32.3.0-acceptatiekopie wanneer pad, JSON-identiteit, release-SHA en grootte exact overeenkomen; daarna worden alleen de lege bekende dubbele parentmappen verwijderd.
+- Onbekende inhoud, extra bestanden, symlinks of afwijkende broncode blokkeren de cleanup fail-closed.
+- Na bronpatch is één herstart van `energie-filesystem-mcp` nodig zodat het Python-proces de nieuwe guard inlaadt.
+- Geen wijziging aan energieactuals, NextEnergy-formules, gesprekspartnerlogica, automatische maandafsluiting of `finalize_month`.
+
 ## v32.3.0 — Kwartierdata, NextEnergy-contractmodel en gesprekspartner
 
 - Gebouwd vanaf de door de gebruiker aangeleverde en manifest-identieke live v32.2.2-basis.

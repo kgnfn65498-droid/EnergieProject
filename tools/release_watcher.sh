@@ -27,6 +27,8 @@ ZIP_HELPER_SOURCE="$PROJECT/tools/release_zip.py"
 CRASH_CLEANUP_REQUEST="$INBOX/crash_recovery_cleanup_request.json"
 CRASH_CLEANUP_RESULT="$INBOX/crash_recovery_cleanup_result.json"
 CRASH_CLEANUP_HELPER="$PROJECT/tools/crash_recovery_cleanup.py"
+MCP_GUARD_HOTFIX_HELPER="$PROJECT/tools/mcp_system_path_guard_hotfix.py"
+MCP_GUARD_HOTFIX_RESULT="$INBOX/logs/mcp_system_path_guard_hotfix_v3231.json"
 HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
 INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"
 STABLE_POLLS="${ENERGIE_ZIP_STABLE_POLLS:-3}"
@@ -144,6 +146,20 @@ touch_heartbeat(){
   mv "$HEARTBEAT.tmp.$$" "$HEARTBEAT"
 }
 
+process_mcp_guard_hotfix(){
+  [ -f "$MCP_GUARD_HOTFIX_HELPER" ] || return 0
+  if ! command -v python3 >/dev/null 2>&1; then
+    log "FOUT: MCP system-path hotfix wacht; python3 ontbreekt in watchercontainer"
+    return 1
+  fi
+  if python3 "$MCP_GUARD_HOTFIX_HELPER" --root "$ROOT" --result "$MCP_GUARD_HOTFIX_RESULT" >> "$LOGDIR/release_watcher.log" 2>&1; then
+    log "MCP system-path guard hotfix toegepast/gecontroleerd; MCP-containerrestart vereist"
+    return 0
+  fi
+  log "FOUT: MCP system-path guard hotfix niet volledig geslaagd; zie $MCP_GUARD_HOTFIX_RESULT"
+  return 1
+}
+
 process_crash_recovery_cleanup(){
   [ -f "$CRASH_CLEANUP_REQUEST" ] || return 0
   if ! command -v python3 >/dev/null 2>&1; then
@@ -236,6 +252,12 @@ refresh_watcher_from_installed_release(){
 trap 'cleanup_watcher' EXIT INT TERM
 touch_heartbeat
 log "Release watcher gestart; interval=${INTERVAL}s"
+
+if process_mcp_guard_hotfix; then
+  log "MCP hotfix startupcontrole = OK"
+else
+  write_status "MAINTENANCE_FAILED" "mcp-system-path-hotfix; watcher blijft actief"
+fi
 
 if cleanup_processed_releases_on_start; then
   write_status "WATCHER_ACTIVE" "startup-retention-ok keep=${PROCESSED_RETENTION}"
