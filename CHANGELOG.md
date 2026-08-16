@@ -1,3 +1,12 @@
+## v32.3.2 — Assistant runtime observability
+
+- Voegt één fixed-target, read-only assistant runtime self-probe toe die uitsluitend via loopback `127.0.0.1:8099` de bestaande `/api/assistant/health` en `/api/assistant/context` contracten controleert.
+- Probe valideert release-identiteit, augustus 2026 als PARTIAL met Home Assistant-kwartierprovenance, sessie-follow-up naar juli 2026, NextEnergy contractmodel zonder factuuractual en Knowledge Base-bronvermelding voor apparatuur.
+- Negatieve runtimechecks bevestigen dat een onbekende assistant-route 404 geeft en dat extra actie-/writevelden in assistant-context met 400 worden geweigerd.
+- Assistant requestgrootte is begrensd op 32 KiB; probe-antwoorden op 256 KiB; timeout maximaal 5 seconden. De probe accepteert geen willekeurige host, URL, route of methode.
+- Resultaat wordt na add-on-start atomisch vastgelegd in `Data/03_Systeem/Projectmanager/State/assistant_runtime_acceptance.json`; bij iedere fout blijft de Voice-gate gesloten.
+- Geen wijziging aan energieactuals, maandafsluiting, `finalize_month`, NextEnergy-berekeningen, MCP-rechten of bestaande system-pad guard. Voice/Assist wordt door deze release niet automatisch geactiveerd.
+
 ## v32.3.1 — Kwartierdata, NextEnergy-contractmodel en gesprekspartner + MCP system-pad guard hotfix
 
 - Herstelt de structurele foutklasse waarbij `write_system_text_file` en `create_system_directory` een relatief pad dat al met `Data/03_Systeem` begon opnieuw onder de system-root konden plaatsen.

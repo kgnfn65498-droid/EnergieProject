@@ -43,6 +43,7 @@ from project_paths import resolve_nas_roots, wait_for_existing_nas_roots
 from project_structure import HISTORICAL_BOOTSTRAP_STATUS_RELATIVE, migrate_project_structure
 from historical_energy_excel import bootstrap_historical_energy_workbook, publish_historical_energy_workbook
 from energy_conversation import EnergyConversationEngine
+from assistant_runtime_probe import MAX_REQUEST_BYTES as MAX_ASSISTANT_REQUEST_BYTES, run_assistant_runtime_probe
 
 BASE_URL = "https://app.slimmemeterportal.nl"
 OPTIONS_PATH = Path("/data/options.json")
@@ -65,7 +66,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.1"
+APP_VERSION = "32.3.2"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -79,6 +80,7 @@ NAS_DATA_ROOT = NAS_LAYOUT_ROOT / "Data"
 PROJECT_BACKUP_ROOT = NAS_LAYOUT_ROOT / "Backups"
 NAS_RELEASE_ROOT = NAS_LAYOUT_ROOT / "Inbox"
 NAS_INFRA_ROOT = NAS_LAYOUT_ROOT / "Infra"
+ASSISTANT_RUNTIME_ACCEPTANCE_PATH = NAS_DATA_ROOT / "03_Systeem" / "Projectmanager" / "State" / "assistant_runtime_acceptance.json"
 PROJECT_BACKUP_RETENTION = 3
 PROJECT_BACKUP_PREFIX = "EnergieProject_maandbackup"
 ENERGIE_MCP_URL = os.environ.get("ENERGIE_MCP_URL", "http://192.168.1.200:8000/mcp").rstrip("/")
@@ -18247,11 +18249,18 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/")
         if path.endswith("/api/assistant/context") or path == "/api/assistant/context":
             length = int(self.headers.get("Content-Length", "0") or 0)
+            if length > MAX_ASSISTANT_REQUEST_BYTES:
+                body = json.dumps({"status": "error", "error": "assistant request exceeds 32 KiB"}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, body, "application/json; charset=utf-8")
+                return
             raw = self.rfile.read(length)
             try:
                 payload = json.loads(raw.decode("utf-8"))
                 if not isinstance(payload, dict):
                     raise ValueError("JSON body must be an object")
+                unsupported = sorted(set(payload) - {"query", "session_id"})
+                if unsupported:
+                    raise ValueError("unsupported assistant payload fields: " + ", ".join(unsupported))
                 query = payload.get("query")
                 session_id = payload.get("session_id")
                 if not isinstance(query, str) or not query.strip():
@@ -19150,6 +19159,44 @@ def main() -> None:
             LOGGER.exception("Automatische zelftest mislukt.")
 
     threading.Thread(target=startup_self_test, daemon=True).start()
+
+    def startup_assistant_runtime_self_probe() -> None:
+        try:
+            time.sleep(2.0)
+            result = run_assistant_runtime_probe(app_version=APP_VERSION)
+            result["checked_at"] = datetime.now(TZ).isoformat()
+            result["release"] = APP_VERSION
+            result["read_only_probe"] = True
+            result["output_path"] = str(ASSISTANT_RUNTIME_ACCEPTANCE_PATH)
+            write_atomic_json(ASSISTANT_RUNTIME_ACCEPTANCE_PATH, result)
+            LOGGER.info(
+                "Assistant runtime self-probe v%s: %s; voice_gate=%s",
+                APP_VERSION,
+                result.get("status"),
+                result.get("voice_gate"),
+            )
+        except Exception as exc:
+            result = {
+                "schema": "assistant_runtime_acceptance_v1",
+                "status": "FAIL",
+                "voice_gate": "CLOSED",
+                "release": APP_VERSION,
+                "read_only_probe": True,
+                "checked_at": datetime.now(TZ).isoformat(),
+                "error": f"{type(exc).__name__}: {exc}",
+                "output_path": str(ASSISTANT_RUNTIME_ACCEPTANCE_PATH),
+            }
+            try:
+                write_atomic_json(ASSISTANT_RUNTIME_ACCEPTANCE_PATH, result)
+            except Exception:
+                LOGGER.exception("Assistant runtime self-probe foutstatus kon niet worden geschreven.")
+            LOGGER.exception("Assistant runtime self-probe mislukt; Voice-gate blijft gesloten.")
+
+    threading.Thread(
+        target=startup_assistant_runtime_self_probe,
+        daemon=True,
+        name="assistant-runtime-self-probe",
+    ).start()
     try:
         publisher_options = _publisher_options()
         LOGGER.info(

@@ -1,7 +1,8 @@
 # Changelog
 
-## 32.3.1 - Kwartierdata, NextEnergy-contractmodel en gesprekspartner + MCP system-pad guard hotfix
-- Onderhoudsrelease bovenop v32.3.0; energieanalyse, NextEnergy-contractmodel en gesprekspartner blijven inhoudelijk ongewijzigd.
-- Release-watcher voert na installatie een fail-closed host-maintenance helper uit die de MCP `_system_path`-prefixguard plaatst en alleen de exact bekende dubbele acceptatiekopie opruimt.
-- De MCP-container moet daarna één keer worden herstart om de nieuwe guard in het actieve Python-proces te laden.
-- Augustus blijft PARTIEEL; automatische maandafsluiting blijft UIT en `finalize_month` wordt niet gebruikt.
+## 32.3.2 - Assistant runtime observability
+- Fixed-target read-only self-probe valideert na add-on-start de echte assistant HTTP-routes via `127.0.0.1:8099`.
+- Runtimeacceptatie controleert health/version, augustus PARTIAL + kwartierbron, sessie-follow-up naar juli, NextEnergy zonder factuuractual en Knowledge Base-provenance voor apparatuur.
+- Extra assistant payloadvelden worden fail-closed geweigerd; requestlimiet 32 KiB, probe-responslimiet 256 KiB en timeout 5 seconden.
+- Acceptance-resultaat wordt naar de bestaande Projectmanager-state op de NAS geschreven; Voice blijft gesloten bij iedere fout en wordt niet automatisch geactiveerd.
+- Geen energieactuals, automatische maandafsluiting, `finalize_month`, MCP-rechten of system-pad guard gewijzigd.

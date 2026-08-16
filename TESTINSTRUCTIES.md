@@ -1,4 +1,15 @@
-# Testinstructies v32.3.1 — kwartierdata, NextEnergy en gesprekspartner
+# Testinstructies v32.3.2 — assistant runtime observability
+
+1. Valideer ZIP-integriteit en `MANIFEST.sha256`.
+2. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.2.
+3. Draai volledige pytest-regressie plus `tests/test_v3232_assistant_runtime_self_probe.py`.
+4. Na live-installatie moet `Data/03_Systeem/Projectmanager/State/assistant_runtime_acceptance.json` verschijnen.
+5. Alleen `status=PASS` met alle checks groen opent de volgende Voice-acceptatiestap; deze release activeert Voice niet.
+6. Bevestig augustus 2026 als PARTIAL met Home Assistant-kwartierbron, dezelfde sessie naar juli, NextEnergy zonder factuuractual en apparaatantwoord met Knowledge Base-bron.
+7. Bevestig negatieve checks: onbekende assistant-route 404 en extra write/action-veld 400.
+8. Automatische maandafsluiting blijft UIT; `finalize_month` niet gebruiken.
+
+## Regressiebasis v32.3.1
 
 ## Automatisch vóór release
 1. `pytest -q tests/test_v3230_phase1.py tests/test_v3230_conversation.py`.
