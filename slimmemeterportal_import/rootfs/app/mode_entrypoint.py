@@ -5,26 +5,30 @@ import threading
 import main as app
 from operating_mode_runtime import (
     install_mode_overrides,
+    install_release_hold_guards,
     operating_mode_project_root,
     operating_mode_tick,
     operating_mode_worker,
     recover_startup_mode_state,
 )
 from operating_mode_web import install_mode_web
+from release_validation_hold import ensure_release_hold_state
 
-TARGET_RELEASE_VERSION = "32.3.13"
+TARGET_RELEASE_VERSION = "32.3.14"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 
 def start_operating_mode_runtime() -> None:
     root = operating_mode_project_root()
+    ensure_release_hold_state(root, TARGET_RELEASE_VERSION)
     recover_startup_mode_state(root)
-    operating_mode_tick(root)
     install_mode_overrides(app, root)
+    install_release_hold_guards(app, root)
+    operating_mode_tick(root, app_module=app)
     install_mode_web(app, root)
     threading.Thread(
         target=operating_mode_worker,
-        args=(app.STOP, root),
+        args=(app.STOP, root, app),
         daemon=True,
         name="operating-mode-reconcile",
     ).start()

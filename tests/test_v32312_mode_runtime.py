@@ -101,10 +101,12 @@ def test_addon_launcher_uses_mode_entrypoint_before_main():
     root = pathlib.Path(__file__).resolve().parents[1]
     run_sh = (root / "slimmemeterportal_import/run.sh").read_text(encoding="utf-8")
     entry = (root / "slimmemeterportal_import/rootfs/app/mode_entrypoint.py").read_text(encoding="utf-8")
+    measured_tick = "operating_mode_tick(root, app_module=app)"
     assert "exec python3 -u /app/mode_entrypoint.py" in run_sh
-    assert entry.index("recover_startup_mode_state(root)") < entry.index("operating_mode_tick(root)")
-    assert entry.index("operating_mode_tick(root)") < entry.index("app.main()")
-    assert entry.index("install_mode_overrides(app, root)") < entry.index("app.main()")
+    assert entry.index("recover_startup_mode_state(root)") < entry.index("install_mode_overrides(app, root)")
+    assert entry.index("install_mode_overrides(app, root)") < entry.index("install_release_hold_guards(app, root)")
+    assert entry.index("install_release_hold_guards(app, root)") < entry.index(measured_tick)
+    assert entry.index(measured_tick) < entry.index("app.main()")
     assert entry.index("install_mode_web(app, root)") < entry.index("app.main()")
     assert "operating-mode-reconcile" in entry
 

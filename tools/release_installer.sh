@@ -28,6 +28,10 @@ PROCESSING_STALE_SECONDS="${ENERGIE_PROCESSING_STALE_SECONDS:-600}"
 REQUIRED="README.md INSTALL.md CHANGELOG.md MANIFEST.sha256 SHA256SUMS.json repository.yaml VERSIE.txt"
 ZIP_HELPER="$PROJECT/tools/release_zip.py"
 HA_PUBLICATION_REQUIRED="$INBOX/ha_publication_required.json"
+RELEASE_HOLD_STATE="$INBOX/operating_mode/release_validation_hold.json"
+PREVIOUS_RELEASE_HOLD_BACKUP=""
+PREVIOUS_RELEASE_HOLD_EXISTED=0
+RELEASE_HOLD_ARMED=0
 
 # Safety rule: never run the live installer from inside the worktree that it replaces.
 # If invoked from the project, copy to /tmp and re-exec before touching the worktree.
@@ -61,6 +65,7 @@ cleanup(){
   [ -n "$PREFLIGHT" ] && rm -rf "$PREFLIGHT" 2>/dev/null || true
   [ -n "$RESTORE_STAGE" ] && rm -rf "$RESTORE_STAGE" 2>/dev/null || true
   [ -n "$STAGE" ] && rm -rf "$STAGE" 2>/dev/null || true
+  [ -n "$PREVIOUS_RELEASE_HOLD_BACKUP" ] && rm -f "$PREVIOUS_RELEASE_HOLD_BACKUP" 2>/dev/null || true
   rmdir "$LOCK" 2>/dev/null || true
 }
 
@@ -183,13 +188,61 @@ cleanup_processed_releases(){
 }
 
 
+capture_previous_release_validation_hold(){
+  [ -z "$PREVIOUS_RELEASE_HOLD_BACKUP" ] || return 0
+  PREVIOUS_RELEASE_HOLD_BACKUP="$(mktemp /tmp/energie-release-hold-prev.XXXXXX)" || return 1
+  if [ -f "$RELEASE_HOLD_STATE" ]; then
+    cp "$RELEASE_HOLD_STATE" "$PREVIOUS_RELEASE_HOLD_BACKUP" || return 1
+    PREVIOUS_RELEASE_HOLD_EXISTED=1
+  else
+    : > "$PREVIOUS_RELEASE_HOLD_BACKUP" || return 1
+    PREVIOUS_RELEASE_HOLD_EXISTED=0
+  fi
+}
+
+restore_previous_release_validation_hold(){
+  [ "$RELEASE_HOLD_ARMED" -eq 1 ] || return 0
+  if [ "$PREVIOUS_RELEASE_HOLD_EXISTED" -eq 1 ]; then
+    mkdir -p "$INBOX/operating_mode" || return 1
+    RESTORE_HOLD_TMP="$RELEASE_HOLD_STATE.tmp.restore.$$"
+    cp "$PREVIOUS_RELEASE_HOLD_BACKUP" "$RESTORE_HOLD_TMP" || { rm -f "$RESTORE_HOLD_TMP" 2>/dev/null || true; return 1; }
+    mv "$RESTORE_HOLD_TMP" "$RELEASE_HOLD_STATE" || { rm -f "$RESTORE_HOLD_TMP" 2>/dev/null || true; return 1; }
+  else
+    rm -f "$RELEASE_HOLD_STATE" || return 1
+  fi
+  RELEASE_HOLD_ARMED=0
+  log "Vorige release validation hold hersteld na mislukte release"
+}
+
+write_release_validation_hold(){
+  capture_previous_release_validation_hold || return 1
+  mkdir -p "$INBOX/operating_mode" || return 1
+  TMP_HOLD="$RELEASE_HOLD_STATE.tmp.$$"
+  cat > "$TMP_HOLD" <<EOF
+{"schema_version":1,"active":true,"release_version":"$NEW_VERSION","activated_at":"$(date '+%Y-%m-%dT%H:%M:%S%z')","activated_reason":"release_install","validation_status":"required","validation_checks":{},"reconcile_status":"required","released_at":"","released_by":"","emergency_release":false,"reasons":[]}
+EOF
+  mv "$TMP_HOLD" "$RELEASE_HOLD_STATE" || {
+    rm -f "$TMP_HOLD" 2>/dev/null || true
+    return 1
+  }
+  RELEASE_HOLD_ARMED=1
+  log "Release validation hold actief voor v$NEW_VERSION; marker=$RELEASE_HOLD_STATE"
+}
+
+
 write_ha_publication_required(){
   PROCESSED_SHA256="$1"
+  [ -d "$HA_PUBLICATION_REQUIRED" ] && return 1
   TMP_PUBLICATION="$HA_PUBLICATION_REQUIRED.tmp.$$"
   cat > "$TMP_PUBLICATION" <<EOF
 {"status":"publication_required","version":"$NEW_VERSION","repository":"https://github.com/kgnfn65498-droid/EnergieProject","branch":"main","reason":"validated_qnap_release_ready_for_github","expected_previous_version":"$CURRENT_VERSION","expected_previous_manifest_sha256":"$CURRENT_MANIFEST_SHA256","target_manifest_sha256":"$TARGET_MANIFEST_SHA256","processed_zip":"EnergieProject_v$NEW_VERSION.zip","processed_zip_sha256":"$PROCESSED_SHA256"}
 EOF
-  mv "$TMP_PUBLICATION" "$HA_PUBLICATION_REQUIRED"
+  mv "$TMP_PUBLICATION" "$HA_PUBLICATION_REQUIRED" || {
+    rm -f "$TMP_PUBLICATION" 2>/dev/null || true
+    return 1
+  }
+  [ -f "$HA_PUBLICATION_REQUIRED" ] || return 1
+  grep -Fq "\"version\":\"$NEW_VERSION\"" "$HA_PUBLICATION_REQUIRED" || return 1
   log "HA-publicatiecontract gereed voor v$NEW_VERSION; marker=$HA_PUBLICATION_REQUIRED"
 }
 
@@ -219,6 +272,9 @@ restore_backup(){
 
 fail(){
   MSG="$*"
+  if [ "$RELEASE_HOLD_ARMED" -eq 1 ]; then
+    restore_previous_release_validation_hold || log "FOUT: vorige release-hold kon niet worden hersteld"
+  fi
   if [ "$WORKTREE_REPLACED" -eq 1 ]; then
     restore_backup || log "FOUT: automatische rollback kon niet volledig worden afgerond"
   fi
@@ -341,6 +397,7 @@ else
   log "TESTSTATUS: vervangende controles ZIP/SHA256/verplichte bestanden/shellsyntax = OK"
 fi
 
+write_release_validation_hold || fail "release validation hold activeren mislukt"
 log "FASE 7/8: publicatie-afhandeling"
 if [ "$GIT_AVAILABLE" -eq 1 ]; then
   git add -A
@@ -373,17 +430,18 @@ if [ "$GIT_AVAILABLE" -eq 1 ]; then
 else
   FINAL_DETAIL="QNAP ZIP-modus zonder git"
 fi
-WORKTREE_REPLACED=0
 CANONICAL_PROCESSED="$PROCESSED/EnergieProject_v${NEW_VERSION}.zip"
-rm -f "$CANONICAL_PROCESSED"
-mv "$ZIP_WORK" "$CANONICAL_PROCESSED"
-ZIP_WORK=""
+rm -f "$CANONICAL_PROCESSED" || fail "oude canonieke processed release verwijderen mislukt"
+mv "$ZIP_WORK" "$CANONICAL_PROCESSED" || fail "release naar processed verplaatsen mislukt"
+ZIP_WORK="$CANONICAL_PROCESSED"
 if [ "$GIT_AVAILABLE" -eq 0 ]; then
   PROCESSED_SHA256="$(sha256sum "$CANONICAL_PROCESSED" 2>/dev/null | awk '{print $1}')"
   [ -n "$PROCESSED_SHA256" ] || fail "processed release SHA256 kon niet worden bepaald"
-  write_ha_publication_required "$PROCESSED_SHA256"
+  write_ha_publication_required "$PROCESSED_SHA256" || fail "HA-publicatiecontract schrijven mislukt"
 fi
 cleanup_old_backups
 cleanup_processed_releases
+ZIP_WORK=""
+WORKTREE_REPLACED=0
 log "SUCCES: $CURRENT_VERSION -> $NEW_VERSION; $FINAL_DETAIL; ZIP canoniek gearchiveerd als EnergieProject_v${NEW_VERSION}.zip in processed."
 schedule_watcher_refresh

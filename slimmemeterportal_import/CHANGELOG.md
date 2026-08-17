@@ -1,9 +1,10 @@
 # Changelog
 
-## 32.3.13
+## 32.3.14
 
-- USER / DEVELOPMENT / MAINTENANCE operating-mode controller with automatic temporary escalation and safe return.
-- Release Incoming is enabled only in DEVELOPMENT; maintenance requests only in MAINTENANCE.
-- USER enforces scheduled workflow and automatic previous-month close while blocking current-month finalization.
-- Hotfix: operating-mode runtime state and commands use the shared writable Inbox area instead of protected Projectmanager/State.
-- Prevents Home Assistant startup failure while preserving Projectmanager least-privilege protection.
+- Adds a persistent RELEASE VALIDATION HOLD above USER / DEVELOPMENT / MAINTENANCE before automatic mutating energy workflows may resume after an update.
+- Keeps an active DEVELOPMENT session persistent across release and reboot; only explicit user confirmation may end development and return to USER.
+- Blocks run-on-start, scheduling, automatic full workflow and automatic month close during HOLD, with an independent execute-time guard for automatic month close.
+- Reconciliation now uses measured runtime signals; forbidden activity during HOLD becomes DRIFT and requests controlled cancellation instead of reporting a false OK state.
+- HOLD release uses five compact health checks plus measured reconciliation; a confirmed emergency release remains available only after a safe read-only check and is audited.
+- The installer arms the HOLD atomically in the writable Inbox/operating_mode area before Home Assistant publication, preserving Projectmanager least-privilege protection.

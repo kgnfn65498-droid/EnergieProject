@@ -9,7 +9,11 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from operating_modes import command_path
-from operating_mode_runtime import operating_mode_tick
+from operating_mode_runtime import (
+    attempt_emergency_release_hold,
+    attempt_release_hold,
+    operating_mode_tick,
+)
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -17,6 +21,12 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     tmp = path.with_name(path.name + f".tmp.{os.getpid()}.{secrets.token_hex(3)}")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, path)
+
+
+def _supports_live_runtime(app_module: Any | None) -> bool:
+    if app_module is None or not hasattr(app_module, "APP_VERSION"):
+        return False
+    return callable(getattr(app_module, "operating_runtime_probe", None)) or hasattr(app_module, "WORKFLOW_LOCK")
 
 
 def submit_operating_mode_command(
@@ -29,6 +39,8 @@ def submit_operating_mode_command(
     reason: str = "",
     issued_by: str = "gui",
     suspended_features: tuple[str, ...] | list[str] = (),
+    confirmed_by_user: bool | None = None,
+    app_module: Any = None,
 ) -> dict[str, Any]:
     root = Path(project_root)
     request_id = f"{issued_by}-{secrets.token_hex(6)}"
@@ -48,9 +60,12 @@ def submit_operating_mode_command(
         payload["reason"] = reason
     if suspended_features:
         payload["suspended_features"] = list(suspended_features)
+    if confirmed_by_user is not None:
+        payload["confirmed_by_user"] = bool(confirmed_by_user)
 
     _atomic_write_json(command_path(root), payload)
-    snapshot = operating_mode_tick(root)
+    live_app = app_module if _supports_live_runtime(app_module) else None
+    snapshot = operating_mode_tick(root, app_module=live_app)
     return {"status": "ok", "request_id": request_id, "snapshot": snapshot}
 
 
@@ -70,11 +85,17 @@ def render_mode_card(snapshot: dict[str, Any]) -> str:
     incoming = _pill(bool(desired.get("release_ingress_enabled")))
     month_auto = _pill(bool(desired.get("automatic_month_close_enabled")))
     drift_text = "; ".join(str(item) for item in drift) or "geen"
+    hold = snapshot.get("release_validation_hold") or {}
+    hold_active = bool(hold.get("active"))
+    hold_validation = hold.get("validation_status") or "—"
+    hold_reconcile = hold.get("reconcile_status") or reconcile
+    dev_session = _pill(bool(snapshot.get("development_session_active")))
     return f"""
 <div class="card" id="operating-mode-card">
   <h2>Bedrijfsmodus</h2>
-  <p><strong>Basis:</strong> {esc(base)} &nbsp; <strong>Actueel:</strong> {esc(effective)}</p>
+  <p><strong>Basis:</strong> {esc(base)} &nbsp; <strong>Actueel:</strong> {esc(effective)} &nbsp; <strong>Ontwikkelsessie:</strong> {dev_session}</p>
   <p><strong>Automatisch schakelen:</strong> {'AAN' if auto else 'UIT'} &nbsp; <strong>Reconciliation:</strong> {esc(reconcile)}</p>
+  <p><strong>RELEASE VALIDATION HOLD:</strong> {_pill(hold_active)} &nbsp; <strong>Validatie:</strong> {esc(hold_validation)} &nbsp; <strong>Hold reconcile:</strong> {esc(hold_reconcile)}</p>
   <p><strong>Reden:</strong> {esc(reason)} &nbsp; <strong>Incoming verwerking:</strong> {incoming} &nbsp; <strong>Automatische maandverwerking:</strong> {month_auto}</p>
   <p><small>Drift: {esc(drift_text)}</small></p>
   <div class="controls">
@@ -83,6 +104,8 @@ def render_mode_card(snapshot: dict[str, Any]) -> str:
     <form method="post" action="set-operating-mode"><input type="hidden" name="mode" value="MAINTENANCE"><button type="submit">MAINTENANCE</button></form>
     <form method="post" action="set-operating-mode-auto"><input type="hidden" name="enabled" value="{'0' if auto else '1'}"><button type="submit">Automatisch schakelen {'UIT' if auto else 'AAN'}</button></form>
     <form method="post" action="reconcile-operating-mode"><button type="submit">Reconcile</button></form>
+    <form method="post" action="validate-release-hold"><button type="submit">Release-hold valideren/vrijgeven</button></form>
+    <form method="post" action="emergency-release-hold"><input type="text" name="confirm" placeholder="NOODVRIJGAVE"><button type="submit">Noodvrijgave</button></form>
   </div>
 </div>
 """.strip()
@@ -97,7 +120,13 @@ def inject_mode_card(page: bytes, card: str) -> bytes:
 
 
 def _endpoint(path: str) -> str | None:
-    for name in ("set-operating-mode", "set-operating-mode-auto", "reconcile-operating-mode"):
+    for name in (
+        "set-operating-mode",
+        "set-operating-mode-auto",
+        "reconcile-operating-mode",
+        "validate-release-hold",
+        "emergency-release-hold",
+    ):
         if path == f"/{name}" or path.endswith(f"/{name}"):
             return name
     return None
@@ -111,7 +140,8 @@ def install_mode_web(app_module: Any, project_root: Path | str) -> None:
 
         def wrapped_html_page(*args, **kwargs):
             page = raw_html_page(*args, **kwargs)
-            snapshot = operating_mode_tick(root)
+            live_app = app_module if _supports_live_runtime(app_module) else None
+            snapshot = operating_mode_tick(root, app_module=live_app)
             return inject_mode_card(page, render_mode_card(snapshot))
 
         app_module.html_page = wrapped_html_page
@@ -130,14 +160,52 @@ def install_mode_web(app_module: Any, project_root: Path | str) -> None:
         try:
             length = int(self.headers.get("Content-Length", "0") or 0)
             form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace")) if length else {}
+            live_app = app_module if _supports_live_runtime(app_module) else None
             if endpoint == "set-operating-mode":
                 mode = str((form.get("mode") or [""])[0]).strip().upper()
-                result = submit_operating_mode_command(root, action="set_base", requested_mode=mode, issued_by="gui")
+                result = submit_operating_mode_command(
+                    root,
+                    action="set_base",
+                    requested_mode=mode,
+                    issued_by="gui",
+                    app_module=live_app,
+                )
             elif endpoint == "set-operating-mode-auto":
                 enabled = str((form.get("enabled") or ["0"])[0]).strip() == "1"
-                result = submit_operating_mode_command(root, action="set_auto", enabled=enabled, issued_by="gui")
+                result = submit_operating_mode_command(
+                    root,
+                    action="set_auto",
+                    enabled=enabled,
+                    issued_by="gui",
+                    app_module=live_app,
+                )
+            elif endpoint == "reconcile-operating-mode":
+                result = submit_operating_mode_command(
+                    root,
+                    action="reconcile",
+                    issued_by="gui",
+                    app_module=live_app,
+                )
+            elif endpoint == "validate-release-hold":
+                if live_app is None:
+                    raise RuntimeError("live runtime validation is unavailable")
+                result = attempt_release_hold(
+                    app_module,
+                    root,
+                    str(app_module.APP_VERSION),
+                    issued_by="projectmanager_gui",
+                )
             else:
-                result = submit_operating_mode_command(root, action="reconcile", issued_by="gui")
+                if live_app is None:
+                    raise RuntimeError("live runtime validation is unavailable")
+                confirmation = str((form.get("confirm") or [""])[0]).strip() == "NOODVRIJGAVE"
+                result = attempt_emergency_release_hold(
+                    app_module,
+                    root,
+                    str(app_module.APP_VERSION),
+                    issued_by="user_gui",
+                    confirmed=confirmation,
+                )
             body = json.dumps(result, ensure_ascii=False).encode("utf-8")
             self.send_body(200, body, "application/json; charset=utf-8")
         except Exception as exc:
