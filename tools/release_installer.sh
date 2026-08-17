@@ -29,6 +29,9 @@ REQUIRED="README.md INSTALL.md CHANGELOG.md MANIFEST.sha256 SHA256SUMS.json repo
 ZIP_HELPER="$PROJECT/tools/release_zip.py"
 HA_PUBLICATION_REQUIRED="$INBOX/ha_publication_required.json"
 RELEASE_HOLD_STATE="$INBOX/operating_mode/release_validation_hold.json"
+PREVIOUS_RELEASE_HOLD_BACKUP=""
+PREVIOUS_RELEASE_HOLD_EXISTED=0
+RELEASE_HOLD_ARMED=0
 
 # Safety rule: never run the live installer from inside the worktree that it replaces.
 # If invoked from the project, copy to /tmp and re-exec before touching the worktree.
@@ -62,6 +65,7 @@ cleanup(){
   [ -n "$PREFLIGHT" ] && rm -rf "$PREFLIGHT" 2>/dev/null || true
   [ -n "$RESTORE_STAGE" ] && rm -rf "$RESTORE_STAGE" 2>/dev/null || true
   [ -n "$STAGE" ] && rm -rf "$STAGE" 2>/dev/null || true
+  [ -n "$PREVIOUS_RELEASE_HOLD_BACKUP" ] && rm -f "$PREVIOUS_RELEASE_HOLD_BACKUP" 2>/dev/null || true
   rmdir "$LOCK" 2>/dev/null || true
 }
 
@@ -184,7 +188,34 @@ cleanup_processed_releases(){
 }
 
 
+capture_previous_release_validation_hold(){
+  [ -z "$PREVIOUS_RELEASE_HOLD_BACKUP" ] || return 0
+  PREVIOUS_RELEASE_HOLD_BACKUP="$(mktemp /tmp/energie-release-hold-prev.XXXXXX)" || return 1
+  if [ -f "$RELEASE_HOLD_STATE" ]; then
+    cp "$RELEASE_HOLD_STATE" "$PREVIOUS_RELEASE_HOLD_BACKUP" || return 1
+    PREVIOUS_RELEASE_HOLD_EXISTED=1
+  else
+    : > "$PREVIOUS_RELEASE_HOLD_BACKUP" || return 1
+    PREVIOUS_RELEASE_HOLD_EXISTED=0
+  fi
+}
+
+restore_previous_release_validation_hold(){
+  [ "$RELEASE_HOLD_ARMED" -eq 1 ] || return 0
+  if [ "$PREVIOUS_RELEASE_HOLD_EXISTED" -eq 1 ]; then
+    mkdir -p "$INBOX/operating_mode" || return 1
+    RESTORE_HOLD_TMP="$RELEASE_HOLD_STATE.tmp.restore.$$"
+    cp "$PREVIOUS_RELEASE_HOLD_BACKUP" "$RESTORE_HOLD_TMP" || { rm -f "$RESTORE_HOLD_TMP" 2>/dev/null || true; return 1; }
+    mv "$RESTORE_HOLD_TMP" "$RELEASE_HOLD_STATE" || { rm -f "$RESTORE_HOLD_TMP" 2>/dev/null || true; return 1; }
+  else
+    rm -f "$RELEASE_HOLD_STATE" || return 1
+  fi
+  RELEASE_HOLD_ARMED=0
+  log "Vorige release validation hold hersteld na mislukte release"
+}
+
 write_release_validation_hold(){
+  capture_previous_release_validation_hold || return 1
   mkdir -p "$INBOX/operating_mode" || return 1
   TMP_HOLD="$RELEASE_HOLD_STATE.tmp.$$"
   cat > "$TMP_HOLD" <<EOF
@@ -194,6 +225,7 @@ EOF
     rm -f "$TMP_HOLD" 2>/dev/null || true
     return 1
   }
+  RELEASE_HOLD_ARMED=1
   log "Release validation hold actief voor v$NEW_VERSION; marker=$RELEASE_HOLD_STATE"
 }
 
@@ -234,6 +266,9 @@ restore_backup(){
 
 fail(){
   MSG="$*"
+  if [ "$RELEASE_HOLD_ARMED" -eq 1 ]; then
+    restore_previous_release_validation_hold || log "FOUT: vorige release-hold kon niet worden hersteld"
+  fi
   if [ "$WORKTREE_REPLACED" -eq 1 ]; then
     restore_backup || log "FOUT: automatische rollback kon niet volledig worden afgerond"
   fi
@@ -356,6 +391,7 @@ else
   log "TESTSTATUS: vervangende controles ZIP/SHA256/verplichte bestanden/shellsyntax = OK"
 fi
 
+write_release_validation_hold || fail "release validation hold activeren mislukt"
 log "FASE 7/8: publicatie-afhandeling"
 if [ "$GIT_AVAILABLE" -eq 1 ]; then
   git add -A
@@ -388,7 +424,6 @@ if [ "$GIT_AVAILABLE" -eq 1 ]; then
 else
   FINAL_DETAIL="QNAP ZIP-modus zonder git"
 fi
-write_release_validation_hold || fail "release validation hold activeren mislukt"
 WORKTREE_REPLACED=0
 CANONICAL_PROCESSED="$PROCESSED/EnergieProject_v${NEW_VERSION}.zip"
 rm -f "$CANONICAL_PROCESSED"
