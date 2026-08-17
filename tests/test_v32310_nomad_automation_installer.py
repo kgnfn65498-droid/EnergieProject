@@ -81,10 +81,13 @@ def test_installer_creates_missing_automation_via_narrow_supervisor_core_post(mo
     result = mod.ensure_nomad_automation(urlopen=fake_urlopen)
     assert result["status"] == "installed"
     assert result["automation_id"] == "nomad_energie_assistent"
-    assert len(calls) == 2
+    assert len(calls) == 3
     assert calls[0][0].endswith("/core/api/config/automation/config/nomad_energie_assistent")
     assert calls[0][1] == "GET"
     assert calls[1][1] == "POST"
+    assert calls[2][0].endswith("/core/api/services/automation/reload")
+    assert calls[2][1] == "POST"
+    assert json.loads(calls[2][3].decode()) == {}
     headers = {k.lower(): v for k, v in calls[1][2].items()}
     assert headers["authorization"] == "Bearer runtime-token"
     body = json.loads(calls[1][3].decode())
@@ -114,7 +117,7 @@ def test_installer_does_not_overwrite_existing_automation(monkeypatch):
     monkeypatch.setenv("SUPERVISOR_TOKEN", "runtime-token")
     result = mod.ensure_nomad_automation(urlopen=fake_urlopen)
     assert result["status"] == "already_present"
-    assert calls == ["GET"]
+    assert calls == ["GET", "POST"]
 
 
 def test_installer_refuses_conflicting_automation_id(monkeypatch):

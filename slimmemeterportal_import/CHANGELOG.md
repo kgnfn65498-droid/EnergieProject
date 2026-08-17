@@ -1,7 +1,7 @@
 # Changelog
 
-## 32.3.10 - Nomad automation auto-registration hotfix
-- Registreert `Nomad - Energie Assistent` automatisch via de bestaande Home Assistant Core configuration API.
-- Payload bevat geen handmatig `id`; Home Assistant beheert de automation-ID.
-- Idempotent en fail-closed: bestaande eigen automation blijft staan; een conflict wordt nooit overschreven.
+## 32.3.11 - Nomad automation reload hotfix
+- Roept na installatie of detectie van de eigen Nomad-automation expliciet `automation.reload` aan via Home Assistant Core REST.
+- Lost op dat de config-API `already_present` meldde terwijl Home Assistant nog geen `automation.nomad_energie_assistent` entity had geladen.
+- Conflicterende automation-ID blijft fail-closed en wordt niet overschreven of door Nomad herladen.
 - Geen extra rechten: alleen `homeassistant_api: true`; geen HACS/custom component/Terminal/device-control/`finalize_month`.

@@ -9,12 +9,12 @@ INSTALLER = ROOT / "tools/release_installer.sh"
 
 
 def test_v3210_release_identity_and_runtime_dependency():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.10"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.11"
     config = CONFIG.read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
     docker = DOCKERFILE.read_text(encoding="utf-8")
-    assert 'version: "32.3.10"' in config
-    assert 'APP_VERSION = "32.3.10"' in main
+    assert 'version: "32.3.11"' in config
+    assert 'APP_VERSION = "32.3.11"' in main
     assert 'xlsxwriter>=3.2,<4' in docker.lower()
     assert 'for name in ("reportlab", "pypdf")' in main
     assert 'for name in ("xlsxwriter",)' in main

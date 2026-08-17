@@ -1,6 +1,6 @@
-# Testinstructies v32.3.10 — Nomad automation auto-registration hotfix
+# Testinstructies v32.3.11 — Nomad automation auto-registration hotfix
 
-1. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.10.
+1. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.11.
 2. Draai `tests/test_v3239_nomad_event_bridge.py`: eventpayloadguard, 15-minutenbegroeting, gedeelde responsebuilder, WebSocket-auth/subscription/fire-event en fake end-to-end request moeten groen zijn.
 3. Draai `tests/test_v3239_nomad_native_ha_contract.py` én `tests/test_v32310_nomad_automation_installer.py`: geen HACS/custom component/discovery/Supervisorrol; alleen `homeassistant_api: true`; native automation is information-only en begrensd; installer is idempotent/fail-closed.
 4. Herhaal v32.3.0-v32.3.8 assistant-runtime/cache/response regressies; discovery/custom-componenttests zijn expliciet superseded door de native route.

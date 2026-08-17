@@ -40,12 +40,12 @@ def test_main_resolves_acceptance_path_at_probe_time_and_has_no_import_time_abso
 
 
 def test_release_identity_is_v3233_mount_timing_hotfix():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.10"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.11"
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
     root_changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     addon_changelog = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.3.10"' in config
-    assert 'APP_VERSION = "32.3.10"' in main
-    assert root_changelog.startswith("## v32.3.10 — Nomad automation auto-registration hotfix")
-    assert addon_changelog.startswith("# Changelog\n\n## 32.3.10 - Nomad automation auto-registration hotfix")
+    assert 'version: "32.3.11"' in config
+    assert 'APP_VERSION = "32.3.11"' in main
+    assert root_changelog.startswith("## v32.3.11 — Nomad automation reload hotfix")
+    assert addon_changelog.startswith("# Changelog\n\n## 32.3.11 - Nomad automation reload hotfix")

@@ -741,3 +741,7 @@ Add-onopties:
 - `assistant_greeting_idle_seconds`: standaard 900 seconden stilte voor opnieuw `Nomad hier.`.
 
 De route is information-only: geen device-control, contract-/termijn-/betalingswijzigingen of destructieve projectacties.
+
+
+### v32.3.11 — automatische reload van Nomad automation
+Na registratie of herkenning van de eigen `nomad_energie_assistent` configuratie roept de add-on `automation.reload` aan via Home Assistant Core REST. Hierdoor wordt de opgeslagen automation zonder GUI-YAML of herstart direct geladen. Een conflicterende automation-ID wordt nog steeds niet overschreven.

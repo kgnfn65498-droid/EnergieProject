@@ -13,6 +13,7 @@ CORE_AUTOMATION_URL = (
     "http://supervisor/core/api/config/automation/config/"
     + AUTOMATION_ID
 )
+CORE_AUTOMATION_RELOAD_URL = "http://supervisor/core/api/services/automation/reload"
 
 
 def build_nomad_automation_config() -> dict[str, Any]:
@@ -120,6 +121,32 @@ def _request(
         ) from exc
 
 
+
+def _reload_automations(
+    token: str,
+    *,
+    urlopen: Callable[..., Any],
+    timeout: float,
+) -> None:
+    data = b"{}"
+    request = Request(
+        CORE_AUTOMATION_RELOAD_URL,
+        data=data,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            response.read()
+    except HTTPError as exc:
+        raise RuntimeError(
+            f"Home Assistant automation reload failed with HTTP {exc.code}"
+        ) from exc
+
+
 def ensure_nomad_automation(
     *,
     urlopen: Callable[..., Any] = default_urlopen,
@@ -142,9 +169,11 @@ def ensure_nomad_automation(
             existing.get("alias") == AUTOMATION_ALIAS
             and existing.get("description") == AUTOMATION_DESCRIPTION
         ):
+            _reload_automations(token, urlopen=urlopen, timeout=timeout)
             return {
                 "status": "already_present",
                 "automation_id": AUTOMATION_ID,
+                "reloaded": True,
             }
         return {
             "status": "conflict",
@@ -158,7 +187,9 @@ def ensure_nomad_automation(
         urlopen=urlopen,
         timeout=timeout,
     )
+    _reload_automations(token, urlopen=urlopen, timeout=timeout)
     return {
         "status": "installed",
         "automation_id": AUTOMATION_ID,
+        "reloaded": True,
     }

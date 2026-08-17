@@ -1,3 +1,10 @@
+## v32.3.11 — Nomad automation reload hotfix
+
+- Corrigeert de live-laadstap na automatische Nomad-automationregistratie: na een nieuwe of reeds aanwezige eigen Nomad-configuratie roept de installer nu expliciet `automation.reload` aan via de bestaande Home Assistant Core REST API.
+- Hiermee wordt de opgeslagen automation ook direct als Home Assistant automation-entity geladen, zonder GUI-YAML, Terminal of Home Assistant-herstart.
+- Conflictgedrag blijft fail-closed: een automation met dezelfde vaste ID maar andere alias/omschrijving wordt niet overschreven en veroorzaakt geen reload door Nomad.
+- Geen extra rechten of capabilities: alleen de bestaande `homeassistant_api: true`; geen HACS, custom component, `hassio_api`, `hassio_role`, filesystemverbreding, device-control, contractmutatie of `finalize_month`.
+
 ## v32.3.10 — Nomad automation auto-registration hotfix
 
 - Corrigeert de Home Assistant GUI-installatiestap: een nieuwe UI-automation mag geen handmatig `id:` uit de geplakte YAML krijgen; Home Assistant beheert de automation-ID zelf.
