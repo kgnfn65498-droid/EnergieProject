@@ -71,7 +71,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.5"
+APP_VERSION = "32.3.6"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -11560,6 +11560,25 @@ def build_assistant_analysis_context(year: int | None = None) -> dict[str, Any]:
     }
 
 
+def prewarm_assistant_quarter_hour_cache() -> dict[str, Any]:
+    """Warm the current-month assistant cache before runtime acceptance calls."""
+    month_key = datetime.now(TZ).strftime("%Y_%m")
+    entity_ids = (
+        "sensor.p1_meter_energie_import",
+        "sensor.p1_meter_energie_export",
+        "sensor.gas_meter_gas",
+    )
+    started = time.monotonic()
+    series = load_quarter_hour_series_once(
+        _assistant_runtime_data_root(), month_key, entity_ids
+    )
+    return {
+        "month": month_key,
+        "elapsed_ms": round((time.monotonic() - started) * 1000.0, 1),
+        "series_counts": {entity_id: len(series.get(entity_id) or []) for entity_id in entity_ids},
+    }
+
+
 ASSISTANT_ENGINE = EnergyConversationEngine(
     app_version=APP_VERSION,
     analysis_provider=build_assistant_analysis_context,
@@ -19257,7 +19276,16 @@ def main() -> None:
         try:
             time.sleep(2.0)
             acceptance_path = resolve_runtime_acceptance_path(wait_for_existing_nas_roots)
+            prewarm = prewarm_assistant_quarter_hour_cache()
+            LOGGER.info(
+                "Assistant quarter-hour cache prewarm v%s: maand=%s elapsed_ms=%s counts=%s",
+                APP_VERSION,
+                prewarm.get("month"),
+                prewarm.get("elapsed_ms"),
+                prewarm.get("series_counts"),
+            )
             result = run_assistant_runtime_probe(app_version=APP_VERSION)
+            result["prewarm"] = prewarm
             result["checked_at"] = datetime.now(TZ).isoformat()
             result["release"] = APP_VERSION
             result["read_only_probe"] = True

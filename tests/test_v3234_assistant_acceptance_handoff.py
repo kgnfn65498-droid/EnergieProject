@@ -31,12 +31,12 @@ def test_runtime_acceptance_uses_writable_inbox_log_handoff_not_projectmanager_s
 
 
 def test_release_identity_is_v3234_handoff_hotfix():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.5"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.6"
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     addon = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.3.5"' in config
-    assert 'APP_VERSION = "32.3.5"' in main
-    assert changelog.startswith("## v32.3.5 — Assistant fast-context runtime hotfix")
-    assert addon.startswith("# Changelog\n\n## 32.3.5 - Assistant fast-context runtime hotfix")
+    assert 'version: "32.3.6"' in config
+    assert 'APP_VERSION = "32.3.6"' in main
+    assert changelog.startswith("## v32.3.6 — Assistant quarter-hour prewarm/cache hotfix")
+    assert addon.startswith("# Changelog\n\n## 32.3.6 - Assistant quarter-hour prewarm/cache hotfix")

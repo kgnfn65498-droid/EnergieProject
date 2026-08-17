@@ -1,3 +1,11 @@
+## v32.3.6 — Assistant quarter-hour prewarm/cache hotfix
+
+- Valideert de bestaande actuele Home Assistant-kwartierreeks één keer bij startup en houdt de read-only assistantreeks daarna in geheugen.
+- Herhaalde assistantvragen herlezen geen bestaande kwartierbestanden; alleen nieuw aangelegde snapshotbestanden worden incrementeel toegevoegd.
+- De assistant runtime self-probe wacht op deze prewarm voordat de bestaande zeven HTTP-acceptancechecks starten; de 5-seconden requesttimeout zelf blijft ongewijzigd.
+- Bij verdwenen of niet-prefix-consistente snapshotbestanden wordt de cache fail-closed opnieuw opgebouwd; tellerreset- en coveragecontrole in `_quarter_hour_month_metrics` blijft ongewijzigd.
+- Geen rechtenverruiming, brondatawrite, device-control, contractmutatie, maandafsluiting of `finalize_month`.
+
 ## v32.3.5 — Assistant fast-context runtime hotfix
 
 - Vervangt voor `/api/assistant/context` de zware jaarbrede beheeranalyse door een begrensde read-only maandcontext op de canonieke `Data/01_Input`-root.

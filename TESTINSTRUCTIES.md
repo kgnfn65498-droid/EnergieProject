@@ -1,3 +1,13 @@
+# Testinstructies v32.3.6 — assistant quarter-hour prewarm/cache hotfix
+
+1. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.6.
+2. Draai `tests/test_v3236_assistant_quarter_cache.py` en bevestig RED→GREEN: een tweede read opent geen oud snapshotbestand; één nieuw kwartier veroorzaakt exact één nieuwe JSON-read.
+3. Verifieer dat startup `prewarm_assistant_quarter_hour_cache()` uitvoert vóór `run_assistant_runtime_probe()`.
+4. Draai gesprekspartner-, runtimeprobe-, mount-, handoff- en fast-context regressies plus de volledige pytest-suite.
+5. Compile alle Pythonbestanden, controleer shellsyntax, manifest/SHA256 en ZIP-integriteit vanuit een verse uitpak.
+6. Live moet `Inbox/logs/assistant_runtime_acceptance.json` release 32.3.6 melden met alle zeven checks PASS en iedere HTTP-contextcall binnen de bestaande 5-secondenlimiet.
+7. Voice blijft uit tot die live acceptance groen is; augustus blijft OPEN/PARTIEEL en `finalize_month` wordt niet gebruikt.
+
 # Testinstructies v32.3.5 — assistant fast-context runtime hotfix
 
 1. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.5.

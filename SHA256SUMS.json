@@ -1,5 +1,5 @@
 {
-  "version": "32.3.5",
+  "version": "32.3.6",
   "files": [
     {
       "path": ".gitignore",
@@ -18,8 +18,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "66a5f94577986e1f2365c794557ac5f355e05736ca1f85f13018cfcf2ddc6868",
-      "size": 81779
+      "sha256": "e186072f3c6a12b60e25e7ddd1ecf6abae03fe30bc794295772ff5d1171cd9f1",
+      "size": 82599
     },
     {
       "path": "INSTALL.md",
@@ -53,12 +53,12 @@
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "sha256": "446067208050a5a37fc7d6ddf5a82bb92f9e29919e2e06f52b488ebd45bf9a4a",
-      "size": 6931
+      "sha256": "cb77a30ed66ff23cd46bf508b1802ae7b309125bba786740a0b2dd259e56b6f2",
+      "size": 7929
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "97df7266f9d0b5889897562628bf23edc5b2f8fd6ba41a29a0036b7e2fbfa9a6",
+      "sha256": "f272c15b5d45773f8386d2e944291b76b49b4ab9b2e391d3a91d8afda1be5c6f",
       "size": 7
     },
     {
@@ -73,8 +73,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "82f9c831ccc1824e15e5c71d7b4c4d8536051003c4dd25f0eee313646268a88a",
-      "size": 555
+      "sha256": "cb476d2385614316f0794d54b603f4fe2161dd635493a755ed8cbe1964997730",
+      "size": 524
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -93,13 +93,13 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "63e541fc981fa5fb0f428fefe97ddb2ef73ca8fe49490bc854d027dc13bc6f2c",
+      "sha256": "96c8bf2cc62bc9c5650bee2cb481ea221afde2e53e48444ebb909461ee7e57b0",
       "size": 5799
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_fast_context.py",
-      "sha256": "e4724b481854c9b6cb8dc73955fe437208b4383370841523525752c4f71b208b",
-      "size": 2521
+      "sha256": "7eecacfab9b552f6a1b84fb475ed2869344dc6a5722047aa42fa9f6056063df0",
+      "size": 4262
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_runtime_probe.py",
@@ -128,8 +128,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "8840b10cfdae013a0c39258bc40d578c4f74d88ca00ebae5fdbc34fc92e858f4",
-      "size": 921251
+      "sha256": "7da77a8e78490abaa36227567cfc03ac78b810561b87e71df2c8742440b79234",
+      "size": 922340
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/project_paths.py",
@@ -453,37 +453,37 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "57471a40df4955a433d921d8faa3e0640a1c0d3005a34ad3df6d5ec2ecdafb56",
+      "sha256": "31a1b7d835e651cfac9c6108073321f480b982850f48380ce2e4251a26adc5e8",
       "size": 236441
     },
     {
       "path": "tests/test_v32035_release_identity.py",
-      "sha256": "d958134eb252a0480ed2821fba6cf6fa25893abc328f38074ac24dc88ccf3ed5",
-      "size": 1803
+      "sha256": "1b86c557470a18b1f0254fa4e8eac46ccd5092b1d6edeb78338929470b0d01d4",
+      "size": 1815
     },
     {
       "path": "tests/test_v32037_safe_github_publication.py",
-      "sha256": "2f9d683d9537a93a2f7a53347b084e14f865695a530722b3d7c90b774a7d052e",
+      "sha256": "6bd33952b142cd093dc9c313eecbb7a646f1b11c8b096258b926a6700e9a8ebe",
       "size": 3100
     },
     {
       "path": "tests/test_v32038_automatic_publication_chain.py",
-      "sha256": "35edd0b5aa075d204dc2f7faedac4e3ad61d950e7278b9a423c658536ffde413",
+      "sha256": "975fbef202c12553d2db0563183680e959e85f545328107ea5df2229ab73ef63",
       "size": 2571
     },
     {
       "path": "tests/test_v3210_historical_energy_excel.py",
-      "sha256": "3e4bf0e579775baa006dc66bdc6a86a1398f5d36e430035c7f71fd0414eb41b5",
+      "sha256": "bf1e2ee1b6b2805eb2742525c9596e0412e6a917bfe9cf43d4c14cfefcd6f6a6",
       "size": 2658
     },
     {
       "path": "tests/test_v3211_startup_excel_bootstrap.py",
-      "sha256": "50b829506a898bdacbaaa55ff1dfe1abf7a1ce46b6c54311d53211cff2fe41bb",
+      "sha256": "cbab4f114dd01a4aac205b81658d67e5d3341653f5fa37baee3e9edfc04cfe29",
       "size": 3022
     },
     {
       "path": "tests/test_v3212_startup_excel_live_nas.py",
-      "sha256": "ac02569f4bdd898e75849bd133865871916af7417a4a3a080741f5613a8ae9ec",
+      "sha256": "634bf5349058e93151ba0d11f00e17cbdd0ae99acb9035e3a84619097dba4b5f",
       "size": 2499
     },
     {
@@ -493,12 +493,12 @@
     },
     {
       "path": "tests/test_v3220_knowledge_base_structure.py",
-      "sha256": "a04b2cd4429c7a8fcbc9f10e9ea8b8be9048ca68a72c5afb9be7513f559cc779",
+      "sha256": "3e2e1796cdde5f17453db266bced1b2457f1ca09e0ec81faab397c519298f7d6",
       "size": 16263
     },
     {
       "path": "tests/test_v3230_conversation.py",
-      "sha256": "87f59d659df83e4efc05208f07e8ee2d675824f29c0001bfad32f0d0cd8fff9b",
+      "sha256": "fa99b62e0366870cce1a556f69a4e9a722584f3a1dc243ac497966cbbc47110e",
       "size": 9260
     },
     {
@@ -513,23 +513,28 @@
     },
     {
       "path": "tests/test_v3232_assistant_runtime_self_probe.py",
-      "sha256": "f9c560e19febde1f0ca4f9b5047ac8a3030660526b090f3251a22da9dd8c716f",
-      "size": 5388
+      "sha256": "eb833ffc7b2292f8a532cde03492e8d9ff8c5ba906b5862a521d9632e637df7a",
+      "size": 5400
     },
     {
       "path": "tests/test_v3233_assistant_mount_timing_hotfix.py",
-      "sha256": "d07b940b47755b674431fb1a21d5358ed6cff8cfc1bf076e01627f5c66c3e6d3",
-      "size": 2184
+      "sha256": "0d8c11f3c338efc8e15fdc4c3ddcfad68c0f259e75463aa8c861e08531dbda96",
+      "size": 2196
     },
     {
       "path": "tests/test_v3234_assistant_acceptance_handoff.py",
-      "sha256": "fe3f7d218f5351f78e463681a319f151a519d9287e7aa719f8e90952ce1e8356",
-      "size": 1798
+      "sha256": "d71209c5a9529038330e3df93e9f2c9977a441ea7496b5ac0481c8d9276be2b0",
+      "size": 1810
     },
     {
       "path": "tests/test_v3235_assistant_fast_context.py",
       "sha256": "eed067286f52b4211761990faf49ee434eaabd1617565a3bc1e9ac68eca471ac",
       "size": 2519
+    },
+    {
+      "path": "tests/test_v3236_assistant_quarter_cache.py",
+      "sha256": "bc1c6949808728bc3e97eea0b200fc4108b9da19430e041231b06fb77c0600d6",
+      "size": 2469
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
