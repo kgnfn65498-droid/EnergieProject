@@ -91,3 +91,66 @@ def operating_mode_worker(stop_event: Any, project_root: Path | str | None = Non
     root = Path(project_root) if project_root is not None else operating_mode_project_root()
     while not stop_event.wait(interval_seconds):
         operating_mode_tick(root)
+
+
+def effective_options_for_mode(options: Any, state: ModeState) -> Any:
+    profile = profile_for(state.effective_mode, state.suspended_features)
+    return replace(
+        options,
+        schedule_enabled=profile.schedule_enabled,
+        full_workflow_enabled=profile.full_workflow_enabled,
+        automatic_month_close_enabled=profile.automatic_month_close_enabled,
+    )
+
+
+def is_fully_closed_month(month_key: str, now: Any = None) -> bool:
+    if now is None:
+        now = datetime.now().astimezone()
+    year_text, month_text = month_key.split("_", 1)
+    year, month = int(year_text), int(month_text)
+    if not 1 <= month <= 12:
+        raise ValueError(f"Invalid month key: {month_key}")
+    return (year, month) < (now.year, now.month)
+
+
+def install_mode_overrides(app_module: Any, project_root: Path | str) -> None:
+    root = Path(project_root)
+    if not getattr(app_module.Options, "_operating_mode_wrapper_installed", False):
+        raw_loader = app_module.Options.load
+
+        def effective_load(cls):
+            del cls
+            raw_options = raw_loader()
+            state = load_mode_state(root)
+            return effective_options_for_mode(raw_options, state)
+
+        app_module.Options.load = classmethod(effective_load)
+        app_module.Options._operating_mode_wrapper_installed = True
+
+    if not getattr(app_module, "_operating_mode_close_guard_installed", False):
+        raw_execute = app_module.execute_automatic_month_close
+
+        def guarded_execute(options, month_key, *args, **kwargs):
+            trigger = kwargs.get("trigger")
+            if trigger is None and args:
+                trigger = args[0]
+            now = datetime.now(app_module.TZ)
+            if trigger == "automatic" and not is_fully_closed_month(month_key, now):
+                try:
+                    app_module.append_audit_event(
+                        "automatic_month_close",
+                        action="blocked_current_month",
+                        status="blocked",
+                        details={"month": month_key, "reason": "current_calendar_month"},
+                    )
+                except Exception:
+                    app_module.LOGGER.exception("Audit logging current-month block failed")
+                return {
+                    "status": "blocked_current_month",
+                    "month": month_key,
+                    "trigger": trigger,
+                }
+            return raw_execute(options, month_key, *args, **kwargs)
+
+        app_module.execute_automatic_month_close = guarded_execute
+        app_module._operating_mode_close_guard_installed = True
