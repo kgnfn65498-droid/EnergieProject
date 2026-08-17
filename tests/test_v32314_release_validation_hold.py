@@ -197,3 +197,35 @@ def test_release_hold_guards_are_installed_before_app_main_starts_scheduler():
     text = (APP_ROOT / "mode_entrypoint.py").read_text(encoding="utf-8")
     assert "install_release_hold_guards" in text
     assert text.index("install_release_hold_guards(app, root)") < text.index("app.main()")
+
+
+def test_installer_defines_atomic_release_hold_marker_in_writable_inbox():
+    text = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    assert 'RELEASE_HOLD_STATE="$INBOX/operating_mode/release_validation_hold.json"' in text
+    assert "write_release_validation_hold(){" in text
+    function = text.split("write_release_validation_hold(){", 1)[1].split("\n}", 1)[0]
+    assert 'mkdir -p "$INBOX/operating_mode"' in function
+    assert 'TMP_HOLD="$RELEASE_HOLD_STATE.tmp.$$"' in function
+    assert '"active":true' in function
+    assert '"release_version":"$NEW_VERSION"' in function
+    assert '"validation_status":"required"' in function
+    assert '"reconcile_status":"required"' in function
+    assert 'mv "$TMP_HOLD" "$RELEASE_HOLD_STATE"' in function
+    assert "Projectmanager/State" not in function
+
+
+def test_installer_arms_hold_before_ha_publication_call():
+    text = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    phase8 = text.split('log "FASE 8/8: eindcontrole en archivering"', 1)[1]
+    hold_call = 'write_release_validation_hold || fail "release validation hold activeren mislukt"'
+    publication_call = 'write_ha_publication_required "$PROCESSED_SHA256"'
+    assert hold_call in phase8
+    assert publication_call in phase8
+    assert phase8.index(hold_call) < phase8.index(publication_call)
+
+
+def test_installer_refuses_publication_if_hold_cannot_be_armed():
+    text = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    phase8 = text.split('log "FASE 8/8: eindcontrole en archivering"', 1)[1]
+    assert 'write_release_validation_hold || fail "release validation hold activeren mislukt"' in phase8
+    assert phase8.count('write_release_validation_hold || fail "release validation hold activeren mislukt"') == 1
