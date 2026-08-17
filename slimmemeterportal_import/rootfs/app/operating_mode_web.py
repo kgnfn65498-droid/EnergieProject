@@ -73,6 +73,12 @@ def _pill(value: bool) -> str:
     return "AAN" if value else "UIT"
 
 
+def _pill_optional(value: Any) -> str:
+    if value is None:
+        return "ONBEKEND"
+    return "AAN" if bool(value) else "UIT"
+
+
 _UI_NOTICE_CODES = {
     "development_set",
     "user_set",
@@ -127,7 +133,10 @@ def render_mode_card(snapshot: dict[str, Any]) -> str:
     effective = snapshot.get("effective_mode") or "USER"
     base = snapshot.get("base_mode") or "USER"
     incoming = _pill(bool(desired.get("release_ingress_enabled")))
-    month_auto = _pill(bool(desired.get("automatic_month_close_enabled")))
+    basis_month = _pill(bool(desired.get("automatic_month_close_enabled")))
+    observed = snapshot.get("observed_profile") or {}
+    effective_raw = observed.get("automatic_month_close_effective") if "automatic_month_close_effective" in observed else None
+    effective_month = _pill_optional(effective_raw)
     drift_text = "; ".join(str(item) for item in drift) or "geen"
     hold = snapshot.get("release_validation_hold") or {}
     hold_active = bool(hold.get("active"))
@@ -140,8 +149,10 @@ def render_mode_card(snapshot: dict[str, Any]) -> str:
   <p><strong>Basis:</strong> {esc(base)} &nbsp; <strong>Actueel:</strong> {esc(effective)} &nbsp; <strong>Ontwikkelsessie:</strong> {dev_session}</p>
   <p><strong>Automatisch schakelen:</strong> {'AAN' if auto else 'UIT'} &nbsp; <strong>Reconciliation:</strong> {esc(reconcile)}</p>
   <p><strong>RELEASE VALIDATION HOLD:</strong> {_pill(hold_active)} &nbsp; <strong>Validatie:</strong> {esc(hold_validation)} &nbsp; <strong>Hold reconcile:</strong> {esc(hold_reconcile)}</p>
-  <p><strong>Reden:</strong> {esc(reason)} &nbsp; <strong>Incoming verwerking:</strong> {incoming} &nbsp; <strong>Automatische maandverwerking:</strong> {month_auto}</p>
+  <p><strong>Reden:</strong> {esc(reason)} &nbsp; <strong>Incoming verwerking:</strong> {incoming}</p>
+  <p><strong>Basisprofiel maandverwerking:</strong> {basis_month} &nbsp; <strong>Effectieve maandverwerking:</strong> {effective_month}</p>
   <p><small>Drift: {esc(drift_text)}</small></p>
+  <div id="operating-mode-notice" role="status" aria-live="polite" style="display:none;margin:10px 0;padding:10px;border:1px solid #bbb;border-radius:6px"></div>
   <div class="controls">
     <form method="post" action="set-operating-mode"><input type="hidden" name="return_ui" value="1"><input type="hidden" name="mode" value="USER"><button type="submit">USER</button></form>
     <form method="post" action="set-operating-mode"><input type="hidden" name="return_ui" value="1"><input type="hidden" name="mode" value="DEVELOPMENT"><button type="submit">DEVELOPMENT</button></form>
@@ -151,6 +162,37 @@ def render_mode_card(snapshot: dict[str, Any]) -> str:
     <form method="post" action="validate-release-hold"><input type="hidden" name="return_ui" value="1"><button type="submit">Release-hold valideren/vrijgeven</button></form>
     <form method="post" action="emergency-release-hold"><input type="hidden" name="return_ui" value="1"><input type="text" name="confirm" placeholder="NOODVRIJGAVE"><button type="submit">Noodvrijgave</button></form>
   </div>
+  <script>
+  (() => {{
+    const searchParams = new URLSearchParams(window.location.search);
+    const code = searchParams.get("mode_notice");
+    const level = searchParams.get("mode_level");
+    const messages = {{
+      development_set: "DEVELOPMENT ingesteld",
+      user_set: "USER ingesteld",
+      maintenance_set: "MAINTENANCE ingesteld",
+      auto_updated: "Automatisch schakelen bijgewerkt",
+      reconcile_ok: "Reconcile OK",
+      release_hold_released: "Release-hold vrijgegeven",
+      emergency_release_done: "Noodvrijgave uitgevoerd",
+      action_failed: "Actie niet uitgevoerd"
+    }};
+    const message = messages[code];
+    if (message) {{
+      const banner = document.getElementById("operating-mode-notice");
+      if (banner) {{
+        banner.textContent = message;
+        banner.dataset.level = level === "success" ? "success" : "error";
+        banner.style.display = "block";
+      }}
+      searchParams.delete("mode_notice");
+      searchParams.delete("mode_level");
+      const query = searchParams.toString();
+      const cleanUrl = window.location.pathname + (query ? "?" + query : "") + window.location.hash;
+      history.replaceState(null, "", cleanUrl);
+    }}
+  }})();
+  </script>
 </div>
 """.strip()
 
