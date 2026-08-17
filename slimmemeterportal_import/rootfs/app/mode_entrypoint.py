@@ -1,0 +1,30 @@
+from __future__ import annotations
+
+import threading
+
+import main as app
+from operating_mode_runtime import (
+    operating_mode_project_root,
+    operating_mode_tick,
+    operating_mode_worker,
+)
+
+
+def start_operating_mode_runtime() -> None:
+    root = operating_mode_project_root()
+    operating_mode_tick(root)
+    threading.Thread(
+        target=operating_mode_worker,
+        args=(app.STOP, root),
+        daemon=True,
+        name="operating-mode-reconcile",
+    ).start()
+
+
+def main() -> None:
+    start_operating_mode_runtime()
+    app.main()
+
+
+if __name__ == "__main__":
+    main()
