@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.16"
+APP_VERSION = "32.3.17"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -17849,6 +17849,68 @@ def _prepare_validated_publication_source(contract):
     return True, GITHUB_RELEASE_STAGE, "Gevalideerde releasebron gereed."
 
 
+_PUBLICATION_GENERATED_METADATA = frozenset({"MANIFEST.sha256", "SHA256SUMS.json"})
+
+
+def _publication_source_fingerprint(root: Path) -> dict[str, str]:
+    root = Path(root).resolve()
+    result: dict[str, str] = {}
+    for path in sorted(root.rglob("*")):
+        rel = path.relative_to(root)
+        if ".git" in rel.parts or rel.as_posix() in _PUBLICATION_GENERATED_METADATA:
+            continue
+        if path.is_symlink():
+            result[rel.as_posix()] = "symlink:" + os.readlink(path)
+        elif path.is_file():
+            result[rel.as_posix()] = "file:" + sha256_file(path)
+    return result
+
+
+def _classify_github_remote_baseline(contract, worktree: Path, release_source: Path):
+    try:
+        remote_version = (worktree / "VERSIE.txt").read_text(encoding="utf-8").strip()
+    except Exception as exc:
+        return False, "mismatch", f"Remote-baseline VERSIE.txt onleesbaar: {exc}"
+
+    remote_manifest = _manifest_file_sha256(worktree)
+    expected_previous_version = str(contract.get("expected_previous_version"))
+    expected_previous_manifest = str(contract.get("expected_previous_manifest_sha256"))
+    target_version = str(contract.get("version"))
+    target_manifest = str(contract.get("target_manifest_sha256"))
+
+    if remote_version == expected_previous_version:
+        if remote_manifest != expected_previous_manifest:
+            return False, "mismatch", "GitHub-baseline MANIFEST.sha256 wijkt af van verwacht contract."
+        return True, "previous", "GitHub remote-baseline gecontroleerd."
+
+    if remote_version == target_version:
+        if remote_manifest == target_manifest:
+            remote_manifest_ok, remote_manifest_message = _verify_release_manifest(worktree)
+            if not remote_manifest_ok:
+                return False, "mismatch", (
+                    "GitHub targetmanifest bestaat, maar de remote bron voldoet er niet aan: "
+                    + remote_manifest_message
+                )
+            return True, "target_exact", "GitHub bevat de gevalideerde targetrelease al exact."
+        try:
+            remote_source = _publication_source_fingerprint(worktree)
+            target_source = _publication_source_fingerprint(release_source)
+        except Exception as exc:
+            return False, "mismatch", f"GitHub target-bronvergelijking mislukt: {type(exc).__name__}: {exc}"
+        if remote_source == target_source:
+            return True, "target_source_match", (
+                "GitHub bevat de targetbron al; alleen definitieve release-metadata wordt nog gesynchroniseerd."
+            )
+        return False, "mismatch", (
+            f"GitHub-baseline staat al op targetversie {target_version!r}, maar de bron wijkt af van de gevalideerde release."
+        )
+
+    return False, "mismatch", (
+        f"GitHub-baseline versie {remote_version!r} wijkt af van verwacht "
+        f"{expected_previous_version!r} en target {target_version!r}."
+    )
+
+
 def _verify_github_remote_baseline(contract, worktree: Path):
     try:
         previous_version = (worktree / "VERSIE.txt").read_text(encoding="utf-8").strip()
@@ -17886,12 +17948,35 @@ def publish_github_release(options=None):
     ready, message = _prepare_github_worktree(repo, branch, env)
     if not ready:
         return {**publish_status, "published": False, "message": message}
-    baseline_ok, baseline_message = _verify_github_remote_baseline(contract, GITHUB_WORKTREE)
-    if not baseline_ok:
-        return {**publish_status, "published": False, "message": baseline_message}
     source_ok, release_source, source_message = _prepare_validated_publication_source(contract)
     if not source_ok or release_source is None:
         return {**publish_status, "published": False, "message": source_message}
+    baseline_ok, baseline_state, baseline_message = _classify_github_remote_baseline(
+        contract, GITHUB_WORKTREE, release_source
+    )
+    if not baseline_ok:
+        return {**publish_status, "published": False, "message": baseline_message}
+    if baseline_state == "target_exact":
+        result = {
+            **publish_status,
+            "published": True,
+            "already_published": True,
+            "publication_contract_removed": False,
+            "version": contract.get("version"),
+            "message": "GitHub-publicatie reeds exact aanwezig",
+        }
+        try:
+            HA_PUBLICATION_REQUIRED.unlink()
+            result["publication_contract_removed"] = True
+        except Exception as exc:
+            result["published"] = False
+            result["message"] = f"Target staat al op GitHub maar contract kon niet veilig worden opgeruimd: {exc}"
+        try:
+            GITHUB_PUBLISH_STATE.parent.mkdir(parents=True, exist_ok=True)
+            GITHUB_PUBLISH_STATE.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except Exception:
+            pass
+        return result
 
     try:
         _sync_project_to_github_worktree(release_source, GITHUB_WORKTREE)

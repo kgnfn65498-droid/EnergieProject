@@ -1,9 +1,8 @@
 # Changelog
 
-## 32.3.16
+## 32.3.17
 
-- Crash Recovery gebruikt tijdelijk MAINTENANCE en herstelt na veilige success/failure de oorspronkelijke USER/DEVELOPMENT-basis.
-- DEVELOPMENT blijft persistent; alleen een onveilige gedeeltelijke mutatie houdt MAINTENANCE vast.
-- Reboot tijdens gewone backup/verify herstelt failed-safe naar de oorspronkelijke basis.
-- Rapportservicehistorie bewaart 13 maanden.
-- RELEASE VALIDATION HOLD, watcher, scheduler en automatische maandafsluiting blijven inhoudelijk ongewijzigd.
+- GitHub-publicatie is idempotent wanneer MAIN al op de targetrelease staat vóór live installatie.
+- Exacte targetrelease wordt zonder extra push als gepubliceerd afgerond.
+- Targetbron met uitsluitend afwijkende gegenereerde release-metadata wordt veilig gesynchroniseerd; echte bronafwijking blijft fail-closed.
+- Operating-mode, RELEASE VALIDATION HOLD, Crash Recovery, watcher, scheduler en maandafsluiting zijn ongewijzigd.

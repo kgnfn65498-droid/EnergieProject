@@ -1,3 +1,12 @@
+# Testinstructies v32.3.17 — idempotente GitHub-publicatie en risicogestuurde releasecontrole
+
+1. Draai tijdens ontwikkeling eerst de gerichte tests; een onverwachte fout of wijziging aan release/recovery/modes/installer schakelt automatisch naar de uitgebreidere route.
+2. Vóór MAIN is na de laatste codewijziging altijd één volledige `pytest -q` verplicht.
+3. Vóór ZIP-levering zijn de GitHub-publicatiechecks verplicht: previous baseline, exact target, metadata-only target source match en echte source mismatch/fail-closed.
+4. Bouw de definitieve ZIP uitsluitend uit gemergde MAIN, verifieer ZIP/path-safety, `MANIFEST.sha256` en `SHA256SUMS.json`.
+5. Pak de definitieve ZIP schoon uit en draai daar altijd de volledige regressiesuite; compileer Python en controleer shellsyntax.
+6. Extra volledige runs/installer-simulaties alleen overslaan wanneer ze geen nieuwe zekerheid toevoegen; bij elke afwijking of kritieke wijziging worden ze juist toegevoegd. Juistheid gaat vóór snelheid.
+
 # Testinstructies v32.3.11 — Nomad automation auto-registration hotfix
 
 1. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.11.

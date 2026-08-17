@@ -1,3 +1,11 @@
+## 32.3.17 — Idempotent GitHub publication
+- De Home Assistant GitHub-publisher accepteert nu veilig dat MAIN al op de targetversie staat vóór de live installatie.
+- Als targetversie én targetmanifest al exact overeenkomen, wordt het publicatiecontract idempotent afgerond zonder extra push.
+- Als de targetbron al overeenkomt maar alleen definitieve release-metadata (`MANIFEST.sha256` / `SHA256SUMS.json`) afwijkt, wordt uitsluitend die gevalideerde releasebron gesynchroniseerd en daarna normaal geverifieerd.
+- Een echte bronafwijking bij dezelfde targetversie blijft fail-closed en wordt niet automatisch overschreven.
+- De pre-delivery verificatie blijft verplicht, maar wordt risicogestuurd uitgevoerd: snelle gerichte checks eerst, automatisch opschalen na afwijkingen of bij kritieke release-/recovery-/modewijzigingen.
+- Operating-mode, RELEASE VALIDATION HOLD, scheduler, watcher, Crash Recovery en maandafsluiting zijn inhoudelijk niet gewijzigd.
+
 ## 32.3.16 — Crash Recovery Maintenance integration
 - Crash Recovery schakelt tijdelijk naar MAINTENANCE en keert na veilige succesvolle verificatie terug naar de exacte oorspronkelijke USER- of DEVELOPMENT-basis.
 - Een gewone veilige backup- of verificatiefout registreert FAILED en keert eveneens terug naar de oorspronkelijke basis; DEVELOPMENT en de ontwikkelsessie blijven behouden.
