@@ -1,3 +1,10 @@
+## 32.3.19 — Crash Recovery hardening + automatische HOLD-vrijgave
+- Gezonde releases valideren de bestaande RELEASE VALIDATION HOLD automatisch en geven hem alleen vrij wanneer alle vijf checks plus gemeten reconciliation groen zijn; noodvrijgave blijft uitsluitend handmatig.
+- Crash Recovery backup/verify schakelt tijdelijk naar MAINTENANCE en pauzeert schedule, full workflow en automatische maandafsluiting zodat geen nieuwe automatische mutatie tijdens de herstelset start.
+- Post-download cleanup opent zelf een mutating MAINTENANCE-sessie en houdt die actief totdat de watcher het cleanup-resultaat terugmeldt.
+- Cleanup-resultaat ok keert exact terug naar de oorspronkelijke USER/DEVELOPMENT-basis; een onveilige gedeeltelijke cleanup blijft fail-closed in MAINTENANCE.
+- DEVELOPMENT-sessie, release-ingressbeleid, watcher-ingress en maandsemantiek blijven verder ongewijzigd.
+
 ## 32.3.18 — Live mode GUI refresh
 - Bedrijfsmodus-acties in de Home Assistant Ingress GUI verversen na de bestaande veilige POST/303-keten direct naar de vers gemeten serverstatus; handmatig browser-refreshen is niet meer nodig.
 - De GUI-interceptie is uitsluitend scoped op de formulieren in de Bedrijfsmoduskaart die al expliciet `return_ui=1` gebruiken; niet-GUI JSON-calls blijven ongewijzigd.

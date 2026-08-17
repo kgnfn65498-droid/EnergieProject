@@ -13,12 +13,14 @@ from operating_mode_runtime import (
 )
 from operating_mode_web import install_mode_web
 from operating_mode_crash_recovery import (
+    crash_recovery_mode_worker,
     install_crash_recovery_mode_integration,
     recover_crash_recovery_mode_session,
 )
 from release_validation_hold import ensure_release_hold_state
+from operating_mode_auto_release import automatic_release_hold_worker
 
-TARGET_RELEASE_VERSION = "32.3.18"
+TARGET_RELEASE_VERSION = "32.3.19"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 
@@ -33,6 +35,18 @@ def start_operating_mode_runtime() -> None:
     install_crash_recovery_mode_integration(app, root)
     operating_mode_tick(root, app_module=app)
     install_mode_web(app, root)
+    threading.Thread(
+        target=automatic_release_hold_worker,
+        args=(app.STOP, app, root, TARGET_RELEASE_VERSION),
+        daemon=True,
+        name="release-hold-auto-validation",
+    ).start()
+    threading.Thread(
+        target=crash_recovery_mode_worker,
+        args=(app.STOP, app, root),
+        daemon=True,
+        name="crash-recovery-mode-reconcile",
+    ).start()
     threading.Thread(
         target=operating_mode_worker,
         args=(app.STOP, root, app),
