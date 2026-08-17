@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import secrets
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from operating_modes import command_path
 from operating_mode_runtime import (
@@ -73,6 +73,56 @@ def _pill(value: bool) -> str:
     return "AAN" if value else "UIT"
 
 
+def _pill_optional(value: Any) -> str:
+    if value is None:
+        return "ONBEKEND"
+    return "AAN" if bool(value) else "UIT"
+
+
+_UI_NOTICE_CODES = {
+    "development_set",
+    "user_set",
+    "maintenance_set",
+    "auto_updated",
+    "reconcile_ok",
+    "release_hold_released",
+    "emergency_release_done",
+    "action_failed",
+}
+
+
+def _ui_redirect_location(notice_code: str, level: str) -> str:
+    code = notice_code if notice_code in _UI_NOTICE_CODES else "action_failed"
+    safe_level = "success" if level == "success" else "error"
+    return "./?" + urlencode({"mode_notice": code, "mode_level": safe_level})
+
+
+def _send_ui_redirect(handler: Any, notice_code: str, level: str) -> None:
+    handler.send_response(303)
+    handler.send_header("Location", _ui_redirect_location(notice_code, level))
+    handler.send_header("Cache-Control", "no-store")
+    handler.end_headers()
+
+
+def _notice_code(endpoint: str, form: dict[str, list[str]], result: dict[str, Any]) -> str:
+    if endpoint == "set-operating-mode":
+        mode = str((form.get("mode") or [""])[0]).strip().upper()
+        return {
+            "DEVELOPMENT": "development_set",
+            "USER": "user_set",
+            "MAINTENANCE": "maintenance_set",
+        }.get(mode, "action_failed")
+    if endpoint == "set-operating-mode-auto":
+        return "auto_updated"
+    if endpoint == "reconcile-operating-mode":
+        return "reconcile_ok"
+    if endpoint == "validate-release-hold":
+        return "release_hold_released" if result.get("status") == "released" else "reconcile_ok"
+    if endpoint == "emergency-release-hold":
+        return "emergency_release_done"
+    return "action_failed"
+
+
 def render_mode_card(snapshot: dict[str, Any]) -> str:
     esc = lambda value: html.escape(str(value), quote=True)
     desired = snapshot.get("desired_profile") or {}
@@ -83,7 +133,10 @@ def render_mode_card(snapshot: dict[str, Any]) -> str:
     effective = snapshot.get("effective_mode") or "USER"
     base = snapshot.get("base_mode") or "USER"
     incoming = _pill(bool(desired.get("release_ingress_enabled")))
-    month_auto = _pill(bool(desired.get("automatic_month_close_enabled")))
+    basis_month = _pill(bool(desired.get("automatic_month_close_enabled")))
+    observed = snapshot.get("observed_profile") or {}
+    effective_raw = observed.get("automatic_month_close_effective") if "automatic_month_close_effective" in observed else None
+    effective_month = _pill_optional(effective_raw)
     drift_text = "; ".join(str(item) for item in drift) or "geen"
     hold = snapshot.get("release_validation_hold") or {}
     hold_active = bool(hold.get("active"))
@@ -96,17 +149,50 @@ def render_mode_card(snapshot: dict[str, Any]) -> str:
   <p><strong>Basis:</strong> {esc(base)} &nbsp; <strong>Actueel:</strong> {esc(effective)} &nbsp; <strong>Ontwikkelsessie:</strong> {dev_session}</p>
   <p><strong>Automatisch schakelen:</strong> {'AAN' if auto else 'UIT'} &nbsp; <strong>Reconciliation:</strong> {esc(reconcile)}</p>
   <p><strong>RELEASE VALIDATION HOLD:</strong> {_pill(hold_active)} &nbsp; <strong>Validatie:</strong> {esc(hold_validation)} &nbsp; <strong>Hold reconcile:</strong> {esc(hold_reconcile)}</p>
-  <p><strong>Reden:</strong> {esc(reason)} &nbsp; <strong>Incoming verwerking:</strong> {incoming} &nbsp; <strong>Automatische maandverwerking:</strong> {month_auto}</p>
+  <p><strong>Reden:</strong> {esc(reason)} &nbsp; <strong>Incoming verwerking:</strong> {incoming}</p>
+  <p><strong>Basisprofiel maandverwerking:</strong> {basis_month} &nbsp; <strong>Effectieve maandverwerking:</strong> {effective_month}</p>
   <p><small>Drift: {esc(drift_text)}</small></p>
+  <div id="operating-mode-notice" role="status" aria-live="polite" style="display:none;margin:10px 0;padding:10px;border:1px solid #bbb;border-radius:6px"></div>
   <div class="controls">
-    <form method="post" action="set-operating-mode"><input type="hidden" name="mode" value="USER"><button type="submit">USER</button></form>
-    <form method="post" action="set-operating-mode"><input type="hidden" name="mode" value="DEVELOPMENT"><button type="submit">DEVELOPMENT</button></form>
-    <form method="post" action="set-operating-mode"><input type="hidden" name="mode" value="MAINTENANCE"><button type="submit">MAINTENANCE</button></form>
-    <form method="post" action="set-operating-mode-auto"><input type="hidden" name="enabled" value="{'0' if auto else '1'}"><button type="submit">Automatisch schakelen {'UIT' if auto else 'AAN'}</button></form>
-    <form method="post" action="reconcile-operating-mode"><button type="submit">Reconcile</button></form>
-    <form method="post" action="validate-release-hold"><button type="submit">Release-hold valideren/vrijgeven</button></form>
-    <form method="post" action="emergency-release-hold"><input type="text" name="confirm" placeholder="NOODVRIJGAVE"><button type="submit">Noodvrijgave</button></form>
+    <form method="post" action="set-operating-mode"><input type="hidden" name="return_ui" value="1"><input type="hidden" name="mode" value="USER"><button type="submit">USER</button></form>
+    <form method="post" action="set-operating-mode"><input type="hidden" name="return_ui" value="1"><input type="hidden" name="mode" value="DEVELOPMENT"><button type="submit">DEVELOPMENT</button></form>
+    <form method="post" action="set-operating-mode"><input type="hidden" name="return_ui" value="1"><input type="hidden" name="mode" value="MAINTENANCE"><button type="submit">MAINTENANCE</button></form>
+    <form method="post" action="set-operating-mode-auto"><input type="hidden" name="return_ui" value="1"><input type="hidden" name="enabled" value="{'0' if auto else '1'}"><button type="submit">Automatisch schakelen {'UIT' if auto else 'AAN'}</button></form>
+    <form method="post" action="reconcile-operating-mode"><input type="hidden" name="return_ui" value="1"><button type="submit">Reconcile</button></form>
+    <form method="post" action="validate-release-hold"><input type="hidden" name="return_ui" value="1"><button type="submit">Release-hold valideren/vrijgeven</button></form>
+    <form method="post" action="emergency-release-hold"><input type="hidden" name="return_ui" value="1"><input type="text" name="confirm" placeholder="NOODVRIJGAVE"><button type="submit">Noodvrijgave</button></form>
   </div>
+  <script>
+  (() => {{
+    const searchParams = new URLSearchParams(window.location.search);
+    const code = searchParams.get("mode_notice");
+    const level = searchParams.get("mode_level");
+    const messages = {{
+      development_set: "DEVELOPMENT ingesteld",
+      user_set: "USER ingesteld",
+      maintenance_set: "MAINTENANCE ingesteld",
+      auto_updated: "Automatisch schakelen bijgewerkt",
+      reconcile_ok: "Reconcile OK",
+      release_hold_released: "Release-hold vrijgegeven",
+      emergency_release_done: "Noodvrijgave uitgevoerd",
+      action_failed: "Actie niet uitgevoerd"
+    }};
+    const message = messages[code];
+    if (message) {{
+      const banner = document.getElementById("operating-mode-notice");
+      if (banner) {{
+        banner.textContent = message;
+        banner.dataset.level = level === "success" ? "success" : "error";
+        banner.style.display = "block";
+      }}
+      searchParams.delete("mode_notice");
+      searchParams.delete("mode_level");
+      const query = searchParams.toString();
+      const cleanUrl = window.location.pathname + (query ? "?" + query : "") + window.location.hash;
+      history.replaceState(null, "", cleanUrl);
+    }}
+  }})();
+  </script>
 </div>
 """.strip()
 
@@ -157,9 +243,11 @@ def install_mode_web(app_module: Any, project_root: Path | str) -> None:
         endpoint = _endpoint(parsed_path)
         if endpoint is None:
             return raw_do_post(self)
+        return_ui = False
         try:
             length = int(self.headers.get("Content-Length", "0") or 0)
             form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace")) if length else {}
+            return_ui = str((form.get("return_ui") or ["0"])[0]).strip() == "1"
             live_app = app_module if _supports_live_runtime(app_module) else None
             if endpoint == "set-operating-mode":
                 mode = str((form.get("mode") or [""])[0]).strip().upper()
@@ -206,9 +294,15 @@ def install_mode_web(app_module: Any, project_root: Path | str) -> None:
                     issued_by="user_gui",
                     confirmed=confirmation,
                 )
+            if return_ui:
+                _send_ui_redirect(self, _notice_code(endpoint, form, result), "success")
+                return
             body = json.dumps(result, ensure_ascii=False).encode("utf-8")
             self.send_body(200, body, "application/json; charset=utf-8")
         except Exception as exc:
+            if return_ui:
+                _send_ui_redirect(self, "action_failed", "error")
+                return
             body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
             self.send_body(400, body, "application/json; charset=utf-8")
 
