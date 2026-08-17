@@ -52,6 +52,46 @@ def operating_mode_project_root() -> Path:
     return resolve_nas_roots()[1]
 
 
+def recover_startup_mode_state(project_root: Path | str) -> ModeState:
+    """Discard stale temporary runtime context while preserving the persistent base mode."""
+    state = load_mode_state(project_root)
+    stale = bool(
+        state.active_transition_id
+        or state.temporary_reason
+        or state.suspended_features
+        or state.effective_mode is not state.base_mode
+    )
+    if not stale:
+        return state
+
+    recovered = replace(
+        state,
+        effective_mode=state.base_mode,
+        temporary_reason="",
+        active_transition_id="",
+        suspended_features=(),
+        reconciliation_status="required",
+        observed_profile={},
+        drift=("stale_temporary_state_recovered",),
+    )
+    save_mode_state(project_root, recovered)
+    desired = asdict(profile_for(recovered.effective_mode))
+    _append_mode_history(project_root, {
+        "timestamp": datetime.now().astimezone().isoformat(),
+        "request_id": "startup-recovery",
+        "issued_by": "operating_mode_runtime",
+        "action": "startup_recover_stale_temporary",
+        "base_mode": recovered.base_mode.value,
+        "from_effective_mode": state.effective_mode.value,
+        "to_effective_mode": recovered.effective_mode.value,
+        "reason": state.temporary_reason or "stale temporary mode after startup",
+        "desired_profile": desired,
+        "observed_profile": {},
+        "reconciliation_status": "required",
+    })
+    return recovered
+
+
 def reconcile_state(project_root: Path | str, observed_profile: dict[str, Any], now: Any = None) -> ModeState:
     state = load_mode_state(project_root)
     desired = asdict(profile_for(state.effective_mode, state.suspended_features))
