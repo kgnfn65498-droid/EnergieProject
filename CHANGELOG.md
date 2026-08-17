@@ -1,3 +1,10 @@
+## 32.3.12 — Operating modes enforced
+- Enforced USER / DEVELOPMENT / MAINTENANCE operating-mode controller.
+- Automatic temporary escalation and safe return to the base mode.
+- Mode-gated release Incoming and maintenance request processing.
+- USER enforces vacation-safe previous-month automation; current month finalization is blocked.
+- Projectmanager reconciliation, audit history, GUI controls and chat-visible status.
+
 ## v32.3.11 — Nomad automation reload hotfix
 
 - Corrigeert de live-laadstap na automatische Nomad-automationregistratie: na een nieuwe of reeds aanwezige eigen Nomad-configuratie roept de installer nu expliciet `automation.reload` aan via de bestaande Home Assistant Core REST API.
