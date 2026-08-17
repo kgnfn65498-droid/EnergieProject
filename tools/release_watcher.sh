@@ -27,6 +27,7 @@ ZIP_HELPER_SOURCE="$PROJECT/tools/release_zip.py"
 CRASH_CLEANUP_REQUEST="$INBOX/crash_recovery_cleanup_request.json"
 CRASH_CLEANUP_RESULT="$INBOX/crash_recovery_cleanup_result.json"
 CRASH_CLEANUP_HELPER="$PROJECT/tools/crash_recovery_cleanup.py"
+MODE_GATE="$PROJECT/tools/operating_mode_gate.py"
 MCP_GUARD_HOTFIX_HELPER="$PROJECT/tools/mcp_system_path_guard_hotfix.py"
 MCP_GUARD_HOTFIX_RESULT="$INBOX/logs/mcp_system_path_guard_hotfix_v3231.json"
 HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
@@ -61,6 +62,12 @@ write_status(){
   printf '%s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$STATUS" "$DETAIL" > "$TMP_STATUS"
   mv "$TMP_STATUS" "$STATUSFILE"
 }
+mode_allows(){
+  capability=$1
+  [ -f "$MODE_GATE" ] || return 1
+  command -v python3 >/dev/null 2>&1 || return 1
+  python3 "$MODE_GATE" --root "$ROOT" --capability "$capability" >/dev/null 2>&1
+}
 
 zip_integrity_ok(){
   ZIP_PATH=$1
@@ -70,7 +77,6 @@ zip_integrity_ok(){
     unzip -tqq "$ZIP_PATH" >/dev/null 2>&1
   fi
 }
-
 
 cleanup_processed_releases_on_start(){
   case "$PROCESSED_RETENTION" in
@@ -102,7 +108,7 @@ cleanup_processed_releases_on_start(){
     minor="${rest%%.*}"
     patch="${rest#*.}"
     case "$major:$minor:$patch" in
-      *[!0-9:]*|'') 
+      *[!0-9:]*|'')
         log "WAARSCHUWING: processed ZIP met onbekende versie blijft behouden: $base"
         continue
         ;;
@@ -181,9 +187,6 @@ process_crash_recovery_cleanup(){
   fi
 
   log "FOUT: Crash Recovery cleanup niet volledig geslaagd; resultaat blijft beschikbaar"
-  # Een geschreven resultaat is bewijs van een afgehandelde poging; verwijder het
-  # request om een oneindige 5-seconden-retrylus te voorkomen. HA kan veilig een
-  # nieuw request met dezelfde exacte artefacten aanbieden.
   [ -f "$CRASH_CLEANUP_RESULT" ] && rm -f "$CRASH_CLEANUP_REQUEST" 2>/dev/null || true
   return 1
 }
@@ -219,8 +222,6 @@ case "${1:-run}" in
   *) echo "Gebruik: $0 [run|once|status|stop]" >&2; exit 2;;
 esac
 
-# Cross-namespace singleton-claim. PID's zijn niet betrouwbaar tussen QNAP-host
-# en Docker namespaces; de gedeelde heartbeat bepaalt daarom of de lock actief is.
 if ! mkdir "$WATCHER_LOCK" 2>/dev/null; then
   AGE="$(heartbeat_age)"
   if [ -f "$HEARTBEAT" ] && [ "$AGE" -lt "$HEARTBEAT_STALE_SECONDS" ]; then
@@ -231,8 +232,6 @@ if ! mkdir "$WATCHER_LOCK" 2>/dev/null; then
   mkdir "$WATCHER_LOCK" 2>/dev/null || exit 0
 fi
 
-# Vanaf hier is deze watcher de enige eigenaar. Ruim een eventueel oud PID-bestand op
-# en publiceer pas daarna het actuele PID.
 rm -f "$PIDFILE" 2>/dev/null || true
 printf '%s\n' "$$" > "$PIDFILE"
 
@@ -268,51 +267,57 @@ fi
 
 while :; do
   touch_heartbeat
-  process_crash_recovery_cleanup || true
-  set -- "$INCOMING"/*.zip
-  if [ -e "$1" ]; then
-    COUNT=$#
-    if [ "$COUNT" -eq 1 ]; then
-      ZIP_PATH="$1"
-      ZIP_NAME="$(basename "$ZIP_PATH")"
-      ZIP_SIZE="$(wc -c < "$ZIP_PATH" 2>/dev/null | tr -d ' ' || echo 0)"
-      ZIP_MTIME="$(date -r "$ZIP_PATH" +%s 2>/dev/null || echo 0)"
 
-      if [ "$ZIP_NAME" = "$LAST_ZIP" ] && [ "$ZIP_SIZE" = "$LAST_SIZE" ] && [ "$ZIP_MTIME" = "$LAST_MTIME" ] && [ "$ZIP_SIZE" -gt 0 ]; then
-        STABLE_COUNT=$((STABLE_COUNT + 1))
-      else
-        LAST_ZIP="$ZIP_NAME"
-        LAST_SIZE="$ZIP_SIZE"
-        LAST_MTIME="$ZIP_MTIME"
-        STABLE_COUNT=1
-        log "ZIP gedetecteerd; wacht op complete kopie: $ZIP_NAME (${ZIP_SIZE} bytes)"
-        write_status "COPYING" "$ZIP_NAME"
-      fi
+  if mode_allows maintenance_requests; then
+    process_crash_recovery_cleanup || true
+  fi
 
-      if [ "$STABLE_COUNT" -ge "$STABLE_POLLS" ]; then
-        if zip_integrity_ok "$ZIP_PATH"; then
-          log "ZIP stabiel en integraal na ${STABLE_COUNT} controles: $ZIP_NAME"
-          write_status "PROCESSING" "$ZIP_NAME"
-          if run_installer; then
-            log "Automatische verwerking afgerond"
-            write_status "SUCCESS" "$ZIP_NAME"
-            refresh_watcher_from_installed_release
-          else
-            log "FOUT: automatische verwerking mislukt; zie installerlog en failed-map"
-            write_status "FAILED" "$ZIP_NAME"
-          fi
-          LAST_ZIP=""
-          LAST_SIZE=""
-          LAST_MTIME=""
-          STABLE_COUNT=0
+  if mode_allows release_ingress; then
+    set -- "$INCOMING"/*.zip
+    if [ -e "$1" ]; then
+      COUNT=$#
+      if [ "$COUNT" -eq 1 ]; then
+        ZIP_PATH="$1"
+        ZIP_NAME="$(basename "$ZIP_PATH")"
+        ZIP_SIZE="$(wc -c < "$ZIP_PATH" 2>/dev/null | tr -d ' ' || echo 0)"
+        ZIP_MTIME="$(date -r "$ZIP_PATH" +%s 2>/dev/null || echo 0)"
+
+        if [ "$ZIP_NAME" = "$LAST_ZIP" ] && [ "$ZIP_SIZE" = "$LAST_SIZE" ] && [ "$ZIP_MTIME" = "$LAST_MTIME" ] && [ "$ZIP_SIZE" -gt 0 ]; then
+          STABLE_COUNT=$((STABLE_COUNT + 1))
         else
-          log "ZIP nog niet compleet/integer; blijft in incoming: $ZIP_NAME"
+          LAST_ZIP="$ZIP_NAME"
+          LAST_SIZE="$ZIP_SIZE"
+          LAST_MTIME="$ZIP_MTIME"
+          STABLE_COUNT=1
+          log "ZIP gedetecteerd; wacht op complete kopie: $ZIP_NAME (${ZIP_SIZE} bytes)"
           write_status "COPYING" "$ZIP_NAME"
-          STABLE_COUNT=0
         fi
+
+        if [ "$STABLE_COUNT" -ge "$STABLE_POLLS" ]; then
+          if zip_integrity_ok "$ZIP_PATH"; then
+            log "ZIP stabiel en integraal na ${STABLE_COUNT} controles: $ZIP_NAME"
+            write_status "PROCESSING" "$ZIP_NAME"
+            if run_installer; then
+              log "Automatische verwerking afgerond"
+              write_status "SUCCESS" "$ZIP_NAME"
+              refresh_watcher_from_installed_release
+            else
+              log "FOUT: automatische verwerking mislukt; zie installerlog en failed-map"
+              write_status "FAILED" "$ZIP_NAME"
+            fi
+            LAST_ZIP=""
+            LAST_SIZE=""
+            LAST_MTIME=""
+            STABLE_COUNT=0
+          else
+            log "ZIP nog niet compleet/integer; blijft in incoming: $ZIP_NAME"
+            write_status "COPYING" "$ZIP_NAME"
+            STABLE_COUNT=0
+          fi
+        fi
+      else
+        log "WACHT: $COUNT ZIP-bestanden in incoming; installer vereist exact één ZIP"
       fi
-    else
-      log "WACHT: $COUNT ZIP-bestanden in incoming; installer vereist exact één ZIP"
     fi
   fi
   sleep "$INTERVAL"
