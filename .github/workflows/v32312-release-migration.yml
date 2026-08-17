@@ -1,0 +1,98 @@
+name: v32.3.12 release migration
+
+on:
+  push:
+    branches:
+      - feature/v32.3.12-operating-modes
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-and-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/v32.3.12-operating-modes
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply exact v32.3.12 release migration
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          main_path = Path('slimmemeterportal_import/rootfs/app/main.py')
+          main = main_path.read_text(encoding='utf-8')
+          old = 'APP_VERSION = "32.3.11"'
+          new = 'APP_VERSION = "32.3.12"'
+          if old in main:
+              if main.count(old) != 1:
+                  raise SystemExit(f'Expected exactly one main APP_VERSION literal, found {main.count(old)}')
+              main_path.write_text(main.replace(old, new, 1), encoding='utf-8')
+          elif new not in main:
+              raise SystemExit('Neither expected old nor new APP_VERSION literal found')
+
+          static_path = Path('tests/test_static.py')
+          static = static_path.read_text(encoding='utf-8')
+          static = static.replace('32.3.11', '32.3.12')
+          static = static.replace('python3 -u /app/main.py', 'python3 -u /app/mode_entrypoint.py')
+          static_path.write_text(static, encoding='utf-8')
+
+          changelog = Path('CHANGELOG.md')
+          text = changelog.read_text(encoding='utf-8')
+          heading = '## 32.3.12 — Operating modes enforced\n'
+          if heading not in text:
+              entry = (
+                  heading
+                  + '- Enforced USER / DEVELOPMENT / MAINTENANCE operating-mode controller.\n'
+                  + '- Automatic temporary escalation and safe return to the base mode.\n'
+                  + '- Mode-gated release Incoming and maintenance request processing.\n'
+                  + '- USER enforces vacation-safe previous-month automation; current month finalization is blocked.\n'
+                  + '- Projectmanager reconciliation, audit history, GUI controls and chat-visible status.\n\n'
+              )
+              changelog.write_text(entry + text, encoding='utf-8')
+          PY
+
+      - name: Update add-on current-release changelog
+        shell: bash
+        run: |
+          cat > slimmemeterportal_import/CHANGELOG.md <<'EOF'
+          ## 32.3.12
+
+          - Enforced USER / DEVELOPMENT / MAINTENANCE operating-mode controller.
+          - Automatic temporary mode escalation with safe return to the configured base mode.
+          - Release Incoming is enabled only in DEVELOPMENT; maintenance requests only in MAINTENANCE.
+          - USER effectively enables scheduled workflow and automatic previous-month close while blocking current-month finalization.
+          - Projectmanager reconciliation, append-only mode audit history, GUI controls and chat-visible mode status.
+          - Existing destructive restore/delete safety gates are unchanged.
+          EOF
+
+      - name: Commit mechanical migration
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo 'No migration changes required.'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add slimmemeterportal_import/rootfs/app/main.py tests/test_static.py CHANGELOG.md slimmemeterportal_import/CHANGELOG.md
+            git commit -m 'release: align v32.3.12 legacy assertions'
+            git push origin HEAD:feature/v32.3.12-operating-modes
+          fi
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest 'reportlab>=4,<5' 'pypdf>=5,<7' 'xlsxwriter>=3.2,<4' 'websocket-client>=1.8,<2'
+
+      - name: Run full regression suite
+        run: pytest -q
