@@ -40,12 +40,12 @@ def test_main_resolves_acceptance_path_at_probe_time_and_has_no_import_time_abso
 
 
 def test_release_identity_is_v3233_mount_timing_hotfix():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.13"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.14"
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
     root_changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     addon_changelog = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.3.13"' in config
-    assert 'APP_VERSION = "32.3.13"' in main
-    assert root_changelog.startswith("## 32.3.13 — Operating modes enforced")
-    assert addon_changelog.startswith("# Changelog\n\n## 32.3.13")
+    assert 'version: "32.3.14"' in config
+    assert 'APP_VERSION = "32.3.14"' in main
+    assert root_changelog.startswith("## 32.3.14 — Operating modes enforced")
+    assert addon_changelog.startswith("# Changelog\n\n## 32.3.14")

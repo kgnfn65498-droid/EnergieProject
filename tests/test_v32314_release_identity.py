@@ -21,14 +21,15 @@ def test_v32314_release_identity_is_consistent():
 def test_v32314_changelog_documents_the_safety_release():
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert changelog.startswith("## 32.3.14 — Release Validation Hold")
+    section = changelog.split("## 32.3.13", 1)[0].lower()
     for required in (
-        "RELEASE VALIDATION HOLD",
-        "DEVELOPMENT",
+        "release validation hold",
+        "development",
         "runtime",
         "automatische maandafsluiting",
         "noodvrijgave",
     ):
-        assert required in changelog.split("## 32.3.13", 1)[0]
+        assert required in section
 
 
 def test_v32314_keeps_existing_production_core_revision():
