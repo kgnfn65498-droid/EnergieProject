@@ -1,5 +1,6 @@
 {
-  "version": "32.3.11",
+  "version": "32.3.17",
+  "source_commit": "683b94b6d69248ed3aa9b6c0548c999741ee0b25",
   "files": [
     {
       "path": ".gitignore",
@@ -23,8 +24,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "868fd3298b6f6bb0412b32d651a67479bfbe38a2d94dabc5821f778ddeb40857",
-      "size": 87604
+      "sha256": "35c76ba3047c4f766e9f93038187cb674b5a30e31060872afe2f99f9418ad49b",
+      "size": 91433
     },
     {
       "path": "INSTALL.md",
@@ -58,12 +59,12 @@
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "sha256": "eb5ec26a69a4db46f3517c4880b6b3fae53ef8d8b92a02e71892779c4d30a787",
-      "size": 12418
+      "sha256": "a0d8f0a35c5b34bac0d3c2d75a927f1a2d23af0061ee83072ebd46717c1c27bb",
+      "size": 13418
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "a9b3a831f4a7774a7a18ee72992a4c95d03b7046bf9e11c1bcc1004d3654e8a0",
+      "sha256": "e4d2050df934598c2ee674076e7926516857b484c9326bb3b19c9e1ba573594e",
       "size": 8
     },
     {
@@ -77,9 +78,59 @@
       "size": 7742
     },
     {
+      "path": "docs/superpowers/plans/2026-08-17-operating-mode-controller.md",
+      "sha256": "d813c75c2608fa3d35f6811f1398f8ae2d2d667d3c83d7f797a5c52980dca8ce",
+      "size": 43003
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-17-v32.3.14-release-validation-hold.md",
+      "sha256": "962af05565e6cdbaf1743554ef3ea6a1ce68fdd7739e7098c0133a104eb05752",
+      "size": 23762
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-17-v32.3.15-gui-action-navigation.md",
+      "sha256": "90a0f3401e1f1c0b0a2e37085538374c86cd25f31029ee7f6e4031b930823eae",
+      "size": 12803
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-17-v32.3.16-crash-recovery-maintenance.md",
+      "sha256": "56b2645cf62dcbfdf1ba037cb52e23c7517dfa4cabdb7a6e018fb8459d3f95a9",
+      "size": 10350
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-17-v32.3.17-idempotent-github-publication.md",
+      "sha256": "e0c2dc1236853db9ec54be3917462505967ad89c82920bdf7ee2567820eaf28b",
+      "size": 1714
+    },
+    {
       "path": "docs/superpowers/specs/2026-08-17-nomad-native-ha-event-bridge-design.md",
       "sha256": "242c46b8529893f647c52a2394ce3f418b21f8dd7466bd9d535509bbc3253481",
       "size": 5136
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-17-operating-mode-controller-design.md",
+      "sha256": "9cb56d69565b35c53a9ba374c8826756154e1b8d526004adb2ef96ad2e097493",
+      "size": 11104
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-17-v32.3.14-release-validation-hold-design.md",
+      "sha256": "1d36dea364cab16acce7719beea0381387052a883904980e6195a3b7a1664d35",
+      "size": 10338
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-17-v32.3.15-gui-action-navigation-design.md",
+      "sha256": "ce6b8da75773ceaa088fafeda47cba7b6de3f23720aa35062343d72f36a0d9ce",
+      "size": 5211
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-17-v32.3.16-crash-recovery-maintenance-design.md",
+      "sha256": "bd9f250cee01ea0423ba024326108d7f8bd7cc1a37ef6beb1707018dc8b517d4",
+      "size": 6219
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-17-v32.3.17-idempotent-github-publication-design.md",
+      "sha256": "c5f4679f7d2f6ff7be739e58a05a2242a58139328944212b8f6050b92616a45e",
+      "size": 3168
     },
     {
       "path": "pytest.ini",
@@ -93,8 +144,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "9ff9a2ce5727b0c9498366f343c2ef6996774c6a1c506954b82c9aadc44b7288",
-      "size": 554
+      "sha256": "e2c11358c7d7b3a4fa726ea7d07276b9ad6854ae1a48107da50da4815bf86547",
+      "size": 456
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -113,8 +164,8 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "8c21d36145891b328b236d87b93de524294436ca7577bac52db237b189993b75",
-      "size": 6102
+      "sha256": "842fd79fc36fa07a738a8c1055d3067c42fabf7f418eb377f054b6b0b70ca509",
+      "size": 6103
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -168,8 +219,33 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "ca1d611512faa468b3d8244ea9aaffef06c6230e1fb0903013fb5ae21c241814",
-      "size": 930700
+      "sha256": "fddeb7bdcee660a5d65ff2ac90fe92362c7b9921de20c32319ccebdc8b2185c0",
+      "size": 934593
+    },
+    {
+      "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
+      "sha256": "fd6224f04fb95da9693b9cc4cf5b7a4fb74fe150fe4fdc9cc62576cf4304f185",
+      "size": 1411
+    },
+    {
+      "path": "slimmemeterportal_import/rootfs/app/operating_mode_crash_recovery.py",
+      "sha256": "02f9174ac911dee348d2a328976794aa9eaad3abecbe76e74dc86b2cf6c30456",
+      "size": 10061
+    },
+    {
+      "path": "slimmemeterportal_import/rootfs/app/operating_mode_runtime.py",
+      "sha256": "4cf794be71cd7047286a2deb2e1f2dca858c8c3d1f4da463c7414b0b49a7b159",
+      "size": 28766
+    },
+    {
+      "path": "slimmemeterportal_import/rootfs/app/operating_mode_web.py",
+      "sha256": "2b7119d7314cde207996263b367569ce09ffcc41ebe50290def93ee9626b5e7e",
+      "size": 13628
+    },
+    {
+      "path": "slimmemeterportal_import/rootfs/app/operating_modes.py",
+      "sha256": "7b310bbd571410f436e1171b4899226f3c875b629465ac10e8d1363d92ebe6c3",
+      "size": 14053
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/project_paths.py",
@@ -180,6 +256,11 @@
       "path": "slimmemeterportal_import/rootfs/app/project_structure.py",
       "sha256": "7ce96eabbedd70494a488c64b7e2e1ee526c40612dfacd7cbf54d073d87f43c7",
       "size": 21326
+    },
+    {
+      "path": "slimmemeterportal_import/rootfs/app/release_validation_hold.py",
+      "sha256": "c4b54e0de40381275acc79aa260d52c5ee2948f1829c2c44079a8ee7220515da",
+      "size": 6737
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/BOUWINSTRUCTIE.md",
@@ -433,8 +514,8 @@
     },
     {
       "path": "slimmemeterportal_import/run.sh",
-      "sha256": "a6d1f2bae0d363e383368fad8b70e35d290632d368a70ed9dcf87b62b948c2c4",
-      "size": 172
+      "sha256": "9f8930621695ac2fee92eec6ee9ccb91dd1b5ef5cff260bd13dac1ef62f92407",
+      "size": 183
     },
     {
       "path": "slimmemeterportal_import/translations/en.yaml",
@@ -468,13 +549,13 @@
     },
     {
       "path": "tests/test_crash_recovery_watcher_cleanup.py",
-      "sha256": "213f1b38e87118fbd515727ef9a8c012b599cf40fc56c188a2e8bce6d06c06d2",
-      "size": 6112
+      "sha256": "4549a3be806af9e9c55d46af16760555190910fa86f861c15ea693375458ec6d",
+      "size": 6269
     },
     {
       "path": "tests/test_gui_runtime.py",
-      "sha256": "37bd7e37db26dfdd1a5f3b9b3aba4211ec1c8724c0c0d8045019d67119775a4a",
-      "size": 1381
+      "sha256": "ada933ca42688fe838235f6fb9fc1bb8eedf4edaa6260c1eadad2e36497ec852",
+      "size": 1675
     },
     {
       "path": "tests/test_historical_energy_excel.py",
@@ -488,42 +569,42 @@
     },
     {
       "path": "tests/test_smp_report_fallback.py",
-      "sha256": "c91c129f40ab2b46a9e7703e8bc21ed242a59afdf02d306fca4749e2d9c3091b",
-      "size": 17452
+      "sha256": "ff6c7f4340813d7fcaa79add616ce81ba482bced2dec50956f4b61b07630683a",
+      "size": 17584
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "315662eb9a145f4e05762b8dd3ec5cdd1958b066c0b205637fcaf1994d3dea95",
-      "size": 236537
+      "sha256": "7212a750fbd10cf7d04fd7395033aae4c419f33eb1118b89d26b6ad1dc378525",
+      "size": 236550
     },
     {
       "path": "tests/test_v32035_release_identity.py",
-      "sha256": "c90c895187ade043e866f64ae594aa38e3b9daab7243952e0781b06bde898904",
-      "size": 1794
+      "sha256": "25796e51a2bcb84ecf1c619bab109406f02295365d49298b89f6821cbdeb4e58",
+      "size": 1759
     },
     {
       "path": "tests/test_v32037_safe_github_publication.py",
-      "sha256": "4022b61cf58109954b88a11ccba838694d430abc77fd5625a7d20cc1747996d5",
+      "sha256": "ea7a9df609d64146ceeaf88669063a051599c05f020c4ba7ae89b9186cf9edbd",
       "size": 3102
     },
     {
       "path": "tests/test_v32038_automatic_publication_chain.py",
-      "sha256": "8698afd98a51aec95a4e82f3f8262f725e2dcccf81f36b2f7fb2656d945a3ff0",
+      "sha256": "9f38e741a3e417dbead71629a119b79c0f758514f162afe0e600f25dad522451",
       "size": 2574
     },
     {
       "path": "tests/test_v3210_historical_energy_excel.py",
-      "sha256": "17c7ef8db17b19d60c03e14bfd3d158704e16251aaed23b4a9f10d1ca83f6071",
+      "sha256": "5866cb4f99f458ba1df7d13b1f76cd86d3f0ed7b14c0cfbf970c430e38c14dcb",
       "size": 2661
     },
     {
       "path": "tests/test_v3211_startup_excel_bootstrap.py",
-      "sha256": "ead79b849a9caf9026fa96e9fa0bbf8351dd210abed38d0d5589f944ccd9f2ce",
+      "sha256": "d0cd3a7b1441a0084079eb8ddbafb89bc79d5a64b2e9c19cc95699e4ca270839",
       "size": 3024
     },
     {
       "path": "tests/test_v3212_startup_excel_live_nas.py",
-      "sha256": "8d941698eaceae44eaa7554f232f22ccfe2afd719966e4d0c01d266017b7fddf",
+      "sha256": "074d00ec776b2407e65d5733af858d54100312e67d9fc59dcea0cb793422905c",
       "size": 2500
     },
     {
@@ -533,12 +614,12 @@
     },
     {
       "path": "tests/test_v3220_knowledge_base_structure.py",
-      "sha256": "f228b53f2147f4a263d57b31b01c814abb7bb8a2da295824ddb241dac6099278",
+      "sha256": "db38f87ef70a7cf56b904bd58da999ec1a348880dfc16fddac3053d72e57e4e2",
       "size": 16266
     },
     {
       "path": "tests/test_v3230_conversation.py",
-      "sha256": "f2d86aa491d36af4d840a074fb3c739a90e57af02ead407c3be4af4adad2c1c1",
+      "sha256": "04b33b8ca4557ee0356fde21e4e4eb0b1ec34ef18da911824670cb0570174c15",
       "size": 9269
     },
     {
@@ -552,24 +633,119 @@
       "size": 5731
     },
     {
+      "path": "tests/test_v32312_mode_runtime.py",
+      "sha256": "ae9fb47f89a97b844831a7d56f1898166c17b6838a7935f78397d34bef137fc8",
+      "size": 6575
+    },
+    {
+      "path": "tests/test_v32312_mode_watcher_gate.py",
+      "sha256": "5875b64c61d5a8a1ffe4bed708d2132ff17861b7dda7e7b1c1661641dde8a8ee",
+      "size": 1943
+    },
+    {
+      "path": "tests/test_v32312_mode_web.py",
+      "sha256": "94ca85cb243c594c8241c5e93842b9455db5a0f25288ae8e2def4653d257ba8d",
+      "size": 5025
+    },
+    {
+      "path": "tests/test_v32312_operating_modes.py",
+      "sha256": "c736098e42a2a3fd5ac1c450dda1346751c7bdd24806fdc62b13fe5a173623cb",
+      "size": 4880
+    },
+    {
+      "path": "tests/test_v32312_release_identity.py",
+      "sha256": "52e6abef5a30879d1863a2da8cbce57a6b36c33cdb72c80c620590b91841ddd7",
+      "size": 721
+    },
+    {
+      "path": "tests/test_v32313_mode_state_permissions.py",
+      "sha256": "b0cc628c835e67b602cd984972574d7a9b70ab91724cb59d15cf290def6b6c4d",
+      "size": 1012
+    },
+    {
+      "path": "tests/test_v32314_installer_finalization_fail_closed.py",
+      "sha256": "a01a5eecdfa0712eef6076af063bc215b60c95092e7853aacf25744fdf4f90dd",
+      "size": 1614
+    },
+    {
+      "path": "tests/test_v32314_installer_publication_order.py",
+      "sha256": "f8dbf8ef94de8f3508d5d269175c3b168f868d180a8049e7d31afc2a68ee87e9",
+      "size": 1291
+    },
+    {
+      "path": "tests/test_v32314_release_identity.py",
+      "sha256": "59c1bdec5c1bf1f083051a5039d7060f3aab554f5b1d9442a8659ad5d852e1bf",
+      "size": 1021
+    },
+    {
+      "path": "tests/test_v32314_release_validation_hold.py",
+      "sha256": "015eb6d5ac324e59ad9c3856b1bfc18173cc1808d4d30166225494c538f743eb",
+      "size": 8991
+    },
+    {
+      "path": "tests/test_v32314_runtime_observer.py",
+      "sha256": "cce5ca90579b1a0634de09a679d1c2737641228e0992e25e25e50915d60b2585",
+      "size": 10035
+    },
+    {
+      "path": "tests/test_v32314_upgrade_hold_materialization.py",
+      "sha256": "af6340074aa5f39b2c1c17f746d48c8c9c0248e149ce205c147c4bb601007e8c",
+      "size": 2623
+    },
+    {
+      "path": "tests/test_v32315_gui_navigation.py",
+      "sha256": "d7ad0bbbd7ae504b6011ec849f289a57752baab5661e8836dd616ea06268e13a",
+      "size": 5662
+    },
+    {
+      "path": "tests/test_v32315_release_identity.py",
+      "sha256": "db7b197e4fdaf60c261719ec88718c33b3a2fa318b022a70b1f93093fbda8059",
+      "size": 729
+    },
+    {
+      "path": "tests/test_v32316_crash_recovery_mode_session.py",
+      "sha256": "04254b50c694a0f54de7ca5ee40c59a1f3983189fb767161e38cc40d1b3b58d8",
+      "size": 12820
+    },
+    {
+      "path": "tests/test_v32316_release_identity.py",
+      "sha256": "11c877a2202aeda6edf37f06f0e0f43d53b34b2ccc9ff46483c89f5119a39a49",
+      "size": 741
+    },
+    {
+      "path": "tests/test_v32316_report_retention.py",
+      "sha256": "12f8e6a8d99903866a722ff5da476d2f38e54bbaedac20c0cae0643efbe73776",
+      "size": 1862
+    },
+    {
+      "path": "tests/test_v32317_github_publication_idempotence.py",
+      "sha256": "5ffd78a1cedaf13ca7f7c94492a8412211a5df1fa9bd0d87094fe96ec001b692",
+      "size": 6090
+    },
+    {
+      "path": "tests/test_v32317_release_identity.py",
+      "sha256": "f06c638d6a76fe1d671d8f5effca9b2537dd9f765550dc8acfcb0aaa5ea23ccd",
+      "size": 1169
+    },
+    {
       "path": "tests/test_v3231_mcp_system_path_guard_hotfix.py",
       "sha256": "7f3e838d2dbc6c50616b97f261f789ab55074256c2cc61a7c4eb099ec7ebaaac",
       "size": 5550
     },
     {
       "path": "tests/test_v3232_assistant_runtime_self_probe.py",
-      "sha256": "56172917655c707095beb2eba409b6e1b5962b30d0e94209e490d739e6213f19",
-      "size": 5382
+      "sha256": "47178ae3f8ebcaa6c55003893dfff5806ef9815eebf5ce1e9723d4ebfe0aae93",
+      "size": 5347
     },
     {
       "path": "tests/test_v3233_assistant_mount_timing_hotfix.py",
-      "sha256": "6191089527ff4dd8e4e36c0c12557f3f1e9765f60d2b816605d543eed5939198",
-      "size": 2175
+      "sha256": "d1ffd72b5dcb8cc73b1d4a96cecb1cb55b44303902dcfb00d2054b76c3aee8d0",
+      "size": 2140
     },
     {
       "path": "tests/test_v3234_assistant_acceptance_handoff.py",
-      "sha256": "44a125ad51f3d748939396f0bf3703a9f51bc61e42fc4cf349bed484a865bc1d",
-      "size": 1789
+      "sha256": "49df1511dd563ee0d33d9470258fd07435da51f338341be3e7589cb7d459e0e1",
+      "size": 1754
     },
     {
       "path": "tests/test_v3235_assistant_fast_context.py",
@@ -603,7 +779,7 @@
     },
     {
       "path": "tests/test_v3239_nomad_event_bridge.py",
-      "sha256": "bf73af98c4fb51936e276b9e056c17e1c16d270695979d27922a673485f6187b",
+      "sha256": "8d1997fc4acc951bd9c73bd757b8f2b473695b978c6c22250b79b7c9cc4d34ce",
       "size": 8008
     },
     {
@@ -627,14 +803,19 @@
       "size": 7424
     },
     {
+      "path": "tools/operating_mode_gate.py",
+      "sha256": "b9186fe2d9d234f940d91fd8fc9c3dc11866fdd311f6e659c8d99f3c6dbcb86d",
+      "size": 2735
+    },
+    {
       "path": "tools/release_installer.sh",
-      "sha256": "b67760a78133903203be623917a102226fe6b73cb64af38f29cfd9e76eea22a3",
-      "size": 16250
+      "sha256": "04f59039156dfc6f0c98ff3954cb84ba63b8dc01b9b246f56a44238460925498",
+      "size": 19000
     },
     {
       "path": "tools/release_watcher.sh",
-      "sha256": "570ebf64911edd27fe81c8803d1b9fe444cd2de64dafa94e73fe68403df30643",
-      "size": 11299
+      "sha256": "94e389eb2377dae6638ae396747ee4667e0178795792d80c381e59b36594d7a1",
+      "size": 11377
     },
     {
       "path": "tools/release_zip.py",
