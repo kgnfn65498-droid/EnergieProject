@@ -62,6 +62,7 @@ def test_addon_launcher_uses_mode_entrypoint_before_main():
     assert "exec python3 -u /app/mode_entrypoint.py" in run_sh
     assert entry.index("operating_mode_tick(root)") < entry.index("app.main()")
     assert entry.index("install_mode_overrides(app, root)") < entry.index("app.main()")
+    assert entry.index("install_mode_web(app, root)") < entry.index("app.main()")
     assert "operating-mode-reconcile" in entry
 
 
