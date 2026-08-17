@@ -216,16 +216,19 @@ def test_installer_defines_atomic_release_hold_marker_in_writable_inbox():
 
 def test_installer_arms_hold_before_ha_publication_call():
     text = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    phase8 = text.split('log "FASE 8/8: eindcontrole en archivering"', 1)[1]
     hold_call = 'write_release_validation_hold || fail "release validation hold activeren mislukt"'
+    phase7 = 'log "FASE 7/8: publicatie-afhandeling"'
     publication_call = 'write_ha_publication_required "$PROCESSED_SHA256"'
-    assert hold_call in phase8
-    assert publication_call in phase8
-    assert phase8.index(hold_call) < phase8.index(publication_call)
+    assert text.count(hold_call) == 1
+    assert phase7 in text
+    assert publication_call in text
+    assert text.index(hold_call) < text.index(phase7)
+    assert text.index(hold_call) < text.index(publication_call)
 
 
 def test_installer_refuses_publication_if_hold_cannot_be_armed():
     text = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    phase8 = text.split('log "FASE 8/8: eindcontrole en archivering"', 1)[1]
-    assert 'write_release_validation_hold || fail "release validation hold activeren mislukt"' in phase8
-    assert phase8.count('write_release_validation_hold || fail "release validation hold activeren mislukt"') == 1
+    hold_call = 'write_release_validation_hold || fail "release validation hold activeren mislukt"'
+    assert text.count(hold_call) == 1
+    assert text.index(hold_call) < text.index('git push origin main')
+    assert text.index(hold_call) < text.index('write_ha_publication_required "$PROCESSED_SHA256"')
