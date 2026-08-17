@@ -38,5 +38,5 @@ def test_release_identity_is_v3234_handoff_hotfix():
     addon = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
     assert 'version: "32.3.14"' in config
     assert 'APP_VERSION = "32.3.14"' in main
-    assert changelog.startswith("## 32.3.14 — Operating modes enforced")
+    assert changelog.startswith("## 32.3.14 — Release Validation Hold")
     assert addon.startswith("# Changelog\n\n## 32.3.14")
