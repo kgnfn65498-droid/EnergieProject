@@ -1,3 +1,10 @@
+## 32.3.18 — Live mode GUI refresh
+- Bedrijfsmodus-acties in de Home Assistant Ingress GUI verversen na de bestaande veilige POST/303-keten direct naar de vers gemeten serverstatus; handmatig browser-refreshen is niet meer nodig.
+- De GUI-interceptie is uitsluitend scoped op de formulieren in de Bedrijfsmoduskaart die al expliciet `return_ui=1` gebruiken; niet-GUI JSON-calls blijven ongewijzigd.
+- Release-hold validatie meldt een geblokkeerde vrijgave voortaan expliciet als fout in plaats van misleidend `Reconcile OK`; hetzelfde geldt voor geblokkeerde of onbevestigde noodvrijgave.
+- Bij een browser/netwerkfout wordt geen succes aangenomen maar een volledige pagina-herlaad uitgevoerd.
+- Operating-modeprofielen, RELEASE VALIDATION HOLD-gates, Crash Recovery, watcher, scheduler, maandafsluiting en de v32.3.17 fail-closed GitHub-publicatie zijn inhoudelijk niet gewijzigd.
+
 ## 32.3.17 — Idempotent GitHub publication
 - De Home Assistant GitHub-publisher accepteert nu veilig dat MAIN al op de targetversie staat vóór de live installatie.
 - Als targetversie én targetmanifest al exact overeenkomen, wordt het publicatiecontract idempotent afgerond zonder extra push.

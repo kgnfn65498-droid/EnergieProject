@@ -1,8 +1,7 @@
 # Changelog
 
-## 32.3.17
+## 32.3.18
 
-- GitHub-publicatie is idempotent wanneer MAIN al op de targetrelease staat vóór live installatie.
-- Exacte targetrelease wordt zonder extra push als gepubliceerd afgerond.
-- Targetbron met uitsluitend afwijkende gegenereerde release-metadata wordt veilig gesynchroniseerd; echte bronafwijking blijft fail-closed.
-- Operating-mode, RELEASE VALIDATION HOLD, Crash Recovery, watcher, scheduler en maandafsluiting zijn ongewijzigd.
+- Bedrijfsmodus GUI-acties tonen na uitvoering direct de vers gemeten status zonder handmatige refresh.
+- Geblokkeerde release-hold/noodvrijgave krijgt een expliciete foutmelding; geen misleidende succesbanner.
+- JSON-API en alle mode/HOLD/Crash-Recovery veiligheidssemantiek blijven ongewijzigd.

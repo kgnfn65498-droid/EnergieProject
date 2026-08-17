@@ -86,7 +86,11 @@ _UI_NOTICE_CODES = {
     "auto_updated",
     "reconcile_ok",
     "release_hold_released",
+    "release_hold_already_released",
+    "release_hold_blocked",
     "emergency_release_done",
+    "emergency_confirmation_required",
+    "emergency_release_blocked",
     "action_failed",
 }
 
@@ -104,23 +108,46 @@ def _send_ui_redirect(handler: Any, notice_code: str, level: str) -> None:
     handler.end_headers()
 
 
-def _notice_code(endpoint: str, form: dict[str, list[str]], result: dict[str, Any]) -> str:
+def _notice_result(
+    endpoint: str, form: dict[str, list[str]], result: dict[str, Any]
+) -> tuple[str, str]:
     if endpoint == "set-operating-mode":
         mode = str((form.get("mode") or [""])[0]).strip().upper()
-        return {
+        code = {
             "DEVELOPMENT": "development_set",
             "USER": "user_set",
             "MAINTENANCE": "maintenance_set",
         }.get(mode, "action_failed")
+        return code, "success" if code != "action_failed" else "error"
     if endpoint == "set-operating-mode-auto":
-        return "auto_updated"
+        return "auto_updated", "success"
     if endpoint == "reconcile-operating-mode":
-        return "reconcile_ok"
+        return "reconcile_ok", "success"
     if endpoint == "validate-release-hold":
-        return "release_hold_released" if result.get("status") == "released" else "reconcile_ok"
+        status = str(result.get("status") or "")
+        if status == "released":
+            return "release_hold_released", "success"
+        if status == "already_released":
+            return "release_hold_already_released", "success"
+        if status == "blocked":
+            return "release_hold_blocked", "error"
+        return "action_failed", "error"
     if endpoint == "emergency-release-hold":
-        return "emergency_release_done"
-    return "action_failed"
+        status = str(result.get("status") or "")
+        if status == "released_emergency":
+            return "emergency_release_done", "success"
+        if status == "already_released":
+            return "release_hold_already_released", "success"
+        if status == "confirmation_required":
+            return "emergency_confirmation_required", "error"
+        if status == "blocked":
+            return "emergency_release_blocked", "error"
+        return "action_failed", "error"
+    return "action_failed", "error"
+
+
+def _notice_code(endpoint: str, form: dict[str, list[str]], result: dict[str, Any]) -> str:
+    return _notice_result(endpoint, form, result)[0]
 
 
 def render_mode_card(snapshot: dict[str, Any]) -> str:
@@ -174,7 +201,11 @@ def render_mode_card(snapshot: dict[str, Any]) -> str:
       auto_updated: "Automatisch schakelen bijgewerkt",
       reconcile_ok: "Reconcile OK",
       release_hold_released: "Release-hold vrijgegeven",
+      release_hold_already_released: "Release-hold was al vrijgegeven",
+      release_hold_blocked: "Release-hold kon niet veilig worden vrijgegeven",
       emergency_release_done: "Noodvrijgave uitgevoerd",
+      emergency_confirmation_required: "Noodvrijgave vereist bevestiging",
+      emergency_release_blocked: "Noodvrijgave is door veiligheidscontroles geblokkeerd",
       action_failed: "Actie niet uitgevoerd"
     }};
     const message = messages[code];
@@ -190,6 +221,32 @@ def render_mode_card(snapshot: dict[str, Any]) -> str:
       const query = searchParams.toString();
       const cleanUrl = window.location.pathname + (query ? "?" + query : "") + window.location.hash;
       history.replaceState(null, "", cleanUrl);
+    }}
+
+    const modeCard = document.getElementById("operating-mode-card");
+    if (modeCard) {{
+      modeCard.querySelectorAll("form").forEach((form) => {{
+        const uiOptIn = form.querySelector('input[name="return_ui"][value="1"]');
+        if (!uiOptIn) return;
+        form.addEventListener("submit", async (event) => {{
+          event.preventDefault();
+          const submitter = event.submitter;
+          if (submitter) submitter.disabled = true;
+          try {{
+            const response = await fetch(form.action, {{
+              method: "POST",
+              body: new FormData(form),
+              credentials: "same-origin",
+              cache: "no-store",
+              redirect: "follow"
+            }});
+            if (!response.ok || !response.url) throw new Error("mode action failed");
+            window.location.replace(response.url);
+          }} catch (_error) {{
+            window.location.reload();
+          }}
+        }});
+      }});
     }}
   }})();
   </script>
@@ -295,7 +352,8 @@ def install_mode_web(app_module: Any, project_root: Path | str) -> None:
                     confirmed=confirmation,
                 )
             if return_ui:
-                _send_ui_redirect(self, _notice_code(endpoint, form, result), "success")
+                notice_code, notice_level = _notice_result(endpoint, form, result)
+                _send_ui_redirect(self, notice_code, notice_level)
                 return
             body = json.dumps(result, ensure_ascii=False).encode("utf-8")
             self.send_body(200, body, "application/json; charset=utf-8")
