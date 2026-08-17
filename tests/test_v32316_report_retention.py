@@ -18,6 +18,7 @@ def test_report_service_history_keeps_latest_13_months(monkeypatch, tmp_path):
         "logs": tmp_path / "service/logs",
     }
     monkeypatch.setattr(m, "report_service_paths", lambda options: paths)
+    monkeypatch.setattr(m, "STATE_PATH", tmp_path / "config/state.json")
     months = [
         "2025_06", "2025_07", "2025_08", "2025_09", "2025_10",
         "2025_11", "2025_12", "2026_01", "2026_02", "2026_03",
