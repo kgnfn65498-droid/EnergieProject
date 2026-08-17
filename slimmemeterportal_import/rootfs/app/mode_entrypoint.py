@@ -9,12 +9,14 @@ from operating_mode_runtime import (
     operating_mode_tick,
     operating_mode_worker,
 )
+from operating_mode_web import install_mode_web
 
 
 def start_operating_mode_runtime() -> None:
     root = operating_mode_project_root()
     operating_mode_tick(root)
     install_mode_overrides(app, root)
+    install_mode_web(app, root)
     threading.Thread(
         target=operating_mode_worker,
         args=(app.STOP, root),
