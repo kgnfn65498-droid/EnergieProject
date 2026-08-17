@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 import json
 import os
@@ -100,3 +100,58 @@ def load_release_hold(project_root: Path | str, installed_version: str) -> Relea
     if state.release_version != str(installed_version):
         return _fail_closed(installed_version, "release_version_mismatch")
     return state
+
+
+def record_hold_validation(
+    project_root: Path | str,
+    installed_version: str,
+    checks: dict[str, Any],
+    reconcile_status: str,
+) -> ReleaseHoldState:
+    state = load_release_hold(project_root, installed_version)
+    failed: list[str] = []
+    for name, result in checks.items():
+        ok = bool(result.get("ok")) if isinstance(result, dict) else bool(result)
+        if not ok:
+            failed.append(str(name))
+    if reconcile_status != "ok":
+        failed.append("reconcile")
+    validation_status = "ok" if checks and not failed else "blocked"
+    return _save(
+        project_root,
+        replace(
+            state,
+            validation_status=validation_status,
+            validation_checks=dict(checks),
+            reconcile_status=str(reconcile_status),
+            reasons=tuple(failed),
+        ),
+    )
+
+
+def release_hold(
+    project_root: Path | str,
+    installed_version: str,
+    *,
+    issued_by: str,
+    emergency: bool = False,
+    reasons: tuple[str, ...] | list[str] = (),
+) -> ReleaseHoldState:
+    state = load_release_hold(project_root, installed_version)
+    if not state.active:
+        return state
+    if not emergency and (state.validation_status != "ok" or state.reconcile_status != "ok"):
+        raise ValueError("release validation hold is not validated")
+    now = datetime.now().astimezone().isoformat()
+    final_reasons = tuple(str(item) for item in reasons) if reasons else state.reasons
+    return _save(
+        project_root,
+        replace(
+            state,
+            active=False,
+            released_at=now,
+            released_by=str(issued_by),
+            emergency_release=bool(emergency),
+            reasons=final_reasons,
+        ),
+    )
