@@ -1,8 +1,9 @@
 # Changelog
 
-## 32.3.15
+## 32.3.16
 
-- Operating-mode GUI actions use Post/Redirect/Get and return to the Energieproject page with a concise result banner.
-- Non-GUI structured JSON behavior remains unchanged.
-- Bedrijfsmodus distinguishes basis-profile from measured effective month-processing state.
-- No controller, HOLD, scheduler, watcher or month-close semantics changed.
+- Crash Recovery gebruikt tijdelijk MAINTENANCE en herstelt na veilige success/failure de oorspronkelijke USER/DEVELOPMENT-basis.
+- DEVELOPMENT blijft persistent; alleen een onveilige gedeeltelijke mutatie houdt MAINTENANCE vast.
+- Reboot tijdens gewone backup/verify herstelt failed-safe naar de oorspronkelijke basis.
+- Rapportservicehistorie bewaart 13 maanden.
+- RELEASE VALIDATION HOLD, watcher, scheduler en automatische maandafsluiting blijven inhoudelijk ongewijzigd.

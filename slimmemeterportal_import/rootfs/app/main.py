@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.15"
+APP_VERSION = "32.3.16"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -403,7 +403,7 @@ class Options:
             report_service_enabled=bool(raw.get("report_service_enabled", True)),
             report_service_root=str(raw.get("report_service_root", "Energie_Rapportservice")).strip(),
             report_service_timeout_seconds=int(raw.get("report_service_timeout_seconds", 900)),
-            report_service_retention_months=int(raw.get("report_service_retention_months", 3)),
+            report_service_retention_months=int(raw.get("report_service_retention_months", 13)),
             workflow_import_wait_seconds=int(raw.get("workflow_import_wait_seconds", 120)),
             workflow_step_timeout_seconds=int(raw.get("workflow_step_timeout_seconds", 900)),
             workflow_heartbeat_seconds=int(raw.get("workflow_heartbeat_seconds", 5)),

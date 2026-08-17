@@ -12,18 +12,25 @@ from operating_mode_runtime import (
     recover_startup_mode_state,
 )
 from operating_mode_web import install_mode_web
+from operating_mode_crash_recovery import (
+    install_crash_recovery_mode_integration,
+    recover_crash_recovery_mode_session,
+)
 from release_validation_hold import ensure_release_hold_state
 
-TARGET_RELEASE_VERSION = "32.3.15"
+TARGET_RELEASE_VERSION = "32.3.16"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 
 def start_operating_mode_runtime() -> None:
     root = operating_mode_project_root()
     ensure_release_hold_state(root, TARGET_RELEASE_VERSION)
-    recover_startup_mode_state(root)
+    crash_recovery = recover_crash_recovery_mode_session(root)
+    if not crash_recovery.get("preserve_temporary"):
+        recover_startup_mode_state(root)
     install_mode_overrides(app, root)
     install_release_hold_guards(app, root)
+    install_crash_recovery_mode_integration(app, root)
     operating_mode_tick(root, app_module=app)
     install_mode_web(app, root)
     threading.Thread(

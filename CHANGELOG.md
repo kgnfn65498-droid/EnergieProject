@@ -1,3 +1,10 @@
+## 32.3.16 — Crash Recovery Maintenance integration
+- Crash Recovery schakelt tijdelijk naar MAINTENANCE en keert na veilige succesvolle verificatie terug naar de exacte oorspronkelijke USER- of DEVELOPMENT-basis.
+- Een gewone veilige backup- of verificatiefout registreert FAILED en keert eveneens terug naar de oorspronkelijke basis; DEVELOPMENT en de ontwikkelsessie blijven behouden.
+- Alleen expliciete onveilige gedeeltelijke mutatie blijft in MAINTENANCE voor herstel; reboot tijdens gewone backup/verify wordt failed-safe naar de oorspronkelijke basis hersteld.
+- Rapportservicehistorie bewaart voortaan 13 maanden (1 jaar + 1 maand); algemene maanddataretentie blijft ongewijzigd.
+- RELEASE VALIDATION HOLD, watcher-gating, scheduler, automatische maandafsluiting en destructieve cleanupregels zijn inhoudelijk niet gewijzigd.
+
 ## 32.3.15 — Ingress GUI navigation
 - Operating-mode GUI actions use Post/Redirect/Get and return to the Energieproject page with a concise result banner.
 - Non-GUI structured JSON behavior remains unchanged.

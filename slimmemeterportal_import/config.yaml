@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "32.3.15"
+version: "32.3.16"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -67,7 +67,7 @@ options:
   report_service_enabled: true
   report_service_root: "Energie_Rapportservice"
   report_service_timeout_seconds: 900
-  report_service_retention_months: 3
+  report_service_retention_months: 13
   workflow_import_wait_seconds: 120
   workflow_step_timeout_seconds: 900
   workflow_heartbeat_seconds: 5
