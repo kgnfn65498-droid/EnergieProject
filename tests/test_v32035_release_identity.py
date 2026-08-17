@@ -30,7 +30,7 @@ def test_v32035_smp_report_fallback_contract_is_preserved():
 
 def test_current_changelog_preserves_smp_report_fallback_history():
     changelog = CHANGELOG.read_text(encoding="utf-8")
-    assert changelog.startswith("## 32.3.14 — Operating modes enforced")
+    assert changelog.startswith("## 32.3.14 — Release Validation Hold")
     assert "## v32.0.35 — Pagina 2 onbekende terugleververgoeding" in changelog
     assert "feed_in_compensation" in changelog
     assert "€0" in changelog
