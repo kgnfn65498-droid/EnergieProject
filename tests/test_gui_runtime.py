@@ -28,6 +28,14 @@ def test_gui_renders_when_output_directory_does_not_exist():
     m.MONITORING_STATE_PATH = m.OUTPUT_ROOT / "monitoring_state.json"
     m.MONITORING_HISTORY_PATH = m.OUTPUT_ROOT / "monitoring_history.jsonl"
 
+    from operating_mode_web import install_mode_web
+    install_mode_web(m, root)
     body = m.html_page("/api/hassio_ingress/test")
 
     assert b"SlimmeMeterPortal" in body
+    assert b"Bedrijfsmodus" in body
+    assert b"USER" in body
+    assert b"DEVELOPMENT" in body
+    assert b"MAINTENANCE" in body
+    assert b"Automatisch schakelen" in body
+    assert b"Reconciliation" in body
