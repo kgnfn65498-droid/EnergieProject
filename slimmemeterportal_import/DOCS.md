@@ -728,6 +728,8 @@ Open vanuit het hoofdscherm **Open rapportpagina**. Route: `reports`. De pagina 
 
 ## Nomad — native Home Assistant Assist
 
+Vanaf v32.3.10 registreert de add-on de vaste native Home Assistant-automation `nomad_energie_assistent` zelf via de Core configuration API. De payload bevat geen `id`; Home Assistant beheert die ID. De installer schrijft uitsluitend deze ene automation, overschrijft geen conflict en gebruikt geen extra rechten boven `homeassistant_api: true`.
+
 Vanaf v32.3.9 gebruikt Nomad geen HACS en geen custom component. De add-on luistert via de officiële Home Assistant Core WebSocket-proxy naar `energie_nomad_request` en antwoordt alleen via `energie_nomad_response`.
 
 De copy/paste-ready Home Assistant automation staat in `00_Config/HomeAssistant/Nomad_automation.yaml`. Zet die automation UIT om Nomad te blokkeren; de energiedatacollectie blijft dan actief.

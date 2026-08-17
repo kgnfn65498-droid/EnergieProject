@@ -2,8 +2,8 @@
 # Privacy: zet deze automation UIT om Nomad volledig te blokkeren.
 # Dit stopt of wijzigt de Energieproject-energiedata/kwartiercollectie niet.
 # Naam/aliassen zijn later aanpasbaar door alleen de command-regels te wijzigen.
+# Geen id-regel opnemen bij plakken in de HA-GUI; Home Assistant beheert die zelf.
 alias: Nomad - Energie Assistent
-id: nomad_energie_assistent
 triggers:
   - trigger: conversation
     command:

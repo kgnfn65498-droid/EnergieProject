@@ -19,7 +19,7 @@ def passing_calls():
     return {
         "health": {
             "http_status": 200,
-            "json": {"status": "ready", "version": "32.3.9", "read_only": True},
+            "json": {"status": "ready", "version": "32.3.10", "read_only": True},
         },
         "august_gas": {
             "http_status": 200,
@@ -84,7 +84,7 @@ def passing_calls():
 
 def test_acceptance_evaluation_requires_all_runtime_evidence():
     m = load_module("probe_acceptance")
-    result = m.evaluate_assistant_runtime_acceptance(passing_calls(), expected_version="32.3.9")
+    result = m.evaluate_assistant_runtime_acceptance(passing_calls(), expected_version="32.3.10")
     assert result["status"] == "PASS"
     assert result["voice_gate"] == "OPEN_FOR_NEXT_ACCEPTANCE_STEP"
     assert all(item["passed"] for item in result["checks"].values())
@@ -94,7 +94,7 @@ def test_acceptance_fails_if_august_is_not_quarter_hour_partial():
     m = load_module("probe_partial")
     calls = passing_calls()
     calls["august_gas"]["json"]["quality"]["status"] = "COMPLETE"
-    result = m.evaluate_assistant_runtime_acceptance(calls, expected_version="32.3.9")
+    result = m.evaluate_assistant_runtime_acceptance(calls, expected_version="32.3.10")
     assert result["status"] == "FAIL"
     assert result["voice_gate"] == "CLOSED"
     assert result["checks"]["august_partial_quarter_hour"]["passed"] is False
@@ -121,13 +121,13 @@ def test_main_wires_one_startup_probe_and_rejects_extra_assistant_payload_fields
 
 
 def test_release_identity_and_changelog_are_v3232():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.9"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.10"
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     addon_changelog = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.3.9"' in config
-    assert 'APP_VERSION = "32.3.9"' in main
-    assert changelog.startswith("## v32.3.9 — Nomad native Home Assistant event bridge")
-    assert addon_changelog.startswith("# Changelog\n\n## 32.3.9 - Nomad native Home Assistant event bridge")
+    assert 'version: "32.3.10"' in config
+    assert 'APP_VERSION = "32.3.10"' in main
+    assert changelog.startswith("## v32.3.10 — Nomad automation auto-registration hotfix")
+    assert addon_changelog.startswith("# Changelog\n\n## 32.3.10 - Nomad automation auto-registration hotfix")
 

@@ -1,3 +1,11 @@
+## v32.3.10 — Nomad automation auto-registration hotfix
+
+- Corrigeert de Home Assistant GUI-installatiestap: een nieuwe UI-automation mag geen handmatig `id:` uit de geplakte YAML krijgen; Home Assistant beheert de automation-ID zelf.
+- Registreert de vaste Nomad-automation voortaan automatisch via de bestaande Home Assistant Core configuration API met het al aanwezige `homeassistant_api: true` runtime-token.
+- De installer is idempotent: ontbrekend = één POST; eigen bestaande automation = niets wijzigen; conflicterende automation-ID = fail-closed en nooit overschrijven.
+- De request-body bevat bewust geen `id`, overeenkomstig de Home Assistant frontend; de automation blijft native Sentence/event-response en privacy blijft automation AAN/UIT.
+- Geen HACS, custom component, Terminal, extra filesystemrechten, `hassio_api`, `hassio_role`, device-control, contractmutatie, maandafsluiting of `finalize_month`.
+
 ## v32.3.9 — Nomad native Home Assistant event bridge
 
 - Vervangt de nooit geactiveerde HACS/custom-componentroute uit v32.3.8 door een volledig native Home Assistant Sentence/event-bridge voor **Nomad**.

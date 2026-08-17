@@ -67,7 +67,7 @@ def test_event_request_uses_existing_assistant_response_and_correlates_id():
 
     def respond(query, session_id=None):
         calls.append((query, session_id))
-        return {"speech": "In augustus heb je 4,679 m³ gas gebruikt.", "session_id": session_id, "version": "32.3.9"}
+        return {"speech": "In augustus heb je 4,679 m³ gas gebruikt.", "session_id": session_id, "version": "32.3.10"}
 
     tracker = mod.NomadGreetingTracker(idle_seconds=900)
     response = mod.handle_request_event(
@@ -76,14 +76,14 @@ def test_event_request_uses_existing_assistant_response_and_correlates_id():
         display_name="Nomad",
         greeting_enabled=True,
         greeting_tracker=tracker,
-        app_version="32.3.9",
+        app_version="32.3.10",
         now=10.0,
     )
     assert calls == [("Hoeveel gas?", "living-room")]
     assert response == {
         "request_id": "r1",
         "status": "ok",
-        "version": "32.3.9",
+        "version": "32.3.10",
         "speech": "Nomad hier. In augustus heb je 4,679 m³ gas gebruikt.",
         "session_id": "living-room",
         "greeted": True,
@@ -140,9 +140,9 @@ def test_shared_response_builder_is_used_by_http_and_bridge():
                 "evidence": {"metrics": {"gas_m3": 4.679}},
             }
 
-    payload = mod.build_assistant_response_payload(Engine(), "32.3.9", "Hoeveel gas?", "session-1")
+    payload = mod.build_assistant_response_payload(Engine(), "32.3.10", "Hoeveel gas?", "session-1")
     assert payload["schema"] == "energie_assistant_response_v1"
-    assert payload["version"] == "32.3.9"
+    assert payload["version"] == "32.3.10"
     assert payload["session_id"] == "session-1"
     assert "4,679" in payload["speech"]
     assert payload["context"]["quality"]["status"] == "PARTIAL"
@@ -201,7 +201,7 @@ def test_bridge_serves_one_home_assistant_request_over_fake_websocket(monkeypatc
             "speech": "Je gasverbruik is 4,679 m³.",
             "session_id": session_id,
         },
-        app_version="32.3.9",
+        app_version="32.3.10",
         display_name="Nomad",
         greeting_enabled=True,
     )

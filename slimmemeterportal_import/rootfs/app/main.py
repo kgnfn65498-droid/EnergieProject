@@ -47,6 +47,7 @@ from assistant_fast_context import load_quarter_hour_series_once
 from assistant_analysis_cache import AssistantAnalysisCache
 from assistant_response import build_assistant_response_payload, render_assistant_response
 from assistant_event_bridge import HomeAssistantNomadBridge
+from ha_nomad_automation import ensure_nomad_automation
 from assistant_runtime_probe import (
     MAX_REQUEST_BYTES as MAX_ASSISTANT_REQUEST_BYTES,
     resolve_runtime_acceptance_path,
@@ -74,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.9"
+APP_VERSION = "32.3.10"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -19411,6 +19412,20 @@ def main() -> None:
             result["output_path"] = str(acceptance_path)
             write_atomic_json(acceptance_path, result)
             if result.get("status") == "PASS":
+                try:
+                    nomad_installation = ensure_nomad_automation()
+                except Exception as exc:
+                    nomad_installation = {
+                        "status": "error",
+                        "automation_id": "nomad_energie_assistent",
+                        "error_type": type(exc).__name__,
+                    }
+                    LOGGER.warning(
+                        "Nomad HA automation kon niet automatisch worden geregistreerd: %s",
+                        type(exc).__name__,
+                    )
+                result["nomad_automation_installation"] = nomad_installation
+                write_atomic_json(acceptance_path, result)
                 bridge_settings = _nomad_bridge_settings()
                 result["nomad_event_bridge"] = {
                     "enabled": bridge_settings["enabled"],

@@ -1,12 +1,12 @@
-# Testinstructies v32.3.9 — Nomad native Home Assistant event bridge
+# Testinstructies v32.3.10 — Nomad automation auto-registration hotfix
 
-1. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.9.
+1. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.10.
 2. Draai `tests/test_v3239_nomad_event_bridge.py`: eventpayloadguard, 15-minutenbegroeting, gedeelde responsebuilder, WebSocket-auth/subscription/fire-event en fake end-to-end request moeten groen zijn.
-3. Draai `tests/test_v3239_nomad_native_ha_contract.py`: geen HACS/custom component/discovery/Supervisorrol; alleen `homeassistant_api: true`; native automation is information-only en begrensd.
+3. Draai `tests/test_v3239_nomad_native_ha_contract.py` én `tests/test_v32310_nomad_automation_installer.py`: geen HACS/custom component/discovery/Supervisorrol; alleen `homeassistant_api: true`; native automation is information-only en begrensd; installer is idempotent/fail-closed.
 4. Herhaal v32.3.0-v32.3.8 assistant-runtime/cache/response regressies; discovery/custom-componenttests zijn expliciet superseded door de native route.
 5. Volledige pytest, Python compile, shellsyntax, manifest/SHA en ZIP-integriteit uitvoeren en vanuit verse uitpak herhalen.
 6. Live na Incoming-installatie: bestaande backendacceptatie 7/7 PASS; `/api/assistant/health` meldt Nomad event bridge `connected=true`.
-7. Importeer/plak `00_Config/HomeAssistant/Nomad_automation.yaml` via Home Assistant GUI; geen Terminal/HACS.
+7. Controleer live dat `automation.nomad_energie_assistent` automatisch is aangemaakt; géén handmatig YAML-plakwerk, Terminal of HACS. Het templatebestand blijft alleen documentatie/fallback en bevat bewust geen `id:`.
 8. Test tekst-Assist: `Nomad hoeveel gas heb ik deze maand gebruikt` en daarna `Nomad en vorige maand`; response binnen 5 seconden en information-only.
 9. Zet de Nomad-automation UIT: Nomad moet blokkeren terwijl kwartier-/energiedatacollectie doorgaat. Zet daarna weer AAN en hertest.
 10. Augustus blijft OPEN/PARTIAL; automatische maandafsluiting UIT; `finalize_month` niet gebruiken.
