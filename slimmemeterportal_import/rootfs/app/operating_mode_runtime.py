@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, replace
 from datetime import datetime
 import json
+import os
 from pathlib import Path
 import threading
 from typing import Any
@@ -16,7 +17,12 @@ from operating_modes import (
     profile_for,
     save_mode_state,
 )
-from release_validation_hold import ReleaseHoldState, load_release_hold
+from release_validation_hold import (
+    ReleaseHoldState,
+    load_release_hold,
+    record_hold_validation,
+    release_hold,
+)
 
 
 _MODE_HISTORY_LOCK = threading.Lock()
@@ -304,9 +310,239 @@ def reconcile_measured_runtime(
     return updated
 
 
-def operating_mode_snapshot(state: ModeState) -> dict[str, Any]:
-    desired = asdict(profile_for(state.effective_mode, state.suspended_features))
+def _validation_check(ok: bool, detail: str) -> dict[str, Any]:
+    return {"ok": bool(ok), "detail": str(detail)}
+
+
+def _web_runtime_check(app_module: Any) -> dict[str, Any]:
+    handler_ok = getattr(app_module, "Handler", None) is not None
+    html_ok = callable(getattr(app_module, "html_page", None))
+    stop = getattr(app_module, "STOP", None)
+    stop_ok = True
+    if stop is not None and hasattr(stop, "is_set"):
+        stop_ok = not bool(stop.is_set())
+    ok = handler_ok and html_ok and stop_ok
+    return _validation_check(ok, "web runtime healthy" if ok else "web runtime unavailable/stopping")
+
+
+def _state_io_check(project_root: Path, expected_version: str) -> dict[str, Any]:
+    hold_path = project_root / "Inbox/operating_mode/release_validation_hold.json"
+    probe_path = project_root / "Inbox/operating_mode" / f".validation_probe.{os.getpid()}"
+    try:
+        if not hold_path.is_file():
+            return _validation_check(False, "hold state file missing")
+        hold = load_release_hold(project_root, expected_version)
+        if hold.release_version != expected_version or not hold.active:
+            return _validation_check(False, "hold state inconsistent")
+        load_mode_state(project_root)
+        probe_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = f"v32.3.14-state-io:{expected_version}"
+        probe_path.write_text(payload, encoding="utf-8")
+        if probe_path.read_text(encoding="utf-8") != payload:
+            return _validation_check(False, "state io readback mismatch")
+        return _validation_check(True, "mode/hold state readable and writable")
+    except Exception as exc:
+        return _validation_check(False, f"state io failed: {type(exc).__name__}")
+    finally:
+        try:
+            probe_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def _automatic_runtime_idle_check(observed: dict[str, Any]) -> dict[str, Any]:
+    unsafe = []
+    if observed.get("workflow_running"):
+        unsafe.append("workflow_running")
+    for key in (
+        "run_on_start_effective",
+        "schedule_effective",
+        "full_workflow_effective",
+        "automatic_month_close_effective",
+    ):
+        if observed.get(key):
+            unsafe.append(key)
+    return _validation_check(not unsafe, "idle" if not unsafe else ",".join(unsafe))
+
+
+def _release_chain_check(project_root: Path, observed: dict[str, Any]) -> dict[str, Any]:
+    processing = project_root / "Inbox/processing"
+    disk_processing = sorted(path.name for path in processing.glob("*.zip")) if processing.exists() else []
+    observed_processing = [str(item) for item in observed.get("release_processing", [])]
+    installer_lock = project_root / "Inbox/.installer.lock"
+    unsafe = sorted(set(disk_processing + observed_processing))
+    if installer_lock.exists():
+        return _validation_check(False, "installer lock active")
+    if unsafe:
+        return _validation_check(False, "processing active: " + ",".join(unsafe))
+    return _validation_check(True, "release chain idle")
+
+
+def validate_release_hold(
+    app_module: Any,
+    project_root: Path | str,
+    expected_version: str,
+) -> dict[str, Any]:
+    """Run exactly five compact release checks plus one measured reconcile."""
+    root = Path(project_root)
+    hold = load_release_hold(root, expected_version)
+    state = load_mode_state(root)
+
+    version_ok = str(getattr(app_module, "APP_VERSION", "")) == str(expected_version)
+    try:
+        observed = observe_measured_runtime(app_module, root, state, hold)
+        runtime_error = None
+    except Exception as exc:
+        observed = {
+            "workflow_running": True,
+            "workflow_active": {},
+            "cancel_requested": False,
+            "run_on_start_effective": True,
+            "schedule_effective": True,
+            "full_workflow_effective": True,
+            "automatic_month_close_effective": True,
+            "release_processing": [],
+        }
+        runtime_error = type(exc).__name__
+
+    checks = {
+        "version": _validation_check(
+            version_ok,
+            f"installed={getattr(app_module, 'APP_VERSION', '')} expected={expected_version}",
+        ),
+        "web_runtime": _web_runtime_check(app_module),
+        "state_io": _state_io_check(root, expected_version),
+        "automatic_runtime_idle": (
+            _validation_check(False, f"runtime probe unavailable: {runtime_error}")
+            if runtime_error
+            else _automatic_runtime_idle_check(observed)
+        ),
+        "release_chain": (
+            _validation_check(False, f"runtime probe unavailable: {runtime_error}")
+            if runtime_error
+            else _release_chain_check(root, observed)
+        ),
+    }
+
+    reconciled = reconcile_measured_runtime(root, app_module)
+    all_green = all(bool(item.get("ok")) for item in checks.values())
+    validation_status = "ok" if all_green and reconciled.reconciliation_status == "ok" else "blocked"
+    record_hold_validation(root, expected_version, checks, reconciled.reconciliation_status)
     return {
+        "status": validation_status,
+        "version": expected_version,
+        "checks": checks,
+        "reconcile_status": reconciled.reconciliation_status,
+        "drift": list(reconciled.drift),
+    }
+
+
+def _audit_hold_event(app_module: Any, action: str, status: str, details: dict[str, Any]) -> None:
+    audit = getattr(app_module, "append_audit_event", None)
+    if not callable(audit):
+        return
+    try:
+        audit("release_validation_hold", action=action, status=status, details=details)
+    except Exception:
+        pass
+
+
+def attempt_release_hold(
+    app_module: Any,
+    project_root: Path | str,
+    expected_version: str,
+    *,
+    issued_by: str,
+) -> dict[str, Any]:
+    root = Path(project_root)
+    hold = load_release_hold(root, expected_version)
+    if not hold.active:
+        return {"status": "already_released", "validation": None}
+
+    validation = validate_release_hold(app_module, root, expected_version)
+    if validation["status"] != "ok":
+        _audit_hold_event(app_module, "release_blocked", "blocked", validation)
+        return {"status": "blocked", "validation": validation}
+
+    released = release_hold(root, expected_version, issued_by=issued_by)
+    _audit_hold_event(
+        app_module,
+        "released",
+        "ok",
+        {"version": expected_version, "issued_by": issued_by, "emergency": False},
+    )
+    return {
+        "status": "released",
+        "validation": validation,
+        "hold": asdict(released),
+    }
+
+
+def attempt_emergency_release_hold(
+    app_module: Any,
+    project_root: Path | str,
+    expected_version: str,
+    *,
+    issued_by: str,
+    confirmed: bool,
+) -> dict[str, Any]:
+    root = Path(project_root)
+    hold = load_release_hold(root, expected_version)
+    if not hold.active:
+        return {"status": "already_released"}
+    if not confirmed:
+        return {"status": "confirmation_required"}
+
+    state = load_mode_state(root)
+    try:
+        observed = observe_measured_runtime(app_module, root, state, hold)
+    except Exception as exc:
+        return {"status": "blocked", "reason": f"runtime_probe_unavailable:{type(exc).__name__}"}
+
+    unsafe = []
+    if observed["workflow_running"]:
+        unsafe.append("workflow_running")
+    for key in (
+        "run_on_start_effective",
+        "schedule_effective",
+        "full_workflow_effective",
+        "automatic_month_close_effective",
+    ):
+        if observed[key]:
+            unsafe.append(key)
+    if observed["release_processing"]:
+        unsafe.append("release_processing")
+    if (root / "Inbox/.installer.lock").exists():
+        unsafe.append("installer_lock")
+    if unsafe:
+        _audit_hold_event(
+            app_module,
+            "emergency_release_blocked",
+            "blocked",
+            {"version": expected_version, "unsafe": unsafe, "issued_by": issued_by},
+        )
+        return {"status": "blocked", "reason": ",".join(unsafe)}
+
+    released = release_hold(
+        root,
+        expected_version,
+        issued_by=issued_by,
+        emergency=True,
+        reasons=("manual_emergency_release",),
+    )
+    _audit_hold_event(
+        app_module,
+        "emergency_release",
+        "warning",
+        {"version": expected_version, "issued_by": issued_by, "readback": observed},
+    )
+    return {"status": "released_emergency", "hold": asdict(released)}
+
+
+def operating_mode_snapshot(state: ModeState, hold: ReleaseHoldState | None = None) -> dict[str, Any]:
+    desired = asdict(profile_for(state.effective_mode, state.suspended_features))
+    chat_status = format_chat_status(state)
+    snapshot = {
         "base_mode": state.base_mode.value,
         "effective_mode": state.effective_mode.value,
         "automatic_switching_enabled": state.automatic_switching_enabled,
@@ -320,8 +556,15 @@ def operating_mode_snapshot(state: ModeState) -> dict[str, Any]:
         "drift": list(state.drift),
         "desired_profile": desired,
         "observed_profile": dict(state.observed_profile),
-        "chat_status": format_chat_status(state),
+        "chat_status": chat_status,
     }
+    if hold is not None:
+        hold_payload = asdict(hold)
+        hold_payload["reasons"] = list(hold.reasons)
+        snapshot["release_validation_hold"] = hold_payload
+        if hold.active:
+            snapshot["chat_status"] = chat_status + " · RELEASE VALIDATION HOLD"
+    return snapshot
 
 
 def operating_mode_tick(
@@ -332,12 +575,14 @@ def operating_mode_tick(
     before = load_mode_state(root)
     pending = _pending_command(root)
     state = process_mode_command(root)
+    hold: ReleaseHoldState | None = None
     if app_module is None:
         observed = observe_operating_mode_runtime(state)
         state = reconcile_state(root, observed)
     else:
         state = reconcile_measured_runtime(root, app_module)
-    snapshot = operating_mode_snapshot(state)
+        hold = load_release_hold(root, str(app_module.APP_VERSION))
+    snapshot = operating_mode_snapshot(state, hold)
     request_id = str((pending or {}).get("request_id") or "")
     if request_id and request_id != before.last_processed_request_id and request_id == state.last_processed_request_id:
         _append_mode_history(root, {
