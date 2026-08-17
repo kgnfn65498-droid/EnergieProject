@@ -41,7 +41,7 @@ def test_reconcile_records_drift(tmp_path):
 
 
 def test_operating_mode_tick_processes_projectmanager_command(tmp_path):
-    command = tmp_path / "Data/03_Systeem/Projectmanager/State/operating_mode_command.json"
+    command = tmp_path / "Inbox/operating_mode/operating_mode_command.json"
     command.parent.mkdir(parents=True, exist_ok=True)
     command.write_text(json.dumps({
         "schema_version": 1,
@@ -146,7 +146,7 @@ def test_maintenance_pause_is_restored_by_profile():
 
 
 def test_accepted_command_appends_exactly_one_mode_history_event(tmp_path):
-    command = tmp_path / "Data/03_Systeem/Projectmanager/State/operating_mode_command.json"
+    command = tmp_path / "Inbox/operating_mode/operating_mode_command.json"
     command.parent.mkdir(parents=True, exist_ok=True)
     command.write_text(json.dumps({
         "schema_version": 1,

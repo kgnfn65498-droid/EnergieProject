@@ -25,7 +25,7 @@ def test_missing_state_migrates_to_safe_user(tmp_path):
 
 
 def test_invalid_state_fails_closed_to_user(tmp_path):
-    path = tmp_path / "Data/03_Systeem/Projectmanager/State/operating_mode_state.json"
+    path = tmp_path / "Inbox/operating_mode/operating_mode_state.json"
     path.parent.mkdir(parents=True)
     path.write_text('{"base_mode":"BROKEN"}', encoding="utf-8")
     state = load_mode_state(tmp_path)

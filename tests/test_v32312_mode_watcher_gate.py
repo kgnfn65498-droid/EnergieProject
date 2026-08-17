@@ -9,7 +9,7 @@ WATCHER = ROOT / "tools/release_watcher.sh"
 
 
 def seed_state(project, mode):
-    path = project / "Data/03_Systeem/Projectmanager/State/operating_mode_state.json"
+    path = project / "Inbox/operating_mode/operating_mode_state.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({
         "schema_version": 1,
