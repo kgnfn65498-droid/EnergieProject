@@ -1,3 +1,11 @@
+## 32.3.14 — Release Validation Hold
+- Voegt een persistente `RELEASE VALIDATION HOLD` toe bovenop USER / DEVELOPMENT / MAINTENANCE; automatische muterende energieworkflows blijven geblokkeerd totdat de nieuwe release echt is gevalideerd.
+- Een actieve DEVELOPMENT-sessie blijft persistent over release en reboot en eindigt uitsluitend na expliciete bevestiging van de gebruiker; een geslaagde release schakelt dus niet zelfstandig terug naar USER.
+- Reconciliation meet voortaan de werkelijke runtime-status. Een lopende workflow tijdens HOLD wordt DRIFT en gebruikt het bestaande gecontroleerde cancellation-pad in plaats van vals `Reconcile OK` te melden.
+- Automatische maandafsluiting is tijdens HOLD dubbel geblokkeerd: via de effectieve scheduleropties én opnieuw direct bij de automatische execute-entrypoint; de lopende kalendermaand blijft afzonderlijk beschermd.
+- HOLD-vrijgave gebruikt vijf compacte kernchecks plus echte runtime-reconcile. Een noodvrijgave blijft beschikbaar na expliciete bevestiging en veilige read-only controle en wordt geaudit.
+- De release-installer activeert de HOLD fail-closed in de schrijfbare `Inbox/operating_mode` vóór Home Assistant de nieuwe release kan publiceren.
+
 ## 32.3.13 — Operating modes enforced
 - Enforced USER / DEVELOPMENT / MAINTENANCE operating-mode controller.
 - Automatic temporary escalation and safe return to the base mode.

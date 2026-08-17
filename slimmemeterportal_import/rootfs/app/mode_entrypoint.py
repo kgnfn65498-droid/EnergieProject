@@ -13,7 +13,7 @@ from operating_mode_runtime import (
 )
 from operating_mode_web import install_mode_web
 
-TARGET_RELEASE_VERSION = "32.3.13"
+TARGET_RELEASE_VERSION = "32.3.14"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 
