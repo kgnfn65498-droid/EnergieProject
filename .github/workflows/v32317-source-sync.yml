@@ -1,0 +1,33 @@
+name: v32.3.17 source sync
+
+on:
+  push:
+    branches:
+      - hotfix/v32.3.17-idempotent-publication
+    paths:
+      - .github/workflows/v32317-source-sync.yml
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply verified local patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/v32317_patch_parts/part* | base64 -d > /tmp/v32317.patch
+          git apply --check /tmp/v32317.patch
+          git apply /tmp/v32317.patch
+          rm -rf .github/v32317_patch_parts
+          rm -f .github/workflows/v32317-source-sync.yml
+          git config user.name "EnergieProject Sync"
+          git config user.email "energieproject@local"
+          git add -A
+          git commit -m "v32.3.17: idempotent GitHub publication [skip ci]"
+          git push origin HEAD:hotfix/v32.3.17-idempotent-publication
