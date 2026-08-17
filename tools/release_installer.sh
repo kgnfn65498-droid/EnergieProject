@@ -28,6 +28,7 @@ PROCESSING_STALE_SECONDS="${ENERGIE_PROCESSING_STALE_SECONDS:-600}"
 REQUIRED="README.md INSTALL.md CHANGELOG.md MANIFEST.sha256 SHA256SUMS.json repository.yaml VERSIE.txt"
 ZIP_HELPER="$PROJECT/tools/release_zip.py"
 HA_PUBLICATION_REQUIRED="$INBOX/ha_publication_required.json"
+RELEASE_HOLD_STATE="$INBOX/operating_mode/release_validation_hold.json"
 
 # Safety rule: never run the live installer from inside the worktree that it replaces.
 # If invoked from the project, copy to /tmp and re-exec before touching the worktree.
@@ -180,6 +181,20 @@ cleanup_processed_releases(){
   AFTER="$(find "$PROCESSED" -maxdepth 1 -type f -name 'EnergieProject_v*.zip' 2>/dev/null | wc -l | tr -d ' ')"
   [ "$AFTER" -le "$PROCESSED_RETENTION" ] || fail "processed-retentie eindcontrole mislukt: count=$AFTER keep=$PROCESSED_RETENTION"
   log "Processed-retentie toegepast en gecontroleerd: count=$AFTER keep=$PROCESSED_RETENTION"
+}
+
+
+write_release_validation_hold(){
+  mkdir -p "$INBOX/operating_mode" || return 1
+  TMP_HOLD="$RELEASE_HOLD_STATE.tmp.$$"
+  cat > "$TMP_HOLD" <<EOF
+{"schema_version":1,"active":true,"release_version":"$NEW_VERSION","activated_at":"$(date '+%Y-%m-%dT%H:%M:%S%z')","activated_reason":"release_install","validation_status":"required","validation_checks":{},"reconcile_status":"required","released_at":"","released_by":"","emergency_release":false,"reasons":[]}
+EOF
+  mv "$TMP_HOLD" "$RELEASE_HOLD_STATE" || {
+    rm -f "$TMP_HOLD" 2>/dev/null || true
+    return 1
+  }
+  log "Release validation hold actief voor v$NEW_VERSION; marker=$RELEASE_HOLD_STATE"
 }
 
 
@@ -373,6 +388,7 @@ if [ "$GIT_AVAILABLE" -eq 1 ]; then
 else
   FINAL_DETAIL="QNAP ZIP-modus zonder git"
 fi
+write_release_validation_hold || fail "release validation hold activeren mislukt"
 WORKTREE_REPLACED=0
 CANONICAL_PROCESSED="$PROCESSED/EnergieProject_v${NEW_VERSION}.zip"
 rm -f "$CANONICAL_PROCESSED"
