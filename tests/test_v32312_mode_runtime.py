@@ -15,6 +15,7 @@ from operating_mode_runtime import (
     mode_history_path,
     operating_mode_tick,
     reconcile_state,
+    recover_startup_mode_state,
 )
 
 
@@ -56,11 +57,52 @@ def test_operating_mode_tick_processes_projectmanager_command(tmp_path):
     assert snapshot["reconciliation_status"] == "ok"
 
 
+def test_startup_discards_stale_temporary_mode(tmp_path):
+    stale = replace(
+        ModeState.initial(),
+        effective_mode=Mode.MAINTENANCE,
+        temporary_reason="oude backup",
+        active_transition_id="stale-maint-1",
+        suspended_features=("automatic_month_close",),
+        reconciliation_status="ok",
+    )
+    save_mode_state(tmp_path, stale)
+
+    recovered = recover_startup_mode_state(tmp_path)
+
+    assert recovered.base_mode is Mode.USER
+    assert recovered.effective_mode is Mode.USER
+    assert recovered.active_transition_id == ""
+    assert recovered.temporary_reason == ""
+    assert recovered.suspended_features == ()
+    assert recovered.reconciliation_status == "required"
+    assert "stale_temporary_state_recovered" in recovered.drift
+
+
+def test_startup_preserves_manual_fixed_base_mode(tmp_path):
+    fixed = replace(
+        ModeState.initial(),
+        base_mode=Mode.DEVELOPMENT,
+        effective_mode=Mode.DEVELOPMENT,
+        automatic_switching_enabled=False,
+        reconciliation_status="ok",
+    )
+    save_mode_state(tmp_path, fixed)
+
+    recovered = recover_startup_mode_state(tmp_path)
+
+    assert recovered.base_mode is Mode.DEVELOPMENT
+    assert recovered.effective_mode is Mode.DEVELOPMENT
+    assert recovered.automatic_switching_enabled is False
+    assert "stale_temporary_state_recovered" not in recovered.drift
+
+
 def test_addon_launcher_uses_mode_entrypoint_before_main():
     root = pathlib.Path(__file__).resolve().parents[1]
     run_sh = (root / "slimmemeterportal_import/run.sh").read_text(encoding="utf-8")
     entry = (root / "slimmemeterportal_import/rootfs/app/mode_entrypoint.py").read_text(encoding="utf-8")
     assert "exec python3 -u /app/mode_entrypoint.py" in run_sh
+    assert entry.index("recover_startup_mode_state(root)") < entry.index("operating_mode_tick(root)")
     assert entry.index("operating_mode_tick(root)") < entry.index("app.main()")
     assert entry.index("install_mode_overrides(app, root)") < entry.index("app.main()")
     assert entry.index("install_mode_web(app, root)") < entry.index("app.main()")
