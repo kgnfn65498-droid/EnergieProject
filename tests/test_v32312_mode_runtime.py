@@ -1,12 +1,20 @@
 import json
 import pathlib
 import sys
+from dataclasses import dataclass, replace
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 APP_ROOT = pathlib.Path(__file__).resolve().parents[1] / "slimmemeterportal_import/rootfs/app"
 sys.path.insert(0, str(APP_ROOT))
 
 from operating_modes import Mode, ModeState, save_mode_state
-from operating_mode_runtime import operating_mode_tick, reconcile_state
+from operating_mode_runtime import (
+    effective_options_for_mode,
+    is_fully_closed_month,
+    operating_mode_tick,
+    reconcile_state,
+)
 
 
 def test_reconcile_marks_matching_user_profile_ok(tmp_path):
@@ -53,4 +61,41 @@ def test_addon_launcher_uses_mode_entrypoint_before_main():
     entry = (root / "slimmemeterportal_import/rootfs/app/mode_entrypoint.py").read_text(encoding="utf-8")
     assert "exec python3 -u /app/mode_entrypoint.py" in run_sh
     assert entry.index("operating_mode_tick(root)") < entry.index("app.main()")
+    assert entry.index("install_mode_overrides(app, root)") < entry.index("app.main()")
     assert "operating-mode-reconcile" in entry
+
+
+@dataclass(frozen=True)
+class FakeOptions:
+    schedule_enabled: bool
+    full_workflow_enabled: bool
+    automatic_month_close_enabled: bool
+
+
+def test_user_overrides_stale_disabled_month_switches():
+    options = FakeOptions(False, False, False)
+    effective = effective_options_for_mode(options, ModeState.initial())
+    assert effective.schedule_enabled is True
+    assert effective.full_workflow_enabled is True
+    assert effective.automatic_month_close_enabled is True
+
+
+def test_current_month_is_never_fully_closed():
+    now = datetime(2026, 8, 17, 12, 0, tzinfo=ZoneInfo("Europe/Amsterdam"))
+    assert is_fully_closed_month("2026_08", now) is False
+    assert is_fully_closed_month("2026_07", now) is True
+
+
+def test_maintenance_pause_is_restored_by_profile():
+    state = replace(
+        ModeState.initial(),
+        effective_mode=Mode.MAINTENANCE,
+        suspended_features=("automatic_month_close",),
+    )
+    paused = effective_options_for_mode(FakeOptions(True, True, True), state)
+    assert paused.automatic_month_close_enabled is False
+    restored = effective_options_for_mode(
+        FakeOptions(True, True, False),
+        replace(state, suspended_features=()),
+    )
+    assert restored.automatic_month_close_enabled is True
