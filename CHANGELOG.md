@@ -1,4 +1,4 @@
-## 32.3.12 — Operating modes enforced
+## 32.3.13 — Operating modes enforced
 - Enforced USER / DEVELOPMENT / MAINTENANCE operating-mode controller.
 - Automatic temporary escalation and safe return to the base mode.
 - Mode-gated release Incoming and maintenance request processing.
