@@ -1,11 +1,16 @@
 import json
 import pathlib
 import sys
+from dataclasses import dataclass
+from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 APP_ROOT = pathlib.Path(__file__).resolve().parents[1] / "slimmemeterportal_import/rootfs/app"
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(APP_ROOT))
 
-from operating_modes import Mode, command_path, load_mode_state, process_mode_command
+from operating_modes import Mode, ModeState, command_path, process_mode_command
+import operating_mode_runtime as mode_runtime
 from operating_mode_runtime import recover_startup_mode_state
 from release_validation_hold import (
     activate_release_hold,
@@ -139,3 +144,56 @@ def test_release_hold_does_not_change_persistent_development_session(tmp_path):
     assert recovered.effective_mode is Mode.DEVELOPMENT
     assert recovered.development_session_active is True
     assert load_release_hold(tmp_path, "32.3.14").active is True
+
+
+@dataclass(frozen=True)
+class FakeOptions:
+    run_on_start: bool = True
+    schedule_enabled: bool = True
+    full_workflow_enabled: bool = True
+    automatic_month_close_enabled: bool = True
+
+
+def test_hold_forces_all_automatic_mutating_options_off(tmp_path):
+    hold = activate_release_hold(tmp_path, "32.3.14", "release_install")
+    effective = mode_runtime.effective_options_for_runtime(FakeOptions(), ModeState.initial(), hold)
+    assert effective.run_on_start is False
+    assert effective.schedule_enabled is False
+    assert effective.full_workflow_enabled is False
+    assert effective.automatic_month_close_enabled is False
+
+
+def test_automatic_month_close_execute_guard_blocks_even_with_stale_enabled_options(tmp_path):
+    activate_release_hold(tmp_path, "32.3.14", "release_install")
+    calls = []
+    audits = []
+
+    class FakeOptionsLoader:
+        @classmethod
+        def load(cls):
+            return FakeOptions()
+
+    def raw_execute(options, month_key, *args, **kwargs):
+        calls.append((options, month_key, args, kwargs))
+        return {"status": "raw_called"}
+
+    fake_app = SimpleNamespace(
+        APP_VERSION="32.3.14",
+        TZ=ZoneInfo("Europe/Amsterdam"),
+        Options=FakeOptionsLoader,
+        execute_automatic_month_close=raw_execute,
+        append_audit_event=lambda *args, **kwargs: audits.append((args, kwargs)),
+        LOGGER=SimpleNamespace(exception=lambda *args, **kwargs: None),
+    )
+
+    mode_runtime.install_release_hold_guards(fake_app, tmp_path)
+    result = fake_app.execute_automatic_month_close(FakeOptions(), "2026_07", trigger="automatic")
+    assert result["status"] == "blocked_release_validation_hold"
+    assert calls == []
+    assert audits
+
+
+def test_release_hold_guards_are_installed_before_app_main_starts_scheduler():
+    text = (APP_ROOT / "mode_entrypoint.py").read_text(encoding="utf-8")
+    assert "install_release_hold_guards" in text
+    assert text.index("install_release_hold_guards(app, root)") < text.index("app.main()")
