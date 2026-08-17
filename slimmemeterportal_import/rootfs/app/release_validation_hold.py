@@ -102,6 +102,32 @@ def load_release_hold(project_root: Path | str, installed_version: str) -> Relea
     return state
 
 
+def ensure_release_hold_state(project_root: Path | str, installed_version: str) -> ReleaseHoldState:
+    """Materialize fail-closed HOLD state for upgrades from releases that could not write the marker yet.
+
+    Valid state for the installed release is left untouched, including an already released HOLD.
+    Missing, corrupt, or version-mismatched state is persisted atomically as an active HOLD so
+    normal validation can perform its state-I/O readback and later release it safely.
+    """
+    path = hold_state_path(project_root)
+    state = load_release_hold(project_root, installed_version)
+    repair_reasons = {"missing_hold_state", "invalid_hold_state", "release_version_mismatch"}
+    if path.exists() and not any(reason in repair_reasons for reason in state.reasons):
+        return state
+    reason = next((reason for reason in state.reasons if reason in repair_reasons), "startup_fail_closed")
+    now = datetime.now().astimezone().isoformat()
+    materialized = replace(
+        state,
+        active=True,
+        release_version=str(installed_version),
+        activated_at=state.activated_at or now,
+        activated_reason=state.activated_reason or f"startup_recovery:{reason}",
+        validation_status="required",
+        reconcile_status="required",
+    )
+    return _save(project_root, materialized)
+
+
 def record_hold_validation(
     project_root: Path | str,
     installed_version: str,
