@@ -103,3 +103,46 @@ def test_auto_endpoint_can_disable_automatic_switching(tmp_path):
     handler.do_POST()
     assert handler.response[0] == 200
     assert load_mode_state(tmp_path).automatic_switching_enabled is False
+
+
+def test_user_development_user_roundtrip_restores_profile(tmp_path):
+    begin = submit_operating_mode_command(
+        tmp_path,
+        action="begin_temporary",
+        requested_mode="DEVELOPMENT",
+        reason="build",
+        issued_by="test",
+    )
+    assert begin["snapshot"]["effective_mode"] == "DEVELOPMENT"
+    assert begin["snapshot"]["desired_profile"]["release_ingress_enabled"] is True
+    end = submit_operating_mode_command(
+        tmp_path,
+        action="end_temporary",
+        transition_id=begin["request_id"],
+        issued_by="test",
+    )
+    assert end["snapshot"]["effective_mode"] == "USER"
+    assert end["snapshot"]["desired_profile"]["release_ingress_enabled"] is False
+    assert end["snapshot"]["desired_profile"]["automatic_month_close_enabled"] is True
+
+
+def test_user_maintenance_user_restores_paused_month_close(tmp_path):
+    begin = submit_operating_mode_command(
+        tmp_path,
+        action="begin_temporary",
+        requested_mode="MAINTENANCE",
+        reason="backup",
+        issued_by="test",
+        suspended_features=("automatic_month_close",),
+    )
+    assert begin["snapshot"]["effective_mode"] == "MAINTENANCE"
+    assert begin["snapshot"]["desired_profile"]["automatic_month_close_enabled"] is False
+    end = submit_operating_mode_command(
+        tmp_path,
+        action="end_temporary",
+        transition_id=begin["request_id"],
+        issued_by="test",
+    )
+    assert end["snapshot"]["effective_mode"] == "USER"
+    assert end["snapshot"]["suspended_features"] == []
+    assert end["snapshot"]["desired_profile"]["automatic_month_close_enabled"] is True
