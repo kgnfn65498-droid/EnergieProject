@@ -1,91 +1,13 @@
-name: v32.3.14 installer publication ordering patch
+name: v32.3.14 installer publication ordering patch cleanup
 
 on:
-  push:
-    branches:
-      - feature/v32.3.14-release-validation-hold
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch:
-    if: ${{ !contains(github.event.head_commit.message, '[installer-order-applied]') }}
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: feature/v32.3.14-release-validation-hold
-          fetch-depth: 0
-      - name: Apply fail-closed publication ordering
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('tools/release_installer.sh')
-          text = path.read_text(encoding='utf-8')
-
-          old = 'RELEASE_HOLD_STATE="$INBOX/operating_mode/release_validation_hold.json"\n'
-          new = old + 'PREVIOUS_RELEASE_HOLD_BACKUP=""\nPREVIOUS_RELEASE_HOLD_EXISTED=0\nRELEASE_HOLD_ARMED=0\n'
-          if text.count(old) != 1:
-              raise SystemExit('release hold variable anchor mismatch')
-          text = text.replace(old, new, 1)
-
-          old = '''cleanup(){\n  [ -n "$PREFLIGHT" ] && rm -rf "$PREFLIGHT" 2>/dev/null || true\n  [ -n "$RESTORE_STAGE" ] && rm -rf "$RESTORE_STAGE" 2>/dev/null || true\n  [ -n "$STAGE" ] && rm -rf "$STAGE" 2>/dev/null || true\n  rmdir "$LOCK" 2>/dev/null || true\n}\n'''
-          new = '''cleanup(){\n  [ -n "$PREFLIGHT" ] && rm -rf "$PREFLIGHT" 2>/dev/null || true\n  [ -n "$RESTORE_STAGE" ] && rm -rf "$RESTORE_STAGE" 2>/dev/null || true\n  [ -n "$STAGE" ] && rm -rf "$STAGE" 2>/dev/null || true\n  [ -n "$PREVIOUS_RELEASE_HOLD_BACKUP" ] && rm -f "$PREVIOUS_RELEASE_HOLD_BACKUP" 2>/dev/null || true\n  rmdir "$LOCK" 2>/dev/null || true\n}\n'''
-          if old not in text:
-              raise SystemExit('cleanup anchor mismatch')
-          text = text.replace(old, new, 1)
-
-          anchor = 'write_release_validation_hold(){\n'
-          if text.count(anchor) != 1:
-              raise SystemExit('write hold function anchor mismatch')
-          helpers = '''capture_previous_release_validation_hold(){\n  [ -z "$PREVIOUS_RELEASE_HOLD_BACKUP" ] || return 0\n  PREVIOUS_RELEASE_HOLD_BACKUP="$(mktemp /tmp/energie-release-hold-prev.XXXXXX)" || return 1\n  if [ -f "$RELEASE_HOLD_STATE" ]; then\n    cp "$RELEASE_HOLD_STATE" "$PREVIOUS_RELEASE_HOLD_BACKUP" || return 1\n    PREVIOUS_RELEASE_HOLD_EXISTED=1\n  else\n    : > "$PREVIOUS_RELEASE_HOLD_BACKUP" || return 1\n    PREVIOUS_RELEASE_HOLD_EXISTED=0\n  fi\n}\n\nrestore_previous_release_validation_hold(){\n  [ "$RELEASE_HOLD_ARMED" -eq 1 ] || return 0\n  if [ "$PREVIOUS_RELEASE_HOLD_EXISTED" -eq 1 ]; then\n    mkdir -p "$INBOX/operating_mode" || return 1\n    RESTORE_HOLD_TMP="$RELEASE_HOLD_STATE.tmp.restore.$$"\n    cp "$PREVIOUS_RELEASE_HOLD_BACKUP" "$RESTORE_HOLD_TMP" || { rm -f "$RESTORE_HOLD_TMP" 2>/dev/null || true; return 1; }\n    mv "$RESTORE_HOLD_TMP" "$RELEASE_HOLD_STATE" || { rm -f "$RESTORE_HOLD_TMP" 2>/dev/null || true; return 1; }\n  else\n    rm -f "$RELEASE_HOLD_STATE" || return 1\n  fi\n  RELEASE_HOLD_ARMED=0\n  log "Vorige release validation hold hersteld na mislukte release"\n}\n\n'''
-          text = text.replace(anchor, helpers + anchor, 1)
-
-          old = 'write_release_validation_hold(){\n  mkdir -p "$INBOX/operating_mode" || return 1\n'
-          new = 'write_release_validation_hold(){\n  capture_previous_release_validation_hold || return 1\n  mkdir -p "$INBOX/operating_mode" || return 1\n'
-          if old not in text:
-              raise SystemExit('write hold body anchor mismatch')
-          text = text.replace(old, new, 1)
-
-          old = '''  mv "$TMP_HOLD" "$RELEASE_HOLD_STATE" || {\n    rm -f "$TMP_HOLD" 2>/dev/null || true\n    return 1\n  }\n  log "Release validation hold actief voor v$NEW_VERSION; marker=$RELEASE_HOLD_STATE"\n'''
-          new = '''  mv "$TMP_HOLD" "$RELEASE_HOLD_STATE" || {\n    rm -f "$TMP_HOLD" 2>/dev/null || true\n    return 1\n  }\n  RELEASE_HOLD_ARMED=1\n  log "Release validation hold actief voor v$NEW_VERSION; marker=$RELEASE_HOLD_STATE"\n'''
-          if old not in text:
-              raise SystemExit('write hold mv anchor mismatch')
-          text = text.replace(old, new, 1)
-
-          old = '''fail(){\n  MSG="$*"\n  if [ "$WORKTREE_REPLACED" -eq 1 ]; then\n'''
-          new = '''fail(){\n  MSG="$*"\n  if [ "$RELEASE_HOLD_ARMED" -eq 1 ]; then\n    restore_previous_release_validation_hold || log "FOUT: vorige release-hold kon niet worden hersteld"\n  fi\n  if [ "$WORKTREE_REPLACED" -eq 1 ]; then\n'''
-          if old not in text:
-              raise SystemExit('fail anchor mismatch')
-          text = text.replace(old, new, 1)
-
-          hold_call = 'write_release_validation_hold || fail "release validation hold activeren mislukt"\n'
-          if text.count(hold_call) != 1:
-              raise SystemExit('existing hold call count mismatch')
-          text = text.replace(hold_call, '', 1)
-
-          phase7 = 'log "FASE 7/8: publicatie-afhandeling"\n'
-          if text.count(phase7) != 1:
-              raise SystemExit('phase7 anchor mismatch')
-          text = text.replace(phase7, hold_call + phase7, 1)
-
-          if text.index(hold_call.strip()) >= text.index('git push origin main'):
-              raise SystemExit('hold still after git publication')
-          if text.index(hold_call.strip()) >= text.index('write_ha_publication_required "$PROCESSED_SHA256"'):
-              raise SystemExit('hold still after HA publication')
-
-          path.write_text(text, encoding='utf-8')
-          PY
-          sh -n tools/release_installer.sh
-      - name: Commit installer safety patch
-        shell: bash
-        run: |
-          git config user.name "energie-release-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add tools/release_installer.sh
-          git diff --cached --quiet && exit 0
-          git commit -m "fix: arm validation hold before every publication route [installer-order-applied]"
-          git push origin HEAD:feature/v32.3.14-release-validation-hold
+      - run: echo "temporary patch workflow disabled; pending deletion"
