@@ -1,3 +1,9 @@
+## 32.3.15 — Ingress GUI navigation
+- Operating-mode GUI actions use Post/Redirect/Get and return to the Energieproject page with a concise result banner.
+- Non-GUI structured JSON behavior remains unchanged.
+- Bedrijfsmodus distinguishes basis-profile from measured effective month-processing state.
+- No controller, HOLD, scheduler, watcher or month-close semantics changed.
+
 ## 32.3.14 — Release Validation Hold
 - Voegt een persistente `RELEASE VALIDATION HOLD` toe bovenop USER / DEVELOPMENT / MAINTENANCE; automatische muterende energieworkflows blijven geblokkeerd totdat de nieuwe release echt is gevalideerd.
 - Een actieve DEVELOPMENT-sessie blijft persistent over release en reboot en eindigt uitsluitend na expliciete bevestiging van de gebruiker; een geslaagde release schakelt dus niet zelfstandig terug naar USER.

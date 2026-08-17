@@ -14,7 +14,7 @@ from operating_mode_runtime import (
 from operating_mode_web import install_mode_web
 from release_validation_hold import ensure_release_hold_state
 
-TARGET_RELEASE_VERSION = "32.3.14"
+TARGET_RELEASE_VERSION = "32.3.15"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 
