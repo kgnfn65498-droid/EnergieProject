@@ -11,6 +11,9 @@ from operating_mode_runtime import (
 )
 from operating_mode_web import install_mode_web
 
+TARGET_RELEASE_VERSION = "32.3.12"
+app.APP_VERSION = TARGET_RELEASE_VERSION
+
 
 def start_operating_mode_runtime() -> None:
     root = operating_mode_project_root()
