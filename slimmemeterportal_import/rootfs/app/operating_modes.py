@@ -43,8 +43,8 @@ class ModeState:
         return cls()
 
 
-_STATE_RELATIVE = Path("Data/03_Systeem/Projectmanager/State/operating_mode_state.json")
-_COMMAND_RELATIVE = Path("Data/03_Systeem/Projectmanager/State/operating_mode_command.json")
+_STATE_RELATIVE = Path("Inbox/operating_mode/operating_mode_state.json")
+_COMMAND_RELATIVE = Path("Inbox/operating_mode/operating_mode_command.json")
 _SUSPENDABLE_FEATURES = frozenset({"schedule", "full_workflow", "automatic_month_close"})
 
 

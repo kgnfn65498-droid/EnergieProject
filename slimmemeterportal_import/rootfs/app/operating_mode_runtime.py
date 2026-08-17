@@ -22,7 +22,7 @@ _MODE_HISTORY_LOCK = threading.Lock()
 
 
 def mode_history_path(project_root: Path | str) -> Path:
-    return Path(project_root) / "Data/03_Systeem/Projectmanager/Logs/operating_mode_history.jsonl"
+    return Path(project_root) / "Inbox/logs/operating_mode_history.jsonl"
 
 
 def _pending_command(project_root: Path | str) -> dict[str, Any] | None:

@@ -1,5 +1,11 @@
 # Changelog
 
+## 32.3.13
+
+- Hotfix: operating-mode runtime state and commands moved to the shared writable Inbox area.
+- Prevents Home Assistant startup failure when Projectmanager/State is intentionally protected.
+- Projectmanager protection and least-privilege permissions remain unchanged.
+
 ## 32.3.12
 
 - Enforced USER / DEVELOPMENT / MAINTENANCE operating-mode controller.
