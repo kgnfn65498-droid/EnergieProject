@@ -80,3 +80,15 @@ def render_assistant_response(context: dict[str, Any]) -> str:
     if available:
         return f"Voor {month} is beschikbaar: " + ", ".join(available) + "." + partial_suffix
     return f"Voor {month} is geen passende gevalideerde meetwaarde beschikbaar."
+
+
+def build_assistant_response_payload(engine: Any, app_version: str, query: str, session_id: str | None = None) -> dict[str, Any]:
+    """Build the shared deterministic information-only assistant response payload."""
+    context = engine.context(query, session_id=session_id)
+    return {
+        "schema": "energie_assistant_response_v1",
+        "version": app_version,
+        "speech": render_assistant_response(context),
+        "session_id": context.get("session_id"),
+        "context": context,
+    }

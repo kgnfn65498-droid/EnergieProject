@@ -1,10 +1,15 @@
 {
-  "version": "32.3.8",
+  "version": "32.3.9",
   "files": [
     {
       "path": ".gitignore",
       "sha256": "f10529b220b514ca72c66fd592c80ec5b3dea6a0a49f2658d80617824c5aa5e7",
       "size": 103
+    },
+    {
+      "path": "00_Config/HomeAssistant/Nomad_automation.yaml",
+      "sha256": "701a517d5d43e904ee2c74a63983d34af2d1acf829e90b31cfd0a020ceaac9cc",
+      "size": 1379
     },
     {
       "path": "00_Config/nextenergy_contract_costs.example.json",
@@ -18,8 +23,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "2d4d16896175bbee7003f6e3ecd0758bcdc2761c4dc8d06db2022dd01222feeb",
-      "size": 84764
+      "sha256": "21db6489b26b7508de1d99493643feef549f5294626a770bfc3f7c4a33aa3a11",
+      "size": 85858
     },
     {
       "path": "INSTALL.md",
@@ -53,63 +58,13 @@
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "sha256": "bd383097b03d4b2a4d1887f20de299c8b5e4f0185bea7611d2a9f7e94857413d",
-      "size": 10749
+      "sha256": "3d371ebfe6a3b361299a0e4f8774283fe850ffc79c61460731087656afb3c6f5",
+      "size": 12213
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "4ff9e245006106eda6a6dbb7f16bee113160534c822a20aefafe3e901cb29064",
+      "sha256": "ef264e939a28bebb33460201545af4638c68462cae1c910443a80a24936a9a17",
       "size": 7
-    },
-    {
-      "path": "custom_components/energie_assistant/__init__.py",
-      "sha256": "b58f2394dcb776256c3f7907c32fd51867c3d9e742bc8c607a5d63fd3a80548e",
-      "size": 1476
-    },
-    {
-      "path": "custom_components/energie_assistant/client.py",
-      "sha256": "ec19a353b638bf1a621a9cbaaedd39e3f51b43cc25224d258272f24c1ab36034",
-      "size": 1419
-    },
-    {
-      "path": "custom_components/energie_assistant/config_flow.py",
-      "sha256": "68804a63de443866a2a6e2ca1d1c1792bde2443b782469bb11364966ba0ef472",
-      "size": 2697
-    },
-    {
-      "path": "custom_components/energie_assistant/const.py",
-      "sha256": "6edbd52cb3e48b4483d51f155ba1db0bb61c03c5fdeacf58512352c11917fb57",
-      "size": 176
-    },
-    {
-      "path": "custom_components/energie_assistant/conversation.py",
-      "sha256": "ec78dac215a4567a7485b53f4c1f3b80ad5ff129aa9971eaf29f2c4a0fed85ad",
-      "size": 2138
-    },
-    {
-      "path": "custom_components/energie_assistant/manifest.json",
-      "sha256": "faa76cd30e75ab8a4b3b36fe06b156beecae7169c2d6d9278b13d32402d61341",
-      "size": 422
-    },
-    {
-      "path": "custom_components/energie_assistant/strings.json",
-      "sha256": "779709ecab9a23df9afeb7ebc6c3c4b985765251d52b3095e112e4a37af9bd84",
-      "size": 741
-    },
-    {
-      "path": "custom_components/energie_assistant/switch.py",
-      "sha256": "404b19ab40c633c6af80f77cd8929b3d72fe3c6ed0d10f12bef47994a5261d61",
-      "size": 1618
-    },
-    {
-      "path": "custom_components/energie_assistant/translations/en.json",
-      "sha256": "362325b0d8002fc4f420e87dff94729a4b86551448fef652b67639f9625c2bfd",
-      "size": 731
-    },
-    {
-      "path": "custom_components/energie_assistant/translations/nl.json",
-      "sha256": "779709ecab9a23df9afeb7ebc6c3c4b985765251d52b3095e112e4a37af9bd84",
-      "size": 741
     },
     {
       "path": "docs/superpowers/plans/2026-08-17-energie-assistant-ha-conversation.md",
@@ -117,9 +72,14 @@
       "size": 6448
     },
     {
-      "path": "hacs.json",
-      "sha256": "d2541ab6b84142ade505f7d2184757aac53b05f6814eb31b131dde06a04b50c6",
-      "size": 65
+      "path": "docs/superpowers/plans/2026-08-17-nomad-native-ha-event-bridge.md",
+      "sha256": "3ad690e3ad271444767c8aea72927286320c4b6a16b2da861616d74256247d25",
+      "size": 7742
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-17-nomad-native-ha-event-bridge-design.md",
+      "sha256": "242c46b8529893f647c52a2394ce3f418b21f8dd7466bd9d535509bbc3253481",
+      "size": 5136
     },
     {
       "path": "pytest.ini",
@@ -133,18 +93,18 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "8c63e38d6d4336209a5224cd0038ecc66603f9e672c9f4ef58096ab57d96f7df",
-      "size": 589
+      "sha256": "d3cf2a852372a4080da42291685fb53111c85aeff1f6eb8a1b2b30fac261ca27",
+      "size": 610
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
-      "sha256": "14bd039216ee93a2d257e454bebf4a72894ec79e99430090b54f11b98b74f213",
-      "size": 34126
+      "sha256": "6eac25658e6cea085f08dd3dada9cb6eb0a8c7ae9bd475a6d6cc601866554c34",
+      "size": 34990
     },
     {
       "path": "slimmemeterportal_import/Dockerfile",
-      "sha256": "6700d6933a49f26ae024d79d7f2aa232481e17eea7493dd46b28c31533ba4fb7",
-      "size": 645
+      "sha256": "af795433760af6e706a06d5888a396c33c5fab3b413a29aafe03ef36b1fa7c42",
+      "size": 672
     },
     {
       "path": "slimmemeterportal_import/build.yaml",
@@ -153,8 +113,8 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "91b121ce9a7cb2da73f993a9c583ed1874469045d0543aa121d03a75dc9c024d",
-      "size": 5870
+      "sha256": "c75dea52941164b24be263dea20e70fbc0a29386b1d7489ac6d2d88268c0b481",
+      "size": 6101
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -162,9 +122,9 @@
       "size": 1232
     },
     {
-      "path": "slimmemeterportal_import/rootfs/app/assistant_discovery.py",
-      "sha256": "e3b8cfaa2c9ff70f5c1205dd4626ed990f531713683e1e3fd033e11c6e8d1292",
-      "size": 3482
+      "path": "slimmemeterportal_import/rootfs/app/assistant_event_bridge.py",
+      "sha256": "07f6a6f972d5127c74cc7c880c844d58fb7878f865a8da8a6baad34f27ba78f3",
+      "size": 9652
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_fast_context.py",
@@ -173,8 +133,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_response.py",
-      "sha256": "f4737f03c8a17b26a6c65170b2a16b1a895ff76b70abd91cdf65b995e05f70e9",
-      "size": 3713
+      "sha256": "6b976f18895b517667ce752a943fe4f3e057fe9fc85140e94c783c979e9fe573",
+      "size": 4223
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_runtime_probe.py",
@@ -203,8 +163,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "e35b75599dda645f1655f7255c5cbb21d70c3bb05bc8639b955c3d9b47393411",
-      "size": 928274
+      "sha256": "0fd2d8429a4fd5dadef8289caf9ab0e7a747b1a28268d0da1aefb9f7be3f0bdc",
+      "size": 929949
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/project_paths.py",
@@ -528,37 +488,37 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "78447c14a8078a3c444d9d591f7a889fc910e0ce2504230e2181f595baee0eae",
+      "sha256": "1fa3f07fea9bb4afd004f2cede3c40439fee06cd467446a52db99568b57530d6",
       "size": 236441
     },
     {
       "path": "tests/test_v32035_release_identity.py",
-      "sha256": "0e3e8bf4518a33fa32bd3504bf4cf83ee4e6a708c455b20a651b8fa030c0f686",
-      "size": 1803
+      "sha256": "14047b4e1f6d45483730ebf65476f981e4ba588c67094925adaca94fdab82b9f",
+      "size": 1809
     },
     {
       "path": "tests/test_v32037_safe_github_publication.py",
-      "sha256": "1ef3f317d1d2da04986881436c9d521765407f2e93440b08056b956f8cd0f472",
+      "sha256": "8e7f57580f34e5cce82ca81d6ae4ce15dc83dd0732424079b695bb47036befeb",
       "size": 3100
     },
     {
       "path": "tests/test_v32038_automatic_publication_chain.py",
-      "sha256": "8c0af82364653a8503c1d94a77dfcd48c237f5189106a8f32471dfc3e86bf458",
+      "sha256": "75e07616851860d5fc278b1c46d441e622684f7af11aeb52be03947b349baa6c",
       "size": 2571
     },
     {
       "path": "tests/test_v3210_historical_energy_excel.py",
-      "sha256": "dedd57f8d3460c38f019f0989d0925d021bffe3bb114e72584c3f9a2337dca9d",
+      "sha256": "30fc802324c8d127d50da806343864e78956927e1b58fb92a9d2eda579d1597f",
       "size": 2658
     },
     {
       "path": "tests/test_v3211_startup_excel_bootstrap.py",
-      "sha256": "f42a9183fa200ed08120d6fd86701a5258054b89db8573b7560ed1a860d53c0f",
+      "sha256": "d9309e91999ce844fd6b7879d32e00818f56810ca30f0fc2eddf74cfb576e507",
       "size": 3022
     },
     {
       "path": "tests/test_v3212_startup_excel_live_nas.py",
-      "sha256": "b2ce49d5ab040205405a1363b793d7b69d32aa236a9dcc93cd7398cbdf38fa9e",
+      "sha256": "e99e0e3cc1316d05502c6b13b6b80b544e237c08efcd66513e8312066f233d9f",
       "size": 2499
     },
     {
@@ -568,12 +528,12 @@
     },
     {
       "path": "tests/test_v3220_knowledge_base_structure.py",
-      "sha256": "dc509a18419d1a8548381dc727216ecef1b204a0901882dbc24529a1ec61bb71",
+      "sha256": "53f0be21918605584fa052374e8e9cf9552fc6b12f529b17f5b784b9fcbb7cb5",
       "size": 16263
     },
     {
       "path": "tests/test_v3230_conversation.py",
-      "sha256": "d2d6b97cd7db2ada75836f14328b3b764a44e637fed97a38f2cb1a3fdb3a32ae",
+      "sha256": "726f1cb17c2440317a54edb049becfde093e1de8f07249bc6600ea3634e34aef",
       "size": 9260
     },
     {
@@ -588,18 +548,18 @@
     },
     {
       "path": "tests/test_v3232_assistant_runtime_self_probe.py",
-      "sha256": "f9e4dc9c6a0dd5388ece95d438d0f7570265eca387fc17b36202da202db78a34",
-      "size": 5388
+      "sha256": "9d772619277321d0c1d9f1d25e43455a0289c95748e857eca57d5f33e15a551e",
+      "size": 5394
     },
     {
       "path": "tests/test_v3233_assistant_mount_timing_hotfix.py",
-      "sha256": "0139f03f27d7e608a798d813f4b8a41a36065ab005de39c50f03e46d40c08dab",
-      "size": 2184
+      "sha256": "467fa5f8a128556109d994c4dd4b830841eebc553a4dfe53e1af1756b09b13fa",
+      "size": 2190
     },
     {
       "path": "tests/test_v3234_assistant_acceptance_handoff.py",
-      "sha256": "2023c2a1751d179dedef6c6dc92a6e2bd8d45d0a59c3cf56169272a4f8d3b93d",
-      "size": 1798
+      "sha256": "c11229c0816f011fd6ca2c2db605a4c3df2e79d809ca48e7b5f5da45a43b862f",
+      "size": 1804
     },
     {
       "path": "tests/test_v3235_assistant_fast_context.py",
@@ -618,8 +578,8 @@
     },
     {
       "path": "tests/test_v3238_assistant_discovery.py",
-      "sha256": "ace301e7d3d75d5f1bf1199de5155a1d98a502347bfbc0efcf34462fab6aed2c",
-      "size": 2942
+      "sha256": "c371385dff012ed094c89aaf8ca653e8bec0aced02e6bbb1b6494835e8aaa688",
+      "size": 1134
     },
     {
       "path": "tests/test_v3238_assistant_response.py",
@@ -628,8 +588,18 @@
     },
     {
       "path": "tests/test_v3238_homeassistant_conversation_integration.py",
-      "sha256": "523cfe668f00a19e300a01c61a743506a1d9fc17e7515b035c9ca1837a99a097",
-      "size": 1926
+      "sha256": "9dc9d035992dd88ffbeebc3d017a2b7198b396d4322dd1b26c9fb49c0a77b34a",
+      "size": 1027
+    },
+    {
+      "path": "tests/test_v3239_nomad_event_bridge.py",
+      "sha256": "87e412fa6f8e4c34b86dfdb0be5593580ff3754cfd35a011fe23e909b852a7c9",
+      "size": 8002
+    },
+    {
+      "path": "tests/test_v3239_nomad_native_ha_contract.py",
+      "sha256": "c1fcc887665c3e45ef5019f83e5c2948f036abbf154ad6b0fc82f0e92067ac8c",
+      "size": 3071
     },
     {
       "path": "tools/bootstrap_release_watcher_container.sh",

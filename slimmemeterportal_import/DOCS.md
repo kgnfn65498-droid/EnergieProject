@@ -724,3 +724,18 @@ Zonder valide contractregel wordt geen bedrag berekend.
 
 ## v10.5.37 — Rapportpagina
 Open vanuit het hoofdscherm **Open rapportpagina**. Route: `reports`. De pagina toont rapportstatus, generatorstatus, uitvoerbestanden en bestaande rapportacties.
+
+
+## Nomad — native Home Assistant Assist
+
+Vanaf v32.3.9 gebruikt Nomad geen HACS en geen custom component. De add-on luistert via de officiële Home Assistant Core WebSocket-proxy naar `energie_nomad_request` en antwoordt alleen via `energie_nomad_response`.
+
+De copy/paste-ready Home Assistant automation staat in `00_Config/HomeAssistant/Nomad_automation.yaml`. Zet die automation UIT om Nomad te blokkeren; de energiedatacollectie blijft dan actief.
+
+Add-onopties:
+- `assistant_event_bridge_enabled`: event-bridge aan/uit.
+- `assistant_display_name`: standaard `Nomad`; later aanpasbaar.
+- `assistant_greeting_enabled`: begroeting aan/uit.
+- `assistant_greeting_idle_seconds`: standaard 900 seconden stilte voor opnieuw `Nomad hier.`.
+
+De route is information-only: geen device-control, contract-/termijn-/betalingswijzigingen of destructieve projectacties.

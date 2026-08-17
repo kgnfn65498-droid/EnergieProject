@@ -31,12 +31,12 @@ def test_runtime_acceptance_uses_writable_inbox_log_handoff_not_projectmanager_s
 
 
 def test_release_identity_is_v3234_handoff_hotfix():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.8"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.9"
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     addon = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.3.8"' in config
-    assert 'APP_VERSION = "32.3.8"' in main
-    assert changelog.startswith("## v32.3.8 — Home Assistant conversation transport")
-    assert addon.startswith("# Changelog\n\n## 32.3.8 - Home Assistant conversation transport")
+    assert 'version: "32.3.9"' in config
+    assert 'APP_VERSION = "32.3.9"' in main
+    assert changelog.startswith("## v32.3.9 — Nomad native Home Assistant event bridge")
+    assert addon.startswith("# Changelog\n\n## 32.3.9 - Nomad native Home Assistant event bridge")

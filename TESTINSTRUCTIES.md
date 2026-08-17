@@ -1,3 +1,16 @@
+# Testinstructies v32.3.9 — Nomad native Home Assistant event bridge
+
+1. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.9.
+2. Draai `tests/test_v3239_nomad_event_bridge.py`: eventpayloadguard, 15-minutenbegroeting, gedeelde responsebuilder, WebSocket-auth/subscription/fire-event en fake end-to-end request moeten groen zijn.
+3. Draai `tests/test_v3239_nomad_native_ha_contract.py`: geen HACS/custom component/discovery/Supervisorrol; alleen `homeassistant_api: true`; native automation is information-only en begrensd.
+4. Herhaal v32.3.0-v32.3.8 assistant-runtime/cache/response regressies; discovery/custom-componenttests zijn expliciet superseded door de native route.
+5. Volledige pytest, Python compile, shellsyntax, manifest/SHA en ZIP-integriteit uitvoeren en vanuit verse uitpak herhalen.
+6. Live na Incoming-installatie: bestaande backendacceptatie 7/7 PASS; `/api/assistant/health` meldt Nomad event bridge `connected=true`.
+7. Importeer/plak `00_Config/HomeAssistant/Nomad_automation.yaml` via Home Assistant GUI; geen Terminal/HACS.
+8. Test tekst-Assist: `Nomad hoeveel gas heb ik deze maand gebruikt` en daarna `Nomad en vorige maand`; response binnen 5 seconden en information-only.
+9. Zet de Nomad-automation UIT: Nomad moet blokkeren terwijl kwartier-/energiedatacollectie doorgaat. Zet daarna weer AAN en hertest.
+10. Augustus blijft OPEN/PARTIAL; automatische maandafsluiting UIT; `finalize_month` niet gebruiken.
+
 # Testinstructies v32.3.8 — Home Assistant conversation transport
 
 1. Valideer `VERSIE.txt`, add-on `config.yaml`, `APP_VERSION` en custom-integrationmanifest exact als 32.3.8.

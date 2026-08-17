@@ -1,0 +1,39 @@
+# Nomad native Home Assistant Assist automation.
+# Privacy: zet deze automation UIT om Nomad volledig te blokkeren.
+# Dit stopt of wijzigt de Energieproject-energiedata/kwartiercollectie niet.
+# Naam/aliassen zijn later aanpasbaar door alleen de command-regels te wijzigen.
+alias: Nomad - Energie Assistent
+id: nomad_energie_assistent
+triggers:
+  - trigger: conversation
+    command:
+      - "Nomad {vraag}"
+      - "No mad {vraag}"
+conditions: []
+actions:
+  - variables:
+      nomad_request_id: "{{ this.context.id }}"
+      nomad_session_id: >-
+        {{ trigger.satellite_id if trigger.satellite_id else
+           (trigger.device_id if trigger.device_id else 'home-assistant-assist') }}
+  - event: energie_nomad_request
+    event_data:
+      request_id: "{{ nomad_request_id }}"
+      query: "{{ trigger.slots.vraag }}"
+      session_id: "{{ nomad_session_id }}"
+  - wait_for_trigger:
+      - trigger: event
+        event_type: energie_nomad_response
+        event_data:
+          request_id: "{{ nomad_request_id }}"
+    timeout: "00:00:05"
+    continue_on_timeout: true
+  - if:
+      - condition: template
+        value_template: "{{ wait.completed and wait.trigger is not none }}"
+    then:
+      - set_conversation_response: "{{ wait.trigger.event.data.speech }}"
+    else:
+      - set_conversation_response: "Nomad is tijdelijk niet beschikbaar."
+mode: parallel
+max: 5

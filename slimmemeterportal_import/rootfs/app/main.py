@@ -45,8 +45,8 @@ from historical_energy_excel import bootstrap_historical_energy_workbook, publis
 from energy_conversation import EnergyConversationEngine
 from assistant_fast_context import load_quarter_hour_series_once
 from assistant_analysis_cache import AssistantAnalysisCache
-from assistant_response import render_assistant_response
-from assistant_discovery import publish_assistant_discovery
+from assistant_response import build_assistant_response_payload, render_assistant_response
+from assistant_event_bridge import HomeAssistantNomadBridge
 from assistant_runtime_probe import (
     MAX_REQUEST_BYTES as MAX_ASSISTANT_REQUEST_BYTES,
     resolve_runtime_acceptance_path,
@@ -74,7 +74,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.8"
+APP_VERSION = "32.3.9"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -11630,6 +11630,30 @@ ASSISTANT_ENGINE = EnergyConversationEngine(
 )
 
 
+NOMAD_EVENT_BRIDGE: HomeAssistantNomadBridge | None = None
+
+
+def _nomad_bridge_settings() -> dict[str, Any]:
+    try:
+        raw = json.loads(OPTIONS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        raw = {}
+    if not isinstance(raw, dict):
+        raw = {}
+    display_name = str(raw.get("assistant_display_name", "Nomad")).strip() or "Nomad"
+    idle_seconds = int(raw.get("assistant_greeting_idle_seconds", 900))
+    return {
+        "enabled": bool(raw.get("assistant_event_bridge_enabled", True)),
+        "display_name": display_name[:80],
+        "greeting_enabled": bool(raw.get("assistant_greeting_enabled", True)),
+        "greeting_idle_seconds": max(60, min(idle_seconds, 86400)),
+    }
+
+
+def _assistant_response_for_bridge(query: str, session_id: str | None = None) -> dict[str, Any]:
+    return build_assistant_response_payload(ASSISTANT_ENGINE, APP_VERSION, query, session_id=session_id)
+
+
 def analysis_overview(context: dict[str, Any]) -> dict[str, Any]:
     summary = context.get("summary") or {}
     history = context.get("history_span") or {}
@@ -18151,7 +18175,13 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
         if path.endswith("/api/assistant/health") or path == "/api/assistant/health":
-            body = json.dumps(ASSISTANT_ENGINE.health(), ensure_ascii=False, indent=2).encode("utf-8")
+            health = dict(ASSISTANT_ENGINE.health())
+            health["nomad_event_bridge"] = (
+                NOMAD_EVENT_BRIDGE.status_snapshot()
+                if NOMAD_EVENT_BRIDGE is not None
+                else {"status": "not_started", "connected": False}
+            )
+            body = json.dumps(health, ensure_ascii=False, indent=2).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
             return
         if path.endswith("/status.json") or path == "/status.json":
@@ -18419,14 +18449,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("query is required")
                 if session_id is not None and not isinstance(session_id, str):
                     raise ValueError("session_id must be a string")
-                context = ASSISTANT_ENGINE.context(query, session_id=session_id)
-                result = {
-                    "schema": "energie_assistant_response_v1",
-                    "version": APP_VERSION,
-                    "speech": render_assistant_response(context),
-                    "session_id": context.get("session_id"),
-                    "context": context,
-                }
+                result = build_assistant_response_payload(
+                    ASSISTANT_ENGINE, APP_VERSION, query, session_id=session_id
+                )
                 body = json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8")
                 self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
             except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
@@ -19386,23 +19411,36 @@ def main() -> None:
             result["output_path"] = str(acceptance_path)
             write_atomic_json(acceptance_path, result)
             if result.get("status") == "PASS":
-                try:
-                    discovery_result = publish_assistant_discovery(app_version=APP_VERSION)
-                    result["supervisor_discovery"] = discovery_result
-                    write_atomic_json(acceptance_path, result)
-                    LOGGER.info(
-                        "Energie Assistant Supervisor discovery v%s: %s host=%s",
-                        APP_VERSION,
-                        discovery_result.get("status"),
-                        discovery_result.get("host"),
+                bridge_settings = _nomad_bridge_settings()
+                result["nomad_event_bridge"] = {
+                    "enabled": bridge_settings["enabled"],
+                    "status": "starting" if bridge_settings["enabled"] else "disabled",
+                    "display_name": bridge_settings["display_name"],
+                    "privacy_control": "Home Assistant automation enabled/disabled",
+                    "request_event": "energie_nomad_request",
+                    "response_event": "energie_nomad_response",
+                }
+                write_atomic_json(acceptance_path, result)
+                if bridge_settings["enabled"]:
+                    global NOMAD_EVENT_BRIDGE
+                    NOMAD_EVENT_BRIDGE = HomeAssistantNomadBridge(
+                        STOP,
+                        respond=_assistant_response_for_bridge,
+                        app_version=APP_VERSION,
+                        display_name=bridge_settings["display_name"],
+                        greeting_enabled=bridge_settings["greeting_enabled"],
+                        greeting_idle_seconds=bridge_settings["greeting_idle_seconds"],
                     )
-                except Exception as discovery_exc:
-                    result["supervisor_discovery"] = {
-                        "status": "warning",
-                        "error": f"{type(discovery_exc).__name__}: {discovery_exc}",
-                    }
-                    write_atomic_json(acceptance_path, result)
-                    LOGGER.warning("Energie Assistant discovery niet gepubliceerd: %s", discovery_exc)
+                    threading.Thread(
+                        target=NOMAD_EVENT_BRIDGE.run_forever,
+                        daemon=True,
+                        name="nomad-ha-event-bridge",
+                    ).start()
+                    LOGGER.info(
+                        "Nomad HA event bridge v%s gestart; display_name=%s; privacy via automation toggle",
+                        APP_VERSION,
+                        bridge_settings["display_name"],
+                    )
             LOGGER.info(
                 "Assistant runtime self-probe v%s: %s; voice_gate=%s",
                 APP_VERSION,

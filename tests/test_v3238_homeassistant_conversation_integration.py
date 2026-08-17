@@ -1,50 +1,27 @@
 from pathlib import Path
-import json
 
 ROOT = Path(__file__).resolve().parents[1]
-CC = ROOT / "custom_components" / "energie_assistant"
+AUTOMATION = ROOT / "00_Config" / "HomeAssistant" / "Nomad_automation.yaml"
 
 
-def test_manifest_and_hacs_contract():
-    manifest = json.loads((CC / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["domain"] == "energie_assistant"
-    assert manifest["version"] == "32.3.8"
-    assert manifest["config_flow"] is True
-    assert manifest["integration_type"] == "service"
-    hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
-    assert hacs["name"] == "Energie Assistant"
+def test_v3238_custom_component_hacs_route_is_superseded_and_removed():
+    assert not (ROOT / "hacs.json").exists()
+    assert not (ROOT / "custom_components" / "energie_assistant").exists()
 
 
-def test_conversation_entity_is_explicitly_information_only():
-    source = (CC / "conversation.py").read_text(encoding="utf-8")
-    assert "ConversationEntityFeature(0)" in source
-    assert "ConversationEntityFeature.CONTROL" not in source
-    assert "_async_handle_message" in source
-    assert "async_set_agent" in source
-
-
-def test_privacy_switch_defaults_off_and_restores_state():
-    source = (CC / "switch.py").read_text(encoding="utf-8")
-    assert "RestoreEntity" in source
-    assert "self._is_on = False" in source
-    assert "async_get_last_state" in source
-    conversation = (CC / "conversation.py").read_text(encoding="utf-8")
-    assert "privacy_enabled" in conversation
-    assert "privacy_disabled" in conversation
-
-
-def test_hassio_discovery_and_manual_fallback_are_supported():
-    source = (CC / "config_flow.py").read_text(encoding="utf-8")
-    assert "async_step_hassio" in source
-    assert "HassioServiceInfo" in source
-    assert "async_step_user" in source
-    assert '"host"' in source and '"port"' in source
-
-
-def test_client_only_calls_discovered_read_only_response_endpoint():
-    source = (CC / "client.py").read_text(encoding="utf-8")
-    assert "/api/assistant/respond" in source
-    assert '"query"' in source
-    assert '"session_id"' in source
-    assert "/api/services/" not in source
+def test_native_home_assistant_automation_remains_information_only():
+    source = AUTOMATION.read_text(encoding="utf-8")
+    assert "trigger: conversation" in source
+    assert "energie_nomad_request" in source
+    assert "energie_nomad_response" in source
+    assert "set_conversation_response" in source
     assert "CONTROL" not in source
+    for token in ("light.turn_", "switch.turn_", "climate.", "cover.", "lock."):
+        assert token not in source
+
+
+def test_privacy_is_native_automation_toggle_not_custom_switch():
+    source = AUTOMATION.read_text(encoding="utf-8").lower()
+    assert "privacy" in source
+    assert "automation" in source
+    assert "energiedata" in source

@@ -1,3 +1,13 @@
+## v32.3.9 — Nomad native Home Assistant event bridge
+
+- Vervangt de nooit geactiveerde HACS/custom-componentroute uit v32.3.8 door een volledig native Home Assistant Sentence/event-bridge voor **Nomad**.
+- Home Assistant stuurt `energie_nomad_request`; de bestaande read-only assistantbackend antwoordt via `energie_nomad_response`; een native automation retourneert dit met `set_conversation_response`.
+- Privacy is de Home Assistant automation zelf: automation UIT blokkeert Nomad zonder energiedatacollectie te stoppen.
+- Nomad is configureerbaar via add-onopties; na 15 minuten stilte begint het eerste antwoord standaard met `Nomad hier.`.
+- Supervisor discovery, `hassio_api`, `hassio_role`, `hacs.json` en `custom_components/energie_assistant` zijn verwijderd. Alleen `homeassistant_api: true` blijft nodig voor de officiële Core WebSocket-proxy.
+- Geen device-control, contract-/termijn-/betalingswijziging, projectwrite, externe poortmapping, HACS, Terminalroute, automatische maandafsluiting of `finalize_month`.
+- STT/TTS/wake-word/Assist Satellite blijven buiten deze release.
+
 ## v32.3.8 — Home Assistant conversation transport
 
 - Voegt een deterministische read-only `/api/assistant/respond`-route toe bovenop de live geaccepteerde v32.3.7 contextbackend; payload blijft strikt beperkt tot `query` en optioneel `session_id`.

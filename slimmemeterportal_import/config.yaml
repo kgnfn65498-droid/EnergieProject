@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "32.3.8"
+version: "32.3.9"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -8,10 +8,6 @@ arch:
   - amd64
 init: false
 homeassistant_api: true
-hassio_api: true
-hassio_role: default
-discovery:
-  - energie_assistant
 startup: services
 boot: auto
 ingress: true
@@ -97,6 +93,10 @@ options:
   github_repository_ssh: "git@github.com:kgnfn65498-droid/EnergieProject.git"
   github_branch: "main"
   github_publication_poll_seconds: 15
+  assistant_event_bridge_enabled: true
+  assistant_display_name: "Nomad"
+  assistant_greeting_enabled: true
+  assistant_greeting_idle_seconds: 900
 schema:
   api_key: password
   run_on_start: bool
@@ -176,3 +176,7 @@ schema:
   github_repository_ssh: str
   github_branch: str
   github_publication_poll_seconds: "int(5,300)"
+  assistant_event_bridge_enabled: bool
+  assistant_display_name: str
+  assistant_greeting_enabled: bool
+  assistant_greeting_idle_seconds: "int(60,86400)"
