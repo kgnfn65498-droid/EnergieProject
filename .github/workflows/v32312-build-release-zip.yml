@@ -1,0 +1,109 @@
+name: v32.3.12 build release zip
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_VERSION: "32.3.12"
+  RELEASE_ZIP: "EnergieProject_v32.3.12.zip"
+
+jobs:
+  build-release-zip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Verify source version
+        shell: bash
+        run: |
+          test "$(tr -d '\r\n ' < VERSIE.txt)" = "$RELEASE_VERSION"
+          grep -Fq 'version: "32.3.12"' slimmemeterportal_import/config.yaml
+          grep -Fq 'APP_VERSION = "32.3.12"' slimmemeterportal_import/rootfs/app/main.py
+
+      - name: Build release staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf release_stage
+          mkdir release_stage
+          while IFS= read -r path; do
+            case "$path" in
+              .github/*|MANIFEST.sha256|SHA256SUMS.json) continue ;;
+            esac
+            mkdir -p "release_stage/$(dirname "$path")"
+            cp -p "$path" "release_stage/$path"
+          done < <(git ls-files)
+
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+
+          stage = Path('release_stage')
+          rows = []
+          for path in sorted(p for p in stage.rglob('*') if p.is_file()):
+              rel = path.relative_to(stage).as_posix()
+              data = path.read_bytes()
+              rows.append((rel, hashlib.sha256(data).hexdigest(), len(data)))
+
+          (stage / 'MANIFEST.sha256').write_text(
+              ''.join(f'{sha}  {rel}\n' for rel, sha, _ in rows),
+              encoding='utf-8',
+          )
+          payload = {
+              'version': '32.3.12',
+              'files': [
+                  {'path': rel, 'sha256': sha, 'size': size}
+                  for rel, sha, size in rows
+              ],
+          }
+          (stage / 'SHA256SUMS.json').write_text(
+              json.dumps(payload, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Build installer ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "$RELEASE_ZIP"
+          (cd release_stage && zip -q -r "../$RELEASE_ZIP" .)
+
+      - name: Validate installer ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/release_zip.py test "$RELEASE_ZIP"
+          rm -rf verify_stage
+          mkdir verify_stage
+          python tools/release_zip.py extract "$RELEASE_ZIP" verify_stage
+          for f in README.md INSTALL.md CHANGELOG.md MANIFEST.sha256 SHA256SUMS.json repository.yaml VERSIE.txt; do
+            test -f "verify_stage/$f"
+          done
+          test "$(tr -d '\r\n ' < verify_stage/VERSIE.txt)" = "$RELEASE_VERSION"
+          (cd verify_stage && sha256sum -c MANIFEST.sha256 >/dev/null)
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('verify_stage/SHA256SUMS.json').read_text(encoding='utf-8'))
+          assert p['version'] == '32.3.12'
+          assert len(p['files']) > 0
+          PY
+          sha256sum "$RELEASE_ZIP" | tee release_zip.sha256
+          echo "ZIP_OK $RELEASE_ZIP"
+
+      - name: Upload installer ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: EnergieProject_v32.3.12_installer
+          path: |
+            EnergieProject_v32.3.12.zip
+            release_zip.sha256
+          if-no-files-found: error
+          retention-days: 7
