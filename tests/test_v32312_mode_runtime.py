@@ -12,6 +12,7 @@ from operating_modes import Mode, ModeState, save_mode_state
 from operating_mode_runtime import (
     effective_options_for_mode,
     is_fully_closed_month,
+    mode_history_path,
     operating_mode_tick,
     reconcile_state,
 )
@@ -100,3 +101,27 @@ def test_maintenance_pause_is_restored_by_profile():
         replace(state, suspended_features=()),
     )
     assert restored.automatic_month_close_enabled is True
+
+
+def test_accepted_command_appends_exactly_one_mode_history_event(tmp_path):
+    command = tmp_path / "Data/03_Systeem/Projectmanager/State/operating_mode_command.json"
+    command.parent.mkdir(parents=True, exist_ok=True)
+    command.write_text(json.dumps({
+        "schema_version": 1,
+        "request_id": "audit-1",
+        "action": "begin_temporary",
+        "requested_mode": "DEVELOPMENT",
+        "reason": "build",
+        "issued_by": "chatgpt_projectmanager",
+    }), encoding="utf-8")
+    operating_mode_tick(tmp_path)
+    operating_mode_tick(tmp_path)
+    lines = mode_history_path(tmp_path).read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    event = json.loads(lines[0])
+    assert event["request_id"] == "audit-1"
+    assert event["issued_by"] == "chatgpt_projectmanager"
+    assert event["from_effective_mode"] == "USER"
+    assert event["to_effective_mode"] == "DEVELOPMENT"
+    assert event["reason"] == "build"
+    assert event["reconciliation_status"] == "ok"
