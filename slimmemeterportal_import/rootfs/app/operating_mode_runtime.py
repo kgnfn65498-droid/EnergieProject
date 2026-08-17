@@ -44,6 +44,14 @@ def _append_mode_history(project_root: Path | str, event: dict[str, Any]) -> Non
             handle.write(line)
 
 
+def _reconciled_at(now: Any = None) -> str:
+    if now is None:
+        return datetime.now().astimezone().isoformat()
+    if hasattr(now, "isoformat"):
+        return now.isoformat()
+    return str(now)
+
+
 def operating_mode_project_root() -> Path:
     from project_paths import find_existing_nas_roots, resolve_nas_roots
 
@@ -94,6 +102,7 @@ def recover_startup_mode_state(project_root: Path | str) -> ModeState:
 
 
 def reconcile_state(project_root: Path | str, observed_profile: dict[str, Any], now: Any = None) -> ModeState:
+    """Pure profile reconciliation retained for unit tests and non-live callers."""
     state = load_mode_state(project_root)
     desired = asdict(profile_for(state.effective_mode, state.suspended_features))
     observed = dict(observed_profile)
@@ -107,12 +116,182 @@ def reconcile_state(project_root: Path | str, observed_profile: dict[str, Any], 
         if key not in desired:
             drift.append(f"{key}: unexpected")
 
-    if now is None:
-        reconciled_at = datetime.now().astimezone().isoformat()
-    elif hasattr(now, "isoformat"):
-        reconciled_at = now.isoformat()
+    updated = replace(
+        state,
+        observed_profile=observed,
+        reconciliation_status="ok" if not drift else "drift",
+        last_reconciled_at=_reconciled_at(now),
+        drift=tuple(drift),
+    )
+    save_mode_state(project_root, updated)
+    return updated
+
+
+def observe_operating_mode_runtime(state: ModeState) -> dict[str, Any]:
+    """Legacy desired-profile observer for non-live tests only."""
+    return asdict(profile_for(state.effective_mode, state.suspended_features))
+
+
+def _copy_workflow_active(app_module: Any) -> dict[str, Any]:
+    active = getattr(app_module, "WORKFLOW_ACTIVE", {})
+    lock = getattr(app_module, "WORKFLOW_LOCK_META", None)
+    if lock is None:
+        return dict(active) if isinstance(active, dict) else {}
+    try:
+        with lock:
+            return dict(active) if isinstance(active, dict) else {}
+    except Exception:
+        return dict(active) if isinstance(active, dict) else {}
+
+
+def _fallback_runtime_probe(app_module: Any) -> dict[str, Any]:
+    workflow_lock = getattr(app_module, "WORKFLOW_LOCK", None)
+    if workflow_lock is None or not hasattr(workflow_lock, "locked"):
+        raise RuntimeError("workflow lock unavailable")
+
+    load_state = getattr(app_module, "load_state", None)
+    if not callable(load_state):
+        raise RuntimeError("runtime state unavailable")
+    runtime_state = load_state()
+    if not isinstance(runtime_state, dict):
+        raise RuntimeError("runtime state invalid")
+
+    options_loader = getattr(getattr(app_module, "Options", None), "load", None)
+    if not callable(options_loader):
+        raise RuntimeError("options runtime unavailable")
+    options = options_loader()
+
+    processing_root = getattr(app_module, "NAS_RELEASE_PROCESSING", None)
+    if processing_root is None:
+        release_processing: list[str] = []
     else:
-        reconciled_at = str(now)
+        processing_path = Path(processing_root)
+        release_processing = sorted(path.name for path in processing_path.glob("*.zip")) if processing_path.exists() else []
+
+    return {
+        "workflow_running": bool(workflow_lock.locked()),
+        "workflow_active": _copy_workflow_active(app_module),
+        "cancel_requested": bool(runtime_state.get("cancel_requested")),
+        "run_on_start_effective": bool(getattr(options, "run_on_start", False)),
+        "schedule_effective": bool(getattr(options, "schedule_enabled", False)),
+        "full_workflow_effective": bool(getattr(options, "full_workflow_enabled", False)),
+        "automatic_month_close_effective": bool(getattr(options, "automatic_month_close_enabled", False)),
+        "release_processing": release_processing,
+    }
+
+
+def observe_measured_runtime(
+    app_module: Any,
+    project_root: Path | str,
+    state: ModeState,
+    hold: ReleaseHoldState,
+) -> dict[str, Any]:
+    """Measure independent live runtime signals; never derive them from the desired profile."""
+    del project_root, state, hold
+    probe = getattr(app_module, "operating_runtime_probe", None)
+    raw = probe() if callable(probe) else _fallback_runtime_probe(app_module)
+    if not isinstance(raw, dict):
+        raise RuntimeError("runtime probe returned non-object")
+
+    required = (
+        "workflow_running",
+        "workflow_active",
+        "cancel_requested",
+        "run_on_start_effective",
+        "schedule_effective",
+        "full_workflow_effective",
+        "automatic_month_close_effective",
+        "release_processing",
+    )
+    missing = [key for key in required if key not in raw]
+    if missing:
+        raise RuntimeError("runtime probe missing: " + ",".join(missing))
+    if not isinstance(raw.get("workflow_active"), dict):
+        raise RuntimeError("workflow_active must be object")
+    if not isinstance(raw.get("release_processing"), (list, tuple)):
+        raise RuntimeError("release_processing must be list")
+
+    return {
+        "workflow_running": bool(raw["workflow_running"]),
+        "workflow_active": dict(raw["workflow_active"]),
+        "cancel_requested": bool(raw["cancel_requested"]),
+        "run_on_start_effective": bool(raw["run_on_start_effective"]),
+        "schedule_effective": bool(raw["schedule_effective"]),
+        "full_workflow_effective": bool(raw["full_workflow_effective"]),
+        "automatic_month_close_effective": bool(raw["automatic_month_close_effective"]),
+        "release_processing": [str(item) for item in raw["release_processing"]],
+    }
+
+
+def _request_controlled_cancellation(app_module: Any) -> bool:
+    update_state = getattr(app_module, "update_state", None)
+    if not callable(update_state):
+        return False
+    try:
+        update_state(
+            cancel_requested=True,
+            workflow_cancel_reason="release_validation_hold_drift",
+        )
+        return True
+    except Exception:
+        return False
+
+
+def reconcile_measured_runtime(
+    project_root: Path | str,
+    app_module: Any,
+    now: Any = None,
+) -> ModeState:
+    """Reconcile against measured runtime. Probe failure is fail-closed and never OK."""
+    root = Path(project_root)
+    state = load_mode_state(root)
+    hold = load_release_hold(root, str(app_module.APP_VERSION))
+    reconciled_at = _reconciled_at(now)
+
+    try:
+        observed = observe_measured_runtime(app_module, root, state, hold)
+    except Exception as exc:
+        updated = replace(
+            state,
+            observed_profile={},
+            reconciliation_status="required",
+            last_reconciled_at=reconciled_at,
+            drift=(f"runtime_probe_unavailable:{type(exc).__name__}",),
+        )
+        save_mode_state(root, updated)
+        return updated
+
+    drift: list[str] = []
+    if hold.active:
+        if observed["workflow_running"]:
+            drift.append("workflow_running_during_release_hold")
+        if observed["run_on_start_effective"]:
+            drift.append("run_on_start_enabled_during_release_hold")
+        if observed["schedule_effective"]:
+            drift.append("schedule_enabled_during_release_hold")
+        if observed["full_workflow_effective"]:
+            drift.append("full_workflow_enabled_during_release_hold")
+        if observed["automatic_month_close_effective"]:
+            drift.append("automatic_month_close_enabled_during_release_hold")
+    else:
+        desired = profile_for(state.effective_mode, state.suspended_features)
+        if observed["schedule_effective"] != desired.schedule_enabled:
+            drift.append(
+                f"schedule_effective: expected={desired.schedule_enabled!r} observed={observed['schedule_effective']!r}"
+            )
+        if observed["full_workflow_effective"] != desired.full_workflow_enabled:
+            drift.append(
+                f"full_workflow_effective: expected={desired.full_workflow_enabled!r} observed={observed['full_workflow_effective']!r}"
+            )
+        if observed["automatic_month_close_effective"] != desired.automatic_month_close_enabled:
+            drift.append(
+                "automatic_month_close_effective: "
+                f"expected={desired.automatic_month_close_enabled!r} observed={observed['automatic_month_close_effective']!r}"
+            )
+
+    if hold.active and observed["workflow_running"]:
+        if not _request_controlled_cancellation(app_module):
+            drift.append("controlled_cancellation_request_failed")
 
     updated = replace(
         state,
@@ -121,12 +300,8 @@ def reconcile_state(project_root: Path | str, observed_profile: dict[str, Any], 
         last_reconciled_at=reconciled_at,
         drift=tuple(drift),
     )
-    save_mode_state(project_root, updated)
+    save_mode_state(root, updated)
     return updated
-
-
-def observe_operating_mode_runtime(state: ModeState) -> dict[str, Any]:
-    return asdict(profile_for(state.effective_mode, state.suspended_features))
 
 
 def operating_mode_snapshot(state: ModeState) -> dict[str, Any]:
@@ -149,13 +324,19 @@ def operating_mode_snapshot(state: ModeState) -> dict[str, Any]:
     }
 
 
-def operating_mode_tick(project_root: Path | str | None = None) -> dict[str, Any]:
+def operating_mode_tick(
+    project_root: Path | str | None = None,
+    app_module: Any = None,
+) -> dict[str, Any]:
     root = Path(project_root) if project_root is not None else operating_mode_project_root()
     before = load_mode_state(root)
     pending = _pending_command(root)
     state = process_mode_command(root)
-    observed = observe_operating_mode_runtime(state)
-    state = reconcile_state(root, observed)
+    if app_module is None:
+        observed = observe_operating_mode_runtime(state)
+        state = reconcile_state(root, observed)
+    else:
+        state = reconcile_measured_runtime(root, app_module)
     snapshot = operating_mode_snapshot(state)
     request_id = str((pending or {}).get("request_id") or "")
     if request_id and request_id != before.last_processed_request_id and request_id == state.last_processed_request_id:
@@ -175,10 +356,15 @@ def operating_mode_tick(project_root: Path | str | None = None) -> dict[str, Any
     return snapshot
 
 
-def operating_mode_worker(stop_event: Any, project_root: Path | str | None = None, interval_seconds: float = 5.0) -> None:
+def operating_mode_worker(
+    stop_event: Any,
+    project_root: Path | str | None = None,
+    app_module: Any = None,
+    interval_seconds: float = 5.0,
+) -> None:
     root = Path(project_root) if project_root is not None else operating_mode_project_root()
     while not stop_event.wait(interval_seconds):
-        operating_mode_tick(root)
+        operating_mode_tick(root, app_module=app_module)
 
 
 def effective_options_for_mode(options: Any, state: ModeState) -> Any:
