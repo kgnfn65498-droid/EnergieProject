@@ -1,3 +1,5 @@
+# Changelog
+
 ## 32.3.12
 
 - Enforced USER / DEVELOPMENT / MAINTENANCE operating-mode controller.

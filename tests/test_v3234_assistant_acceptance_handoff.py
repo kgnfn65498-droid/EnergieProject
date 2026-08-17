@@ -31,12 +31,12 @@ def test_runtime_acceptance_uses_writable_inbox_log_handoff_not_projectmanager_s
 
 
 def test_release_identity_is_v3234_handoff_hotfix():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.11"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.12"
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     addon = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.3.11"' in config
-    assert 'APP_VERSION = "32.3.11"' in main
-    assert changelog.startswith("## v32.3.11 — Nomad automation reload hotfix")
-    assert addon.startswith("# Changelog\n\n## 32.3.11 - Nomad automation reload hotfix")
+    assert 'version: "32.3.12"' in config
+    assert 'APP_VERSION = "32.3.12"' in main
+    assert changelog.startswith("## 32.3.12 — Operating modes enforced")
+    assert addon.startswith("# Changelog\n\n## 32.3.12")

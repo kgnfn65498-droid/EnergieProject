@@ -182,6 +182,7 @@ def test_historical_report_readiness_accepts_complete_smp_core(monkeypatch, tmp_
 
 def test_report_adapter_uses_same_smp_totals_as_analysis(monkeypatch, tmp_path):
     m = load_main("smp_report_adapter")
+    monkeypatch.setattr(m, "STATE_PATH", tmp_path / "state.json")
     monkeypatch.setattr(m, "NAS_DATA_ROOT", tmp_path / "Data")
     monkeypatch.setattr(m, "OUTPUT_ROOT", tmp_path / "config_output")
     monkeypatch.setattr(m, "MONTH_INPUT_ROOT", tmp_path / "month_input")
@@ -214,6 +215,7 @@ def test_report_adapter_uses_same_smp_totals_as_analysis(monkeypatch, tmp_path):
 
 def test_durable_publication_replaces_only_exact_month_after_validation(monkeypatch, tmp_path):
     m = load_main("smp_durable_publish")
+    monkeypatch.setattr(m, "STATE_PATH", tmp_path / "state.json")
     monkeypatch.setattr(m, "NAS_DATA_ROOT", tmp_path / "Data")
     output = tmp_path / "service_output"
     output.mkdir()

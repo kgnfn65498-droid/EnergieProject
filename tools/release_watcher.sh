@@ -222,6 +222,8 @@ case "${1:-run}" in
   *) echo "Gebruik: $0 [run|once|status|stop]" >&2; exit 2;;
 esac
 
+# Cross-namespace singleton-claim. PID's zijn niet betrouwbaar tussen QNAP-host
+# en Docker namespaces; de gedeelde heartbeat bepaalt daarom of de lock actief is.
 if ! mkdir "$WATCHER_LOCK" 2>/dev/null; then
   AGE="$(heartbeat_age)"
   if [ -f "$HEARTBEAT" ] && [ "$AGE" -lt "$HEARTBEAT_STALE_SECONDS" ]; then
