@@ -29,6 +29,7 @@ class ModeState:
     base_mode: Mode = Mode.USER
     effective_mode: Mode = Mode.USER
     automatic_switching_enabled: bool = True
+    development_session_active: bool = False
     temporary_reason: str = ""
     active_transition_id: str = ""
     suspended_features: tuple[str, ...] = ()
@@ -127,6 +128,12 @@ def load_mode_state(project_root: Path | str) -> ModeState:
     if not isinstance(automatic, bool):
         return _migrated_user_state("legacy_or_invalid_state_migrated")
 
+    development_session = raw.get("development_session_active", base_mode is Mode.DEVELOPMENT)
+    if not isinstance(development_session, bool):
+        return _migrated_user_state("legacy_or_invalid_state_migrated")
+    if development_session and base_mode is not Mode.DEVELOPMENT:
+        return _migrated_user_state("legacy_or_invalid_state_migrated")
+
     suspended_raw = raw.get("suspended_features", [])
     drift_raw = raw.get("drift", [])
     observed_raw = raw.get("observed_profile", {})
@@ -148,6 +155,7 @@ def load_mode_state(project_root: Path | str) -> ModeState:
         base_mode=base_mode,
         effective_mode=effective_mode,
         automatic_switching_enabled=automatic,
+        development_session_active=development_session,
         temporary_reason=str(raw.get("temporary_reason", "")),
         active_transition_id=str(raw.get("active_transition_id", "")),
         suspended_features=suspended,
@@ -162,12 +170,21 @@ def load_mode_state(project_root: Path | str) -> ModeState:
 def format_chat_status(state: ModeState) -> str:
     auto = "AAN" if state.automatic_switching_enabled else "UIT"
     text = f"[MODE] {state.effective_mode.value} · AUTO {auto} · basis {state.base_mode.value}"
+    if state.development_session_active:
+        text += " · ontwikkelsessie actief"
     if state.temporary_reason:
         text += f" · {state.temporary_reason}"
     return text
 
 
-_COMMAND_ACTIONS = frozenset({"set_base", "set_auto", "begin_temporary", "end_temporary", "reconcile"})
+_COMMAND_ACTIONS = frozenset({
+    "set_base",
+    "set_auto",
+    "begin_temporary",
+    "end_temporary",
+    "reconcile",
+    "close_development_session",
+})
 
 
 @dataclass(frozen=True)
@@ -181,6 +198,7 @@ class ModeCommand:
     enabled: bool | None = None
     transition_id: str = ""
     suspended_features: tuple[str, ...] = ()
+    confirmed_by_user: bool = False
 
     @classmethod
     def from_payload(cls, raw: dict[str, Any]) -> "ModeCommand":
@@ -201,6 +219,10 @@ class ModeCommand:
         if enabled is not None and not isinstance(enabled, bool):
             raise ValueError("enabled must be a boolean")
 
+        confirmed_by_user = raw.get("confirmed_by_user", False)
+        if not isinstance(confirmed_by_user, bool):
+            raise ValueError("confirmed_by_user must be a boolean")
+
         suspended_raw = raw.get("suspended_features", [])
         if not isinstance(suspended_raw, (list, tuple)):
             raise ValueError("suspended_features must be a list")
@@ -216,6 +238,7 @@ class ModeCommand:
             enabled=enabled,
             transition_id=str(raw.get("transition_id", "")).strip(),
             suspended_features=suspended,
+            confirmed_by_user=confirmed_by_user,
         )
         if action in {"set_base", "begin_temporary"} and requested_mode is None:
             raise ValueError(f"requested_mode is required for {action}")
@@ -236,10 +259,31 @@ def set_base_mode(state: ModeState, mode: Mode | str) -> ModeState:
     resolved = Mode(mode)
     if state.active_transition_id:
         return _add_drift(state, "base_mode_change_blocked_active_transition")
+    if state.development_session_active and resolved is not Mode.DEVELOPMENT:
+        return _add_drift(state, "development_session_requires_explicit_close")
     return replace(
         state,
         base_mode=resolved,
         effective_mode=resolved,
+        development_session_active=resolved is Mode.DEVELOPMENT,
+        temporary_reason="",
+        active_transition_id="",
+        suspended_features=(),
+    )
+
+
+def close_development_session(state: ModeState, confirmed_by_user: bool) -> ModeState:
+    if not state.development_session_active:
+        return _add_drift(state, "development_session_not_active")
+    if not confirmed_by_user:
+        return _add_drift(state, "development_session_close_requires_user_confirmation")
+    if state.active_transition_id:
+        return _add_drift(state, "development_session_close_blocked_active_transition")
+    return replace(
+        state,
+        base_mode=Mode.USER,
+        effective_mode=Mode.USER,
+        development_session_active=False,
         temporary_reason="",
         active_transition_id="",
         suspended_features=(),
@@ -326,6 +370,8 @@ def process_mode_command(project_root: Path | str, now: Any = None) -> ModeState
         )
     elif command.action == "end_temporary":
         updated = end_temporary_mode(state, command.transition_id)
+    elif command.action == "close_development_session":
+        updated = close_development_session(state, command.confirmed_by_user)
     elif command.action == "reconcile":
         updated = state
 
