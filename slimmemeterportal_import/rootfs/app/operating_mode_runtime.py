@@ -2,17 +2,45 @@ from __future__ import annotations
 
 from dataclasses import asdict, replace
 from datetime import datetime
+import json
 from pathlib import Path
+import threading
 from typing import Any
 
 from operating_modes import (
     ModeState,
+    command_path,
     format_chat_status,
     load_mode_state,
     process_mode_command,
     profile_for,
     save_mode_state,
 )
+
+
+_MODE_HISTORY_LOCK = threading.Lock()
+
+
+def mode_history_path(project_root: Path | str) -> Path:
+    return Path(project_root) / "Data/03_Systeem/Projectmanager/Logs/operating_mode_history.jsonl"
+
+
+def _pending_command(project_root: Path | str) -> dict[str, Any] | None:
+    path = command_path(project_root)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+def _append_mode_history(project_root: Path | str, event: dict[str, Any]) -> None:
+    path = mode_history_path(project_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n"
+    with _MODE_HISTORY_LOCK:
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(line)
 
 
 def operating_mode_project_root() -> Path:
@@ -81,10 +109,28 @@ def operating_mode_snapshot(state: ModeState) -> dict[str, Any]:
 
 def operating_mode_tick(project_root: Path | str | None = None) -> dict[str, Any]:
     root = Path(project_root) if project_root is not None else operating_mode_project_root()
+    before = load_mode_state(root)
+    pending = _pending_command(root)
     state = process_mode_command(root)
     observed = observe_operating_mode_runtime(state)
     state = reconcile_state(root, observed)
-    return operating_mode_snapshot(state)
+    snapshot = operating_mode_snapshot(state)
+    request_id = str((pending or {}).get("request_id") or "")
+    if request_id and request_id != before.last_processed_request_id and request_id == state.last_processed_request_id:
+        _append_mode_history(root, {
+            "timestamp": state.last_reconciled_at or datetime.now().astimezone().isoformat(),
+            "request_id": request_id,
+            "issued_by": str((pending or {}).get("issued_by") or ""),
+            "action": str((pending or {}).get("action") or ""),
+            "base_mode": state.base_mode.value,
+            "from_effective_mode": before.effective_mode.value,
+            "to_effective_mode": state.effective_mode.value,
+            "reason": str((pending or {}).get("reason") or ""),
+            "desired_profile": snapshot["desired_profile"],
+            "observed_profile": snapshot["observed_profile"],
+            "reconciliation_status": state.reconciliation_status,
+        })
+    return snapshot
 
 
 def operating_mode_worker(stop_event: Any, project_root: Path | str | None = None, interval_seconds: float = 5.0) -> None:
