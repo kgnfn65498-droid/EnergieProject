@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/v32318_patch_gz/part* | base64 -d | gzip -d > /tmp/v32318.patch
+          cat .github/v32318_patch_gz/full.b64 | base64 -d | gzip -d > /tmp/v32318.patch
           git apply --check /tmp/v32318.patch
           git apply /tmp/v32318.patch
           rm -rf .github/v32318_patch_gz
