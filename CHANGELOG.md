@@ -1,3 +1,12 @@
+## v32.3.7 — Assistant full analysis cache hotfix
+
+- Bouwt de volledige gevalideerde read-only assistant-analysecontext één keer buiten de 5-seconden request-gate en serveert vragen daarna uit een geïsoleerde in-memory kopie.
+- Behoudt de v32.3.6 kwartiercache/prewarm en voorkomt daarnaast herhaalde SlimmeMeterPortal raw-parsing, EPEX-maandlezingen, contractcontextopbouw en overige maandanalyse per vraag.
+- Startup self-probe start pas na kwartierprewarm én volledige analyseprewarm; acceptance legt beide prewarmtijden vast.
+- Een daemon ververst de volledige assistant-context iedere 15 minuten; bij refreshfout blijft de laatst geldige context actief.
+- De 5-seconden runtimeprobe, zeven acceptancechecks, bronvalidatie, read-only contract, write/action-guards en augustus PARTIAL-beleid blijven ongewijzigd.
+- Geen rechtenverruiming, brondatawrite, device-control, contractmutatie, maandafsluiting of `finalize_month`.
+
 ## v32.3.6 — Assistant quarter-hour prewarm/cache hotfix
 
 - Valideert de bestaande actuele Home Assistant-kwartierreeks één keer bij startup en houdt de read-only assistantreeks daarna in geheugen.

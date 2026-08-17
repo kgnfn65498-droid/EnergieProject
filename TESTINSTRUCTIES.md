@@ -1,3 +1,14 @@
+# Testinstructies v32.3.7 — assistant full analysis cache hotfix
+
+1. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.7.
+2. Draai `tests/test_v3237_assistant_analysis_cache.py` en bevestig RED→GREEN: één analysebuild wordt hergebruikt en callers krijgen geïsoleerde kopieën.
+3. Verifieer dat startup eerst `prewarm_assistant_quarter_hour_cache()` en daarna `prewarm_assistant_analysis_cache()` uitvoert vóór `run_assistant_runtime_probe()`.
+4. Verifieer dat `ASSISTANT_ENGINE` de gecachete provider gebruikt en dat de zware beheeranalyse voor dashboards/rapportage ongewijzigd blijft.
+5. Draai gesprekspartner-, runtimeprobe-, mount-, handoff-, fast-context- en kwartiercache-regressies plus de volledige pytest-suite.
+6. Compile alle Pythonbestanden, controleer shellsyntax, manifest/SHA256 en ZIP-integriteit vanuit een verse uitpak.
+7. Live moet `Inbox/logs/assistant_runtime_acceptance.json` release 32.3.7 melden met alle zeven checks PASS en iedere HTTP-contextcall binnen de bestaande 5-secondenlimiet.
+8. Voice blijft uit tot die live acceptance groen is; augustus blijft OPEN/PARTIEEL en `finalize_month` wordt niet gebruikt.
+
 # Testinstructies v32.3.6 — assistant quarter-hour prewarm/cache hotfix
 
 1. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.6.

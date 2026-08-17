@@ -47,7 +47,8 @@ def test_assistant_wiring_uses_fast_month_context_and_runtime_roots():
     assert "from project_paths import find_existing_nas_roots" in source
     assert "def _assistant_runtime_data_root()" in source
     assert "def build_assistant_analysis_context(" in source
-    assert "analysis_provider=build_assistant_analysis_context" in source
+    assert "def build_assistant_analysis_context(" in source
+    assert "analysis_provider=get_assistant_analysis_context" in source
     assert "analysis_provider=build_analysis_context" not in source[source.index("ASSISTANT_ENGINE = EnergyConversationEngine"):source.index("def analysis_overview")]
     assert "load_quarter_hour_series_once" in source
     assert "root = _assistant_runtime_data_root() / \"02_Output\" / \"Rapportages\" / \"KnowledgeBase\"" in source

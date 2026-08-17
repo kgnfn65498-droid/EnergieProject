@@ -17,11 +17,11 @@ def _load_paths():
     return module
 
 def test_v32038_release_identity():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.6"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.7"
     config = CONFIG.read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
-    assert 'version: "32.3.6"' in config
-    assert 'APP_VERSION = "32.3.6"' in main
+    assert 'version: "32.3.7"' in config
+    assert 'APP_VERSION = "32.3.7"' in main
 
 def test_v32038_automatic_publication_contract_remains_fail_closed():
     config = CONFIG.read_text(encoding="utf-8")

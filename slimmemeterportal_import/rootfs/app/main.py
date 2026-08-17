@@ -44,6 +44,7 @@ from project_structure import HISTORICAL_BOOTSTRAP_STATUS_RELATIVE, migrate_proj
 from historical_energy_excel import bootstrap_historical_energy_workbook, publish_historical_energy_workbook
 from energy_conversation import EnergyConversationEngine
 from assistant_fast_context import load_quarter_hour_series_once
+from assistant_analysis_cache import AssistantAnalysisCache
 from assistant_runtime_probe import (
     MAX_REQUEST_BYTES as MAX_ASSISTANT_REQUEST_BYTES,
     resolve_runtime_acceptance_path,
@@ -71,7 +72,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.6"
+APP_VERSION = "32.3.7"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -11560,6 +11561,44 @@ def build_assistant_analysis_context(year: int | None = None) -> dict[str, Any]:
     }
 
 
+ASSISTANT_ANALYSIS_CACHE = AssistantAnalysisCache(build_assistant_analysis_context)
+
+
+def get_assistant_analysis_context(year: int | None = None) -> dict[str, Any]:
+    """Return the latest validated assistant context without request-time source rebuilds."""
+    return ASSISTANT_ANALYSIS_CACHE.get(year=year)
+
+
+def prewarm_assistant_analysis_cache() -> dict[str, Any]:
+    """Build the current-year assistant context outside the request latency gate."""
+    year = datetime.now(TZ).year
+    started = time.monotonic()
+    context = ASSISTANT_ANALYSIS_CACHE.refresh(year=year)
+    return {
+        "year": year,
+        "elapsed_ms": round((time.monotonic() - started) * 1000.0, 1),
+        "month_count": len(context.get("months") or []),
+        "status": "ready",
+    }
+
+
+def assistant_analysis_cache_refresh_loop(stop_event: threading.Event, interval_seconds: float = 900.0) -> None:
+    """Refresh read-only assistant context periodically; retain the last good cache on errors."""
+    interval = max(60.0, float(interval_seconds))
+    while not stop_event.wait(interval):
+        try:
+            result = prewarm_assistant_analysis_cache()
+            LOGGER.info(
+                "Assistant analysis cache refresh v%s: year=%s elapsed_ms=%s months=%s",
+                APP_VERSION,
+                result.get("year"),
+                result.get("elapsed_ms"),
+                result.get("month_count"),
+            )
+        except Exception:
+            LOGGER.exception("Assistant analysis cache refresh mislukt; laatst geldige cache blijft actief.")
+
+
 def prewarm_assistant_quarter_hour_cache() -> dict[str, Any]:
     """Warm the current-month assistant cache before runtime acceptance calls."""
     month_key = datetime.now(TZ).strftime("%Y_%m")
@@ -11581,7 +11620,7 @@ def prewarm_assistant_quarter_hour_cache() -> dict[str, Any]:
 
 ASSISTANT_ENGINE = EnergyConversationEngine(
     app_version=APP_VERSION,
-    analysis_provider=build_assistant_analysis_context,
+    analysis_provider=get_assistant_analysis_context,
     knowledge_provider=_assistant_knowledge_context,
     now_provider=lambda: datetime.now(TZ),
     session_ttl_seconds=7200,
@@ -19284,8 +19323,23 @@ def main() -> None:
                 prewarm.get("elapsed_ms"),
                 prewarm.get("series_counts"),
             )
+            analysis_cache_prewarm = prewarm_assistant_analysis_cache()
+            LOGGER.info(
+                "Assistant analysis cache prewarm v%s: year=%s elapsed_ms=%s months=%s",
+                APP_VERSION,
+                analysis_cache_prewarm.get("year"),
+                analysis_cache_prewarm.get("elapsed_ms"),
+                analysis_cache_prewarm.get("month_count"),
+            )
+            threading.Thread(
+                target=assistant_analysis_cache_refresh_loop,
+                args=(STOP,),
+                daemon=True,
+                name="assistant-analysis-cache-refresh",
+            ).start()
             result = run_assistant_runtime_probe(app_version=APP_VERSION)
             result["prewarm"] = prewarm
+            result["analysis_cache_prewarm"] = analysis_cache_prewarm
             result["checked_at"] = datetime.now(TZ).isoformat()
             result["release"] = APP_VERSION
             result["read_only_probe"] = True
