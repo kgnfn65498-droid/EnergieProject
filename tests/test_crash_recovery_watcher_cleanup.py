@@ -92,7 +92,6 @@ def test_helper_removes_only_exact_run_artifacts_and_is_idempotent(tmp_path):
     assert keep_full.exists()
     assert keep_release.exists()
 
-    # Dezelfde request is veilig opnieuw uitvoerbaar.
     proc2 = subprocess.run(
         [sys.executable, str(HELPER), "--root", str(project), "--request", str(request_path), "--result", str(result_path)],
         text=True,
@@ -138,11 +137,13 @@ def test_helper_rejects_manifest_not_derived_from_backup(tmp_path):
     assert "manifest" in result["error"].lower()
 
 
-def test_release_watcher_processes_cleanup_request_before_release_scan():
+def test_release_watcher_processes_cleanup_request_only_behind_maintenance_gate():
     source = WATCHER.read_text(encoding="utf-8")
     assert 'CRASH_CLEANUP_REQUEST="$INBOX/crash_recovery_cleanup_request.json"' in source
     assert 'CRASH_CLEANUP_RESULT="$INBOX/crash_recovery_cleanup_result.json"' in source
     assert 'CRASH_CLEANUP_HELPER="$PROJECT/tools/crash_recovery_cleanup.py"' in source
     assert "process_crash_recovery_cleanup" in source
     loop = source.split("while :; do", 1)[1]
-    assert loop.index("process_crash_recovery_cleanup") < loop.index('set -- "$INCOMING"/*.zip')
+    assert loop.index("mode_allows maintenance_requests") < loop.index("process_crash_recovery_cleanup")
+    assert loop.index("process_crash_recovery_cleanup") < loop.index("mode_allows release_ingress")
+    assert loop.index("mode_allows release_ingress") < loop.index('set -- "$INCOMING"/*.zip')
