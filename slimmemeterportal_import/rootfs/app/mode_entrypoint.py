@@ -4,6 +4,7 @@ import threading
 
 import main as app
 from operating_mode_runtime import (
+    install_mode_overrides,
     operating_mode_project_root,
     operating_mode_tick,
     operating_mode_worker,
@@ -13,6 +14,7 @@ from operating_mode_runtime import (
 def start_operating_mode_runtime() -> None:
     root = operating_mode_project_root()
     operating_mode_tick(root)
+    install_mode_overrides(app, root)
     threading.Thread(
         target=operating_mode_worker,
         args=(app.STOP, root),
