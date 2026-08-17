@@ -1,4 +1,4 @@
-name: v32.3.12 release migration
+name: v32.3.12 verification
 
 on:
   push:
@@ -6,98 +6,21 @@ on:
       - feature/v32.3.12-operating-modes
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  migrate-and-test:
-    if: github.actor != 'github-actions[bot]'
+  verify:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout feature branch
         uses: actions/checkout@v4
         with:
           ref: feature/v32.3.12-operating-modes
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
-      - name: Repair verified regression causes
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          # Current-release tests in this repository intentionally track the
-          # active release even when their filename refers to an older feature.
-          for path in Path('tests').rglob('test_*.py'):
-              text = path.read_text(encoding='utf-8')
-              updated = text.replace('32.3.11', '32.3.12')
-              updated = updated.replace(
-                  '## v32.3.12 — Nomad automation reload hotfix',
-                  '## 32.3.12 — Operating modes enforced',
-              )
-              updated = updated.replace(
-                  '## 32.3.12 - Nomad automation reload hotfix',
-                  '## 32.3.12',
-              )
-              updated = updated.replace(
-                  'python3 -u /app/main.py',
-                  'python3 -u /app/mode_entrypoint.py',
-              )
-              if updated != text:
-                  path.write_text(updated, encoding='utf-8')
-
-          # The hosted runner exposes that two SMP fallback tests forgot to
-          # isolate main.STATE_PATH and therefore attempted to write /config.
-          smp_path = Path('tests/test_smp_report_fallback.py')
-          smp = smp_path.read_text(encoding='utf-8')
-          for loader in ('smp_report_adapter', 'smp_durable_publish'):
-              needle = f'    m = load_main("{loader}")\n'
-              addition = needle + '    monkeypatch.setattr(m, "STATE_PATH", tmp_path / "state.json")\n'
-              if addition not in smp:
-                  if needle not in smp:
-                      raise SystemExit(f'Expected fixture marker missing: {loader}')
-                  smp = smp.replace(needle, addition, 1)
-          smp_path.write_text(smp, encoding='utf-8')
-
-          # Restore the v10.5.17 singleton contract comment lost while the
-          # watcher loop was reconstructed for mode gating.
-          watcher_path = Path('tools/release_watcher.sh')
-          watcher = watcher_path.read_text(encoding='utf-8')
-          singleton = (
-              '# Cross-namespace singleton-claim. PID\'s zijn niet betrouwbaar tussen QNAP-host\n'
-              '# en Docker namespaces; de gedeelde heartbeat bepaalt daarom of de lock actief is.\n'
-          )
-          marker = 'if ! mkdir "$WATCHER_LOCK" 2>/dev/null; then\n'
-          if 'Cross-namespace singleton-claim' not in watcher:
-              if marker not in watcher:
-                  raise SystemExit('Watcher singleton marker missing')
-              watcher = watcher.replace(marker, singleton + marker, 1)
-          watcher_path.write_text(watcher, encoding='utf-8')
-
-          # Preserve the established one-current-release changelog structure.
-          addon = Path('slimmemeterportal_import/CHANGELOG.md')
-          body = addon.read_text(encoding='utf-8')
-          if not body.startswith('# Changelog\n\n'):
-              body = '# Changelog\n\n' + body.lstrip()
-          addon.write_text(body, encoding='utf-8')
-          PY
-
-      - name: Commit verified repairs
-        shell: bash
-        run: |
-          if git diff --quiet; then
-            echo 'No repair changes required.'
-          else
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add tests tools/release_watcher.sh slimmemeterportal_import/CHANGELOG.md
-            git commit -m 'test: align v32.3.12 regression contracts'
-            git push origin HEAD:feature/v32.3.12-operating-modes
-          fi
 
       - name: Install test dependencies
         run: |
