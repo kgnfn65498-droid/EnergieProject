@@ -15,42 +15,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: hotfix/v32.3.13-mode-state-permissions
-      - name: Align release tests and shared mode paths
+      - name: Align root changelog release heading
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-
-          # Release tests in this repository intentionally assert the current release literal.
-          # Advance only that known literal from 32.3.12 to 32.3.13.
-          for p in Path('tests').glob('*.py'):
-              text = p.read_text(encoding='utf-8')
-              new = text.replace('32.3.12', '32.3.13').replace('32\\.3\\.12', '32\\.3\\.13')
-              new = new.replace(
-                  'Data/03_Systeem/Projectmanager/State/operating_mode_state.json',
-                  'Inbox/operating_mode/operating_mode_state.json',
-              ).replace(
-                  'Data/03_Systeem/Projectmanager/State/operating_mode_command.json',
-                  'Inbox/operating_mode/operating_mode_command.json',
-              ).replace(
-                  'Data/03_Systeem/Projectmanager/Logs/operating_mode_history.jsonl',
-                  'Inbox/logs/operating_mode_history.jsonl',
-              )
-              if new != text:
-                  p.write_text(new, encoding='utf-8')
-
-          # HA add-on changelog contract: current release only.
-          Path('slimmemeterportal_import/CHANGELOG.md').write_text(
-              '# Changelog\n\n'
-              '## 32.3.13\n\n'
-              '- USER / DEVELOPMENT / MAINTENANCE operating-mode controller with automatic temporary escalation and safe return.\n'
-              '- Release Incoming is enabled only in DEVELOPMENT; maintenance requests only in MAINTENANCE.\n'
-              '- USER enforces scheduled workflow and automatic previous-month close while blocking current-month finalization.\n'
-              '- Hotfix: operating-mode runtime state and commands use the shared writable Inbox area instead of protected Projectmanager/State.\n'
-              '- Prevents Home Assistant startup failure while preserving Projectmanager least-privilege protection.\n',
-              encoding='utf-8',
-          )
+          p = Path('CHANGELOG.md')
+          text = p.read_text(encoding='utf-8')
+          old = '## 32.3.12 — Operating modes enforced'
+          new = '## 32.3.13 — Operating modes enforced'
+          if old in text:
+              text = text.replace(old, new, 1)
+              p.write_text(text, encoding='utf-8')
+          elif not text.startswith(new):
+              raise SystemExit('unexpected root changelog heading')
           PY
           if git diff --quiet; then
             echo NO_CHANGES
@@ -58,6 +37,6 @@ jobs:
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add tests slimmemeterportal_import/CHANGELOG.md
-          git commit -m 'test: align v32.3.13 release and mode path contracts'
+          git add CHANGELOG.md
+          git commit -m 'docs: align v32.3.13 root changelog heading'
           git push
