@@ -1,5 +1,5 @@
 name: "SlimmeMeterPortal Import"
-version: "32.3.7"
+version: "32.3.8"
 slug: "slimmemeterportal_import"
 description: "Onafhankelijke maandcontrole via de officiële SlimmeMeterPortal UserAPI."
 url: "https://github.com/kgnfn65498-droid/EnergieProject"
@@ -8,6 +8,10 @@ arch:
   - amd64
 init: false
 homeassistant_api: true
+hassio_api: true
+hassio_role: default
+discovery:
+  - energie_assistant
 startup: services
 boot: auto
 ingress: true

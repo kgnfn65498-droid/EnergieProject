@@ -1,8 +1,7 @@
 # Changelog
 
-## 32.3.7 - Assistant full analysis cache hotfix
-- De volledige gevalideerde assistant-analyse wordt vóór runtime-acceptance opgebouwd en daarna read-only uit geheugen geleverd.
-- Herhaalde vragen herlezen geen SMP raw-, EPEX- of maandanalysebronnen binnen de request-gate.
-- Achtergrondrefresh iedere 15 minuten houdt de context actueel; bij fout blijft de laatst geldige cache behouden.
-- De bestaande 5-seconden probe en alle kwaliteit-/write/action-guards blijven ongewijzigd.
-- Geen rechtenverruiming, brondatawrite, device-control, contractmutatie, maandafsluiting of `finalize_month`.
+## 32.3.8 - Home Assistant conversation transport
+- Nieuwe read-only `/api/assistant/respond`-route met exact dezelfde requestlimiet en payloadguard als de geaccepteerde contextroute.
+- Secret-free Supervisor discovery met `hassio_api: true` / `hassio_role: default` voor `energie_assistant` op de interne app-poort 8099; geen externe poortmapping.
+- De bestaande zeven-check runtimeacceptatie, analyse-/kwartiercaches en 5-seconden requestgate blijven ongewijzigd.
+- Geen device-control, contractmutatie, projectwrite, rechtenverruiming, maandafsluiting of `finalize_month`.

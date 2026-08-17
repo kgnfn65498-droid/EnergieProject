@@ -1,3 +1,15 @@
+# Testinstructies v32.3.8 — Home Assistant conversation transport
+
+1. Valideer `VERSIE.txt`, add-on `config.yaml`, `APP_VERSION` en custom-integrationmanifest exact als 32.3.8.
+2. Draai `tests/test_v3238_assistant_response.py`: deterministische gas/finance/apparatuurrespons en strikte read-only payloadguard moeten groen zijn.
+3. Draai `tests/test_v3238_assistant_discovery.py`: Supervisor discovery bevat alleen interne host/8099/SSL=false/api_path/version, geen token; `hassio_api: true` gebruikt uitsluitend `hassio_role: default`, en er bestaat geen `8099/tcp` externe mapping.
+4. Draai `tests/test_v3238_homeassistant_conversation_integration.py`: conversation-agent heeft `ConversationEntityFeature(0)` en nergens `CONTROL`; privacy-switch start bij eerste installatie UIT en restoreert alleen zijn eigen gate.
+5. Herhaal alle v32.3.0-v32.3.7 assistant-/probe-/mount-/cache-regressies; de bestaande zeven-check backendacceptatie moet inhoudelijk ongewijzigd blijven.
+6. Draai volledige pytest-suite, compile alle Pythonbestanden, controleer alle shellscripts met `sh -n` en verifieer manifest/SHA/ZIP vanuit een verse uitpak.
+7. Live na installatie: v32.3.8 backendacceptatie blijft 7/7 PASS en Supervisor discovery publiceert `energie_assistant` zonder backend-gate te verzwakken.
+8. Home Assistant custom integration wordt daarna via de normale GUI/HACS-route geïnstalleerd/geaccepteerd; eerste tekst-Assisttest gebeurt met privacy-switch expliciet AAN.
+9. Geen STT/TTS/wake-word/satellite in deze release; Voice wordt pas ACTIEF na afzonderlijke transportacceptatie. Augustus blijft OPEN/PARTIAL en `finalize_month` blijft verboden.
+
 # Testinstructies v32.3.7 — assistant full analysis cache hotfix
 
 1. Valideer `VERSIE.txt`, add-on `config.yaml` en `APP_VERSION` exact als 32.3.7.

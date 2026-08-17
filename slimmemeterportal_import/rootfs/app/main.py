@@ -45,6 +45,8 @@ from historical_energy_excel import bootstrap_historical_energy_workbook, publis
 from energy_conversation import EnergyConversationEngine
 from assistant_fast_context import load_quarter_hour_series_once
 from assistant_analysis_cache import AssistantAnalysisCache
+from assistant_response import render_assistant_response
+from assistant_discovery import publish_assistant_discovery
 from assistant_runtime_probe import (
     MAX_REQUEST_BYTES as MAX_ASSISTANT_REQUEST_BYTES,
     resolve_runtime_acceptance_path,
@@ -72,7 +74,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.7"
+APP_VERSION = "32.3.8"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -18397,6 +18399,44 @@ class Handler(BaseHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        if path.endswith("/api/assistant/respond") or path == "/api/assistant/respond":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            if length > MAX_ASSISTANT_REQUEST_BYTES:
+                body = json.dumps({"status": "error", "error": "assistant request exceeds 32 KiB"}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, body, "application/json; charset=utf-8")
+                return
+            raw = self.rfile.read(length)
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+                if not isinstance(payload, dict):
+                    raise ValueError("JSON body must be an object")
+                unsupported = sorted(set(payload) - {"query", "session_id"})
+                if unsupported:
+                    raise ValueError("unsupported assistant payload fields: " + ", ".join(unsupported))
+                query = payload.get("query")
+                session_id = payload.get("session_id")
+                if not isinstance(query, str) or not query.strip():
+                    raise ValueError("query is required")
+                if session_id is not None and not isinstance(session_id, str):
+                    raise ValueError("session_id must be a string")
+                context = ASSISTANT_ENGINE.context(query, session_id=session_id)
+                result = {
+                    "schema": "energie_assistant_response_v1",
+                    "version": APP_VERSION,
+                    "speech": render_assistant_response(context),
+                    "session_id": context.get("session_id"),
+                    "context": context,
+                }
+                body = json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8")
+                self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+            except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+                body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.BAD_REQUEST, body, "application/json; charset=utf-8")
+            except Exception as exc:
+                LOGGER.exception("Assistant response failed")
+                body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, body, "application/json; charset=utf-8")
+            return
         if path.endswith("/api/assistant/context") or path == "/api/assistant/context":
             length = int(self.headers.get("Content-Length", "0") or 0)
             if length > MAX_ASSISTANT_REQUEST_BYTES:
@@ -19345,6 +19385,24 @@ def main() -> None:
             result["read_only_probe"] = True
             result["output_path"] = str(acceptance_path)
             write_atomic_json(acceptance_path, result)
+            if result.get("status") == "PASS":
+                try:
+                    discovery_result = publish_assistant_discovery(app_version=APP_VERSION)
+                    result["supervisor_discovery"] = discovery_result
+                    write_atomic_json(acceptance_path, result)
+                    LOGGER.info(
+                        "Energie Assistant Supervisor discovery v%s: %s host=%s",
+                        APP_VERSION,
+                        discovery_result.get("status"),
+                        discovery_result.get("host"),
+                    )
+                except Exception as discovery_exc:
+                    result["supervisor_discovery"] = {
+                        "status": "warning",
+                        "error": f"{type(discovery_exc).__name__}: {discovery_exc}",
+                    }
+                    write_atomic_json(acceptance_path, result)
+                    LOGGER.warning("Energie Assistant discovery niet gepubliceerd: %s", discovery_exc)
             LOGGER.info(
                 "Assistant runtime self-probe v%s: %s; voice_gate=%s",
                 APP_VERSION,

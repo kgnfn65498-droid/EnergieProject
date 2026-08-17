@@ -1,3 +1,13 @@
+## v32.3.8 — Home Assistant conversation transport
+
+- Voegt een deterministische read-only `/api/assistant/respond`-route toe bovenop de live geaccepteerde v32.3.7 contextbackend; payload blijft strikt beperkt tot `query` en optioneel `session_id`.
+- Publiceert de interne app-locatie secret-free via Home Assistant Supervisor discovery via `hassio_api: true` met expliciete `hassio_role: default`; poort 8099 wordt niet extern gemapt en bestaande filesystemrechten blijven ongewijzigd.
+- Levert een HACS-compatibele `energie_assistant` custom integration met een Home Assistant `ConversationEntity` die expliciet `ConversationEntityFeature(0)` gebruikt en dus geen `CONTROL`-mogelijkheid krijgt.
+- Voegt een herstelbare privacy-schakelaar toe die bij eerste installatie UIT staat en alleen de conversation-entry blokkeert; energiedatacollectie blijft actief.
+- Antwoorden worden deterministisch uit gevalideerde Energie-context opgebouwd; geen cloud-LLM of nieuwe muterende route.
+- Lokale STT/TTS/wake-word/satellite vallen bewust buiten deze release en volgen pas na groene tekst-Assisttransportacceptatie.
+- Augustus 2026 blijft OPEN/PARTIAL; automatische maandafsluiting blijft UIT en `finalize_month` wordt niet gebruikt.
+
 ## v32.3.7 — Assistant full analysis cache hotfix
 
 - Bouwt de volledige gevalideerde read-only assistant-analysecontext één keer buiten de 5-seconden request-gate en serveert vragen daarna uit een geïsoleerde in-memory kopie.
