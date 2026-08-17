@@ -16,6 +16,7 @@ from operating_modes import (
     profile_for,
     save_mode_state,
 )
+from release_validation_hold import ReleaseHoldState, load_release_hold
 
 
 _MODE_HISTORY_LOCK = threading.Lock()
@@ -134,6 +135,7 @@ def operating_mode_snapshot(state: ModeState) -> dict[str, Any]:
         "base_mode": state.base_mode.value,
         "effective_mode": state.effective_mode.value,
         "automatic_switching_enabled": state.automatic_switching_enabled,
+        "development_session_active": state.development_session_active,
         "temporary_reason": state.temporary_reason,
         "active_transition_id": state.active_transition_id,
         "suspended_features": list(state.suspended_features),
@@ -189,6 +191,20 @@ def effective_options_for_mode(options: Any, state: ModeState) -> Any:
     )
 
 
+def effective_options_for_runtime(options: Any, state: ModeState, hold: ReleaseHoldState) -> Any:
+    """Apply normal mode policy, then fail closed for automatic mutating work while HOLD is active."""
+    effective = effective_options_for_mode(options, state)
+    if not hold.active:
+        return effective
+    return replace(
+        effective,
+        run_on_start=False,
+        schedule_enabled=False,
+        full_workflow_enabled=False,
+        automatic_month_close_enabled=False,
+    )
+
+
 def is_fully_closed_month(month_key: str, now: Any = None) -> bool:
     if now is None:
         now = datetime.now().astimezone()
@@ -240,3 +256,54 @@ def install_mode_overrides(app_module: Any, project_root: Path | str) -> None:
 
         app_module.execute_automatic_month_close = guarded_execute
         app_module._operating_mode_close_guard_installed = True
+
+
+def install_release_hold_guards(app_module: Any, project_root: Path | str) -> None:
+    """Install a second, independent safety layer before the scheduler can start."""
+    root = Path(project_root)
+
+    if not getattr(app_module.Options, "_release_hold_wrapper_installed", False):
+        raw_loader = app_module.Options.load
+
+        def hold_safe_load(cls):
+            del cls
+            raw_options = raw_loader()
+            state = load_mode_state(root)
+            hold = load_release_hold(root, str(app_module.APP_VERSION))
+            return effective_options_for_runtime(raw_options, state, hold)
+
+        app_module.Options.load = classmethod(hold_safe_load)
+        app_module.Options._release_hold_wrapper_installed = True
+
+    if not getattr(app_module, "_release_hold_close_guard_installed", False):
+        raw_execute = app_module.execute_automatic_month_close
+
+        def hold_guarded_execute(options, month_key, *args, **kwargs):
+            trigger = kwargs.get("trigger")
+            if trigger is None and args:
+                trigger = args[0]
+            hold = load_release_hold(root, str(app_module.APP_VERSION))
+            if trigger == "automatic" and hold.active:
+                try:
+                    app_module.append_audit_event(
+                        "automatic_month_close",
+                        action="blocked_release_validation_hold",
+                        status="blocked",
+                        details={
+                            "month": month_key,
+                            "reason": "release_validation_hold",
+                            "release_version": hold.release_version,
+                        },
+                    )
+                except Exception:
+                    app_module.LOGGER.exception("Audit logging release-hold block failed")
+                return {
+                    "status": "blocked_release_validation_hold",
+                    "month": month_key,
+                    "trigger": trigger,
+                    "release_version": hold.release_version,
+                }
+            return raw_execute(options, month_key, *args, **kwargs)
+
+        app_module.execute_automatic_month_close = hold_guarded_execute
+        app_module._release_hold_close_guard_installed = True
