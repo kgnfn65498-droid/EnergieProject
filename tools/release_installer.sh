@@ -232,11 +232,17 @@ EOF
 
 write_ha_publication_required(){
   PROCESSED_SHA256="$1"
+  [ -d "$HA_PUBLICATION_REQUIRED" ] && return 1
   TMP_PUBLICATION="$HA_PUBLICATION_REQUIRED.tmp.$$"
   cat > "$TMP_PUBLICATION" <<EOF
 {"status":"publication_required","version":"$NEW_VERSION","repository":"https://github.com/kgnfn65498-droid/EnergieProject","branch":"main","reason":"validated_qnap_release_ready_for_github","expected_previous_version":"$CURRENT_VERSION","expected_previous_manifest_sha256":"$CURRENT_MANIFEST_SHA256","target_manifest_sha256":"$TARGET_MANIFEST_SHA256","processed_zip":"EnergieProject_v$NEW_VERSION.zip","processed_zip_sha256":"$PROCESSED_SHA256"}
 EOF
-  mv "$TMP_PUBLICATION" "$HA_PUBLICATION_REQUIRED"
+  mv "$TMP_PUBLICATION" "$HA_PUBLICATION_REQUIRED" || {
+    rm -f "$TMP_PUBLICATION" 2>/dev/null || true
+    return 1
+  }
+  [ -f "$HA_PUBLICATION_REQUIRED" ] || return 1
+  grep -Fq "\"version\":\"$NEW_VERSION\"" "$HA_PUBLICATION_REQUIRED" || return 1
   log "HA-publicatiecontract gereed voor v$NEW_VERSION; marker=$HA_PUBLICATION_REQUIRED"
 }
 
@@ -424,17 +430,18 @@ if [ "$GIT_AVAILABLE" -eq 1 ]; then
 else
   FINAL_DETAIL="QNAP ZIP-modus zonder git"
 fi
-WORKTREE_REPLACED=0
 CANONICAL_PROCESSED="$PROCESSED/EnergieProject_v${NEW_VERSION}.zip"
-rm -f "$CANONICAL_PROCESSED"
-mv "$ZIP_WORK" "$CANONICAL_PROCESSED"
-ZIP_WORK=""
+rm -f "$CANONICAL_PROCESSED" || fail "oude canonieke processed release verwijderen mislukt"
+mv "$ZIP_WORK" "$CANONICAL_PROCESSED" || fail "release naar processed verplaatsen mislukt"
+ZIP_WORK="$CANONICAL_PROCESSED"
 if [ "$GIT_AVAILABLE" -eq 0 ]; then
   PROCESSED_SHA256="$(sha256sum "$CANONICAL_PROCESSED" 2>/dev/null | awk '{print $1}')"
   [ -n "$PROCESSED_SHA256" ] || fail "processed release SHA256 kon niet worden bepaald"
-  write_ha_publication_required "$PROCESSED_SHA256"
+  write_ha_publication_required "$PROCESSED_SHA256" || fail "HA-publicatiecontract schrijven mislukt"
 fi
 cleanup_old_backups
 cleanup_processed_releases
+ZIP_WORK=""
+WORKTREE_REPLACED=0
 log "SUCCES: $CURRENT_VERSION -> $NEW_VERSION; $FINAL_DETAIL; ZIP canoniek gearchiveerd als EnergieProject_v${NEW_VERSION}.zip in processed."
 schedule_watcher_refresh
