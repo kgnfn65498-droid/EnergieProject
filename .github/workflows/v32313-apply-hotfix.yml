@@ -1,0 +1,73 @@
+name: v32.3.13 apply hotfix
+
+on:
+  push:
+    branches:
+      - hotfix/v32.3.13-mode-state-permissions
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix/v32.3.13-mode-state-permissions
+      - name: Apply exact hotfix patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  if new in text:
+                      return
+                  raise SystemExit(f'missing expected pattern in {path}: {old!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_exact(
+              'slimmemeterportal_import/rootfs/app/operating_modes.py',
+              '_STATE_RELATIVE = Path("Data/03_Systeem/Projectmanager/State/operating_mode_state.json")',
+              '_STATE_RELATIVE = Path("Inbox/operating_mode/operating_mode_state.json")',
+          )
+          replace_exact(
+              'slimmemeterportal_import/rootfs/app/operating_modes.py',
+              '_COMMAND_RELATIVE = Path("Data/03_Systeem/Projectmanager/State/operating_mode_command.json")',
+              '_COMMAND_RELATIVE = Path("Inbox/operating_mode/operating_mode_command.json")',
+          )
+          replace_exact(
+              'slimmemeterportal_import/rootfs/app/operating_mode_runtime.py',
+              'return Path(project_root) / "Data/03_Systeem/Projectmanager/Logs/operating_mode_history.jsonl"',
+              'return Path(project_root) / "Inbox/logs/operating_mode_history.jsonl"',
+          )
+          Path('VERSIE.txt').write_text('32.3.13\n', encoding='utf-8')
+          replace_exact('slimmemeterportal_import/config.yaml', 'version: "32.3.12"', 'version: "32.3.13"')
+          replace_exact('slimmemeterportal_import/rootfs/app/main.py', 'APP_VERSION = "32.3.12"', 'APP_VERSION = "32.3.13"')
+          replace_exact('slimmemeterportal_import/rootfs/app/mode_entrypoint.py', 'TARGET_RELEASE_VERSION = "32.3.12"', 'TARGET_RELEASE_VERSION = "32.3.13"')
+          p = Path('tests/test_v32312_release_identity.py')
+          text = p.read_text(encoding='utf-8').replace('32.3.12', '32.3.13').replace('32\\.3\\.12', '32\\.3\\.13').replace('test_v32312_identity_is_consistent', 'test_v32313_identity_is_consistent')
+          p.write_text(text, encoding='utf-8')
+          p = Path('slimmemeterportal_import/CHANGELOG.md')
+          text = p.read_text(encoding='utf-8')
+          entry = '# Changelog\n\n## 32.3.13\n\n- Hotfix: operating-mode runtime state and commands moved to the shared writable Inbox area.\n- Prevents Home Assistant startup failure when Projectmanager/State is intentionally protected.\n- Projectmanager protection and least-privilege permissions remain unchanged.\n\n'
+          if '## 32.3.13' not in text:
+              if not text.startswith('# Changelog\n'):
+                  raise SystemExit('unexpected addon changelog format')
+              text = entry + text[len('# Changelog\n\n'):]
+              p.write_text(text, encoding='utf-8')
+          PY
+          if git diff --quiet; then
+            echo NO_CHANGES
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add VERSIE.txt slimmemeterportal_import/config.yaml slimmemeterportal_import/CHANGELOG.md slimmemeterportal_import/rootfs/app/main.py slimmemeterportal_import/rootfs/app/mode_entrypoint.py slimmemeterportal_import/rootfs/app/operating_modes.py slimmemeterportal_import/rootfs/app/operating_mode_runtime.py tests/test_v32312_release_identity.py
+          git commit -m 'fix: move operating mode runtime state to writable Inbox'
+          git push
