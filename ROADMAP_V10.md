@@ -108,3 +108,15 @@
 - v32.0.0 — stap 3/3: Final Validation Gate.
 - Na succesvolle Home Assistant-validatie is de huidige roadmap afgerond.
 - Daarna alleen gerichte v32.x fixes of een expliciet nieuw roadmapbesluit.
+
+## Roadmap — Crash Recovery GUI-blok
+- Voeg in de Home Assistant EnergieProject-GUI een apart, permanent **Crash Recovery**-blok toe; niet vermengen met het bestaande modusblok.
+- Het blok toont de drie onderdelen afzonderlijk: **EnergieProject**, **Home Assistant** en **NAS + Containers**.
+- Per onderdeel altijd zichtbaar: laatste backupdatum, huidige status (`niet gestart`, `bezig`, `controle`, `PASS`, `FAILED`), korte uitleg wat wordt meegenomen en of de backup als herstelbaar is geverifieerd.
+- Toon bij ieder onderdeel expliciet **waar het resultaat terechtkomt**: bestandsnaam én volledige NAS-/HA-bestemming voor zover van toepassing.
+- Voor NAS + Containers moet de GUI de vaste naamgeving tonen: `YYYY-MM-DD HH.MM CrashRecovery NAS Containers.zip`, plus `.zip.sha256` en `VERIFY.txt`, in `EnergieProject/Backups/NAS Container/`.
+- Voor Home Assistant moet het blok aangeven dat dit de native HA-backup betreft en waar deze in Home Assistant Backups staat / na download is opgeslagen.
+- Voor EnergieProject moet het blok de actuele Crash-Recovery ZIP, checksum/verificatiestatus en doelmap tonen.
+- Het blok geeft vóór starten een korte preflight-uitleg: Crash Recovery gebruikt tijdelijk MAINTENANCE, oorspronkelijke USER/DEVELOPMENT-basis blijft behouden en alleen na veilige afronding wordt teruggeschakeld.
+- Bij een fout moet het blok duidelijk tonen welke stap faalde en of MAINTENANCE bewust actief blijft; geen generieke succesmelding.
+- Doel: de gebruiker hoeft niet te onthouden welke backup waar staat, welke route gebruikt moet worden of welke controle nog openstaat.
