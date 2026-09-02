@@ -1,234 +1,341 @@
 from __future__ import annotations
-import json, math, argparse
+
+import argparse
+import json
 from pathlib import Path
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
+
 from reportlab.lib.colors import HexColor, white
+from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfgen import canvas
 
-W,H=A4
-NAVY=HexColor('#0b3767'); BLUE=HexColor('#0c447d'); PALE=HexColor('#edf3fa'); BORDER=HexColor('#cbd8e6')
-TEXT=HexColor('#102d50'); GREEN=HexColor('#159447'); ORANGE=HexColor('#f39200'); GRAY=HexColor('#6f7f91'); LGRAY=HexColor('#f3f6fa')
-M=22
+W, H = A4
+NAVY = HexColor('#0b3767')
+PALE = HexColor('#edf3fa')
+BORDER = HexColor('#cbd8e6')
+TEXT = HexColor('#102d50')
+GREEN = HexColor('#159447')
+ORANGE = HexColor('#f39200')
+RED = HexColor('#c83d4b')
+GRAY = HexColor('#6f7f91')
+LGRAY = HexColor('#f3f6fa')
+M = 22
 
-def txt(c,x,y,s,size=8,bold=False,color=TEXT,align='left'):
-    c.setFillColor(color); c.setFont('Helvetica-Bold' if bold else 'Helvetica',size)
-    if align=='center': c.drawCentredString(x,y,s)
-    elif align=='right': c.drawRightString(x,y,s)
-    else: c.drawString(x,y,s)
 
-def wrap(c,text,x,y,width,size=8,leading=10,bold=False,color=TEXT,max_lines=None):
-    words=str(text).split(); lines=[]; line=''
-    font='Helvetica-Bold' if bold else 'Helvetica'
-    for w in words:
-        trial=(line+' '+w).strip()
-        if stringWidth(trial,font,size)<=width: line=trial
+def txt(c, x, y, s, size=8, bold=False, color=TEXT, align='left'):
+    c.setFillColor(color)
+    c.setFont('Helvetica-Bold' if bold else 'Helvetica', size)
+    s = str(s)
+    if align == 'center':
+        c.drawCentredString(x, y, s)
+    elif align == 'right':
+        c.drawRightString(x, y, s)
+    else:
+        c.drawString(x, y, s)
+
+
+def wrap(c, text, x, y, width, size=8, leading=10, bold=False, color=TEXT, max_lines=None):
+    words = str(text).split()
+    lines, line = [], ''
+    font = 'Helvetica-Bold' if bold else 'Helvetica'
+    for word in words:
+        trial = (line + ' ' + word).strip()
+        if stringWidth(trial, font, size) <= width:
+            line = trial
         else:
-            if line: lines.append(line)
-            line=w
-    if line: lines.append(line)
-    if max_lines: lines=lines[:max_lines]
-    for i,ln in enumerate(lines): txt(c,x,y-i*leading,ln,size,bold,color)
-    return y-len(lines)*leading
+            if line:
+                lines.append(line)
+            line = word
+    if line:
+        lines.append(line)
+    if max_lines:
+        lines = lines[:max_lines]
+    for i, ln in enumerate(lines):
+        txt(c, x, y - i * leading, ln, size, bold, color)
+    return y - len(lines) * leading
 
-def rounded(c,x,y,w,h,fill=white,stroke=BORDER,r=7,lw=.8):
-    c.setLineWidth(lw); c.setStrokeColor(stroke); c.setFillColor(fill); c.roundRect(x,y,w,h,r,fill=1,stroke=1)
 
-def header(c,page,title,status):
-    c.setFillColor(NAVY); c.rect(0,H-26,W,26,fill=1,stroke=0)
-    txt(c,M,H-17,status,6.5,True,white); txt(c,W-M,H-17,f'Pagina {page}',6.5,True,white,'right')
-    txt(c,M,H-52,title,16,True,TEXT)
+def rounded(c, x, y, w, h, fill=white, stroke=BORDER, r=7, lw=.8):
+    c.setLineWidth(lw)
+    c.setStrokeColor(stroke)
+    c.setFillColor(fill)
+    c.roundRect(x, y, w, h, r, fill=1, stroke=1)
 
-def footer(c): txt(c,W-18,12,'©',5,False,GRAY,'right')
 
-def section_bar(c,x,y,w,label):
-    c.setFillColor(NAVY); c.roundRect(x,y,w,19,6,fill=1,stroke=0); txt(c,x+10,y+5,label,9,True,white)
+def header(c, page, title, status):
+    c.setFillColor(NAVY)
+    c.rect(0, H - 26, W, 26, fill=1, stroke=0)
+    txt(c, M, H - 17, status, 6.5, True, white)
+    txt(c, W - M, H - 17, f'Pagina {page} van 13', 6.5, True, white, 'right')
+    txt(c, M, H - 52, title, 16, True, TEXT)
 
-def table(c,x,y,w,headers,rows,col_fracs=None,row_h=28,font=7):
-    n=len(headers); col_fracs=col_fracs or [1/n]*n; widths=[w*f for f in col_fracs]
-    c.setFillColor(NAVY); c.rect(x,y-row_h,w,row_h,fill=1,stroke=0)
-    cx=x
-    for i,h in enumerate(headers): txt(c,cx+8,y-row_h+9,h,font,True,white); cx+=widths[i]
-    yy=y-row_h
-    for r,row in enumerate(rows):
-        yy-=row_h; c.setFillColor(LGRAY if r%2 else white); c.rect(x,yy,w,row_h,fill=1,stroke=0)
-        cx=x
-        for i,val in enumerate(row): wrap(c,str(val),cx+8,yy+row_h-11,widths[i]-12,font,8,max_lines=2); cx+=widths[i]
+
+def footer(c):
+    txt(c, W - 18, 12, 'Energierapport', 5, False, GRAY, 'right')
+
+
+def table(c, x, y, w, headers, rows, col_fracs=None, row_h=28, font=7):
+    n = len(headers)
+    col_fracs = col_fracs or [1 / n] * n
+    widths = [w * f for f in col_fracs]
+    c.setFillColor(NAVY)
+    c.rect(x, y - row_h, w, row_h, fill=1, stroke=0)
+    cx = x
+    for i, heading in enumerate(headers):
+        txt(c, cx + 8, y - row_h + 9, heading, font, True, white)
+        cx += widths[i]
+    yy = y - row_h
+    for r, row in enumerate(rows):
+        yy -= row_h
+        c.setFillColor(LGRAY if r % 2 else white)
+        c.rect(x, yy, w, row_h, fill=1, stroke=0)
+        cx = x
+        for i, value in enumerate(row):
+            wrap(c, str(value), cx + 8, yy + row_h - 11, widths[i] - 12, font, 8, max_lines=2)
+            cx += widths[i]
     return yy
 
-def callout(c,x,y,w,h,title,body,kind='info'):
-    fill=PALE if kind=='info' else HexColor('#fff7e7'); stroke=HexColor('#9cb9d6') if kind=='info' else ORANGE
-    rounded(c,x,y,w,h,fill,stroke,7)
-    c.setFillColor(NAVY if kind=='info' else ORANGE); c.circle(x+18,y+h-21,12,fill=1,stroke=0)
-    txt(c,x+18,y+h-24,'i' if kind=='info' else '!',9,True,white,'center')
-    txt(c,x+40,y+h-22,title,8,True,TEXT if kind=='info' else ORANGE)
-    wrap(c,body,x+40,y+h-38,w-52,7.2,9)
 
-def kpi_card(c,x,y,w,h,value,label,sub):
-    rounded(c,x,y,w,h)
-    txt(c,x+w/2,y+h-30,value,14,True,TEXT,'center'); txt(c,x+w/2,y+h-63,label,7,True,TEXT,'center'); txt(c,x+w/2,y+10,sub,6,False,GRAY,'center')
+def callout(c, x, y, w, h, title, body, kind='info'):
+    fill = PALE if kind == 'info' else HexColor('#fff7e7')
+    stroke = HexColor('#9cb9d6') if kind == 'info' else ORANGE
+    rounded(c, x, y, w, h, fill, stroke, 7)
+    c.setFillColor(NAVY if kind == 'info' else ORANGE)
+    c.circle(x + 18, y + h - 21, 12, fill=1, stroke=0)
+    txt(c, x + 18, y + h - 24, 'i' if kind == 'info' else '!', 9, True, white, 'center')
+    txt(c, x + 40, y + h - 22, title, 8, True, TEXT if kind == 'info' else ORANGE)
+    wrap(c, body, x + 40, y + h - 38, w - 52, 7.2, 9)
 
-def line_chart(c,x,y,w,h,series,labels=None,colors=None,ymax=None,title=None,legend=None):
-    colors=colors or [BLUE,GREEN,ORANGE]
-    if title: txt(c,x,y+h+10,title,8,True)
-    left=28; bottom=18
-    vals=[v for s in series for v in s]; ymax=ymax or max(vals)*1.1 or 1
-    c.setStrokeColor(BORDER); c.setLineWidth(.5)
-    for i in range(5):
-        yy=y+bottom+(h-bottom-8)*i/4; c.line(x+left,yy,x+w-5,yy); txt(c,x+left-5,yy-2,f'{int(ymax*i/4)}',5,False,GRAY,'right')
-    c.line(x+left,y+bottom,x+left,y+h-8); c.line(x+left,y+bottom,x+w-5,y+bottom)
-    n=max(len(s) for s in series)
-    if labels:
-        for i,l in enumerate(labels):
-            if i%max(1,len(labels)//8)==0: txt(c,x+left+(w-left-8)*i/(n-1),y+5,l,5,False,GRAY,'center')
-    for si,s in enumerate(series):
-        c.setStrokeColor(colors[si]); c.setFillColor(colors[si]); c.setLineWidth(1.5)
-        pts=[]
-        for i,v in enumerate(s):
-            px=x+left+(w-left-8)*i/(len(s)-1); py=y+bottom+(h-bottom-8)*v/ymax; pts.append((px,py))
-        for a,b in zip(pts,pts[1:]): c.line(a[0],a[1],b[0],b[1])
-        for px,py in pts: c.circle(px,py,1.8,fill=1,stroke=0)
-    if legend:
-        lx=x+left
-        for i,l in enumerate(legend): c.setFillColor(colors[i]); c.rect(lx,y+h-2,7,7,fill=1,stroke=0); txt(c,lx+11,y+h,l,5.5); lx+=90
 
-def bar_chart(c,x,y,w,h,a,b,labels,title):
-    txt(c,x,y+h+10,title,8,True); left=28; bottom=20; ymax=max(max(a),max(b))*1.15
-    for i in range(6):
-        yy=y+bottom+(h-bottom-8)*i/5; c.setStrokeColor(BORDER); c.line(x+left,yy,x+w-4,yy); txt(c,x+left-5,yy-2,str(int(ymax*i/5)),5,False,GRAY,'right')
-    n=len(a); step=(w-left-8)/n; bw=step*.28
-    for i,(va,vb) in enumerate(zip(a,b)):
-        px=x+left+i*step+step*.15
-        c.setFillColor(BLUE); c.rect(px,y+bottom,bw,(h-bottom-8)*va/ymax,fill=1,stroke=0)
-        c.setFillColor(GREEN); c.rect(px+bw+1,y+bottom,bw,(h-bottom-8)*vb/ymax,fill=1,stroke=0)
-        txt(c,px+bw,y+7,labels[i],4.7,False,GRAY,'center')
-    c.setFillColor(BLUE); c.rect(x+40,y+h-2,8,8,fill=1,stroke=0); txt(c,x+52,y+h,'Netafname (kWh)',5.5)
-    c.setFillColor(GREEN); c.rect(x+145,y+h-2,8,8,fill=1,stroke=0); txt(c,x+157,y+h,'Teruglevering (kWh)',5.5)
+def kpi_card(c, x, y, w, h, value, label, sub):
+    rounded(c, x, y, w, h)
+    txt(c, x + w / 2, y + h - 30, value, 14, True, TEXT, 'center')
+    txt(c, x + w / 2, y + h - 63, label, 7, True, TEXT, 'center')
+    txt(c, x + w / 2, y + 10, sub, 6, False, GRAY, 'center')
 
-def donut(c,cx,cy,r,part,total,colors=(HexColor('#31a6bf'),HexColor('#58ae3e'))):
-    # draw full ring then overlay first segment
-    c.setLineWidth(15); c.setStrokeColor(colors[1]); c.circle(cx,cy,r,fill=0,stroke=1)
-    if total>0:
-        c.setStrokeColor(colors[0]); c.setLineWidth(15)
-        start=90; extent=360*part/total
-        c.arc(cx-r,cy-r,cx+r,cy+r,start,start+extent)
 
-def page3(c,d):
-    header(c,3,f"2. Dashboard - {d['meta']['month']}",d['meta']['status'])
-    vals=[(f"{d['dashboard']['house']} kWh",'Totaal huisverbruik',f"{d['meta']['days']} dagen"),(f"{d['dashboard']['solar']} kWh",'Zonneproductie',f"{d['meta']['days']} dagen"),(f"{d['dashboard']['self']:.1f} %".replace('.',','),'Zelfconsumptie','Onderzoeken'),(f"{d['dashboard']['export']} kWh",'Netto export','voorlopig')]
-    x=M; gap=12; cw=(W-2*M-3*gap)/4
-    for i,v in enumerate(vals): kpi_card(c,x+i*(cw+gap),H-175,cw,78,*v)
-    rounded(c,M,H-280,W-2*M,82)
-    txt(c,M+20,H-220,'Totaalscore energieprofiel',8,True); txt(c,W/2,H-262,f"{d['dashboard']['score']}/100",13,True,TEXT,'center'); txt(c,W/2,H-286,f"Datakwaliteit: {d['dashboard']['quality']}",7,True,TEXT,'center')
-    rows=[['Elektriciteitsverbruik','90','Goed','Stabiel zomerprofiel'],['Zonnepanelen','94','Goed','Hoge productie, veel export'],['Zelfconsumptie','64','Aandacht','Slechts 18,8% direct gebruikt'],['Gas','96','Goed','Laag zomerverbruik'],['Apparaten','92','Goed','Geen opvallende uitschieter'],['Financieel','82','Goed','Export drukt variabele kosten'],['Datakwaliteit','55','Simulatie','Geen echte kwartier- of apparaatdata'],['Totaal','91','Goed','Geen directe ingreep nodig']]
-    table(c,M,H-310,W-2*M,['Onderdeel','Score','Status','Kernpunt'],rows,[.36,.11,.16,.37],30,7)
-    wrap(c,'Leeswijzer: de totaalscore is inhoudelijk, maar de datakwaliteit blijft bewust laag omdat de bronwaarden deels zijn verzonnen. Bij de echte maandupdate vervalt deze beperking.',M,32,W-2*M,6.5,8,True)
+def fmt_num(value, unit='', decimals=1):
+    if not isinstance(value, (int, float)):
+        return 'n.b.'
+    text = f'{value:.{decimals}f}'.replace('.', ',')
+    return f'{text} {unit}'.strip()
+
+
+def page3(c, d):
+    header(c, 3, f"2. Dashboard - {d['meta']['month']}", d['meta']['status'])
+    dash = d['dashboard']
+    vals = [
+        (fmt_num(dash.get('house'), 'kWh'), 'Totaal huisverbruik', 'alleen bij complete PV-balans'),
+        (fmt_num(dash.get('solar'), 'kWh'), 'Gemeten Enphase-productie', 'gemeten PV-bron'),
+        (fmt_num(dash.get('self'), '%'), 'Zelfconsumptie', 'niet schatten bij bronverschil'),
+        (fmt_num(dash.get('export'), 'kWh'), 'Netto teruglevering', 'P1 gemeten'),
+    ]
+    gap = 12
+    cw = (W - 2 * M - 3 * gap) / 4
+    for i, val in enumerate(vals):
+        kpi_card(c, M + i * (cw + gap), H - 175, cw, 78, *val)
+    rounded(c, M, H - 285, W - 2 * M, 88)
+    txt(c, M + 20, H - 220, 'Energiescore', 8, True)
+    txt(c, W / 2, H - 260, 'n.b.', 18, True, ORANGE, 'center')
+    txt(c, W / 2, H - 282, dash.get('quality', 'Bronstatus onbekend'), 7, True, TEXT, 'center')
+    rows = [
+        ['Netafname', fmt_num(d['electricity'].get('grid'), 'kWh'), 'Gemeten', 'P1'],
+        ['Teruglevering', fmt_num(d['electricity'].get('feedin'), 'kWh'), 'Gemeten', 'P1'],
+        ['Gas', fmt_num(d['gas'].get('month'), 'm³'), 'Gemeten', 'P1g'],
+        ['PV-productie', fmt_num(d['solar'].get('production'), 'kWh'), 'Gemeten bron', d['solar'].get('source', 'Enphase')],
+        ['Zelfconsumptie', fmt_num(d['solar'].get('self'), '%'), 'Bronbeperkt' if not d['solar'].get('reliable') else 'Beschikbaar', 'Geen nul-fallback'],
+        ['Financieel', '€ 1.836/jaar', 'Offerteprognose', 'NextEnergy'],
+    ]
+    table(c, M, H - 320, W - 2 * M, ['Onderdeel', 'Waarde', 'Status', 'Bron / regel'], rows, [.28, .20, .20, .32], 38, 7)
+    callout(c, M, 50, W - 2 * M, 88, 'Leeswijzer', 'Deze pagina toont alleen gemeten waarden en expliciet gemarkeerde afgeleide waarden. Een ontbrekende of inconsistente bron wordt niet vervangen door een fictieve nul of demo-waarde.')
     footer(c)
 
-def page4(c,d):
-    header(c,4,'3. Simulatiebasis en aannames',d['meta']['status'])
-    wrap(c,'De netafname en teruglevering zijn overgenomen uit juli 2025. De overige waarden zijn zo gekozen dat zij onderling rekenkundig aansluiten en passen bij de bekende woning, zonnepanelen, airco en sockets.',M,H-90,W-2*M,8.3,11,True)
-    rows=[['Netafname',f"{d['electricity']['grid']} kWh",'Beschikbare periode'],['Teruglevering',f"{d['electricity']['feedin']} kWh",'Beschikbare periode'],['Zonneproductie',f"{d['solar']['production']} kWh",'Enphase export'],['Direct gebruikte zonnestroom',f"{d['solar']['direct']} kWh",'Productie minus teruglevering'],['Totaal huishoudelijk gebruik',f"{d['electricity']['house']} kWh",'Netafname plus directe zonnestroom'],['Gas',f"{d['gas']['month']} m³",'HomeWizard gas'],['Dynamische tarieven','Werkelijk','EPEX gekoppeld']]
-    table(c,M,H-145,W-2*M,['Waarde','Maanddata','Herkomst / reden'],rows,[.38,.20,.42],38,8)
-    callout(c,M,110,W-2*M,95,'Controleformule',f"{d['solar']['production']} kWh productie - {d['electricity']['feedin']} kWh teruglevering = {d['solar']['direct']} kWh direct gebruikt. {d['electricity']['grid']} kWh netafname + {d['solar']['direct']} kWh direct gebruikt = {d['electricity']['house']} kWh totaal huishoudelijk verbruik.")
+
+def page4(c, d):
+    header(c, 4, '3. Meetbasis en bronafbakening', d['meta']['status'])
+    wrap(c, 'De rapportage gebruikt de bronwaarden van de gekozen rapportmaand. Afgeleide zonne-KPI’s worden alleen berekend wanneer productie en netteruglevering dezelfde totale meetdekking vertegenwoordigen.', M, H - 90, W - 2 * M, 8.3, 11, True)
+    solar = d['solar']
+    rows = [
+        ['Netafname', fmt_num(d['electricity'].get('grid'), 'kWh'), 'P1'],
+        ['Teruglevering', fmt_num(d['electricity'].get('feedin'), 'kWh'), 'P1'],
+        ['Gas', fmt_num(d['gas'].get('month'), 'm³'), 'P1g'],
+        ['Enphase-productie', fmt_num(solar.get('production'), 'kWh'), solar.get('source', 'Enphase')],
+        ['Direct eigen gebruik', fmt_num(solar.get('direct'), 'kWh'), 'Alleen bij consistente totale PV-dekking'],
+        ['Totaal huishoudelijk gebruik', fmt_num(d['electricity'].get('house'), 'kWh'), 'Alleen bij consistente totale PV-dekking'],
+        ['Rapportmaand-contract', d['finance'].get('contract_label', 'NextEnergy'), 'Contract actief in rapportmaand'],
+    ]
+    table(c, M, H - 145, W - 2 * M, ['Waarde', 'Maanddata', 'Herkomst / regel'], rows, [.34, .24, .42], 42, 7.7)
+    limitation = solar.get('limitation') or 'PV-balans consistent; afgeleide zonne-KPI’s zijn berekend.'
+    callout(c, M, 85, W - 2 * M, 110, 'PV-broncontrole', limitation, 'warn' if not solar.get('reliable') else 'info')
     footer(c)
 
-def page5(c,d):
-    header(c,5,'4. Elektriciteitsanalyse',d['meta']['status'])
-    wrap(c,f"De beschikbare juliwaarde past in het zomerprofiel. De woning neemt {d['electricity']['grid']} kWh van het net af en levert {d['electricity']['feedin']} kWh terug. Per saldo is de woning {abs(d['electricity']['net'])} kWh netto-exporteur.",M,H-90,W-2*M,8.3,11,True)
-    rows=[['Netafname',f"{d['electricity']['grid']} kWh",'Voorlopig'],['Teruglevering',f"{d['electricity']['feedin']} kWh",'Hoge zomerexport'],['Netto netpositie',f"{d['electricity']['net']} kWh",'Netto-export'],['Gemiddelde netafname per dag',f"{d['electricity']['grid_day']} kWh",'Voorlopig'],['Gemiddelde teruglevering per dag',f"{d['electricity']['feedin_day']} kWh",'Hoog'],['Totaal huisverbruik',f"{d['electricity']['house']} kWh",f"{d['electricity']['house']/d['meta']['days']:.1f} kWh per dag"]]
-    table(c,M,H-145,W-2*M,['KPI','Waarde','Beoordeling'],rows,[.40,.20,.40],34,8)
-    rounded(c,M,40,W-2*M,300)
-    bar_chart(c,M+25,65,W-2*M-50,235,d['electricity']['daily_grid'],d['electricity']['daily_feed'],[str(i) for i in range(1,32)],f"Netafname en teruglevering - {d['meta']['month']} (per dag)")
+
+def page5(c, d):
+    header(c, 5, '4. Elektriciteitsanalyse', d['meta']['status'])
+    e = d['electricity']
+    net = e.get('net')
+    direction = 'netto teruglevering' if isinstance(net, (int, float)) and net < 0 else 'netto afname'
+    wrap(c, f"In {d['meta']['month']} bedraagt de gemeten netafname {fmt_num(e.get('grid'),'kWh')} en de gemeten teruglevering {fmt_num(e.get('feedin'),'kWh')}. De netpositie is {fmt_num(abs(net) if isinstance(net,(int,float)) else None,'kWh')} {direction}.", M, H - 90, W - 2 * M, 8.3, 11, True)
+    rows = [
+        ['Netafname', fmt_num(e.get('grid'), 'kWh'), 'Gemeten'],
+        ['Teruglevering', fmt_num(e.get('feedin'), 'kWh'), 'Gemeten'],
+        ['Netto netpositie', fmt_num(e.get('net'), 'kWh'), direction],
+        ['Gemiddelde netafname per kalenderdag', fmt_num(e.get('grid_day'), 'kWh'), 'Rekenkundig uit maandtotaal'],
+        ['Gemiddelde teruglevering per kalenderdag', fmt_num(e.get('feedin_day'), 'kWh'), 'Rekenkundig uit maandtotaal'],
+        ['Totaal huisverbruik', fmt_num(e.get('house'), 'kWh'), 'Alleen bij betrouwbare PV-balans'],
+    ]
+    table(c, M, H - 150, W - 2 * M, ['KPI', 'Waarde', 'Beoordeling'], rows, [.42, .22, .36], 45, 8)
+    callout(c, M, 70, W - 2 * M, 105, 'Dagprofiel', 'Er wordt geen verzonnen dagcurve getoond. Een daggrafiek verschijnt pas wanneer de rapportadapter een echte, gevalideerde dag- of kwartierreeks aanlevert.')
     footer(c)
 
-def page6(c,d):
-    header(c,6,'5. Zonnepanelen en zelfconsumptie',d['meta']['status'])
-    wrap(c,f"Van de productie van {d['solar']['production']} kWh wordt circa {d['solar']['direct']} kWh direct in huis gebruikt. Dat is {d['solar']['self']:.1f}% van de productie. De zonnepanelen dekken daarmee {d['solar']['coverage']:.1f}% van het huishoudelijke verbruik direct, zonder tussenkomst van het net.",M,H-90,W-2*M,8.3,11,True)
-    rounded(c,M,190,230,390); txt(c,M+18,548,'Verdeling zonnestroom',8,True)
-    donut(c,M+115,405,70,d['solar']['direct'],d['solar']['production']); txt(c,M+115,403,f"{d['solar']['production']} kWh",12,True,TEXT,'center'); txt(c,M+115,387,'productie',6,False,GRAY,'center')
-    txt(c,M+24,255,f"■  Direct eigen gebruik: {d['solar']['direct']} kWh ({d['solar']['self']:.1f}%)",6.7,False,HexColor('#31a6bf'))
-    txt(c,M+24,230,f"■  Teruglevering: {d['solar']['feedin']} kWh ({100-d['solar']['self']:.1f}%)",6.7,False,HexColor('#58ae3e'))
-    rows=[['Productie',f"{d['solar']['production']} kWh",'Sterke julimaand'],['Direct eigen gebruik',f"{d['solar']['direct']} kWh",'Verbeterbaar'],['Teruglevering',f"{d['solar']['feedin']} kWh",f"{100-d['solar']['self']:.1f}% van productie"],['Zelfconsumptie',f"{d['solar']['self']:.1f}%",'Laag, normaal zonder batterij/EV'],['Directe zonnedekking woning',f"{d['solar']['coverage']:.1f}%",'Redelijk']]
-    table(c,275,585,W-297,['Indicator','Waarde','Interpretatie'],rows,[.40,.25,.35],45,7.4)
-    callout(c,M,45,W-2*M,82,'Aanbeveling','Verplaats alleen eenvoudig verschuifbaar verbruik naar 11:00-16:00. Apparaten expres extra laten draaien om teruglevering te vermijden is meestal geen besparing.')
+
+def page6(c, d):
+    header(c, 6, '5. Zonnepanelen en zelfconsumptie', d['meta']['status'])
+    s = d['solar']
+    rows = [
+        ['Gemeten Enphase-productie', fmt_num(s.get('production'), 'kWh'), s.get('source', 'Enphase')],
+        ['P1-teruglevering', fmt_num(s.get('feedin'), 'kWh'), 'P1'],
+        ['Direct eigen gebruik', fmt_num(s.get('direct'), 'kWh'), 'Alleen bij consistente totale PV-dekking'],
+        ['Zelfconsumptie', fmt_num(s.get('self'), '%'), 'Geen 0%-fallback'],
+        ['Directe zonnedekking woning', fmt_num(s.get('coverage'), '%'), 'Geen 0%-fallback'],
+    ]
+    table(c, M, H - 105, W - 2 * M, ['Indicator', 'Waarde', 'Interpretatie'], rows, [.38, .22, .40], 50, 8)
+    if s.get('reliable'):
+        body = 'De productie- en terugleveringsbronnen zijn voor dezelfde dekking consistent; zelfconsumptie kan daardoor worden berekend.'
+        kind = 'info'
+    else:
+        body = s.get('limitation') or 'De PV-bronnen zijn niet voldoende gelijksoortig om zelfconsumptie betrouwbaar te berekenen.'
+        kind = 'warn'
+    callout(c, M, 125, W - 2 * M, 120, 'Bronbeperking', body, kind)
+    callout(c, M, 40, W - 2 * M, 70, 'Praktische optimalisatie', 'Flexibele verbruikers kunnen naar zonnige uren worden verschoven, maar het rapport kwantificeert het effect pas wanneer totale PV-productie en P1-teruglevering dezelfde dekking hebben.')
     footer(c)
 
-def page7(c,d):
-    header(c,7,'6. Apparaten, airco en heaters',d['meta']['status'])
-    rows=[['Airco woonkamer','8,6','Beperkt koelen','Geen actie'],['Heater woonkamer','0,4','Stand-by/test','Geen actie'],['Heater kantoor','0,3','Stand-by/test','Geen actie'],['Heater lounge','0,2','Stand-by/test','Geen actie'],['Koelkast/vriezer woonkamer','34,0','Normaal','Geen actie'],['Koelkast keuken','27,0','Normaal','Geen actie'],['Diepvries garage','29,0','Normaal','Geen actie'],['Koelkast lounge','18,0','Normaal zomergebruik','Geen actie'],['Overig huishouden','225,5','Restpost','Volgen']]
-    table(c,M,H-90,W-2*M,['Apparaat','kWh','Status','Beoordeling'],rows,[.38,.12,.25,.25],42,8)
-    callout(c,M,90,W-2*M,100,'Toelichting','De drie heaters zijn met een minimale waarde opgenomen: samen 0,9 kWh. Dit stelt stand-byverbruik en een korte test voor, niet werkelijk verwarmingsgebruik. De airco is met 8,6 kWh beperkt gebruikt voor koeling.')
+
+def page7(c, d):
+    header(c, 7, '6. Apparaten, airco en heaters', d['meta']['status'])
+    table(c, M, H - 92, W - 2 * M, ['Apparaat', 'kWh', 'Status', 'Bron'], d['appliances']['rows'], [.34, .14, .20, .32], 43, 7.7)
+    callout(c, M, 70, W - 2 * M, 105, 'Toelichting', d['appliances']['note'])
     footer(c)
 
-def page8(c,d):
-    header(c,8,'7. Gasanalyse',d['meta']['status'])
-    vals=[(f"{d['gas']['month']} m³",'Gas maand',f"{d['meta']['days']} dagen"),(f"{d['gas']['per_day']} m³",'Per dag','gemiddeld'),(f"{d['gas']['reference']} m³",'Jaarreferentie','bekend')]
-    cw=(W-2*M-20)/3
-    for i,v in enumerate(vals): kpi_card(c,M+i*(cw+10),H-180,cw,85,*v)
-    rounded(c,M,250,W-2*M,330)
-    line_chart(c,M+20,285,W-2*M-40,240,[d['gas']['history']],['aug22','okt22','dec22','feb23','apr23','jun23','aug23','okt23','dec23','feb24','apr24','jun24'],[GREEN],350,'Gasverbruik per meetmoment',['Gasverbruik (m³)'])
-    callout(c,M,65,W-2*M,90,'Conclusie','Zeer laag gasverbruik voor de zomer. Verwarming staat vrijwel uit. Verbruik komt overeen met warm water en koken.')
+
+def page8(c, d):
+    header(c, 8, '7. Gasanalyse', d['meta']['status'])
+    g = d['gas']
+    vals = [
+        (fmt_num(g.get('month'), 'm³'), 'Gas rapportmaand', 'gemeten maandtotaal'),
+        (fmt_num(g.get('per_day'), 'm³'), 'Per dag', 'alleen bij gevalideerde dagdekking'),
+        (fmt_num(g.get('reference'), 'm³', 0), 'Jaarreferentie', 'officiële eindafrekening 2025-2026'),
+    ]
+    cw = (W - 2 * M - 20) / 3
+    for i, val in enumerate(vals):
+        kpi_card(c, M + i * (cw + 10), H - 180, cw, 85, *val)
+    callout(c, M, 330, W - 2 * M, 115, 'Dekking', g.get('coverage_note', 'Daggemiddelde niet gebruikt zonder afzonderlijk gevalideerde dekking.'), 'warn')
+    rows = [
+        ['Rapportmaand', fmt_num(g.get('month'), 'm³'), 'Gemeten'],
+        ['Jaarreferentie', fmt_num(g.get('reference'), 'm³', 0), 'Officieel 2025-2026'],
+        ['Weerscorrectie', 'niet toegepast', 'Geen gevalideerde graaddagenbron'],
+    ]
+    table(c, M, 290, W - 2 * M, ['Vergelijking', 'Waarde', 'Status'], rows, [.34, .24, .42], 46, 8)
+    callout(c, M, 65, W - 2 * M, 90, 'Conclusie', 'Het maandtotaal wordt gerapporteerd. Het rapport trekt geen weersconclusie en berekent geen daggemiddelde zolang de daarvoor benodigde brondekking niet afzonderlijk is gevalideerd.')
     footer(c)
 
-def page9(c,d):
-    header(c,9,'8. Financiën en leverancierscontrole',d['meta']['status'])
-    wrap(c,'De tarieven hieronder dienen als rapportcontrole. De echte maandupdate gebruikt werkelijke uurprijzen, vaste kosten, belastingen en netbeheerkosten.',M,H-90,W-2*M,8.3,11,True)
-    table(c,M,H-135,W-2*M,['Post','Berekening','Bedrag'],d['finance']['rows'],[.35,.40,.25],36,7.5)
-    kpi_card(c,M,345,250,95,f"€ {d['finance']['energy_cost']:.2f}".replace('.',','),'Indicatieve energiekosten',f"{d['meta']['days']} beschikbare dagen")
-    kpi_card(c,M+270,345,250,95,f"€ {d['finance']['term']:.2f}".replace('.',','),'Huidige maandtermijn','per maand')
-    rows=[['Factuurperiode','Nog niet volledig gecontroleerd'],['Meterstanden begin/eind','Worden in maandupdate aangesloten'],['Dynamische uurprijzen','EPEX gekoppeld'],['Vaste leveringskosten','Opgenomen'],['Netbeheerkosten','Uitgesplitst'],['Eindoordeel','Nog geen leveranciersafwijking vast te stellen']]
-    table(c,M,315,W-2*M,['Controlepunt','Status'],rows,[.42,.58],32,7.5)
-    callout(c,M,55,W-2*M,82,'Interpretatie','Bij de definitieve maandupdate worden begin- en eindstanden, uurprijzen, vaste kosten en netbeheerkosten volledig op elkaar aangesloten.')
+
+def page9(c, d):
+    header(c, 9, '8. Financiën en leverancierscontrole', d['meta']['status'])
+    wrap(c, 'Bekende, bevestigde NextEnergy-offertewaarden worden expliciet getoond. Werkelijke augustus all-in kosten worden niet uit marktprijzen of termijnbedragen afgeleid.', M, H - 90, W - 2 * M, 8.3, 11, True)
+    table(c, M, H - 145, W - 2 * M, ['Post', 'Basis', 'Bedrag / status'], d['finance']['rows'], [.34, .38, .28], 43, 7.6)
+    cw = (W - 2 * M - 20) / 3
+    cards = [
+        ('€ 150,00', 'Huidige maandtermijn', 'bevestigd'),
+        ('€ 153,00', 'Offerteprognose', 'per maand vanaf 3 sep'),
+        ('€ 1.836,00', 'Verwachte jaarkosten', d['finance'].get('source', 'NextEnergy')),
+    ]
+    for i, val in enumerate(cards):
+        kpi_card(c, M + i * (cw + 10), 205, cw, 85, *val)
+    callout(c, M, 75, W - 2 * M, 100, 'Belangrijk', '€ 1.836 is de NextEnergy-offerteprognose (12 × €153). De verwachte betalingen bij een termijn van €150 zijn €1.800; het verschil is €36. Dit is geen berekende augustusfactuur.')
     footer(c)
 
-def page10(c,d):
-    header(c,10,'9. Voortschrijdende jaarprognose',d['meta']['status'])
-    wrap(c,'Omdat alleen juli beschikbaar is, blijft de bekende jaarreferentie leidend. De proefberekening laat zien welke prognoses straks automatisch worden bijgewerkt.',M,H-90,W-2*M,8.3,11,True)
-    table(c,M,H-145,W-2*M,['Jaar-KPI','Referentie','Proefprognose','Signaal'],d['forecast']['rows'],[.30,.22,.25,.23],42,7.5)
-    txt(c,M,H-395,'Historische contractjaren',10,True)
-    hist=[['15-07-2022 → 15-07-2023','3.791 kWh','1.838 kWh','≈ 1.302 m³'],['15-07-2023 → 15-07-2024','3.813 kWh','2.628 kWh','1.058 m³'],['15-07-2024 → 15-07-2025','4.886 kWh','4.309 kWh','699 m³'],['15-07-2025 → 15-07-2026','4.958 kWh','4.316 kWh','705 m³']]
-    table(c,M,H-410,W-2*M,['Contractjaar','Verbruik','Teruglevering','Gas'],hist,[.34,.22,.22,.22],48,7.5)
-    callout(c,M,45,W-2*M,75,'Interpretatie','Elektriciteitsverbruik is de laatste twee contractjaren duidelijk hoger dan in 2022-2024. Teruglevering is sterk gestegen door de nieuwe zonnepanelen. Gas ligt sinds 2024 rond 700 m³ per jaar.')
+
+def page10(c, d):
+    header(c, 10, '9. Jaarprognose en contracthistorie', d['meta']['status'])
+    wrap(c, d['forecast']['source'], M, H - 90, W - 2 * M, 8.3, 11, True)
+    table(c, M, H - 135, W - 2 * M, ['Jaar-KPI', 'Referentie 2025-2026', 'Offerteprofiel', 'Verschil / bron'], d['forecast']['rows'], [.28, .24, .24, .24], 40, 7.3)
+    hist_rows = []
+    for row in d['forecast'].get('contract_years', []):
+        if len(row) < 6:
+            continue
+        period, imp, exp, net, gas, quality = row[:6]
+        hist_rows.append([period, fmt_num(imp, 'kWh', 0), fmt_num(exp, 'kWh', 0), fmt_num(gas, 'm³', 0), quality])
+    txt(c, M, H - 390, 'Historische contractjaren', 10, True)
+    table(c, M, H - 405, W - 2 * M, ['Periode', 'Verbruik', 'Teruglevering', 'Gas', 'Kwaliteit'], hist_rows, [.28, .18, .20, .16, .18], 42, 6.5)
+    callout(c, M, 45, W - 2 * M, 78, 'Interpretatie', 'De offerteprognose gebruikt het profiel dat bij de NextEnergy-aanbieding is vastgelegd. Historische contractjaren worden uit de projecthistorie gelezen en niet uit de rapportfixture.')
     footer(c)
 
-def page11(c,d):
-    header(c,11,'10. Thuisbatterij - scenarioanalyse',d['meta']['status'])
-    wrap(c,'Het profiel is technisch aantrekkelijk: veel teruglevering overdag en tegelijk netafname op andere momenten. De financiële uitkomst hangt af van prijsverschillen, laadverliezen en het werkelijk verschuifbare volume.',M,H-90,W-2*M,8.3,11,True)
-    table(c,M,H-145,W-2*M,['Scenario','Configuratie','Verschuifbaar','Waarde','Beoordeling'],d['battery']['rows'],[.16,.25,.18,.18,.23],48,7.2)
-    rows=[['Kandidaat','Marstek Venus 5,1 kWh, plug-in'],['Standaard ontlaadvermogen','800 W'],['Indicatieve jaarwaarde','circa € 103'],['Aankoopprijs rekenvoorbeeld','€ 1.200'],['Ruwe terugverdientijd','circa 11,6 jaar'],['Oordeel','Volgen, nog geen koopadvies']]
-    table(c,M,H-410,W-2*M,['Onderdeel','Indicatie'],rows,[.43,.57],36,7.5)
-    callout(c,M,55,W-2*M,100,'Voorlopige conclusie','De batterij kan het zelfverbruik duidelijk verhogen, maar met deze prijsverschillen is het financiële voordeel nog onvoldoende overtuigend. Bij negatieve terugleverprijzen of een lagere aankoopprijs kan dit snel veranderen.','warn')
+
+def page11(c, d):
+    header(c, 11, '10. Thuisbatterij - één modelbasis', d['meta']['status'])
+    b = d['battery']
+    wrap(c, 'Alle batterijvermeldingen in dit rapport gebruiken dezelfde modelbasis. De bedragen zijn indicatieve modelwaarden en geen gemeten besparing.', M, H - 90, W - 2 * M, 8.3, 11, True)
+    table(c, M, H - 140, W - 2 * M, ['Scenario', 'Configuratie', 'Verschuifbaar', 'Jaarwaarde', 'Oordeel'], b['rows'], [.16, .28, .16, .20, .20], 50, 7)
+    rows = [
+        ['Kandidaat', b['candidate']],
+        ['Modelscore', f"{b['score']}/100"],
+        ['Indicatieve jaarwaarde', b['annual_saving']],
+        ['Investering rekenbasis', b['investment']],
+        ['Ruwe terugverdientijd', b['payback']],
+        ['Oordeel', b['advice']],
+    ]
+    table(c, M, H - 390, W - 2 * M, ['Onderdeel', 'Indicatie'], rows, [.42, .58], 42, 7.5)
+    callout(c, M, 55, W - 2 * M, 95, 'Besluitstatus', 'Volgen, nog geen aankoopbesluit. De businesscase wordt opnieuw beoordeeld met meerdere echte maandupdates en consistente zelfconsumptie-/prijsdata.', 'warn')
     footer(c)
 
-def page12(c,d):
-    header(c,12,'11. Aanbevelingen en actiepunten',d['meta']['status'])
-    rows=[['Nu','Geen aankoopbesluit nemen','Rapportperiode is nog onvolledig'],['Begin augustus','Echte juli-data verwerken','Vervangt alle voorlopige waarden'],['Na echte import','Controleer kwartieroverschotten','Bepaalt batterijpotentieel'],['Na 3 maanden','Vergelijk zelfconsumptie en dynamische prijzen','Voorkomt conclusie op één zomermaand'],['Voor winter','Controleer heaters per socket','Herken efficiëntie en ongewenst gebruik'],['Bij prijsdaling batterij','Nieuwe businesscase Marstek uitvoeren','Prijs bepaalt terugverdientijd']]
-    table(c,M,H-90,W-2*M,['Moment','Actie','Waarom'],rows,[.20,.42,.38],44,7.5)
-    txt(c,M,H-405,'Prioriteitenvolgorde',10,True)
-    items=['Echte juli-data importeren','Kwartieroverschotten bepalen','Dynamische prijsuren koppelen','Zelfconsumptie en batterij simuleren','Na meerdere maanden pas beslissen']
-    for i,it in enumerate(items):
-        c.setFillColor(NAVY); c.circle(M+12,H-440-i*38,10,fill=1,stroke=0); txt(c,M+12,H-443-i*38,str(i+1),7,True,white,'center'); txt(c,M+32,H-444-i*38,it,8,True)
-    callout(c,M,45,W-2*M,78,'Standaard workflow','Gebruik bij nieuwe maanddata eerst "Verwerk de maandupdate". Gebruik daarna "Maak een complete backup" om ook een nieuwe Recovery Package te genereren.')
+
+def page12(c, d):
+    header(c, 12, '11. Aanbevelingen en actiepunten', d['meta']['status'])
+    table(c, M, H - 90, W - 2 * M, ['Moment', 'Actie', 'Waarom'], d['actions']['rows'], [.20, .42, .38], 48, 7.5)
+    txt(c, M, H - 385, 'Prioriteiten vóór Crash Recovery', 10, True)
+    for i, item in enumerate(d['actions']['priorities']):
+        yy = H - 430 - i * 48
+        c.setFillColor(NAVY)
+        c.circle(M + 12, yy + 3, 10, fill=1, stroke=0)
+        txt(c, M + 12, yy, str(i + 1), 7, True, white, 'center')
+        txt(c, M + 34, yy, item, 8, True)
+    callout(c, M, 45, W - 2 * M, 82, 'Standaard workflow', 'Eerst rapport en workflow groen valideren. Pas daarna een complete Crash Recovery maken, zodat de herstelbasis geen bekende rapportfouten bevat.')
     footer(c)
 
-def page13(c,d):
-    header(c,13,'12. Datakwaliteit en broncontrole',d['meta']['status'])
-    wrap(c,'In het echte maandrapport krijgt iedere bron een controle op volledigheid, periode, resolutie, dubbele regels en aansluiting op meterstanden. Deze pagina toont de vaste controlevorm.',M,H-90,W-2*M,8.3,11,True)
-    rows=[['HomeWizard P1 stroom','Maandtotaal afgeleid','15-minutenexport'],['HomeWizard gas','Maandtotaal gemeten','15-minutenexport'],['Enphase','Productie gemeten','Aangepaste export uit Energie-menu'],['Sockets','Aanwezige exports','Export per vaste socket'],['SlimmeMeterPortal','Controlebron','Jaarhistorie indien nodig'],['Contractprijzen','Werkelijke data','EPEX uurprijzen en kosten']]
-    table(c,M,H-140,W-2*M,['Bron','In huidige rapportage','Definitieve bron'],rows,[.30,.30,.40],38,7.5)
-    txt(c,M,H-415,'Controlepunten echte maandupdate',10,True)
-    checks=['Volledige vorige kalendermaand aanwezig','Alle timestamps in dezelfde tijdzone','Geen dubbele kwartierregels','Aansluiting P1-totalen op meterstanden','Enphase-productie via Aangepaste export','Socketnamen en apparaatkoppelingen ongewijzigd','Contractprijzen en vaste kosten actueel','Afwijkingen automatisch gemarkeerd']
-    for i,ch in enumerate(checks):
-        yy=H-448-i*28; c.setFillColor(GREEN); c.circle(M+8,yy+2,7,fill=1,stroke=0); txt(c,M+8,yy-1,'✓',7,True,white,'center'); txt(c,M+24,yy-1,ch,7.7)
-    callout(c,M,45,W-2*M,88,'Definitieve status','Rapportopzet geschikt. Dashboard, apparaten, financiële controle, voortschrijdende jaarprognose, batterijscenario’s, aanbevelingen en datakwaliteit zijn opgenomen.')
+
+def page13(c, d):
+    header(c, 13, '12. Datakwaliteit en broncontrole', d['meta']['status'])
+    wrap(c, 'Bronstatus en controles op deze pagina komen uit de rapportadapter. Er worden geen hardcoded groene vinkjes gebruikt.', M, H - 90, W - 2 * M, 8.3, 11, True)
+    table(c, M, H - 140, W - 2 * M, ['Bron', 'Status', 'Gebruik / beperking'], d['quality']['sources'], [.28, .24, .48], 39, 7.2)
+    txt(c, M, H - 425, 'Controlepunten', 10, True)
+    checks = d['quality']['checks']
+    for i, check in enumerate(checks):
+        label, status, detail = check
+        yy = H - 458 - i * 38
+        color = GREEN if status == 'ok' else ORANGE if status in ('aandacht', 'niet gebruikt') else RED
+        c.setFillColor(color)
+        c.circle(M + 8, yy + 2, 7, fill=1, stroke=0)
+        txt(c, M + 8, yy - 1, '✓' if status == 'ok' else '!', 7, True, white, 'center')
+        txt(c, M + 24, yy + 3, label, 7.5, True)
+        txt(c, M + 190, yy + 3, status, 7, True, color)
+        wrap(c, detail, M + 265, yy + 3, W - M - (M + 265), 6.6, 8, False, GRAY, 2)
+    callout(c, M, 45, W - 2 * M, 85, 'Status', d['quality']['status'], 'warn' if any(row[1] != 'ok' for row in checks) else 'info')
     footer(c)
 
-def generate(data_path,out_path):
-    d=json.loads(Path(data_path).read_text(encoding='utf-8'))
-    c=canvas.Canvas(str(out_path),pagesize=A4)
-    for fn in (page3,page4,page5,page6,page7,page8,page9,page10,page11,page12,page13): fn(c,d); c.showPage()
+
+def generate(data_path, out_path):
+    data = json.loads(Path(data_path).read_text(encoding='utf-8'))
+    c = canvas.Canvas(str(out_path), pagesize=A4)
+    for fn in (page3, page4, page5, page6, page7, page8, page9, page10, page11, page12, page13):
+        fn(c, data)
+        c.showPage()
     c.save()
 
-if __name__=='__main__':
-    ap=argparse.ArgumentParser(); ap.add_argument('--data',default=str(Path(__file__).parents[1]/'data/juli_2026.json')); ap.add_argument('--output',default=str(Path(__file__).parents[1]/'output/Energierapport_Pagina3_tm_13_voorbeeld_v1.pdf')); a=ap.parse_args(); generate(a.data,a.output)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data', required=True)
+    parser.add_argument('--output', required=True)
+    args = parser.parse_args()
+    generate(args.data, args.output)

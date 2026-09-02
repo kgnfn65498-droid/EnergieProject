@@ -88,7 +88,7 @@ def icon(c,kind,cx,cy,color):
 def header(c,d,assets):
     c.setFillColor(C['navy']); c.rect(X(27),Y(420),X(1931),420*SY,fill=1,stroke=0)
     txt(c,'ENERGIERAPPORT',74,97,73,True,white)
-    txt(c,'Managementoverzicht - Pagina 1 van 7',74,161,26,True,white)
+    txt(c,f"Managementoverzicht - Pagina 1 van {d['rapport']['paginas']}",74,161,26,True,white)
     txt(c,'Periode:',74,250,21,True,white); txt(c,d['rapport']['periode'],74,284,25,False,white)
     txt(c,'Rapportdatum:',74,354,21,True,white); txt(c,d['rapport']['rapportdatum'],74,388,25,False,white)
     img=ImageReader(str(assets/'woning.png')); c.drawImage(img,X(792),Y(410),X(350),382*SY,mask='auto',preserveAspectRatio=True,anchor='c')
@@ -196,41 +196,57 @@ def gauge(c,cx,cy,r,score,color='green',segments=False):
 
 def draw_score_eff(c,d):
     rr(c,27,1690,953,486,24); rr(c,1005,1690,953,486,24)
-    gauge(c,255,1848,105,d['score']['totaal'],'red',segments=True)
-    # pointer
-    c.setStrokeColor(C['ink']); c.setLineWidth(7*SX); c.line(X(255),Y(1848),X(205),Y(1829))
-    txt(c,d['score']['totaal'],255,1908,50,True,'ink','center'); txt(c,'/100',255,1950,16,True,'ink','center')
-    txt(c,'ZEER LAGE VOORLOPIGE SCORE',255,2012,16,True,'orange','center')
-    names=d['score']['onderdelen']; cols=['orange','orange','green','green','green']
-    for i,(name,val) in enumerate(names):
-        y=1768+i*49
-        c.setFillColor(C[cols[i]]); c.circle(X(432),Y(y-4),8*SX,fill=1,stroke=0)
-        txt(c,name,465,y,17,True); txt(c,f'{val} / 100',880,y,15,True,'ink','right')
+    score_available=bool(d.get('score',{}).get('score_beschikbaar',True))
+    score=float(d.get('score',{}).get('totaal') or 0)
+    gauge(c,255,1848,105,score,'red',segments=True)
+    if score_available:
+        c.setStrokeColor(C['ink']); c.setLineWidth(7*SX); c.line(X(255),Y(1848),X(205),Y(1829))
+        txt(c,int(score) if score.is_integer() else score,255,1908,50,True,'ink','center'); txt(c,'/100',255,1950,16,True,'ink','center')
+        txt(c,'VOORLOPIGE ENERGIESCORE',255,2012,16,True,'orange','center')
+    else:
+        txt(c,'N/B',255,1918,44,True,'muted','center')
+        txt(c,'ENERGIESCORE NOG NIET BEREKENBAAR',255,2012,14,True,'orange','center')
+    names=d.get('score',{}).get('onderdelen') or []
+    cols=['orange','orange','green','green','green']
+    for i,(name,val) in enumerate(names[:5]):
+        y=1768+i*49; col=cols[i]
+        c.setFillColor(C[col] if score_available else C['line']); c.circle(X(432),Y(y-4),8*SX,fill=1,stroke=0)
+        txt(c,name,465,y,17,True)
+        shown=f'{val} / 100' if score_available and isinstance(val,(int,float)) else 'n.b.'
+        txt(c,shown,880,y,15,True,'ink','right')
         c.setFillColor(C['line']); c.roundRect(X(465),Y(y+18),X(420),12*SY,6*SX,fill=1,stroke=0)
-        c.setFillColor(C[cols[i]]); c.roundRect(X(465),Y(y+18),X(420*val/100),12*SY,6*SX,fill=1,stroke=0)
+        if score_available and isinstance(val,(int,float)):
+            c.setFillColor(C[col]); c.roundRect(X(465),Y(y+18),X(420*val/100),12*SY,6*SX,fill=1,stroke=0)
     rr(c,58,2025,860,112,16,fill=C['pale'],stroke=C['blue'])
-    txt(c,'Wat laat de score 11 zien?',82,2060,18,True)
-    wrap(c,'De totaalscore vergelijkt verbruik, teruglevering, efficiëntie, kosten en duurzaamheid. Door slechts 8 meetdagen is 11 nog niet representatief.',82,2090,800,15,20,False,'ink',3)
-    items=[('Zelfvoorzieningsgraad',d['efficientie']['zelfvoorziening'],d['efficientie']['delta_zelf'],'blue'),('Eigen verbruik van opwek',d['efficientie']['eigen_verbruik'],d['efficientie']['delta_eigen'],'green'),('Gasprestatie',d['efficientie']['gas'],d['efficientie']['delta_gas'],'green')]
+    txt(c,'Toelichting energiescore',82,2060,18,True)
+    score_note=d.get('score',{}).get('toelichting') or 'De score wordt alleen gepubliceerd als alle benodigde bron-KPI’s betrouwbaar beschikbaar zijn.'
+    wrap(c,score_note,82,2090,800,15,20,False,'ink',3)
+    items=[('Zelfvoorzieningsgraad',d['efficientie'].get('zelfvoorziening'),d['efficientie'].get('delta_zelf'),'blue'),('Eigen verbruik van opwek',d['efficientie'].get('eigen_verbruik'),d['efficientie'].get('delta_eigen'),'green'),('Gasverbruik rapportmaand',d['efficientie'].get('gas'),d['efficientie'].get('delta_gas'),'green')]
     for i,(name,val,delta,col) in enumerate(items):
         y=1718+i*90
         icon(c,'huis' if i==0 else 'balans' if i==1 else 'vlam',1060,y+28,col)
         txt(c,name,1108,y+18,22,True)
-        desc='Eigen opwek dekt dit aandeel van het verbruik' if i==0 else 'Dit aandeel van de opwek wordt direct gebruikt' if i==1 else 'Gasverbruik ten opzichte van dezelfde periode vorig jaar'
+        desc='Alleen beschikbaar bij consistente totale PV-dekking' if i<2 else 'Vergelijking met dezelfde kalendermaand vorig jaar'
         txt(c,desc,1108,y+48,13,False,'muted')
-        txt(c,(f'{val:.1f}%'.replace('.',',') if i<2 else f'{val:.1f} m³'.replace('.',',')),1905,y+34,34,True,'ink','right')
-        txt(c,f'({delta:+.1f}%)'.replace('.',','),1905,y+64,15,True,'red','right')
+        if isinstance(val,(int,float)):
+            value_text=(f'{val:.1f}%'.replace('.',',') if i<2 else f'{val:.1f} m³'.replace('.',','))
+        else:
+            value_text='n.b.'
+        txt(c,value_text,1905,y+34,34,True,'ink','right')
+        delta_text=f'({delta:+.1f}%)'.replace('.',',') if isinstance(delta,(int,float)) else 'bronbeperkt'
+        txt(c,delta_text,1905,y+64,15,True,'muted','right')
         c.setFillColor(C['line']); c.roundRect(X(1108),Y(y+82),X(675),20*SY,10*SX,fill=1,stroke=0)
-        scaled=(val/100 if i<2 else min(val/20,1))
-        c.setFillColor(C[col]); c.roundRect(X(1108),Y(y+82),X(675*scaled),20*SY,10*SX,fill=1,stroke=0)
+        if isinstance(val,(int,float)):
+            scaled=(val/100 if i<2 else min(max(val,0)/20,1))
+            c.setFillColor(C[col]); c.roundRect(X(1108),Y(y+82),X(675*scaled),20*SY,10*SX,fill=1,stroke=0)
     rr(c,1045,2010,875,123,16,fill=C['lightgreen'],stroke=C['green'])
     txt(c,'Belangrijkste optimalisatie',1075,2042,18,True)
-    wrap(c,'Verschuif vaatwasser, wasmachine en andere flexibele verbruikers naar zonnige uren tussen 11:00 en 16:00 voor meer eigen verbruik.',1075,2072,800,13,18,False,'ink',3)
+    wrap(c,'Verschuif vaatwasser, wasmachine en andere flexibele verbruikers naar zonnige uren tussen 11:00 en 16:00. Zelfconsumptie wordt pas gekwantificeerd zodra de totale PV-productie bronvast is.',1075,2072,800,13,18,False,'ink',3)
 
 def draw_battery(c,d):
     rr(c,27,2255,620,444,24); rr(c,680,2255,620,444,24); rr(c,1335,2255,623,444,24)
     gauge(c,330,2453,140,d['batterij']['score'],'green'); txt(c,d['batterij']['score'],330,2514,58,True,'green','center'); txt(c,'/100',330,2552,18,True,'ink','center')
-    rr(c,83,2585,500,126,18,fill=C['lightgreen'],stroke=C['lightgreen']); txt(c,'Je komt dichtbij!',110,2630,25,True,'green'); wrap(c,'Terugverdientijd is acceptabel en de batterij kan al voordeel opleveren.',110,2665,430,14,19,False,'ink',3)
+    rr(c,83,2585,500,126,18,fill=C['lightgreen'],stroke=C['lightgreen']); txt(c,'Drempel gehaald - nog volgen',110,2630,22,True,'green'); wrap(c,'De modelscore passeert de volgdrempel; dit is nog geen koopadvies.',110,2665,430,14,19,False,'ink',3)
     txt(c,'Ontwikkeling score',990,2320,23,True,'ink','center'); vals=d['batterij']['ontwikkeling']; pts=[]
     chart_left, chart_right, chart_top, chart_bottom = 748, 1225, 2370, 2555
     # Vaste assen en posities: maanddata veranderen alleen waarden, nooit de template-layout.
@@ -256,7 +272,7 @@ def draw_battery(c,d):
     txt(c,'Samenvatting batterij-simulatie',1375,2320,25,True); rows=[('Geschikte capaciteit',d['batterij']['capaciteit']),('Benutting batterij (geschat)',d['batterij']['benutting']),('Jaarlijkse besparing (geschat)',d['batterij']['besparing']),('Investering (plug-in 5 kWh)',d['batterij']['investering']),('Terugverdientijd (huidig)',d['batterij']['terugverdientijd'])]
     for i,(a,b) in enumerate(rows): txt(c,a,1375,2370+i*48,17,False); txt(c,b,1905,2370+i*48,17,True,'ink','right')
     txt(c,'Belangrijkste factoren',1375,2620,20,True)
-    for i,s in enumerate(['Saldering loopt verder af richting 2027','Dynamische tarieven bieden kansen','Huidig eigen verbruik 26%','Monitoring blijft belangrijk']): txt(c,'✓',1390,2638+i*24,17,True,'green'); txt(c,s,1420,2638+i*24,15,False)
+    for i,s in enumerate(['Saldering loopt verder af richting 2027','Dynamische tarieven bieden kansen','Zelfconsumptie nog bronbeperkt','Monitoring blijft belangrijk']): txt(c,'✓',1390,2638+i*24,17,True,'green'); txt(c,s,1420,2638+i*24,15,False)
 
 def generate(data_path:Path,out:Path,assets:Path):
     d=load_and_validate(data_path); out.parent.mkdir(parents=True,exist_ok=True)
@@ -265,7 +281,7 @@ def generate(data_path:Path,out:Path,assets:Path):
     section(c,3,f"MAANDOVERZICHT - {d['rapport']['maand']}",1080); draw_month(c,d)
     section(c,4,'ENERGIE GEZONDHEIDSSCORE',1620,27,953); section(c,5,'ENERGIE-EFFICIËNTIE & EIGEN VERBRUIK',1620,1005,953); draw_score_eff(c,d)
     section(c,6,'THUISBATTERIJ - IS HET AL INTERESSANT?',2190); draw_battery(c,d)
-    txt(c,'Let op: alle waarden zijn voorlopig en gebaseerd op de beschikbare gegevens van 15 t/m 22 juli 2026.',27,2780,12,False,'muted'); txt(c,'Energierapport - Pagina 1 van 7',1958,2780,12,False,'muted','right')
+    txt(c,f"Bronperiode: {d['rapport']['periode']}. Afgeleide KPI's worden alleen getoond bij voldoende bronkwaliteit.",27,2780,12,False,'muted'); txt(c,f"Energierapport - Pagina 1 van {d['rapport']['paginas']}",1958,2780,12,False,'muted','right')
     c.showPage(); c.save()
 
 def main():

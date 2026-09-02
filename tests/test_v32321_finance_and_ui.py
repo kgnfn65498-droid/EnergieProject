@@ -60,8 +60,8 @@ def test_report_payload_wires_confirmed_offer_into_page1_and_page2():
     assert '"balance": offer_finance["expected_balance_eur"]' in source
 
 
-def test_v32321_release_identity():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.3.21'
-    assert 'version: "32.3.21"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.3.21"' in MAIN.read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.3.21"' in (ROOT / 'slimmemeterportal_import/rootfs/app/mode_entrypoint.py').read_text(encoding='utf-8')
+def test_current_release_identity():
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.3.22'
+    assert 'version: "32.3.22"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert 'APP_VERSION = "32.3.22"' in MAIN.read_text(encoding='utf-8')
+    assert 'TARGET_RELEASE_VERSION = "32.3.22"' in (ROOT / 'slimmemeterportal_import/rootfs/app/mode_entrypoint.py').read_text(encoding='utf-8')

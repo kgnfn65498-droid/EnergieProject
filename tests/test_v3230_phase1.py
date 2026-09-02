@@ -241,12 +241,14 @@ def test_solar_bonus_is_conditional_and_capped():
     assert unknown_origin["reason"] == "solar_origin_not_confirmed"
 
 
-def test_supplier_contract_context_uses_official_start_and_dynamic_gas(monkeypatch):
+def test_supplier_contract_context_uses_current_price_ceiling_contract(monkeypatch):
     m = load_main("v3230_contract_context")
     monkeypatch.setattr(m, "home_assistant_entity", lambda entity_id: {"state": "0.2", "attributes": {"unit_of_measurement": "EUR/kWh"}, "last_updated": "x"})
     context = m._supplier_contract_context()
-    assert context["contract"]["contract_start"] == "2026-07-16"
-    assert context["contract"]["gas_pricing"] == "dynamic"
+    assert context["contract"]["contract_start"] == "2026-09-03"
+    assert context["contract"]["contract_end"] == "2027-09-03"
+    assert context["contract"]["gas_pricing"] == "price_ceiling"
+    assert context["contract"]["gas_price_ceiling_eur_per_m3"] == 0.8558
 
 
 def test_observed_nextenergy_price_cost_does_not_add_markup_twice():

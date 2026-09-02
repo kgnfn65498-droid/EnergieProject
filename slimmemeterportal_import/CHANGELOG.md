@@ -1,9 +1,9 @@
 # Changelog
 
-## 32.3.21
+## 32.3.22
 
-- Bevestigde NextEnergy-prognose en termijnbedrag in management- en termijnblokken.
-- Contractheader naar 03-09-2026 / dynamisch stroom + gasprijsplafond 1 jaar.
-- Ingress-veilige terugknop op de rapportpagina.
-- Niet-geconfigureerde EPEX-statusregels verborgen in de gebruikersinterface.
-- De v32.3.20 correcties voor maandvergelijking, gasreeks en canoniek outputpad blijven behouden.
+- Rapportbetrouwbaarheid en brondekking gerepareerd vóór de Crash Recovery-gate.
+- Volledige SlimmeMeterPortal-maanddata wint van een gedeeltelijke P1/P1g-reeks; P1 blijft controlebron.
+- Maand-JSONL is de primaire SMP-rekenbron wanneer dagelijkse raw-bestanden aggregate placeholders zijn.
+- Pagina 1-13 gebruiken geen productie-demo-/juli-fixtures meer en financiële offertewaarden zijn onderling consistent.
+- Centrale validatie, canoniek outputpad en ingress-rapportnavigatie zijn gehard.

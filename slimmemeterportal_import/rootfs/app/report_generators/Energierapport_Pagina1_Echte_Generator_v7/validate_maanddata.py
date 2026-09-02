@@ -37,7 +37,7 @@ def validate(data: dict[str, Any]) -> None:
     _text(data["rapport"]["maand"], "rapport.maand", 24)
     _need(data["contract"], ["start", "type"], "contract")
     _text(data["contract"]["start"], "contract.start", 24)
-    _text(data["contract"]["type"], "contract.type", 34)
+    _text(data["contract"]["type"], "contract.type", 48)
 
     summaries = data["samenvatting"]
     if not isinstance(summaries, list) or not (1 <= len(summaries) <= 8):
@@ -90,7 +90,9 @@ def validate(data: dict[str, Any]) -> None:
 
     eff = data["efficientie"]
     _need(eff, ["zelfvoorziening", "delta_zelf", "eigen_verbruik", "delta_eigen", "gas", "delta_gas"], "efficientie")
-    for key in eff: _number(eff[key], f"efficientie.{key}")
+    for key in eff:
+        if eff[key] is not None:
+            _number(eff[key], f"efficientie.{key}")
 
     bat = data["batterij"]
     _need(bat, ["score", "ontwikkeling", "capaciteit", "benutting", "besparing", "investering", "terugverdientijd"], "batterij")

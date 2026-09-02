@@ -66,14 +66,18 @@ def write_smp_month(root: pathlib.Path, *, month_key="2026_07", complete=True):
 
 def write_p1_month(folder: pathlib.Path):
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "P1e.csv").write_text(
-        "total_power_import_kwh,total_power_export_kwh\n100,20\n110,22\n",
-        encoding="utf-8",
-    )
-    (folder / "P1g.csv").write_text(
-        "total_gas_m3\n50\n53\n",
-        encoding="utf-8",
-    )
+    # Full calendar-day coverage: this fixture represents a P1 source that is
+    # genuinely entitled to outrank the complete SMP control source.
+    electricity = ["captured_at,total_power_import_kwh,total_power_export_kwh"]
+    gas = ["captured_at,total_gas_m3"]
+    for day in range(1, 32):
+        fraction = (day - 1) / 30
+        electricity.append(
+            f"2026-07-{day:02d}T12:00:00+02:00,{100 + 10*fraction:.6f},{20 + 2*fraction:.6f}"
+        )
+        gas.append(f"2026-07-{day:02d}T12:00:00+02:00,{50 + 3*fraction:.6f}")
+    (folder / "P1e.csv").write_text("\n".join(electricity) + "\n", encoding="utf-8")
+    (folder / "P1g.csv").write_text("\n".join(gas) + "\n", encoding="utf-8")
     (folder / "month_input_validation.json").write_text(
         json.dumps({"status": "ok", "missing_required": [], "empty_required": []}),
         encoding="utf-8",
@@ -138,9 +142,9 @@ def test_analysis_uses_smp_when_p1_missing(monkeypatch, tmp_path):
     assert result["metrics"]["grid_export_kwh"] == 15.5
     assert result["metrics"]["gas_m3"] == 6.2
     assert "SlimmeMeterPortal" in result["quality"]["available_sources"]
-    assert result["quality"]["grid_import_source"] == "slimmemeterportal_fallback"
-    assert result["quality"]["grid_export_source"] == "slimmemeterportal_fallback"
-    assert result["quality"]["gas_source"] == "slimmemeterportal_fallback"
+    assert result["quality"]["grid_import_source"] == "slimmemeterportal_full_month_primary"
+    assert result["quality"]["grid_export_source"] == "slimmemeterportal_full_month_primary"
+    assert result["quality"]["gas_source"] == "slimmemeterportal_full_month_primary"
 
 
 def test_valid_p1_wins_over_complete_smp_without_summing(monkeypatch, tmp_path):
@@ -210,7 +214,7 @@ def test_report_adapter_uses_same_smp_totals_as_analysis(monkeypatch, tmp_path):
     assert adapter["measurements"]["import_kwh"] == analysis["metrics"]["grid_import_kwh"]
     assert adapter["measurements"]["export_kwh"] == analysis["metrics"]["grid_export_kwh"]
     assert adapter["measurements"]["gas_m3"] == analysis["metrics"]["gas_m3"]
-    assert adapter["energy_sources"]["grid_import"] == "slimmemeterportal_fallback"
+    assert adapter["energy_sources"]["grid_import"] == "slimmemeterportal_full_month_primary"
 
 
 def test_durable_publication_replaces_only_exact_month_after_validation(monkeypatch, tmp_path):

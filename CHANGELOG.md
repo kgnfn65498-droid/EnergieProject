@@ -1,3 +1,14 @@
+## 32.3.22 — Rapportbetrouwbaarheid + Crash Recovery-gate
+- Volledige SlimmeMeterPortal-maanddata krijgt voorrang boven een P1/P1g-reeks die pas later in de maand start; P1 blijft controlebron.
+- SlimmeMeterPortal maandtotalen worden uit de duurzame maand-JSONL gelezen wanneer dagelijkse raw-bestanden alleen aggregate placeholders bevatten.
+- Rapportperiode is bronvast: een volledige kalendermaand wordt alleen als volledig gelabeld wanneer de gekozen kernbronnen die dekking echt hebben.
+- Pagina 1-13 zijn opgeschoond van productiegebruik van juli/demo-fixtures, fictieve apparaatwaarden, hardcoded EPEX-status en tegenstrijdige score-/batterijwaarden.
+- Pagina 2 kosten/prognose en pagina 9 financiën gebruiken de bevestigde NextEnergy-termijn €150 en offerteprognose €153/maand = €1.836/jaar; betalingen €1.800 en saldo -€36.
+- Augustus blijft contractueel het oude dynamische NextEnergy-contract; het gasprijsplafond start pas 03-09-2026.
+- Centrale SMP-dekkingsvalidatie accepteert de geldige dagaggregaatvorm en markeert een succesvol gepubliceerd rapport niet meer onterecht als failed.
+- Rapport-UI terugroute is ingress-veilig en niet-geconfigureerde EPEX-bronnen blijven uit de zichtbare gebruikersstatus.
+- Canonieke rapportuitvoer blijft uitsluitend Data/02_Output/Rapportages; Data/01_Input/02_Output wordt niet opnieuw aangemaakt.
+
 ## 32.3.21 — NextEnergy-prognose + rapport-UI correcties
 - Managementrapport gebruikt het bevestigde termijnbedrag €150 en de NextEnergy-offerteprognose €153/maand = €1.836/jaar.
 - Verwachte jaarbetalingen €1.800 en verwacht saldo -€36 worden expliciet getoond; demo/lege managementbedragen vervallen.

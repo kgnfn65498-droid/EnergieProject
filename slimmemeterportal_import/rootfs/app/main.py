@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.21"
+APP_VERSION = "32.3.22"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -735,6 +735,30 @@ def validate_smp_content_coverage(target: Path, month_key: str) -> dict[str, Any
     empty_days = []
     missing_days = []
     connection_days = {}
+    summary_day_counts: dict[str, dict[date, int]] = {}
+    try:
+        summary_payload = json.loads((target / "month_summary.json").read_text(encoding="utf-8"))
+        for summary_connection in summary_payload.get("connections", []):
+            if not isinstance(summary_connection, dict):
+                continue
+            summary_meter = str(summary_connection.get("connection_id") or summary_connection.get("meter_identifier") or "").strip()
+            summary_type = str(summary_connection.get("connection_type") or "").strip().lower()
+            if not summary_meter or not summary_type:
+                continue
+            summary_key = f"{summary_type}/{summary_meter}"
+            summary_days: dict[date, int] = {}
+            for day_item in summary_connection.get("days", []):
+                if not isinstance(day_item, dict):
+                    continue
+                try:
+                    summary_date = date.fromisoformat(str(day_item.get("date")))
+                except (TypeError, ValueError):
+                    continue
+                if day_item.get("status") == "ok":
+                    summary_days[summary_date] = int(day_item.get("records") or 0)
+            summary_day_counts[summary_key] = summary_days
+    except (FileNotFoundError, json.JSONDecodeError, OSError, TypeError, ValueError):
+        summary_day_counts = {}
 
     try:
         connections = json.loads((target / "connections.json").read_text(encoding="utf-8"))
@@ -783,8 +807,12 @@ def validate_smp_content_coverage(target: Path, month_key: str) -> dict[str, Any
             raw_path = target / "raw" / f"{ctype}_{meter}_{day.isoformat()}.json"
             key = f"{keybase}/{day.isoformat()}"
             if not raw_path.is_file():
-                daymap[day] = None
-                missing_days.append(key)
+                summary_count = (summary_day_counts.get(keybase) or {}).get(day)
+                if summary_count:
+                    daymap[day] = summary_count
+                else:
+                    daymap[day] = None
+                    missing_days.append(key)
                 day += timedelta(days=1)
                 continue
             try:
@@ -796,6 +824,8 @@ def validate_smp_content_coverage(target: Path, month_key: str) -> dict[str, Any
                 continue
             usages = payload.get("usages") if isinstance(payload, dict) else None
             count = len(usages) if isinstance(usages, list) else 0
+            if count == 0:
+                count = int((summary_day_counts.get(keybase) or {}).get(day) or 0)
             daymap[day] = count
             if count == 0:
                 empty_days.append(key)
@@ -828,10 +858,11 @@ def validate_smp_content_coverage(target: Path, month_key: str) -> dict[str, Any
                 errors.append(f"{keybase}/{d.isoformat()}: geen meetrecords binnen verplichte dekkingsreeks.")
                 continue
             days_with_measurements += 1
-            if ctype == "elektriciteit" and count < 92:
-                errors.append(f"{keybase}/{d.isoformat()}: slechts {count} kwartierrecords.")
-            elif ctype == "gas" and count < 23:
-                errors.append(f"{keybase}/{d.isoformat()}: slechts {count} uurrecords.")
+            expected = expected_count(ctype, d, "slimmemeterportal")
+            if expected and count not in expected:
+                errors.append(
+                    f"{keybase}/{d.isoformat()}: {count} record(s), verwacht {sorted(expected)} voor SlimmeMeterPortal."
+                )
 
     status = "ok"
     if errors:
@@ -1737,6 +1768,65 @@ def cumulative_delta(rows: list[dict[str, str]], candidates: tuple[str, ...]) ->
     return 0.0
 
 
+def _csv_month_coverage(rows: list[dict[str, str]], month_key: str) -> dict[str, Any]:
+    """Return calendar-day coverage for a timestamped month CSV.
+
+    A cumulative P1 delta is only a full-month source when both the first and
+    last calendar day are represented and every calendar day occurs at least
+    once. This intentionally does not pretend a late-starting P1 series is a
+    full calendar month.
+    """
+    year, month = parse_month_key(month_key)
+    month_start = date(year, month, 1)
+    month_end = date(year, month, monthrange(year, month)[1])
+    observed: set[date] = set()
+    timestamps: list[datetime] = []
+    for row in rows:
+        raw = None
+        for key in ("captured_at", "timestamp", "time", "datetime", "date"):
+            value = str(row.get(key) or "").strip()
+            if value:
+                raw = value
+                break
+        if not raw:
+            continue
+        parsed = None
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                try:
+                    parsed = datetime.strptime(raw, fmt)
+                    break
+                except ValueError:
+                    continue
+        if parsed is None:
+            continue
+        local = parsed.astimezone(TZ) if parsed.tzinfo else parsed.replace(tzinfo=TZ)
+        if (local.year, local.month) != (year, month):
+            continue
+        timestamps.append(local)
+        observed.add(local.date())
+    first = min(timestamps) if timestamps else None
+    last = max(timestamps) if timestamps else None
+    expected_days = monthrange(year, month)[1]
+    complete = bool(
+        first and last
+        and first.date() == month_start
+        and last.date() == month_end
+        and len(observed) == expected_days
+    )
+    return {
+        "complete": complete,
+        "first_timestamp": first.isoformat() if first else None,
+        "last_timestamp": last.isoformat() if last else None,
+        "first_date": first.date().isoformat() if first else None,
+        "last_date": last.date().isoformat() if last else None,
+        "days_observed": len(observed),
+        "days_expected": expected_days,
+    }
+
+
 def load_generator_example(role: str) -> dict[str, Any]:
     folder = BUNDLED_REPORT_GENERATORS / GENERATOR_BUNDLE_FOLDERS[role]
     if role == "page_1":
@@ -1860,10 +1950,26 @@ def load_financial_analysis_for_report(input_folder: Path, month_key: str) -> di
     return {"source": None, "financial_context": {}, "supplier_context": {}}
 
 
+_DUTCH_MONTH_NAMES = (
+    "", "januari", "februari", "maart", "april", "mei", "juni",
+    "juli", "augustus", "september", "oktober", "november", "december",
+)
+
+
+def _dutch_month_name(month: int) -> str:
+    if not 1 <= int(month) <= 12:
+        raise ValueError("month moet 1 t/m 12 zijn")
+    return _DUTCH_MONTH_NAMES[int(month)]
+
+
+def _dutch_month_label(year: int, month: int) -> str:
+    return f"{_dutch_month_name(month)} {int(year)}"
+
+
 def _report_period_from_resolved_quality(month_key: str, quality: dict[str, Any]) -> dict[str, Any]:
     """Describe the actual evidence window; never label a partial current month as full."""
     year, month = int(month_key[:4]), int(month_key[5:7])
-    month_name = datetime(year, month, 1, tzinfo=TZ).strftime("%B %Y")
+    month_name = _dutch_month_label(year, month)
     quarter = quality.get("quarter_hour") if isinstance(quality, dict) else None
     if isinstance(quarter, dict) and quarter.get("available"):
         first_stamp = quarter.get("first_snapshot")
@@ -1883,6 +1989,28 @@ def _report_period_from_resolved_quality(month_key: str, quality: dict[str, Any]
                 "period_end_date": last_local.date().isoformat(),
                 "period_label": f"{first_local.day} t/m {last_local.day} {month_name}",
                 "coverage_status": quarter.get("coverage_status") or "partial_current_month",
+            }
+    measurement = quality.get("measurement_period") if isinstance(quality, dict) else None
+    if isinstance(measurement, dict) and measurement.get("period_start_date") and measurement.get("period_end_date"):
+        try:
+            start_day = date.fromisoformat(str(measurement["period_start_date"]))
+            end_day = date.fromisoformat(str(measurement["period_end_date"]))
+        except ValueError:
+            start_day = end_day = None
+        if start_day and end_day:
+            complete = bool(measurement.get("complete"))
+            return {
+                "completeness": "FULL" if complete else "PARTIAL",
+                "source": str(measurement.get("source") or "resolved_month_source"),
+                "sample_count": measurement.get("sample_count"),
+                "missing_slot_count": measurement.get("missing_slot_count"),
+                "period_start_date": start_day.isoformat(),
+                "period_end_date": end_day.isoformat(),
+                "period_label": (
+                    f"1 t/m {end_day.day} {month_name}" if complete and start_day.day == 1
+                    else f"{start_day.day} t/m {end_day.day} {month_name}"
+                ),
+                "coverage_status": str(measurement.get("coverage_status") or ("full" if complete else "partial")),
             }
     days = monthrange(year, month)[1]
     current = month_key == datetime.now(TZ).strftime("%Y_%m")
@@ -1939,32 +2067,26 @@ def build_report_adapter_data(
     import_kwh = float(import_kwh)
     export_kwh = float(export_kwh)
     gas_m3 = float(gas_m3)
-    production_kwh = cumulative_delta(
-        enphase_rows,
-        (
-            "energy_kwh",
-            "lifetime_energy_kwh",
-            "production_kwh",
-            "value_kwh",
-            "value",
-        ),
-    )
-
-    if production_kwh <= 0:
-        production_kwh = export_kwh
-    direct_solar = max(0.0, production_kwh - export_kwh)
-    house_use = max(0.0, import_kwh + direct_solar)
+    production_raw = resolved_metrics.get("solar_production_kwh")
+    direct_solar_raw = resolved_metrics.get("direct_solar_use_kwh")
+    house_use_raw = resolved_metrics.get("house_use_kwh")
+    self_use_raw = resolved_metrics.get("self_use_pct")
+    self_supply_raw = resolved_metrics.get("self_supply_pct")
+    production_kwh = float(production_raw) if isinstance(production_raw, (int, float)) else None
+    direct_solar = float(direct_solar_raw) if isinstance(direct_solar_raw, (int, float)) else None
+    house_use = float(house_use_raw) if isinstance(house_use_raw, (int, float)) else None
+    self_use_pct = float(self_use_raw) if isinstance(self_use_raw, (int, float)) else None
+    self_supply_pct = float(self_supply_raw) if isinstance(self_supply_raw, (int, float)) else None
+    solar_metrics_reliable = resolved_quality.get("solar_balance_status") == "ok"
     net_kwh = import_kwh - export_kwh
-    self_use_pct = (direct_solar / production_kwh * 100.0) if production_kwh else 0.0
-    self_supply_pct = (direct_solar / house_use * 100.0) if house_use else 0.0
     days = monthrange(year, month)[1]
-    month_name = datetime(year, month, 1, tzinfo=TZ).strftime("%B %Y")
+    month_name = _dutch_month_label(year, month)
     month_upper = month_name.upper()
     previous_year_record = _historical_month_record(year - 1, month)
     previous_import = previous_year_record.get("import_kwh")
     previous_export = previous_year_record.get("export_kwh")
     previous_gas = previous_year_record.get("gas_m3")
-    comparison_label = f"VS. {datetime(year - 1, month, 1, tzinfo=TZ).strftime('%B %Y').upper()}"
+    comparison_label = f"VS. {_dutch_month_label(year - 1, month).upper()}"
 
     page1 = load_generator_example("page_1")
     page1["rapport"].update({
@@ -1976,16 +2098,19 @@ def build_report_adapter_data(
         "comparison_label": comparison_label,
     })
     offer_finance = nextenergy_offer_financial_summary()
-    page1["contract"].update({
-        "start": "3 september 2026",
-        "type": "Dynamisch + gasplafond 1 jaar",
-    })
+    report_contract = report_contract_context(year, month)
+    page1["contract"].update(report_contract)
     page1["samenvatting"] = [
         {"kleur": "groen", "tekst": f"Gemeten netverbruik bedraagt {import_kwh:.1f} kWh."},
         {"kleur": "groen", "tekst": f"Gemeten teruglevering bedraagt {export_kwh:.1f} kWh."},
         {"kleur": "groen", "tekst": f"Gemeten gasverbruik bedraagt {gas_m3:.1f} m³."},
-        {"kleur": "groen", "tekst": "NextEnergy-offerteprognose € 1.836 per jaar; bevestigd termijnbedrag € 150 per maand."},
+        {"kleur": "groen", "tekst": "NextEnergy-offerteprognose vanaf 3 september: € 1.836 per jaar; bevestigd termijnbedrag € 150 per maand."},
     ]
+    if not solar_metrics_reliable:
+        page1["samenvatting"].append({
+            "kleur": "oranje",
+            "tekst": "Zelfconsumptie is niet berekend: de Enphase-export dekt niet dezelfde totale PV-productie als de gemeten netteruglevering.",
+        })
     top = page1["kpi_boven"]
     measured = [
         ("Verbruik", import_kwh, "kWh"),
@@ -1996,17 +2121,26 @@ def build_report_adapter_data(
     ]
     for item, (title, value, unit) in zip(top, measured):
         item["titel"] = title
-        item["waarde"] = f"{value:.1f}".replace(".", ",")
-        item["eenheid"] = unit
+        item["waarde"] = f"{value:.1f}".replace(".", ",") if isinstance(value, (int, float)) else "n.b."
+        item["eenheid"] = unit if isinstance(value, (int, float)) else ""
         item["delta"] = "-"
     if len(top) > 5:
         top[5].update({
             "titel": "Jaarprognose",
             "waarde": "€ 1.836",
-            "eenheid": "NextEnergy",
+            "eenheid": "vanaf 3 sep",
             "delta": "offerte",
             "kleur": "oranje",
             "icoon": "euro",
+        })
+    if len(top) > 6:
+        top[6].update({
+            "titel": "Energiescore",
+            "waarde": "n.b.",
+            "eenheid": "",
+            "delta": "bronbeperkt",
+            "kleur": "oranje",
+            "icoon": "meter",
         })
     page1["maand"]["verbruik"].update({
         "waarde": round(import_kwh, 3),
@@ -2027,12 +2161,28 @@ def build_report_adapter_data(
     page1["maand"]["netto_maanden"] = _contract_year_net_series(year, month, net_kwh)
     assert page1["maand"]["netto_maanden"][contract_month_index] == round(net_kwh, 3)
     page1["efficientie"].update({
-        "zelfvoorziening": round(self_supply_pct, 1),
-        "eigen_verbruik": round(self_use_pct, 1),
+        "zelfvoorziening": round(self_supply_pct, 1) if isinstance(self_supply_pct, (int, float)) else None,
+        "eigen_verbruik": round(self_use_pct, 1) if isinstance(self_use_pct, (int, float)) else None,
         "gas": round(gas_m3, 1),
-        "delta_zelf": 0.0,
-        "delta_eigen": 0.0,
-        "delta_gas": 0.0,
+        "delta_zelf": None,
+        "delta_eigen": None,
+        "delta_gas": round(_pct_change(gas_m3, previous_gas), 1) if _pct_change(gas_m3, previous_gas) is not None else None,
+    })
+    page1["score"].update({
+        "totaal": 0,
+        "onderdelen": [[name, 0] for name in ("Verbruik", "Teruglevering", "Efficiëntie", "Kosten", "Duurzaamheid")],
+        "score_beschikbaar": False,
+        "toelichting": "Energiescore niet berekend zolang zelfconsumptie en volledige all-in maandkosten niet bronvast zijn.",
+    })
+    battery_summary = battery_report_summary()
+    page1["batterij"].update({
+        "score": battery_summary["score"],
+        "capaciteit": battery_summary["capacity"],
+        "benutting": battery_summary["utilisation"],
+        "besparing": battery_summary["annual_saving"],
+        "investering": battery_summary["investment"],
+        "terugverdientijd": battery_summary["payback"],
+        "ontwikkeling": battery_summary["development"],
     })
 
     page2 = load_generator_example("page_2")
@@ -2053,22 +2203,42 @@ def build_report_adapter_data(
     page2["gas"].update({
         "month": round(gas_m3, 1),
         "month_vs_ly": round(gas_vs_ly, 1) if gas_vs_ly is not None else 0.0,
-        "per_day": round(gas_m3 / days, 2) if days else 0.0,
-        "per_day_vs_ly": round(gas_vs_ly, 1) if gas_vs_ly is not None else 0.0,
+        "per_day": None,
+        "per_day_vs_ly": None,
+        "degree_days": None,
+        "degree_days_vs_ly": None,
+        "per_degree_day": None,
+        "per_degree_day_vs_ly": None,
+        "degree_days_available": False,
+        "coverage_note": "Daggemiddelde en weerscorrectie niet gebruikt zonder afzonderlijk gevalideerde gasdagdekking/graaddagenbron.",
     })
     page2["gas"]["series"] = _gas_contract_year_series(year, month, gas_m3)
+    reference_import = 4883.0
+    reference_export = 3991.0
+    reference_net = 892.0
+    reference_gas = 711.0
+    offer_import = float(offer_finance["offer_profile_import_kwh"])
+    offer_export = float(offer_finance["offer_profile_export_kwh"])
+    offer_net = offer_import - offer_export
+    offer_gas = float(offer_finance["offer_profile_gas_m3"])
     page2["forecast"].update({
-        "electricity_total": None,
-        "feed_in_total": None,
-        "net": None,
-        "current_year_difference": None,
-        "difference_pct": None,
-        "gas_total": None,
-        "gas_difference": None,
-        "gas_difference_pct": None,
+        "electricity_total": offer_import,
+        "feed_in_total": offer_export,
+        "net": offer_net,
+        "current_year_difference": offer_net - reference_net,
+        "difference_pct": ((offer_net - reference_net) / reference_net * 100.0),
+        "gas_total": offer_gas,
+        "gas_difference": offer_gas - reference_gas,
+        "gas_difference_pct": ((offer_gas - reference_gas) / reference_gas * 100.0),
         "monthly_actual": [None] * 12,
         "monthly_forecast": [None] * 12,
+        "source_label": "NextEnergy-offerteprofiel",
+        "reference_label": "Officiële eindafrekening 2025-2026",
     })
+    page2["electricity"]["contract_years"] = [
+        row[:4] for row in _historical_contract_year_rows()
+        if all(isinstance(value, (int, float)) for value in row[1:4])
+    ]
 
     # v23.5.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
     # financiële waarden. Voorbeeldtarieven uit het generatorpakket mogen nooit
@@ -2080,14 +2250,18 @@ def build_report_adapter_data(
     gas_preview = contract_preview.get("gas") or {}
     monthly_advance = offer_finance["current_monthly_advance_eur"]
     page1["kpi_onder"] = [
-        {"titel": "Offerteprognose", "waarde": "€ 153,00", "sub": "gemiddeld per maand", "kleur": "groen"},
+        {"titel": "Offerteprognose", "waarde": "€ 153,00", "sub": "vanaf 3 september", "kleur": "groen"},
         {"titel": "Huidige maandtermijn", "waarde": "€ 150,00", "sub": "bevestigd door NextEnergy", "kleur": "blauw"},
-        {"titel": "Verwachte jaarkosten", "waarde": "€ 1.836,00", "sub": "NextEnergy-offerteprognose", "kleur": "paars"},
+        {"titel": "Verwachte jaarkosten", "waarde": "€ 1.836,00", "sub": "offerte vanaf 3 september", "kleur": "paars"},
         {"titel": "Verwachte betalingen", "waarde": "€ 1.800,00", "sub": "12 × € 150", "kleur": "turkoois"},
         {"titel": "Benodigde termijn", "waarde": "€ 153,00", "sub": "volgens offerteprognose", "kleur": "oranje"},
         {"titel": "Verwacht saldo", "waarde": "- € 36,00", "sub": "bij € 150 per maand", "kleur": "rood"},
     ]
 
+    page2["costs"]["trend_previous"] = [None] * 12
+    page2["costs"]["trend_current"] = [None] * 12
+    page2["electricity"]["consumption_split"] = None
+    page2["electricity"]["feedin_split"] = None
     page2["costs"].update({
         "electricity": observed_variable if isinstance(observed_variable, (int, float)) else None,
         "feed_in_compensation": (
@@ -2111,6 +2285,14 @@ def build_report_adapter_data(
             if gas_preview.get("available") is True else None
         ),
         "fixed_costs_note": "niet gekoppeld" if not (supplier_context.get("contract_costs") or {}).get("valid") else "contract gevalideerd",
+        "current_monthly_advance": offer_finance["current_monthly_advance_eur"],
+        "offer_monthly_projection": offer_finance["offer_monthly_projection_eur"],
+        "offer_annual_projection": offer_finance["offer_annual_projection_eur"],
+        "expected_annual_payments": offer_finance["expected_annual_payments_eur"],
+        "expected_balance": offer_finance["expected_balance_eur"],
+        "observed_all_in_status": "Nog niet factuurgevalideerd voor augustus",
+        "report_contract_label": report_contract["type"],
+        "offer_starts": "3 september 2026",
     })
 
     projected_30d = financial_projection.get("projected_30d_variable_electricity_cost_eur")
@@ -2123,6 +2305,26 @@ def build_report_adapter_data(
         "coverage_pct": round(offer_finance["expected_annual_payments_eur"] / offer_finance["offer_annual_projection_eur"] * 100.0, 1),
         "source_label": offer_finance["source_label"],
     })
+    page2["battery"] = {
+        "profile": {
+            "annual_feed_in": int(offer_export),
+            "net_import": int(offer_net),
+            "self_use_pct": None,
+            "estimated_shift": None,
+        },
+        "scenarios": [
+            ["Geen batterij", "-", "€ 0", "Referentie"],
+            ["Marstek Venus 3.0", battery_summary["capacity"], battery_summary["annual_saving"], battery_summary["advice"]],
+        ],
+        "decision": {
+            "technical": battery_summary["technical"],
+            "financial": battery_summary["financial"],
+            "best": battery_summary["candidate"],
+            "payback": battery_summary["payback"],
+            "advice": battery_summary["advice"],
+        },
+    }
+
     page2["financial_validation"] = {
         "source": report_financial.get("source"),
         "projection_status": financial_projection.get("status"),
@@ -2135,43 +2337,155 @@ def build_report_adapter_data(
         "policy": "official_contract_values_only_no_assumptions",
     }
 
-    pages = load_generator_example("pages_3_13")
+    pages = {
+        "meta": {},
+        "dashboard": {},
+        "electricity": {},
+        "solar": {},
+        "gas": {},
+        "appliances": {},
+        "finance": {},
+        "forecast": {},
+        "battery": {},
+        "quality": {},
+        "actions": {},
+    }
     pages["meta"].update({
         "month": month_name,
         "period": report_coverage["period_label"],
         "days": days,
-        "status": (
-            "ECHTE MAANDDATA - PARTIEEL - voorlopige financiële modellering"
-            if report_coverage["completeness"] == "PARTIAL"
-            else "ECHTE MAANDDATA - voorlopige financiële modellering"
-        ),
+        "status": "ECHTE MAANDDATA - brongecontroleerd",
     })
-    pages["dashboard"].update({
-        "house": round(house_use, 1),
-        "solar": round(production_kwh, 1),
-        "self": round(self_use_pct, 1),
+    pages["dashboard"] = {
+        "house": round(house_use, 1) if isinstance(house_use, (int, float)) else None,
+        "solar": round(production_kwh, 1) if isinstance(production_kwh, (int, float)) else None,
+        "self": round(self_use_pct, 1) if isinstance(self_use_pct, (int, float)) else None,
         "export": round(export_kwh, 1),
-        "quality": "Bronvalidatie geslaagd",
-    })
+        "score": None,
+        "quality": "Kernmetingen beschikbaar; afgeleide PV-KPI's bronbeperkt" if not solar_metrics_reliable else "Kernmetingen en PV-balans beschikbaar",
+    }
     pages["electricity"].update({
         "grid": round(import_kwh, 1),
         "feedin": round(export_kwh, 1),
         "net": round(net_kwh, 1),
         "grid_day": round(import_kwh / days, 2),
         "feedin_day": round(export_kwh / days, 2),
-        "house": round(house_use, 1),
+        "house": round(house_use, 1) if isinstance(house_use, (int, float)) else None,
+        "daily_grid": [],
+        "daily_feed": [],
     })
-    pages["solar"].update({
-        "production": round(production_kwh, 1),
-        "direct": round(direct_solar, 1),
+    pages["solar"] = {
+        "production": round(production_kwh, 1) if isinstance(production_kwh, (int, float)) else None,
+        "direct": round(direct_solar, 1) if isinstance(direct_solar, (int, float)) else None,
         "feedin": round(export_kwh, 1),
-        "self": round(self_use_pct, 1),
-        "coverage": round(self_supply_pct, 1),
-    })
-    pages["gas"].update({
+        "self": round(self_use_pct, 1) if isinstance(self_use_pct, (int, float)) else None,
+        "coverage": round(self_supply_pct, 1) if isinstance(self_supply_pct, (int, float)) else None,
+        "reliable": solar_metrics_reliable,
+        "source": resolved_quality.get("production_source") or "not_available",
+        "limitation": None if solar_metrics_reliable else "Enphase-productie en P1-teruglevering representeren niet dezelfde totale PV-dekking; zelfconsumptie wordt daarom niet berekend.",
+    }
+    pages["gas"] = {
         "month": round(gas_m3, 1),
-        "per_day": round(gas_m3 / days, 2),
-    })
+        "per_day": None,
+        "reference": reference_gas,
+        "history": [],
+        "coverage_note": page2["gas"]["coverage_note"],
+    }
+    socket_specs = [
+        ("Airco Skt.csv", "Airco woonkamer"),
+        ("Heater woonkamer Skt.csv", "Heater woonkamer"),
+        ("Heater kantoor Skt.csv", "Heater kantoor"),
+        ("Heater lounge Skt.csv", "Heater lounge"),
+        ("Mobiel Skt.csv", "Mobiele socket"),
+    ]
+    appliance_rows = []
+    for file_name, label in socket_specs:
+        path = input_folder / file_name
+        rows = read_csv_rows(path)
+        if not rows:
+            continue
+        value = cumulative_delta(rows, ("total_power_import_kwh", "total_energy_kwh", "energy_kwh", "import_kwh", "value_kwh", "value"))
+        appliance_rows.append([label, f"{value:.1f}".replace(".", ","), "Gemeten", file_name])
+    if not appliance_rows:
+        appliance_rows = [["Geen bruikbare socketexport", "—", "Niet beschikbaar", "Geen waarde gesimuleerd"]]
+    pages["appliances"] = {
+        "rows": appliance_rows,
+        "note": "Alleen aanwezige HomeWizard-socketexports worden getoond; ontbrekende apparaten en restposten worden niet geschat.",
+    }
+    pages["finance"] = {
+        "rows": [
+            ["Huidige maandtermijn", "bevestigd", "€ 150,00"],
+            ["Offerteprognose per maand", "NextEnergy vanaf 3 sep", "€ 153,00"],
+            ["Verwachte jaarkosten", "12 × € 153", "€ 1.836,00"],
+            ["Verwachte betalingen per jaar", "12 × € 150", "€ 1.800,00"],
+            ["Verwacht saldo", "betalingen - prognose", "- € 36,00"],
+            ["Werkelijke augustus all-in", "factuurvalidatie", "Nog niet vastgesteld"],
+        ],
+        "term": offer_finance["current_monthly_advance_eur"],
+        "offer_monthly": offer_finance["offer_monthly_projection_eur"],
+        "annual": offer_finance["offer_annual_projection_eur"],
+        "balance": offer_finance["expected_balance_eur"],
+        "contract_label": report_contract["type"],
+        "source": offer_finance["source_label"],
+    }
+    pages["forecast"] = {
+        "rows": [
+            ["Elektriciteitsverbruik", "4.883 kWh", "4.900 kWh", "+17 kWh"],
+            ["Teruglevering", "3.991 kWh", "4.250 kWh", "+259 kWh"],
+            ["Netto levering", "892 kWh", "650 kWh", "-242 kWh"],
+            ["Gas", "711 m³", "700 m³", "-11 m³"],
+            ["Verwachte jaarkosten", "—", "€ 1.836", "NextEnergy-offerte"],
+        ],
+        "contract_years": _historical_contract_year_rows(),
+        "source": "NextEnergy-offerteprofiel versus officiële eindafrekening 2025-2026",
+    }
+    pages["battery"] = {
+        "rows": [
+            ["Referentie", "Geen batterij", "0 kWh", "€ 0", "Referentie"],
+            ["Kandidaat", battery_summary["candidate"], "model", battery_summary["annual_saving"], battery_summary["advice"]],
+        ],
+        "candidate": battery_summary["candidate"],
+        "annual_saving": battery_summary["annual_saving"],
+        "investment": battery_summary["investment"],
+        "payback": battery_summary["payback"],
+        "advice": battery_summary["advice"],
+        "score": battery_summary["score"],
+    }
+    source_rows = [
+        ["P1 stroom", resolved_quality.get("grid_import_source") or "niet beschikbaar", "Kernmeting"],
+        ["P1 gas", resolved_quality.get("gas_source") or "niet beschikbaar", "Kernmeting"],
+        ["Enphase", resolved_quality.get("production_source") or "niet beschikbaar", "PV-bron; afgeleide KPI alleen bij consistente dekking"],
+        ["HomeWizard sockets", "beschikbaar" if appliance_rows and appliance_rows[0][0] != "Geen bruikbare socketexport" else "niet beschikbaar", "Alleen gemeten exports"],
+        ["SlimmeMeterPortal", "controlebron", "Dagaggregaten; centrale dekkingsvalidatie"],
+        ["NextEnergy", "offerte bevestigd", "€150 termijn / €153 prognose per maand"],
+    ]
+    quality_checks = [
+        ["Kernmetriek stroom", "ok", f"{import_kwh:.1f} kWh afname / {export_kwh:.1f} kWh teruglevering"],
+        ["Kernmetriek gas", "ok", f"{gas_m3:.1f} m³"],
+        ["PV-balans", "ok" if solar_metrics_reliable else "aandacht", "consistent" if solar_metrics_reliable else "zelfconsumptie bewust niet berekend"],
+        ["Financiële offertebasis", "ok", "NextEnergy €153/mnd / €1.836/jaar"],
+        ["Werkelijke augustus all-in", "aandacht", "nog niet factuurgevalideerd"],
+        ["EPEX", "niet gebruikt", "niet geconfigureerd / geen leveranciers-all-in bron"],
+    ]
+    pages["quality"] = {
+        "sources": source_rows,
+        "checks": quality_checks,
+        "status": "GESCHIKT VOOR RAPPORTAGE MET EXPLICIETE BRONBEPERKINGEN",
+    }
+    pages["actions"] = {
+        "rows": [
+            ["Nu", "Augustusrapport valideren", "Alle 13 pagina's moeten onderling consistent zijn"],
+            ["Daarna", "Crash Recovery uitvoeren", "Pas na groen rapport en workflowstatus"],
+            ["Volgende maand", "Nieuwe maanddata automatisch verwerken", "Zelfde bronregels zonder demo-fallback"],
+            ["Na meerdere maanden", "Batterijmodel herijken", "Werkelijke prijs- en overschotdata verbeteren de businesscase"],
+        ],
+        "priorities": [
+            "Rapportinhoud groen valideren",
+            "Workflowstatus groen valideren",
+            "Controleren dat geen Data/01_Input/02_Output terugkomt",
+            "Daarna complete Crash Recovery maken",
+        ],
+    }
 
     outputs = {
         "page_1": data_folder / "page_1.json",
@@ -2192,11 +2506,12 @@ def build_report_adapter_data(
             "import_kwh": round(import_kwh, 3),
             "export_kwh": round(export_kwh, 3),
             "gas_m3": round(gas_m3, 3),
-            "production_kwh": round(production_kwh, 3),
-            "direct_solar_kwh": round(direct_solar, 3),
-            "house_use_kwh": round(house_use, 3),
-            "self_use_pct": round(self_use_pct, 3),
-            "self_supply_pct": round(self_supply_pct, 3),
+            "production_kwh": round(production_kwh, 3) if isinstance(production_kwh, (int, float)) else None,
+            "direct_solar_kwh": round(direct_solar, 3) if isinstance(direct_solar, (int, float)) else None,
+            "house_use_kwh": round(house_use, 3) if isinstance(house_use, (int, float)) else None,
+            "self_use_pct": round(self_use_pct, 3) if isinstance(self_use_pct, (int, float)) else None,
+            "self_supply_pct": round(self_supply_pct, 3) if isinstance(self_supply_pct, (int, float)) else None,
+            "solar_metrics_reliable": solar_metrics_reliable,
         },
         "files": [str(path) for path in outputs.values()],
         "coverage": report_coverage,
@@ -6378,18 +6693,6 @@ def load_smp_month_metrics(month_key: str) -> dict[str, Any]:
     if selected is None:
         return incomplete or base
 
-    raw_root = selected / "raw"
-    if not raw_root.is_dir():
-        return {
-            **base,
-            "status": "error",
-            "source_root": str(selected),
-            "coverage_status": "ok",
-            "days_expected": int(coverage.get("days_expected") or 0),
-            "days_covered": int(coverage.get("days_with_measurements") or 0),
-            "errors": [f"SMP raw-map ontbreekt: {raw_root}"],
-        }
-
     import_total = 0.0
     export_total = 0.0
     gas_total = 0.0
@@ -6398,39 +6701,29 @@ def load_smp_month_metrics(month_key: str) -> dict[str, Any]:
     gas_seen = False
     gas_readings: list[float] = []
     errors: list[str] = []
-    month_prefix = f"{year:04d}-{month:02d}-"
+    data_shape = "raw_daily"
 
-    for raw_path in sorted(raw_root.glob("*.json")):
-        if month_prefix not in raw_path.name:
-            continue
-        connection_type = raw_path.name.split("_", 1)[0].strip().lower()
-        try:
-            payload = json.loads(raw_path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            errors.append(f"{raw_path.name}: JSON niet leesbaar: {exc}")
-            continue
-        usages = payload.get("usages") if isinstance(payload, dict) else None
+    def accumulate_usages(connection_type: str, usages: Any, source_name: str) -> None:
+        nonlocal import_total, export_total, gas_total, import_seen, export_seen, gas_seen
+        if isinstance(usages, str):
+            try:
+                usages = json.loads(usages)
+            except json.JSONDecodeError as exc:
+                errors.append(f"{source_name}: usages JSON niet leesbaar: {exc}")
+                return
         if not isinstance(usages, list):
-            errors.append(f"{raw_path.name}: usages ontbreekt of is geen lijst.")
-            continue
+            errors.append(f"{source_name}: usages ontbreekt of is geen lijst.")
+            return
         for usage in usages:
             if not isinstance(usage, dict):
                 continue
             if connection_type in {"elektriciteit", "electricity"}:
-                value, present = _smp_usage_value(
-                    usage,
-                    "delivery",
-                    "delivery_high",
-                    "delivery_low",
-                )
+                value, present = _smp_usage_value(usage, "delivery", "delivery_high", "delivery_low")
                 if present and value is not None:
                     import_total += value
                     import_seen = True
                 value, present = _smp_usage_value(
-                    usage,
-                    "returned_delivery",
-                    "returned_delivery_high",
-                    "returned_delivery_low",
+                    usage, "returned_delivery", "returned_delivery_high", "returned_delivery_low"
                 )
                 if present and value is not None:
                     export_total += value
@@ -6442,10 +6735,7 @@ def load_smp_month_metrics(month_key: str) -> dict[str, Any]:
                     gas_seen = True
                 else:
                     reading, reading_present = _smp_usage_value(
-                        usage,
-                        "delivery_reading_combined",
-                        "delivery_reading_high",
-                        "delivery_reading_low",
+                        usage, "delivery_reading_combined", "delivery_reading_high", "delivery_reading_low"
                     )
                     if not reading_present:
                         reading = None
@@ -6456,12 +6746,61 @@ def load_smp_month_metrics(month_key: str) -> dict[str, Any]:
                     if reading is not None:
                         gas_readings.append(reading)
 
+    # The monthly JSONL is the durable aggregate produced by the SMP import.
+    # It remains complete even when later daily raw files are lightweight
+    # placeholders. Prefer it for a coverage-validated closed calendar month.
+    monthly_files = sorted(selected.glob(f"*_{year:04d}_{month:02d}.jsonl"))
+    if monthly_files:
+        data_shape = "monthly_jsonl"
+        for monthly_path in monthly_files:
+            default_type = monthly_path.name.split("_", 1)[0].strip().lower()
+            try:
+                with monthly_path.open("r", encoding="utf-8") as handle:
+                    for line_no, line in enumerate(handle, 1):
+                        if not line.strip():
+                            continue
+                        try:
+                            record = json.loads(line)
+                        except json.JSONDecodeError as exc:
+                            errors.append(f"{monthly_path.name}:{line_no}: JSON niet leesbaar: {exc}")
+                            continue
+                        if not isinstance(record, dict):
+                            continue
+                        connection_type = str(record.get("_connection_type") or default_type).strip().lower()
+                        accumulate_usages(connection_type, record.get("usages"), f"{monthly_path.name}:{line_no}")
+            except OSError as exc:
+                errors.append(f"{monthly_path.name}: lezen mislukt: {exc}")
+    else:
+        raw_root = selected / "raw"
+        if not raw_root.is_dir():
+            return {
+                **base,
+                "status": "error",
+                "source_root": str(selected),
+                "coverage_status": "ok",
+                "days_expected": int(coverage.get("days_expected") or 0),
+                "days_covered": int(coverage.get("days_with_measurements") or 0),
+                "errors": [f"SMP maandexport en raw-map ontbreken: {selected}"],
+            }
+        month_prefix = f"{year:04d}-{month:02d}-"
+        for raw_path in sorted(raw_root.glob("*.json")):
+            if month_prefix not in raw_path.name:
+                continue
+            connection_type = raw_path.name.split("_", 1)[0].strip().lower()
+            try:
+                payload = json.loads(raw_path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                errors.append(f"{raw_path.name}: JSON niet leesbaar: {exc}")
+                continue
+            accumulate_usages(connection_type, payload.get("usages") if isinstance(payload, dict) else None, raw_path.name)
+
     if errors:
         return {
             **base,
             "status": "error",
             "source_root": str(selected),
             "coverage_status": "ok",
+            "data_shape": data_shape,
             "days_expected": int(coverage.get("days_expected") or 0),
             "days_covered": int(coverage.get("days_with_measurements") or 0),
             "errors": errors,
@@ -6475,6 +6814,7 @@ def load_smp_month_metrics(month_key: str) -> dict[str, Any]:
         "status": "ready",
         "source_root": str(selected),
         "coverage_status": "ok",
+        "data_shape": data_shape,
         "grid_import_kwh": _round_metric(import_total) if import_seen else None,
         "grid_export_kwh": _round_metric(export_total) if export_seen else None,
         "gas_m3": _round_metric(gas_total) if gas_seen else None,
@@ -6514,7 +6854,15 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
     has_p1e = p1e_path.is_file() and bool(p1e_rows) and _month_input_metric_allowed(folder, "P1e.csv")
     has_p1g = p1g_path.is_file() and bool(p1g_rows) and _month_input_metric_allowed(folder, "P1g.csv")
     has_enphase = enphase_path.is_file() and bool(enphase_rows)
+    p1e_coverage = _csv_month_coverage(p1e_rows, month_key) if has_p1e else {"complete": False}
+    p1g_coverage = _csv_month_coverage(p1g_rows, month_key) if has_p1g else {"complete": False}
+    p1_coverage = {
+        "complete": bool(p1e_coverage.get("complete") and p1g_coverage.get("complete")),
+        "electricity": p1e_coverage,
+        "gas": p1g_coverage,
+    }
     smp = load_smp_month_metrics(month_key)
+    smp_full_month = bool(smp.get("status") == "ready" and smp.get("coverage_status") == "ok")
 
     import_kwh = cumulative_delta(
         p1e_rows,
@@ -6530,15 +6878,18 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
     grid_export_source = "p1" if export_kwh is not None else "not_available"
     gas_source = "p1g" if gas_m3 is not None else "not_available"
     if smp.get("status") == "ready":
-        if import_kwh is None and smp.get("grid_import_kwh") is not None:
+        # A closed, coverage-validated SMP calendar month outranks a P1 series
+        # that started after day 1. Keep P1 as a control source, but never put
+        # a partial cumulative delta under a full-month report label.
+        if smp.get("grid_import_kwh") is not None and (import_kwh is None or (smp_full_month and not p1e_coverage.get("complete"))):
             import_kwh = float(smp["grid_import_kwh"])
-            grid_import_source = "slimmemeterportal_fallback"
-        if export_kwh is None and smp.get("grid_export_kwh") is not None:
+            grid_import_source = "slimmemeterportal_full_month_primary" if smp_full_month else "slimmemeterportal_fallback"
+        if smp.get("grid_export_kwh") is not None and (export_kwh is None or (smp_full_month and not p1e_coverage.get("complete"))):
             export_kwh = float(smp["grid_export_kwh"])
-            grid_export_source = "slimmemeterportal_fallback"
-        if gas_m3 is None and smp.get("gas_m3") is not None:
+            grid_export_source = "slimmemeterportal_full_month_primary" if smp_full_month else "slimmemeterportal_fallback"
+        if smp.get("gas_m3") is not None and (gas_m3 is None or (smp_full_month and not p1g_coverage.get("complete"))):
             gas_m3 = float(smp["gas_m3"])
-            gas_source = "slimmemeterportal_fallback"
+            gas_source = "slimmemeterportal_full_month_primary" if smp_full_month else "slimmemeterportal_fallback"
 
     quarter_hour = {"available": False, "coverage_status": "not_applicable_closed_month"}
     if month_key == datetime.now(TZ).strftime("%Y_%m"):
@@ -6594,13 +6945,53 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
             ("P1e", "P1e.csv"), ("P1g", "P1g.csv"), ("Enphase", "Enphase.csv"),
         ) if (folder / file_name).is_file()
     ]
-    if any(source == "slimmemeterportal_fallback" for source in (grid_import_source, grid_export_source, gas_source)):
+    if any(source.startswith("slimmemeterportal_") for source in (grid_import_source, grid_export_source, gas_source)):
         available_sources.append("SlimmeMeterPortal")
     if any(source == "home_assistant_quarter_hour_primary" for source in (grid_import_source, grid_export_source, gas_source)):
         available_sources.append("HomeAssistantQuarterHour")
 
     def metric(value: float | None) -> float | None:
         return _round_metric(value) if value is not None else None
+
+    year, month = parse_month_key(month_key)
+    month_start = date(year, month, 1)
+    month_end = date(year, month, monthrange(year, month)[1])
+    selected_sources = (grid_import_source, grid_export_source, gas_source)
+    all_core_full = all(
+        source == "slimmemeterportal_full_month_primary"
+        or (source == "p1" and p1e_coverage.get("complete"))
+        or (source == "p1g" and p1g_coverage.get("complete"))
+        for source in selected_sources
+        if source != "not_available"
+    ) and all(source != "not_available" for source in selected_sources)
+    if all_core_full:
+        if all(source == "slimmemeterportal_full_month_primary" for source in selected_sources):
+            period_source = "slimmemeterportal_full_month_primary"
+        else:
+            period_source = "validated_full_month_sources"
+        measurement_period = {
+            "complete": True,
+            "source": period_source,
+            "period_start_date": month_start.isoformat(),
+            "period_end_date": month_end.isoformat(),
+            "coverage_status": "full_calendar_month",
+        }
+    else:
+        starts = [
+            item.get("first_date") for item in (p1e_coverage, p1g_coverage)
+            if isinstance(item, dict) and item.get("first_date")
+        ]
+        ends = [
+            item.get("last_date") for item in (p1e_coverage, p1g_coverage)
+            if isinstance(item, dict) and item.get("last_date")
+        ]
+        measurement_period = {
+            "complete": False,
+            "source": "partial_resolved_sources",
+            "period_start_date": max(starts) if starts else month_start.isoformat(),
+            "period_end_date": min(ends) if ends else month_end.isoformat(),
+            "coverage_status": "partial_source_coverage",
+        }
 
     result = {
         "month": month_key,
@@ -6627,6 +7018,8 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
             "grid_export_source": grid_export_source,
             "gas_source": gas_source,
             "smp": smp,
+            "p1_coverage": p1_coverage,
+            "measurement_period": measurement_period,
             "quarter_hour": quarter_hour,
             "missing_is_null": True,
         },
@@ -7188,7 +7581,7 @@ def _nextenergy_month_telemetry(month_key: str) -> dict[str, Any]:
 
 
 def nextenergy_offer_financial_summary() -> dict[str, float | str]:
-    """Confirmed 2026-09-03 NextEnergy offer/advance figures for management reporting."""
+    """Confirmed NextEnergy retention-offer figures and the profile used by that offer."""
     current_monthly_advance_eur = 150.0
     offer_monthly_projection_eur = 153.0
     offer_annual_projection_eur = round(offer_monthly_projection_eur * 12.0, 2)
@@ -7202,8 +7595,64 @@ def nextenergy_offer_financial_summary() -> dict[str, float | str]:
         "expected_annual_payments_eur": expected_annual_payments_eur,
         "expected_balance_eur": expected_balance_eur,
         "monthly_difference_eur": monthly_difference_eur,
+        "offer_profile_import_kwh": 4900.0,
+        "offer_profile_export_kwh": 4250.0,
+        "offer_profile_gas_m3": 700.0,
         "source_label": "NextEnergy-offerteprognose",
     }
+
+
+def report_contract_context(year: int, month: int) -> dict[str, str]:
+    """Contract that applies to the report month; never apply the Sep-2026 ceiling retroactively."""
+    if (year, month) < (2026, 9):
+        return {
+            "start": "15 juli 2026",
+            "type": "Dynamisch - Onbepaalde tijd",
+            "note": "Contract actief in de rapportmaand",
+        }
+    return {
+        "start": "3 september 2026",
+        "type": "Dynamisch stroom + gasplafond 1 jaar",
+        "note": "Vastgelegd t/m 3 september 2027",
+    }
+
+
+def battery_report_summary() -> dict[str, Any]:
+    """One report-wide battery model summary; values are model estimates, not measured savings."""
+    return {
+        "score": 72,
+        "candidate": "Marstek Venus 3.0 - 5,12 kWh plug-in",
+        "capacity": "5,1 kWh",
+        "utilisation": "± 60 %",
+        "annual_saving": "€ 155 - € 190",
+        "investment": "± € 1.200",
+        "payback": "7 - 8 jaar",
+        "advice": "Volgen",
+        "technical": "Ja",
+        "financial": "Nog niet overtuigend",
+        "development": [38, 42, 47, 49, 51, 72],
+    }
+
+
+def _historical_contract_year_rows() -> list[list[Any]]:
+    """Official/recorded contract-year rows from the project historical seed."""
+    rows: list[list[Any]] = []
+    for item in (_load_historical_energy_seed().get("contract_periods") or []):
+        if not isinstance(item, dict):
+            continue
+        start = str(item.get("from") or "")
+        end = str(item.get("to") or "")
+        if not start or not end:
+            continue
+        rows.append([
+            f"{start} - {end}",
+            item.get("import_kwh"),
+            item.get("export_kwh"),
+            item.get("net_kwh"),
+            item.get("gas_m3"),
+            item.get("quality") or "Onbekend",
+        ])
+    return rows[-4:]
 
 
 def visible_workflow_sources(source_status: dict[str, str]) -> dict[str, str]:

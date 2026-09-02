@@ -169,25 +169,24 @@ def build(data, out):
     kpi(c,margin+ew,y,ew,ph,'Teruglevering',f"{e['feed_in']}",'kWh',f"{e['feed_in_vs_ly']:+.1f}%",'sun',ORANGE,True)
     kpi(c,margin+2*ew,y,ew,ph,'Netto teruglevering',f"+{e['net_feed_in']}",'kWh',f"{e['net_vs_ly']:+.0f}%",'battery',GREEN,True)
     g=data['gas']; gw=colw/4
-    for i,(t,v,u,d,gl,col) in enumerate([
-        ('Gasverbruik',g['month'],'m³',f"{g['month_vs_ly']:+.0f}%",'flame',GREEN),
-        ('Gemiddeld per dag',g['per_day'],'m³',f"{g['per_day_vs_ly']:+.1f}%",'clock',GREEN),
-        ('Warmtegraaddagen',f"{g['degree_days']:,}".replace(',','.'),'',f"{g['degree_days_vs_ly']:+.1f}%",'thermo',GREEN),
-        ('Verbruik / graaddag',g['per_degree_day'],'m³',f"{g['per_degree_day_vs_ly']:+.1f}%",'bars',GREEN)]):
+    degree_days_available=bool(g.get('degree_days_available'))
+    gas_kpis=[
+        ('Gasverbruik',f"{g['month']}",'m³',f"{g['month_vs_ly']:+.0f}%",'flame',GREEN),
+        ('Gemiddeld per dag',f"{g['per_day']:.2f}" if isinstance(g.get('per_day'),(int,float)) else 'n.b.','m³','-' if not isinstance(g.get('per_day_vs_ly'),(int,float)) else f"{g['per_day_vs_ly']:+.1f}%",'clock',GREEN),
+        ('Graaddagen',f"{g['degree_days']:,}".replace(',','.') if degree_days_available and isinstance(g.get('degree_days'),(int,float)) else 'n.b.','' if degree_days_available else 'niet gekoppeld','-','thermo',ORANGE),
+        ('Weerscorrectie',f"{g['per_degree_day']}" if degree_days_available and isinstance(g.get('per_degree_day'),(int,float)) else 'n.b.','' if degree_days_available else 'niet toegepast','-','bars',ORANGE),
+    ]
+    for i,(t,v,u,d,gl,col) in enumerate(gas_kpis):
         kpi(c,margin+colw+gap+i*gw,y,gw,ph,t,str(v).replace('.',','),u,d,gl,col,i>0,gas=True)
 
-    # middle left electricity split + table
+    # Contract-year tariff split is intentionally omitted until a validated T1/T2 source is supplied.
     y2=H-236; h2=99
     panel(c,margin,y2,colw,h2)
-    txt(c,margin+15,y2+h2-14,'Verdeling verbruik huidig contractjaar',5.4,TEXT,'Helvetica-Bold')
-    txt(c,margin+colw/2+8,y2+h2-14,'Verdeling teruglevering huidig contractjaar',5.4,TEXT,'Helvetica-Bold')
-    cs=e['consumption_split']; fs=e['feedin_split']
-    donut(c,margin+72,y2+49,22,cs['t1_pct'],ORANGE,BLUE)
-    txt(c,margin+31,y2+53,f"{cs['t1_pct']}%",8,ORANGE,'Helvetica-Bold','center'); txt(c,margin+31,y2+42,f"{cs['t1_kwh']:,} kWh".replace(',','.'),4.5,ORANGE,align='center'); txt(c,margin+113,y2+53,f"{cs['t2_pct']}%",8,BLUE,'Helvetica-Bold','center'); txt(c,margin+113,y2+42,f"{cs['t2_kwh']:,} kWh".replace(',','.'),4.5,BLUE,align='center')
-    donut(c,margin+colw/2+72,y2+49,22,fs['t1_pct'],ORANGE,BLUE)
-    txt(c,margin+colw/2+31,y2+53,f"{fs['t1_pct']}%",8,ORANGE,'Helvetica-Bold','center'); txt(c,margin+colw/2+31,y2+42,f"{fs['t1_kwh']:,} kWh".replace(',','.'),4.5,ORANGE,align='center'); txt(c,margin+colw/2+113,y2+53,f"{fs['t2_pct']}%",8,BLUE,'Helvetica-Bold','center'); txt(c,margin+colw/2+113,y2+42,f"{fs['t2_kwh']:,} kWh".replace(',','.'),4.5,BLUE,align='center')
-    c.setFillColor(ORANGE); c.rect(margin+33,y2+12,5,5,fill=1,stroke=0); txt(c,margin+44,y2+13,'T1 Normaal (dag)',4.1,MUTED); c.setFillColor(BLUE); c.rect(margin+126,y2+12,5,5,fill=1,stroke=0); txt(c,margin+137,y2+13,'T2 Dal (nacht)',4.1,MUTED)
-    c.setFillColor(ORANGE); c.rect(margin+colw/2+33,y2+12,5,5,fill=1,stroke=0); txt(c,margin+colw/2+44,y2+13,'T1 Normaal (dag)',4.1,MUTED); c.setFillColor(BLUE); c.rect(margin+colw/2+126,y2+12,5,5,fill=1,stroke=0); txt(c,margin+colw/2+137,y2+13,'T2 Dal (nacht)',4.1,MUTED)
+    txt(c,margin+15,y2+h2-16,'Verdeling normaal/dal',5.8,TEXT,'Helvetica-Bold')
+    txt(c,margin+15,y2+h2-35,'Niet weergegeven: de rapportadapter heeft voor deze maand geen bronvaste',4.6,TEXT)
+    txt(c,margin+15,y2+h2-47,'T1/T2-contractjaarverdeling. Oude voorbeeldpercentages worden niet gebruikt.',4.6,TEXT)
+    c.setStrokeColor(ORANGE); c.setFillColor(HexColor('#FFF8E8')); c.roundRect(margin+15,y2+17,colw-30,25,4,fill=1,stroke=1)
+    txt(c,margin+25,y2+32,'Status: bronbeperkt — geen 61/39- of 37/63-fixturewaarden.',4.5,ORANGE,'Helvetica-Bold')
 
     # gas chart and insights
     gx=margin+colw+gap; chartw=colw*.64
@@ -219,83 +218,101 @@ def build(data, out):
     # contract table + gas explanation
     y3=H-302; th=60
     panel(c,margin,y3,colw,th); panel(c,gx,y3,colw,th,fill=HexColor('#EEF5FC'))
-    rows=[['Contractjaar (15 jul - 15 jul)','Verbruik','Teruglevering','Netto']]+[[r[0],f"{r[1]:,}".replace(',','.'),f"{r[2]:,}".replace(',','.'),f"{r[3]:,}".replace(',','.')] for r in e['contract_years']]
+    rows=[['Contractjaarhistorie','Verbruik','Teruglevering','Netto']]+[[r[0],f"{r[1]:,}".replace(',','.'),f"{r[2]:,}".replace(',','.'),f"{r[3]:,}".replace(',','.')] for r in e['contract_years']]
     small_table(c,margin+5,y3+th-4,[137,43,50,43],rows,row_h=10.5,font_size=4.4)
     txt(c,gx+10,y3+th-14,'Toelichting',5.8,TEXT,'Helvetica-Bold')
-    txt(c,gx+10,y3+th-29,'Het gasverbruik is beïnvloed door het weer (minder graaddagen) en efficiënt verwarmen met de airco.',4.8,TEXT)
+    txt(c,gx+10,y3+th-29,g.get('coverage_note','Geen weersverklaring zonder gevalideerde graaddagenbron.'),4.3,TEXT)
 
     section(c,margin,H-318,colw,'3. Kostenanalyse')
     section(c,gx,H-318,colw,'4. Prognose & trends')
 
-    # cost/prognosis cards
+    # cost/prognosis cards - known offer values are always shown; observed all-in stays explicitly unvalidated.
     y4=H-420; ch=87
     left1=colw*.49
     panel(c,margin,y4,left1,ch); panel(c,margin+left1+gap,y4,colw-left1-gap,ch)
-    txt(c,margin+10,y4+ch-14,f"Kostenoverzicht ({data.get('meta',{}).get('month','rapportmaand')})",5.8,TEXT,'Helvetica-Bold')
-    cc=data['costs']; items=[('Stroomkosten',cc['electricity']),('Terugleververgoeding',-cc['feed_in_compensation'] if isinstance(cc.get('feed_in_compensation'), (int,float)) else None),('Netto stroomkosten',(cc['electricity'] + cc['feed_in_compensation']) if isinstance(cc.get('electricity'), (int,float)) and isinstance(cc.get('feed_in_compensation'), (int,float)) else None),('Gaskosten',cc['gas']),('Vaste kosten / netbeheer',cc['grid_costs'])]
-    for i,(lab,val) in enumerate(items):
+    cc=data['costs']
+    txt(c,margin+10,y4+ch-14,f"Financieel overzicht ({data.get('meta',{}).get('month','rapportmaand')})",5.8,TEXT,'Helvetica-Bold')
+    finance_items=[
+        ('Huidige maandtermijn',cc.get('current_monthly_advance')),
+        ('Offerteprognose per maand',cc.get('offer_monthly_projection')),
+        ('Verwachte jaarkosten',cc.get('offer_annual_projection')),
+        ('Verwachte betalingen per jaar',cc.get('expected_annual_payments')),
+        ('Verwacht saldo',cc.get('expected_balance')),
+    ]
+    for i,(lab,val) in enumerate(finance_items):
         yy=y4+ch-28-i*8.6
-        txt(c,margin+10,yy,lab,4.25); txt(c,margin+left1-8,yy,euro(val) if i<4 else 'apart op nota',4.25,TEXT,'Helvetica-Bold','right')
-    c.setFillColor(HexColor('#E8F7EB')); c.roundRect(margin+7,y4+6,left1-14,15,3,fill=1,stroke=0)
-    txt(c,margin+10,y4+11,'VARIABELE ENERGIEKOSTEN',4.7,GREEN,'Helvetica-Bold'); txt(c,margin+left1-8,y4+11,euro(cc['variable_total']),7,GREEN,'Helvetica-Bold','right')
-    x2=margin+left1+gap; txt(c,x2+10,y4+ch-14,'Tarieven & aannames',5.8,TEXT,'Helvetica-Bold'); txt(c,x2+10,y4+ch-25,'(NextEnergy dynamisch)',4.5,MUTED)
-    tariffs=[('Stroomprijs T1 (dag)',cc['tariff_t1'],'€/kWh'),('Stroomprijs T2 (nacht)',cc['tariff_t2'],'€/kWh'),('Terugleververgoeding',cc['feed_in_tariff'],'€/kWh'),('Gasprijs',cc['gas_tariff'],'€/m³')]
-    for i,(lab,val,u) in enumerate(tariffs):
-        yy=y4+ch-39-i*8.2
-        txt(c,x2+10,yy,lab,4.35)
-        txt(c,margin+colw-8,yy,tariff(val,u),4.35,TEXT,'Helvetica-Bold','right')
-    yy=y4+ch-39-len(tariffs)*8.2
-    txt(c,x2+10,yy,'Vaste kosten',4.35)
-    txt(c,margin+colw-8,yy,cc.get('fixed_costs_note','volgens nota'),4.35,TEXT,'Helvetica-Bold','right')
+        txt(c,margin+10,yy,lab,4.15); txt(c,margin+left1-8,yy,euro(val),4.25,TEXT,'Helvetica-Bold','right')
+    c.setFillColor(HexColor('#FFF8E8')); c.roundRect(margin+7,y4+6,left1-14,15,3,fill=1,stroke=0)
+    txt(c,margin+10,y4+11,'Werkelijke augustus all-in',4.15,ORANGE,'Helvetica-Bold'); txt(c,margin+left1-8,y4+11,'nog niet gevalideerd',3.7,ORANGE,'Helvetica-Bold','right')
+
+    x2=margin+left1+gap; txt(c,x2+10,y4+ch-14,'Tarieven & aannames',5.8,TEXT,'Helvetica-Bold')
+    assumption_rows=[
+        ('Rapportmaand-contract',cc.get('report_contract_label','NextEnergy dynamisch')),
+        ('Nieuwe offerte start',cc.get('offer_starts','3 september 2026')),
+        ('Stroomprijs maand',tariff(cc.get('tariff_t1'),'€/kWh') if isinstance(cc.get('tariff_t1'),(int,float)) else 'niet all-in gekoppeld'),
+        ('Gasprijs maand',tariff(cc.get('gas_tariff'),'€/m³') if isinstance(cc.get('gas_tariff'),(int,float)) else 'niet all-in gekoppeld'),
+        ('Vaste kosten',cc.get('fixed_costs_note','niet gekoppeld')),
+    ]
+    for i,(lab,val) in enumerate(assumption_rows):
+        yy=y4+ch-29-i*10
+        txt(c,x2+10,yy,lab,4.15); txt(c,margin+colw-8,yy,str(val),4.0,TEXT,'Helvetica-Bold','right')
 
     f=data['forecast']; f1=colw*.49
     panel(c,gx,y4,f1,ch); panel(c,gx+f1+gap,y4,colw-f1-gap,ch)
     txt(c,gx+10,y4+ch-14,'Prognose verbruik & teruglevering',5.8,TEXT,'Helvetica-Bold')
-    pitems=[('Totaal verbruik',f.get('electricity_total')),('Totaal teruglevering',f.get('feed_in_total')),('Netto levering',f.get('net')),('Verschil vorig contractjaar',f.get('current_year_difference')),('Verschil %',f.get('difference_pct'))]
-    for i,(lab,val) in enumerate(pitems): txt(c,gx+10,y4+ch-29-i*9,lab,4.6); txt(c,gx+f1-8,y4+ch-29-i*9,'Niet beschikbaar' if not isinstance(val,(int,float)) else (f'{val:+.1f}%' if i==4 else f'{val:+.1f}' if i==3 else f'{val:.1f}'),4.6,GREEN if i>1 else TEXT,'Helvetica-Bold','right')
+    txt(c,gx+10,y4+ch-23,f.get('source_label','NextEnergy-offerteprofiel'),3.7,MUTED)
+    pitems=[('Totaal verbruik',f.get('electricity_total'),'kWh'),('Totaal teruglevering',f.get('feed_in_total'),'kWh'),('Netto levering',f.get('net'),'kWh'),('Verschil vorig contractjaar',f.get('current_year_difference'),'kWh'),('Verschil %',f.get('difference_pct'),'%')]
+    for i,(lab,val,unit) in enumerate(pitems):
+        yy=y4+ch-34-i*9
+        txt(c,gx+10,yy,lab,4.45)
+        shown='n.b.' if not isinstance(val,(int,float)) else (f'{val:+.1f} {unit}' if i>=3 else f'{val:.0f} {unit}')
+        txt(c,gx+f1-8,yy,shown,4.4,GREEN if i>1 else TEXT,'Helvetica-Bold','right')
     xx=gx+f1+gap; txt(c,xx+10,y4+ch-14,'Prognose gasverbruik',5.8,TEXT,'Helvetica-Bold')
-    for i,(lab,val) in enumerate([('Totaal gasverbruik',f.get('gas_total')),('Verschil vorig contractjaar',f.get('gas_difference')),('Verschil %',f.get('gas_difference_pct'))]): txt(c,xx+10,y4+ch-30-i*13,lab,4.6); txt(c,gx+colw-8,y4+ch-30-i*13,'Niet beschikbaar' if not isinstance(val,(int,float)) else (f'{val:+.1f}%' if i==2 else f'{val:+.1f}' if i==1 else f'{val:.1f}'),4.6,GREEN if i else TEXT,'Helvetica-Bold','right')
+    for i,(lab,val,unit) in enumerate([('Totaal gasverbruik',f.get('gas_total'),'m³'),('Verschil vorig contractjaar',f.get('gas_difference'),'m³'),('Verschil %',f.get('gas_difference_pct'),'%')]):
+        yy=y4+ch-31-i*14
+        txt(c,xx+10,yy,lab,4.45)
+        shown='n.b.' if not isinstance(val,(int,float)) else (f'{val:+.1f} {unit}' if i else f'{val:.0f} {unit}')
+        txt(c,gx+colw-8,yy,shown,4.4,GREEN if i else TEXT,'Helvetica-Bold','right')
+    txt(c,xx+10,y4+8,f.get('reference_label','Officiële eindafrekening 2025-2026'),3.7,MUTED)
 
-    # two trend panels
+    # No fabricated monthly cost curves: explain the data boundary instead.
     y5=H-520; trh=85
     panel(c,margin,y5,colw,trh); panel(c,gx,y5,colw,trh)
-    txt(c,margin+colw/2,y5+trh-14,'Kostentrend per maand (netto, €)',5.8,TEXT,'Helvetica-Bold','center'); c.setFillColor(HexColor('#9BA7B3')); c.rect(margin+18,y5+trh-29,5,5,fill=1,stroke=0); txt(c,margin+27,y5+trh-27,'Vorig jaar',4.5,MUTED,'Helvetica-Bold'); c.setFillColor(GREEN); c.rect(margin+72,y5+trh-29,5,5,fill=1,stroke=0); txt(c,margin+81,y5+trh-27,'Huidig jaar',4.5,MUTED,'Helvetica-Bold')
-    # Extra ruimte onder de grafiek voor een blijvend zichtbare x-as met maandlabels.
-    bars(c,margin+22,y5+30,colw-40,trh-56,cc['trend_previous'],cc['trend_current'],['jul','aug','sep','okt','nov','dec','jan','feb','mrt','apr','mei','jun'])
-    c.setFillColor(HexColor('#EEF5FC')); c.roundRect(margin+8,y5+5,colw-16,12,2,fill=1,stroke=0); txt(c,margin+12,y5+9,'Negatieve waarde = voordeel door teruglevering hoger dan kosten.',3.4,MUTED); txt(c,gx+colw/2,y5+trh-14,'Maandprognose netto kosten (€/maand)',5.8,TEXT,'Helvetica-Bold','center'); txt(c,gx+18,y5+trh-27,'■ Werkelijk       ■ Prognose',3.8,MUTED)
-    line_chart(c,gx+20,y5+18,colw-35,trh-42,{'Werkelijk':f['monthly_actual'],'Prognose':f['monthly_forecast']},[HexColor('#8C969F'),GREEN],['jul','aug','sep','okt','nov','dec','jan','feb','mrt','apr','mei','jun'])
+    txt(c,margin+12,y5+trh-16,'Kostenreeks per maand',5.8,TEXT,'Helvetica-Bold')
+    txt(c,margin+12,y5+trh-34,'Geen grafiek totdat leverancier-all-in maandkosten bronvast zijn.',4.6,TEXT)
+    txt(c,margin+12,y5+trh-49,'Dit voorkomt dat marktprijzen of voorbeeldwaarden als factuurkosten worden gepresenteerd.',4.2,MUTED)
+    txt(c,gx+12,y5+trh-16,'Jaarprognosebasis',5.8,TEXT,'Helvetica-Bold')
+    txt(c,gx+12,y5+trh-34,'NextEnergy-offerteprofiel versus officiële eindafrekening 2025-2026.',4.6,TEXT)
+    txt(c,gx+12,y5+trh-49,'De € 1.836 is een offerteprognose, geen optelsom van € 150-termijnen.',4.2,MUTED)
 
     section(c,margin,H-535,W-2*margin,'5. Thuisbatterij - scenariovergelijking')
     y6=H-682; bh=132; panel(c,margin,y6,W-2*margin,bh)
     batt=data['battery']
-    # Three independently bounded columns, matching the reference proportions.
     xA=margin+14; wA=176
     xB=xA+wA+17; wB=214
     xC=xB+wB+17; wC=W-margin-12-xC
     txt(c,xA,y6+bh-18,'Woningprofiel',6.2,TEXT,'Helvetica-Bold')
-    profile=[('Teruglevering per jaar',f"{batt['profile']['annual_feed_in']:,} kWh".replace(',','.')),('Netto levering',f"{batt['profile']['net_import']} kWh"),('Eigen verbruik opwek',f"{batt['profile']['self_use_pct']}%"),('Geschat verschuifbaar',f"{batt['profile']['estimated_shift']} kWh/mnd")]
+    prof=batt['profile']
+    self_text=f"{prof['self_use_pct']}%" if isinstance(prof.get('self_use_pct'),(int,float)) else 'n.b. - PV bronbeperkt'
+    shift_text=f"{prof['estimated_shift']} kWh/mnd" if isinstance(prof.get('estimated_shift'),(int,float)) else 'nog niet berekend'
+    profile=[('Teruglevering per jaar',f"{prof['annual_feed_in']:,} kWh".replace(',','.')),('Netto levering',f"{prof['net_import']} kWh"),('Eigen verbruik opwek',self_text),('Geschat verschuifbaar',shift_text)]
     for i,(lab,val) in enumerate(profile):
-        yy=y6+bh-34-i*13; txt(c,xA,yy,lab,4.5); txt(c,xA+wA-4,yy,val,4.5,TEXT,'Helvetica-Bold','right')
+        yy=y6+bh-34-i*13; txt(c,xA,yy,lab,4.35); txt(c,xA+wA-4,yy,val,4.15,TEXT,'Helvetica-Bold','right')
     c.setStrokeColor(BLUE); c.setFillColor(HexColor('#EDF6FD')); c.roundRect(xA,y6+14,wA-4,38,4,fill=1,stroke=1)
-    txt(c,xA+8,y6+40,'Technische conclusie',5.2,TEXT,'Helvetica-Bold'); txt(c,xA+8,y6+28,'Veel teruglevering overdag en gelijktijdige',4.0); txt(c,xA+8,y6+20,'netafname op andere momenten.',4.0)
+    txt(c,xA+8,y6+40,'Technische conclusie',5.2,TEXT,'Helvetica-Bold'); txt(c,xA+8,y6+28,'Veel jaarlijkse teruglevering; exacte zelfconsumptie',3.9); txt(c,xA+8,y6+20,'blijft bronbeperkt en wordt niet verzonnen.',3.9)
 
     txt(c,xB,y6+bh-18,"Scenario's",6.2,TEXT,'Helvetica-Bold')
     rows=[['Scenario','Capaciteit','Jaarwaarde','Oordeel']]+batt['scenarios']
-    small_table(c,xB,y6+bh-26,[58,48,56,47],rows,row_h=15,font_size=3.55)
-    txt(c,xB,y6+20,'Relatieve jaarwaarde',4.2,TEXT,'Helvetica-Bold')
-    for i,(lab,pct,colr) in enumerate([('Geen',0,HexColor('#9BA7B3')),('2,7',.42,BLUE),('5,1',.72,GREEN),('Vast',.62,ORANGE)]):
-        xx=xB+63+i*38
-        c.setFillColor(HexColor('#DCE6EE')); c.roundRect(xx,y6+15,25,6,3,fill=1,stroke=0)
-        if pct > 0:
-            c.setFillColor(colr); c.roundRect(xx,y6+15,25*pct,6,min(3,25*pct/2),fill=1,stroke=0)
-        txt(c,xx+12.5,y6+7,lab,3.3,MUTED,align='center')
+    small_table(c,xB,y6+bh-26,[72,47,53,37],rows,row_h=18,font_size=3.45)
+    txt(c,xB,y6+25,'Één modelbasis in het hele rapport:',4.1,TEXT,'Helvetica-Bold')
+    txt(c,xB,y6+15,'Marstek-modelwaarden zijn indicatief en geen gemeten besparing.',3.6,MUTED)
 
     txt(c,xC,y6+bh-18,'Beslismatrix',6.2,TEXT,'Helvetica-Bold')
     dec=batt['decision']; decisions=[('Technisch passend',dec['technical']),('Financieel overtuigend',dec['financial']),('Beste kandidaat',dec['best']),('Ruwe terugverdientijd',dec['payback']),('Koopadvies',dec['advice'])]
     for i,(lab,val) in enumerate(decisions):
-        yy=y6+bh-31-i*11.5; txt(c,xC,yy,lab,4.15); txt(c,xC+wC,yy,val,4.25,GREEN if i in (0,2) else ORANGE,'Helvetica-Bold','right')
+        yy=y6+bh-31-i*11.5; txt(c,xC,yy,lab,4.05); txt(c,xC+wC,yy,str(val),3.85,GREEN if i in (0,2) else ORANGE,'Helvetica-Bold','right')
     c.setStrokeColor(ORANGE); c.setFillColor(HexColor('#FFF8E8')); c.roundRect(xC,y6+12,wC,31,4,fill=1,stroke=1)
-    txt(c,xC+8,y6+32,'Actie: nog geen aankoopbesluit.',4.9,ORANGE,'Helvetica-Bold'); txt(c,xC+8,y6+21,'Opnieuw beoordelen na meerdere echte maandupdates.',3.75,TEXT)
+    txt(c,xC+8,y6+32,'Actie: volgen, nog geen aankoopbesluit.',4.7,ORANGE,'Helvetica-Bold'); txt(c,xC+8,y6+21,'Herijken met meerdere echte maandupdates.',3.75,TEXT)
 
     section(c,margin,H-699,W-2*margin,'6. Maandtermijn - financieel advies')
     y7=H-795; fh=81; panel(c,margin,y7,W-2*margin,fh)
