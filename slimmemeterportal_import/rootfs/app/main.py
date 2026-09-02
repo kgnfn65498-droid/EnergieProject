@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.22"
+APP_VERSION = "32.3.23"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -14861,8 +14861,24 @@ def historical_month_allowed(month_key: str) -> str:
     return f"{year:04d}_{month:02d}"
 
 
+def _report_source_tree_fingerprint(root: Path) -> dict[str, Any]:
+    """Return a deterministic read-only fingerprint for a report source tree."""
+    digest = hashlib.sha256()
+    files = 0
+    if not root.is_dir():
+        return {"path": str(root), "exists": False, "files": 0, "sha256": digest.hexdigest()}
+    for path in sorted((item for item in root.rglob("*") if item.is_file()), key=lambda item: str(item.relative_to(root))):
+        relative = path.relative_to(root).as_posix()
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(sha256_file(path).encode("ascii"))
+        digest.update(b"\0")
+        files += 1
+    return {"path": str(root), "exists": True, "files": files, "sha256": digest.hexdigest()}
+
+
 def rebuild_historical_report(month_key: str) -> dict[str, Any]:
-    """Rebuild only analysis/report output for an already stored historical month."""
+    """Rebuild report output for a stored CLOSED month without mutating source data."""
     month_key = historical_month_allowed(month_key)
     year, month = parse_month_key(month_key)
     options = Options.load()
@@ -14876,8 +14892,23 @@ def rebuild_historical_report(month_key: str) -> dict[str, Any]:
     input_folder = MONTH_INPUT_ROOT / month_key
     if not input_folder.is_dir():
         raise RuntimeError(f"Historische maandinput ontbreekt: {input_folder}")
-    transfer_folder = NAS_DATA_ROOT / "01_Input" / month_key
-    transfer_folder.mkdir(parents=True, exist_ok=True)
+
+    # CLOSED-month rerenders may read the canonical transfer/source tree but never
+    # write control files into it. Keep the handoff under the report service work
+    # area so Data/01_Input remains byte-for-byte unchanged.
+    canonical_input_folder = NAS_DATA_ROOT / "01_Input" / month_key
+    handoff_folder = report_service_paths(options)["work"] / month_key / "rerender_handoff"
+    shutil.rmtree(handoff_folder, ignore_errors=True)
+    handoff_folder.mkdir(parents=True, exist_ok=True)
+
+    source_roots = []
+    for source_root in (input_folder, canonical_input_folder):
+        if str(source_root) not in {str(existing) for existing in source_roots}:
+            source_roots.append(source_root)
+    fingerprints_before = {
+        str(source_root): _report_source_tree_fingerprint(source_root)
+        for source_root in source_roots
+    }
 
     central_validation: dict[str, Any] = {"status": "ok", "source": "historical_smp_fallback"}
     for candidate in _smp_source_candidates(month_key):
@@ -14896,12 +14927,33 @@ def rebuild_historical_report(month_key: str) -> dict[str, Any]:
         year,
         month,
         str(input_folder),
-        str(transfer_folder),
+        str(handoff_folder),
         None,
         central_validation,
     )
     result = run_report_generation_from_handoff(options, handoff["request"])
-    result = {**result, "targeted_rebuild": True, "month": month_key, "readiness": readiness}
+
+    fingerprints_after = {
+        str(source_root): _report_source_tree_fingerprint(source_root)
+        for source_root in source_roots
+    }
+    source_data_modified = fingerprints_before != fingerprints_after
+    result = {
+        **result,
+        "targeted_rebuild": True,
+        "month": month_key,
+        "readiness": readiness,
+        "rerender_handoff_folder": str(handoff_folder),
+        "analysis_file_required": False,
+        "closed_month_preserved": not source_data_modified,
+        "source_data_modified": source_data_modified,
+        "source_fingerprints_before": fingerprints_before,
+        "source_fingerprints_after": fingerprints_after,
+    }
+    if source_data_modified:
+        result["status"] = "failed"
+        result["error"] = "CLOSED-month rerender wijzigde brondata; resultaat is fail-closed gemarkeerd."
+
     update_state(
         historical_report_rebuild_last_month=month_key,
         historical_report_rebuild_last_status=result.get("status"),

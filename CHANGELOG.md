@@ -1,3 +1,10 @@
+## 32.3.23 — CLOSED-month rerender zonder bronmutatie
+- Historische/CLOSED rapportherbouw schrijft rapportaanvraag en manifest niet langer in `Data/01_Input/YYYY_MM`, maar in een geïsoleerde rapportservice-workmap.
+- De rerender gebruikt de bestaande canonieke maandbronnen rechtstreeks; een oud `Analysis/energieanalyse_YYYY_MM.json` is niet vereist.
+- Voor en na de rerender worden runtime- en NAS-bronbomen deterministisch gefingerprint; iedere bronwijziging markeert de run fail-closed.
+- CLOSED-maandworkflow wordt niet opnieuw geopend of uitgevoerd; alleen rapportoutput/publicatie wordt opgebouwd.
+- v32.3.22 bronprioriteit blijft behouden: volledige SlimmeMeterPortal-maand is primair wanneer P1/P1g slechts een deel van de maand dekt.
+
 ## 32.3.22 — Rapportbetrouwbaarheid + Crash Recovery-gate
 - Volledige SlimmeMeterPortal-maanddata krijgt voorrang boven een P1/P1g-reeks die pas later in de maand start; P1 blijft controlebron.
 - SlimmeMeterPortal maandtotalen worden uit de duurzame maand-JSONL gelezen wanneer dagelijkse raw-bestanden alleen aggregate placeholders bevatten.

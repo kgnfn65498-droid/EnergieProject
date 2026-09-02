@@ -1,6 +1,6 @@
 {
-  "version": "32.3.22",
-  "source_commit": "chat-build-v32.3.22",
+  "version": "32.3.23",
+  "source_commit": "chat-build-v32.3.23",
   "files": [
     {
       "path": ".gitignore",
@@ -24,8 +24,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "8889625d477f3ad57dae5d8fa891b8c2b12ef9107bbec7f7858e2eeeefa435f0",
-      "size": 96044
+      "sha256": "db1267127c8d760bd140f89b8d7bd26a7ccb35d2e0e27318e700ed912606e3a2",
+      "size": 96792
     },
     {
       "path": "INSTALL.md",
@@ -64,7 +64,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "78b04a9fdaa43cdcb9b102593f2411bc30eb27bc2a304055f6a12d6dba4b0a7d",
+      "sha256": "990ca454db159f945de8168cd44f2cc5a4321468cce44e62589d272dc36eb8b8",
       "size": 8
     },
     {
@@ -174,8 +174,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "9b616ea70840c18179e529b702f93e4af433b5522e279cfc8bf357028527f00d",
-      "size": 521
+      "sha256": "81070d22750f62b6723b3053c93e42b607be472b50d2aeca96eef575e5771937",
+      "size": 451
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -194,7 +194,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "fe03e3de5d13eae97f561e592ea5bfb82dafbf7f8fca02263ec3be653af077a6",
+      "sha256": "76f74a68bb7866e6a62cd1199ad504bedfd1effafe33fe96f22566ed35846bad",
       "size": 6103
     },
     {
@@ -249,12 +249,12 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "7b61b4c95b375af1b7099146e6d4a33bd891970b87d49901243e09222c98359e",
-      "size": 966862
+      "sha256": "6021006f95a74f4a83b5bb7dd9de8fbecd21619bff468564c2a29d712ea384d2",
+      "size": 969117
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
-      "sha256": "89c2e0c5b45d32514431b69aa37d67a9532a723fb5bb01c0d4f022e17ab37644",
+      "sha256": "1ab0b02241e9d8b41fe88a14c49229c5d4be3d8ed29d618f0931557074e6e9a6",
       "size": 1903
     },
     {
@@ -609,37 +609,37 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "fb2b9e4bbdc69931c21a3ec417c9e20e0908d37bd51af9f5ad206f136a3eb5c3",
+      "sha256": "ca3942a24881e346d50f97f3b140426042d74dba48153284cf2122e073558c6d",
       "size": 236677
     },
     {
       "path": "tests/test_v32035_release_identity.py",
-      "sha256": "3e7c41e757607bb5ca10d769a45819bf8b798fbc3e6271233be9ceaf4f17aedf",
+      "sha256": "b80e965aebad3a84d51740d9fe33e74bab6f585ee9aadfea84fd7c6762c5a108",
       "size": 1725
     },
     {
       "path": "tests/test_v32037_safe_github_publication.py",
-      "sha256": "cbae87e6a4fcfedc9b2eafb264adeb6b6f0729da13d36dd485308ee307f2e271",
+      "sha256": "501183cbac8a8d148ed0634e3f21054eb98039a1dcce9b554d65c15b9adba5c1",
       "size": 3102
     },
     {
       "path": "tests/test_v32038_automatic_publication_chain.py",
-      "sha256": "b82757348bf06fa3a3d26b57cec033cf1216ce2a51261e3c23a9a953d7c1d132",
+      "sha256": "92a64246e05884ee3b032c381c8f42dbbb418b67e13ffd47219e66cc426e595a",
       "size": 2574
     },
     {
       "path": "tests/test_v3210_historical_energy_excel.py",
-      "sha256": "2881950b4c664eeba80b46865a5d44d34f93f75e23ca503238a75fa5fc5f8154",
+      "sha256": "898897872b522b2e46606e8f30aa2443ccebe2a5510bbab76b9c03d876273ff8",
       "size": 2661
     },
     {
       "path": "tests/test_v3211_startup_excel_bootstrap.py",
-      "sha256": "def857be76da80e9bcf843095d2eb4313bbd98a5fb21da1cc3b2f8ae76892eca",
+      "sha256": "e96322c86df99a407027140f97236510116018f6ee723190c3c526bb4e9461cd",
       "size": 3024
     },
     {
       "path": "tests/test_v3212_startup_excel_live_nas.py",
-      "sha256": "62f17f8e44873e0d087c6b8286e9accb7e948d660956806a81495c8b7f4db292",
+      "sha256": "d17838bd9b56455f642e43bbb4fd6aeb50582cdd22c435ab781345b0812764d8",
       "size": 2500
     },
     {
@@ -649,7 +649,7 @@
     },
     {
       "path": "tests/test_v3220_knowledge_base_structure.py",
-      "sha256": "f4260f5a2453c9833b0add20717322213bee7925612a2084a0f9e3163d6e9d4d",
+      "sha256": "a1ebd5395ee905a902e2f6c2602d148becbc8c950ca1a7404180865cd0083a42",
       "size": 16266
     },
     {
@@ -689,7 +689,7 @@
     },
     {
       "path": "tests/test_v32312_release_identity.py",
-      "sha256": "bb3fa163e9cd17001a4673df1ecc8932a2754f689514d9407f74766e2def1ef2",
+      "sha256": "013b7460dfd3632787d5a930cced22675a8eb8f86a0cf596475a3b93db0f86ba",
       "size": 721
     },
     {
@@ -784,7 +784,7 @@
     },
     {
       "path": "tests/test_v32319_release_identity.py",
-      "sha256": "495f2f0f98185ddc3d88d8a85d26724a4eeb40bb7e281e337fa98c5a70082ca5",
+      "sha256": "0a97639c5901823fae3364ad69bf387956ed5edc3037ce42d35d9e5f81ecdbec",
       "size": 971
     },
     {
@@ -799,27 +799,32 @@
     },
     {
       "path": "tests/test_v32321_finance_and_ui.py",
-      "sha256": "af657bbf82a282d32031e081914a0a40e65c40729762007ce41e41f2f37d68bc",
+      "sha256": "1d5a2515c7637dde84d54d1c5a884eace7fbde9588b1ac66b4c54f0f0d47e371",
       "size": 2863
     },
     {
       "path": "tests/test_v32322_report_reliability.py",
-      "sha256": "4c49cdc1760b495a562d104ca124588c1764b5bc637fa241899a27c312118ccb",
+      "sha256": "33e399f4c8209655de9849900e090e6aeceb00308bf7741ab826819f67c4e1ef",
       "size": 9696
     },
     {
+      "path": "tests/test_v32323_closed_month_rerender.py",
+      "sha256": "68b0713ced45e33b5aac709bb0203fa580a47c705d757f008a5850baa65a53fb",
+      "size": 3919
+    },
+    {
       "path": "tests/test_v3232_assistant_runtime_self_probe.py",
-      "sha256": "d1e2b1c10ea841ccd2c41da3c02c52db903dcd8053e37cc92a2e14985acaf1f9",
+      "sha256": "1ccd45b80ab2cadb8e727a1fae0e05e1daa24590b8c31ec1d4467fbe72904759",
       "size": 5313
     },
     {
       "path": "tests/test_v3233_assistant_mount_timing_hotfix.py",
-      "sha256": "ce9fccf0a134ba5ea5d883169227cfc94679c942a92723e0f46a76df38ae1273",
+      "sha256": "0a1eb65a713ada8485bbc23fcfcaf023f8b7253e71e6f798d173a559397b0284",
       "size": 2106
     },
     {
       "path": "tests/test_v3234_assistant_acceptance_handoff.py",
-      "sha256": "f6d94be986fdf7d0176e2f4421c51960f4bc2e687851d545644c33304528f6a9",
+      "sha256": "3587aafc081ed0bf34b059c685e2a7b1ab7bb40e4229e0d1ac2caea4a228adcd",
       "size": 1720
     },
     {

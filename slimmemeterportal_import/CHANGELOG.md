@@ -1,9 +1,9 @@
 # Changelog
 
-## 32.3.22
+## 32.3.23
 
-- Rapportbetrouwbaarheid en brondekking gerepareerd vóór de Crash Recovery-gate.
-- Volledige SlimmeMeterPortal-maanddata wint van een gedeeltelijke P1/P1g-reeks; P1 blijft controlebron.
-- Maand-JSONL is de primaire SMP-rekenbron wanneer dagelijkse raw-bestanden aggregate placeholders zijn.
-- Pagina 1-13 gebruiken geen productie-demo-/juli-fixtures meer en financiële offertewaarden zijn onderling consistent.
-- Centrale validatie, canoniek outputpad en ingress-rapportnavigatie zijn gehard.
+- CLOSED-maandrapport kan gericht opnieuw worden opgebouwd zonder de maandworkflow opnieuw te openen.
+- Handoff/control-bestanden worden buiten `Data/01_Input` opgeslagen.
+- Bronbomen worden voor/na de rerender gefingerprint; bronmutatie faalt gesloten.
+- Oud `Analysis/energieanalyse_YYYY_MM.json` is niet vereist voor de rapportketen.
+- Volledige SlimmeMeterPortal-maand blijft primair boven een gedeeltelijke P1/P1g-reeks.
