@@ -108,12 +108,17 @@ def line_chart(c, x, y, w, h, series, colors, labels=None):
     c.setStrokeColor(GRID); c.setLineWidth(.4)
     for i in range(5):
         yy=y+i*h/4; c.line(x,yy,x+w,yy)
-    maxv=max(max(vals) for vals in series.values()) or 1
+    numeric_vals=[float(v) for vals in series.values() for v in vals if isinstance(v,(int,float))]
+    maxv=max(numeric_vals) if numeric_vals else 1
     for (name, vals), col in zip(series.items(), colors):
         c.setStrokeColor(col); c.setLineWidth(1.5)
-        pts=[]
-        for i,v in enumerate(vals): pts.append((x+i*w/(len(vals)-1), y+v/maxv*h))
-        for a,b in zip(pts,pts[1:]): c.line(a[0],a[1],b[0],b[1])
+        pts=[]; prev=None; denom=max(1,len(vals)-1)
+        for i,v in enumerate(vals):
+            if not isinstance(v, (int, float)):
+                prev=None; continue
+            point=(x+i*w/denom, y+float(v)/maxv*h)
+            if prev is not None: c.line(prev[0],prev[1],point[0],point[1])
+            pts.append(point); prev=point
         for px,py in pts: c.setFillColor(col); c.circle(px,py,1.4,fill=1,stroke=0)
     if labels:
         for i,l in enumerate(labels): txt(c,x+i*w/(len(labels)-1),y-9,l,4.3,MUTED,align='center')
@@ -190,20 +195,22 @@ def build(data, out):
     txt(c,gx+10,y2+h2-14,'Gasverbruik per maand (m³)',5.8,TEXT,'Helvetica-Bold')
     # Legend explicitly placed above the plot, as in the approved reference.
     legend_y=y2+h2-28
-    for i,(name,col) in enumerate(zip(g['series'].keys(),[NAVY,ORANGE,GREEN])):
+    gas_colors=[NAVY,ORANGE,GREEN,BLUE]
+    for i,(name,col) in enumerate(zip(g['series'].keys(),gas_colors)):
         lx=gx+12+i*48; c.setFillColor(col); c.rect(lx,legend_y-2,5,5,fill=1,stroke=0); txt(c,lx+8,legend_y-1,name,3.7,TEXT)
     # Gas chart with explicit y-axis labels and unit, matching the reference.
     plot_x, plot_y, plot_w, plot_h = gx+24, y2+20, chartw-36, h2-55
-    maxv=max(max(vals) for vals in g['series'].values()) or 1
-    axis_max=math.ceil(maxv/10)*10
+    gas_numeric=[float(v) for vals in g['series'].values() for v in vals if isinstance(v,(int,float))]
+    maxv=max(gas_numeric) if gas_numeric else 1
+    axis_max=max(10,math.ceil(maxv/10)*10)
     for tick in range(0, axis_max+1, 10):
         yy=plot_y+(tick/axis_max)*plot_h
         txt(c,plot_x-6,yy-1,str(tick),3.7,MUTED,align='right')
     txt(c,gx+7,plot_y+plot_h/2,'m³',3.8,MUTED,'Helvetica-Bold',align='center')
-    line_chart(c,plot_x,plot_y,plot_w,plot_h,g['series'],[NAVY,ORANGE,GREEN],['jul','aug','sep','okt','nov','dec','jan','feb','mrt','apr','mei','jun'])
+    line_chart(c,plot_x,plot_y,plot_w,plot_h,g['series'],gas_colors,['jul','aug','sep','okt','nov','dec','jan','feb','mrt','apr','mei','jun'])
     ix=gx+chartw+gap
     txt(c,ix+10,y2+h2-14,'Inzichten',5.8,TEXT,'Helvetica-Bold')
-    insights=[('Gasverbruik is 15% lager dan','vorig jaar.'),('Lager inzet verwarming door milde','winter en efficiënter gebruik.'),('Zomerverbruik stabiel op laag','niveau.')]
+    insights=[('Gasvergelijking gebruikt dezelfde','kalendermaand vorig jaar.'),('Lopend contractjaar toont alleen','werkelijk beschikbare maanden.'),('Geen weersverklaring zonder','gevalideerde graaddagenbron.')]
     for i,(line1,line2) in enumerate(insights):
         yy=y2+h2-31-i*25
         c.setFillColor(GREEN if i<2 else ORANGE); c.circle(ix+17,yy,4,fill=1,stroke=0)
@@ -224,7 +231,7 @@ def build(data, out):
     y4=H-420; ch=87
     left1=colw*.49
     panel(c,margin,y4,left1,ch); panel(c,margin+left1+gap,y4,colw-left1-gap,ch)
-    txt(c,margin+10,y4+ch-14,'Kostenoverzicht (t/m juli)',5.8,TEXT,'Helvetica-Bold')
+    txt(c,margin+10,y4+ch-14,f"Kostenoverzicht ({data.get('meta',{}).get('month','rapportmaand')})",5.8,TEXT,'Helvetica-Bold')
     cc=data['costs']; items=[('Stroomkosten',cc['electricity']),('Terugleververgoeding',-cc['feed_in_compensation'] if isinstance(cc.get('feed_in_compensation'), (int,float)) else None),('Netto stroomkosten',(cc['electricity'] + cc['feed_in_compensation']) if isinstance(cc.get('electricity'), (int,float)) and isinstance(cc.get('feed_in_compensation'), (int,float)) else None),('Gaskosten',cc['gas']),('Vaste kosten / netbeheer',cc['grid_costs'])]
     for i,(lab,val) in enumerate(items):
         yy=y4+ch-28-i*8.6
@@ -244,10 +251,10 @@ def build(data, out):
     f=data['forecast']; f1=colw*.49
     panel(c,gx,y4,f1,ch); panel(c,gx+f1+gap,y4,colw-f1-gap,ch)
     txt(c,gx+10,y4+ch-14,'Prognose verbruik & teruglevering',5.8,TEXT,'Helvetica-Bold')
-    pitems=[('Totaal verbruik',f['electricity_total']),('Totaal teruglevering',f['feed_in_total']),('Netto levering',f['net']),('Verschil vorig contractjaar',f"+ {f['current_year_difference']}"),('Verschil %',f"+{f['difference_pct']}%")]
-    for i,(lab,val) in enumerate(pitems): txt(c,gx+10,y4+ch-29-i*9,lab,4.6); txt(c,gx+f1-8,y4+ch-29-i*9,str(val),4.6,GREEN if i>1 else TEXT,'Helvetica-Bold','right')
+    pitems=[('Totaal verbruik',f.get('electricity_total')),('Totaal teruglevering',f.get('feed_in_total')),('Netto levering',f.get('net')),('Verschil vorig contractjaar',f.get('current_year_difference')),('Verschil %',f.get('difference_pct'))]
+    for i,(lab,val) in enumerate(pitems): txt(c,gx+10,y4+ch-29-i*9,lab,4.6); txt(c,gx+f1-8,y4+ch-29-i*9,'Niet beschikbaar' if not isinstance(val,(int,float)) else (f'{val:+.1f}%' if i==4 else f'{val:+.1f}' if i==3 else f'{val:.1f}'),4.6,GREEN if i>1 else TEXT,'Helvetica-Bold','right')
     xx=gx+f1+gap; txt(c,xx+10,y4+ch-14,'Prognose gasverbruik',5.8,TEXT,'Helvetica-Bold')
-    for i,(lab,val) in enumerate([('Totaal gasverbruik',f['gas_total']),('Verschil vorig contractjaar',f"+{f['gas_difference']}"),('Verschil %',f"+{f['gas_difference_pct']}%")]): txt(c,xx+10,y4+ch-30-i*13,lab,4.6); txt(c,gx+colw-8,y4+ch-30-i*13,str(val),4.6,GREEN if i else TEXT,'Helvetica-Bold','right')
+    for i,(lab,val) in enumerate([('Totaal gasverbruik',f.get('gas_total')),('Verschil vorig contractjaar',f.get('gas_difference')),('Verschil %',f.get('gas_difference_pct'))]): txt(c,xx+10,y4+ch-30-i*13,lab,4.6); txt(c,gx+colw-8,y4+ch-30-i*13,'Niet beschikbaar' if not isinstance(val,(int,float)) else (f'{val:+.1f}%' if i==2 else f'{val:+.1f}' if i==1 else f'{val:.1f}'),4.6,GREEN if i else TEXT,'Helvetica-Bold','right')
 
     # two trend panels
     y5=H-520; trh=85

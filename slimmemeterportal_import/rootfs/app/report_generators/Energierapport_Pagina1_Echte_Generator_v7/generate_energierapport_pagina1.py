@@ -105,7 +105,7 @@ def draw_kpis(c,d):
         txt(c,k['waarde'],x+w/2,topy+178,35,True,'ink','center')
         txt(c,k['eenheid'],x+w/2,topy+210,17,True,'ink','center')
         txt(c,k['delta'],x+w/2,topy+238,17,True,k['kleur'],'center')
-        txt(c,'VS. JULI 2025',x+w/2,topy+263,13,True,'muted','center')
+        txt(c,d['rapport'].get('comparison_label','VS. VORIG JAAR'),x+w/2,topy+263,13,True,'muted','center')
     w2=214; y2=804; h2=260
     icon_kinds=['euro','kaart','grafiek','plusminus','doel','verschil']
     for i,k in enumerate(d['kpi_onder']):
@@ -141,30 +141,35 @@ def draw_month(c,d):
         txt(c,lab,156,y+38,18,True)
         txt(c,f"{val['waarde']:.1f}".replace('.',',')+' '+('m³' if lab=='Gasverbruik' else 'kWh'),156,y+82,30,True)
         txt(c,f"({val['delta']:+.1f})".replace('.',','),350,y+82,18,True,'green' if val['delta']>0 and lab=='Teruglevering' else 'red')
-        years=['2023','2024','2025','2026']; mx=max(val['jaren'])
+        report_year=int(str(d['rapport'].get('maand','')).split()[-1]) if str(d['rapport'].get('maand','')).split()[-1].isdigit() else 2026; years=[str(report_year-3),str(report_year-2),str(report_year-1),str(report_year)]; numeric_years=[v for v in val['jaren'] if isinstance(v,(int,float))]; mx=max(numeric_years) if numeric_years else 1
         chart_x=485; chart_w=395
         for j,v in enumerate(val['jaren']):
             yy=y+22+j*24
             txt(c,years[j],chart_x-18,yy+10,11,False,'muted','right')
-            bw=chart_w*(v/mx)
+            if not isinstance(v,(int,float)):
+                txt(c,'-',chart_x+10,yy+11,11,False,'muted')
+                continue
+            bw=chart_w*(v/mx) if mx else 0
             fill=HexColor('#F3B9BC') if col=='red' else HexColor('#BDE6CD') if col=='green' else HexColor('#B9D3EB')
             if j==3: fill=C[col]
             c.setFillColor(fill); c.roundRect(X(chart_x),Y(yy+18),X(bw),14*SY,5*SX,fill=1,stroke=0)
             txt(c,str(v).replace('.',','),chart_x+bw+10,yy+11,11,False,'muted')
-        txt(c,'VS. JULI 2025',156,y+111,12,True,'muted')
+        txt(c,d['rapport'].get('comparison_label','VS. VORIG JAAR'),156,y+111,12,True,'muted')
     rr(c,1015,1168,918,412,20)
     txt(c,'NETTO ELEKTRICITEITSBALANS PER MAAND (kWh)',1474,1212,24,True,'ink','center')
     top=1264; bottom=1532; vals=d['maand']['netto_maanden']; months=['jul','aug','sep','okt','nov','dec','jan','feb','mrt','apr','mei','jun']
     c.setStrokeColor(C['line']); c.line(X(1090),Y(top),X(1885),Y(top)); c.line(X(1090),Y(bottom),X(1885),Y(bottom))
     txt(c,'0',1100,top+3,11,False,'muted','right'); txt(c,'-50',1100,bottom+3,11,False,'muted','right')
+    numeric_vals=[]
     for i,v in enumerate(vals):
-        x=1130+i*63; h=min(250,abs(v)*5.2)
+        x=1130+i*63
+        if not isinstance(v,(int,float)):
+            txt(c,'-',x+15,top+18,10,True,'muted','center'); txt(c,months[i],x+15,1554,11,False,'muted','center'); continue
+        numeric_vals.append(v); h=min(250,abs(v)*5.2)
         c.setFillColor(C['green'] if v<=0 else C['red'])
-        if abs(v)>0.05:
-            c.rect(X(x),Y(top+h),X(30),h*SY,fill=1,stroke=0)
-        txt(c,str(v).replace('.',','),x+15,top+18,10,True,'green','center')
-        txt(c,months[i],x+15,1554,11,False,'muted','center')
-    total=abs(sum(vals)); h=min(250,total*5.2)
+        if abs(v)>0.05: c.rect(X(x),Y(top+h),X(30),h*SY,fill=1,stroke=0)
+        txt(c,str(v).replace('.',','),x+15,top+18,10,True,'green','center'); txt(c,months[i],x+15,1554,11,False,'muted','center')
+    total=abs(sum(numeric_vals)); h=min(250,total*5.2)
     c.setFillColor(C['navy']); c.rect(X(1860),Y(top+h),X(30),h*SY,fill=1,stroke=0)
     txt(c,f"-{total:.1f}".replace('.',','),1875,top+h-7,11,True,white,'center')
     txt(c,'Totaal',1875,1572,11,False,'muted','center')

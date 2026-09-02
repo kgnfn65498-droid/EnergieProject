@@ -1,3 +1,11 @@
+## 32.3.20 — Rapportsemantiek augustus + outputpad hardening
+- Pagina 1 gebruikt een dynamische jaar-op-jaarvergelijking; augustus 2026 vergelijkt met augustus 2025 in plaats van hardcoded juli.
+- Contractjaargrafieken lopen juli t/m juni; toekomstige/niet beschikbare maanden blijven leeg in plaats van fictief nul.
+- Financiële KPI's zijn fail-closed: actuele maandtermijn wordt getoond, maar niet-gevalideerde jaarkosten/saldo/termijnadviezen tonen Niet beschikbaar.
+- Pagina 2 bouwt gasreeksen uit historische brondata en voegt het lopende contractjaar 2026-2027 toe met werkelijk bekende maanden.
+- De niet-canonieke Data/01_Input/02_Output-route is verwijderd; maandrapportuitvoer publiceert alleen naar Data/02_Output/Rapportages.
+- Release-/Crash-Recovery-/HOLD-semantiek uit 32.3.19 blijft ongewijzigd.
+
 ## 32.3.19 — Crash Recovery hardening + automatische HOLD-vrijgave
 - Gezonde releases valideren de bestaande RELEASE VALIDATION HOLD automatisch en geven hem alleen vrij wanneer alle vijf checks plus gemeten reconciliation groen zijn; noodvrijgave blijft uitsluitend handmatig.
 - Crash Recovery backup/verify schakelt tijdelijk naar MAINTENANCE en pauzeert schedule, full workflow en automatische maandafsluiting zodat geen nieuwe automatische mutatie tijdens de herstelset start.

@@ -24,7 +24,7 @@ def _development_state():
 
 def _healthy_app():
     return SimpleNamespace(
-        APP_VERSION="32.3.19",
+        APP_VERSION="32.3.20",
         Handler=object,
         html_page=lambda *args, **kwargs: "ok",
         STOP=Event(),
@@ -44,11 +44,11 @@ def _healthy_app():
 
 def test_automatic_release_uses_normal_validation_and_releases_only_when_green(tmp_path):
     save_mode_state(tmp_path, _development_state())
-    activate_release_hold(tmp_path, "32.3.19", "release_install")
+    activate_release_hold(tmp_path, "32.3.20", "release_install")
     app = _healthy_app()
 
-    result = auto_release.automatic_release_hold_once(app, tmp_path, "32.3.19")
-    hold = load_release_hold(tmp_path, "32.3.19")
+    result = auto_release.automatic_release_hold_once(app, tmp_path, "32.3.20")
+    hold = load_release_hold(tmp_path, "32.3.20")
 
     assert result["status"] == "released"
     assert result["validation"]["status"] == "ok"
@@ -59,7 +59,7 @@ def test_automatic_release_uses_normal_validation_and_releases_only_when_green(t
 
 def test_automatic_release_keeps_hold_active_when_any_validation_check_is_blocked(tmp_path):
     save_mode_state(tmp_path, _development_state())
-    activate_release_hold(tmp_path, "32.3.19", "release_install")
+    activate_release_hold(tmp_path, "32.3.20", "release_install")
     app = _healthy_app()
     app.operating_runtime_probe = lambda: {
         "workflow_running": False,
@@ -72,8 +72,8 @@ def test_automatic_release_keeps_hold_active_when_any_validation_check_is_blocke
         "release_processing": [],
     }
 
-    result = auto_release.automatic_release_hold_once(app, tmp_path, "32.3.19")
-    hold = load_release_hold(tmp_path, "32.3.19")
+    result = auto_release.automatic_release_hold_once(app, tmp_path, "32.3.20")
+    hold = load_release_hold(tmp_path, "32.3.20")
 
     assert result["status"] == "blocked"
     assert hold.active is True
@@ -103,7 +103,7 @@ def test_auto_release_worker_has_bounded_retry_schedule(monkeypatch, tmp_path):
         stop,
         object(),
         tmp_path,
-        "32.3.19",
+        "32.3.20",
         retry_delays=(0.1, 0.2, 0.3),
     )
 

@@ -1,8 +1,8 @@
 # Changelog
 
-## 32.3.19
+## 32.3.20
 
-- RELEASE VALIDATION HOLD wordt na een gezonde installatie automatisch via de normale vijf checks + reconciliation vrijgegeven.
-- Crash Recovery backup/verify pauzeert automatische maand/workflowmutaties tijdens de tijdelijke MAINTENANCE-sessie.
-- Post-download cleanup houdt MAINTENANCE vast totdat watcher-cleanup volledig is teruggekoppeld; onveilige cleanupfouten blijven MAINTENANCE.
-- USER/DEVELOPMENT-basis en DEVELOPMENT-sessie blijven exact behouden.
+- Dynamische jaar-op-jaarlabels en juli-juni contractjaarindexering op pagina 1.
+- Financiële KPI's fail-closed met actuele maandtermijn en geen demo-jaarkosten.
+- Pagina 2 bevat actuele gasreeks voor het lopende contractjaar en verdraagt ontbrekende toekomstige maanden.
+- Niet-canonieke Data/01_Input/02_Output-publicatie verwijderd.

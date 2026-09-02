@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.19"
+APP_VERSION = "32.3.20"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1748,6 +1748,90 @@ def load_generator_example(role: str) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+_HISTORICAL_ENERGY_SEED = Path(__file__).with_name("historical_energy_seed.json")
+
+
+def _load_historical_energy_seed() -> dict[str, Any]:
+    try:
+        payload = json.loads(_HISTORICAL_ENERGY_SEED.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _historical_month_record(year: int, month: int) -> dict[str, Any]:
+    target = f"{year:04d}-{month:02d}-01"
+    matches: list[dict[str, Any]] = []
+    for item in (_load_historical_energy_seed().get("periods") or []):
+        if isinstance(item, dict) and str(item.get("from")) == target:
+            matches.append(item)
+    return matches[-1] if matches else {}
+
+
+def _same_month_history(year: int, month: int, metric: str, current: float) -> list[float]:
+    values: list[float] = []
+    for historical_year in range(year - 3, year):
+        raw = _historical_month_record(historical_year, month).get(metric)
+        values.append(round(float(raw), 3) if isinstance(raw, (int, float)) else 0.0)
+    values.append(round(float(current), 3))
+    return values
+
+
+def _pct_change(current: float, previous: Any) -> float | None:
+    if not isinstance(previous, (int, float)) or float(previous) == 0:
+        return None
+    return (float(current) - float(previous)) / float(previous) * 100.0
+
+
+def _gas_contract_year_series(year: int, month: int, current_gas_m3: float) -> dict[str, list[float | None]]:
+    series: dict[str, list[float | None]] = {}
+    for start_year in range(year - 3, year):
+        vals: list[float | None] = []
+        for offset in range(12):
+            cal_month = 7 + offset
+            cal_year = start_year
+            if cal_month > 12:
+                cal_month -= 12
+                cal_year += 1
+            raw = _historical_month_record(cal_year, cal_month).get("gas_m3")
+            vals.append(round(float(raw), 3) if isinstance(raw, (int, float)) else None)
+        series[f"{start_year}-{start_year + 1}"] = vals
+    current_start = year if month >= 7 else year - 1
+    vals = [None] * 12
+    through_index = (month - 7) % 12
+    for offset in range(through_index + 1):
+        cal_month = 7 + offset
+        cal_year = current_start
+        if cal_month > 12:
+            cal_month -= 12
+            cal_year += 1
+        if cal_year == year and cal_month == month:
+            vals[offset] = round(float(current_gas_m3), 3)
+        else:
+            raw = _historical_month_record(cal_year, cal_month).get("gas_m3")
+            vals[offset] = round(float(raw), 3) if isinstance(raw, (int, float)) else None
+    series[f"{current_start}-{current_start + 1}"] = vals
+    return series
+
+
+def _contract_year_net_series(year: int, month: int, current_net_kwh: float) -> list[float | None]:
+    current_start = year if month >= 7 else year - 1
+    vals: list[float | None] = [None] * 12
+    through_index = (month - 7) % 12
+    for offset in range(through_index + 1):
+        cal_month = 7 + offset
+        cal_year = current_start
+        if cal_month > 12:
+            cal_month -= 12
+            cal_year += 1
+        if cal_year == year and cal_month == month:
+            vals[offset] = round(float(current_net_kwh), 3)
+        else:
+            raw = _historical_month_record(cal_year, cal_month).get("net_kwh")
+            vals[offset] = round(float(raw), 3) if isinstance(raw, (int, float)) else None
+    return vals
+
+
 def load_financial_analysis_for_report(input_folder: Path, month_key: str) -> dict[str, Any]:
     """Load only validated financial analysis fields for the requested month.
 
@@ -1876,6 +1960,11 @@ def build_report_adapter_data(
     days = monthrange(year, month)[1]
     month_name = datetime(year, month, 1, tzinfo=TZ).strftime("%B %Y")
     month_upper = month_name.upper()
+    previous_year_record = _historical_month_record(year - 1, month)
+    previous_import = previous_year_record.get("import_kwh")
+    previous_export = previous_year_record.get("export_kwh")
+    previous_gas = previous_year_record.get("gas_m3")
+    comparison_label = f"VS. {datetime(year - 1, month, 1, tzinfo=TZ).strftime('%B %Y').upper()}"
 
     page1 = load_generator_example("page_1")
     page1["rapport"].update({
@@ -1884,6 +1973,7 @@ def build_report_adapter_data(
         "maand": month_upper,
         "pagina": 1,
         "paginas": 13,
+        "comparison_label": comparison_label,
     })
     page1["samenvatting"] = [
         {"kleur": "groen", "tekst": f"Gemeten netverbruik bedraagt {import_kwh:.1f} kWh."},
@@ -1904,11 +1994,24 @@ def build_report_adapter_data(
         item["waarde"] = f"{value:.1f}".replace(".", ",")
         item["eenheid"] = unit
         item["delta"] = "-"
-    page1["maand"]["verbruik"]["waarde"] = round(import_kwh, 3)
-    page1["maand"]["teruglevering"]["waarde"] = round(export_kwh, 3)
-    page1["maand"]["gas"]["waarde"] = round(gas_m3, 3)
-    page1["maand"]["netto_maanden"] = [0.0] * 12
-    page1["maand"]["netto_maanden"][month - 1] = round(net_kwh, 3)
+    page1["maand"]["verbruik"].update({
+        "waarde": round(import_kwh, 3),
+        "delta": round(import_kwh - float(previous_import), 3) if isinstance(previous_import, (int, float)) else 0.0,
+        "jaren": _same_month_history(year, month, "import_kwh", import_kwh),
+    })
+    page1["maand"]["teruglevering"].update({
+        "waarde": round(export_kwh, 3),
+        "delta": round(export_kwh - float(previous_export), 3) if isinstance(previous_export, (int, float)) else 0.0,
+        "jaren": _same_month_history(year, month, "export_kwh", export_kwh),
+    })
+    page1["maand"]["gas"].update({
+        "waarde": round(gas_m3, 3),
+        "delta": round(gas_m3 - float(previous_gas), 3) if isinstance(previous_gas, (int, float)) else 0.0,
+        "jaren": _same_month_history(year, month, "gas_m3", gas_m3),
+    })
+    contract_month_index = (month - 7) % 12
+    page1["maand"]["netto_maanden"] = _contract_year_net_series(year, month, net_kwh)
+    assert page1["maand"]["netto_maanden"][contract_month_index] == round(net_kwh, 3)
     page1["efficientie"].update({
         "zelfvoorziening": round(self_supply_pct, 1),
         "eigen_verbruik": round(self_use_pct, 1),
@@ -1920,20 +2023,37 @@ def build_report_adapter_data(
 
     page2 = load_generator_example("page_2")
     page2["meta"]["month"] = month_name
+    consumption_vs_ly = _pct_change(import_kwh, previous_import)
+    feed_in_vs_ly = _pct_change(export_kwh, previous_export)
+    net_previous = (float(previous_export) - float(previous_import)) if isinstance(previous_import, (int, float)) and isinstance(previous_export, (int, float)) else None
+    net_vs_ly = _pct_change(export_kwh - import_kwh, net_previous)
+    gas_vs_ly = _pct_change(gas_m3, previous_gas)
     page2["electricity"].update({
         "consumption": round(import_kwh, 1),
+        "consumption_vs_ly": round(consumption_vs_ly, 1) if consumption_vs_ly is not None else 0.0,
         "feed_in": round(export_kwh, 1),
+        "feed_in_vs_ly": round(feed_in_vs_ly, 1) if feed_in_vs_ly is not None else 0.0,
         "net_feed_in": round(export_kwh - import_kwh, 1),
+        "net_vs_ly": round(net_vs_ly, 1) if net_vs_ly is not None else 0.0,
     })
     page2["gas"].update({
         "month": round(gas_m3, 1),
+        "month_vs_ly": round(gas_vs_ly, 1) if gas_vs_ly is not None else 0.0,
         "per_day": round(gas_m3 / days, 2) if days else 0.0,
+        "per_day_vs_ly": round(gas_vs_ly, 1) if gas_vs_ly is not None else 0.0,
     })
+    page2["gas"]["series"] = _gas_contract_year_series(year, month, gas_m3)
     page2["forecast"].update({
-        "electricity_total": round(import_kwh * 12, 1),
-        "feed_in_total": round(export_kwh * 12, 1),
-        "net": round(net_kwh * 12, 1),
-        "gas_total": round(gas_m3 * 12, 1),
+        "electricity_total": None,
+        "feed_in_total": None,
+        "net": None,
+        "current_year_difference": None,
+        "difference_pct": None,
+        "gas_total": None,
+        "gas_difference": None,
+        "gas_difference_pct": None,
+        "monthly_actual": [None] * 12,
+        "monthly_forecast": [None] * 12,
     })
 
     # v23.5.0: officiële pagina-2-generator krijgt uitsluitend gevalideerde
@@ -1945,6 +2065,15 @@ def build_report_adapter_data(
     export_preview = contract_preview.get("export") or {}
     gas_preview = contract_preview.get("gas") or {}
     monthly_advance = (supplier_context.get("contract") or {}).get("monthly_advance_eur", 150.0)
+    monthly_advance = float(monthly_advance) if isinstance(monthly_advance, (int, float)) else 150.0
+    page1["kpi_onder"] = [
+        {"titel": "Werkelijke kosten", "waarde": "Niet beschikbaar", "sub": "all-in nog niet compleet", "kleur": "groen"},
+        {"titel": "Huidige maandtermijn", "waarde": f"€ {monthly_advance:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), "sub": "actueel", "kleur": "blauw"},
+        {"titel": "Verwachte jaarkosten", "waarde": "Niet beschikbaar", "sub": "prognose niet gevalideerd", "kleur": "paars"},
+        {"titel": "Verwacht saldo", "waarde": "Niet beschikbaar", "sub": "prognose niet gevalideerd", "kleur": "turkoois"},
+        {"titel": "Benodigde termijn", "waarde": "Niet beschikbaar", "sub": "geen veilig advies", "kleur": "oranje"},
+        {"titel": "Verschil termijn", "waarde": "Niet beschikbaar", "sub": "geen veilig advies", "kleur": "rood"},
+    ]
 
     page2["costs"].update({
         "electricity": observed_variable if isinstance(observed_variable, (int, float)) else None,
@@ -1974,7 +2103,7 @@ def build_report_adapter_data(
     projected_30d = financial_projection.get("projected_30d_variable_electricity_cost_eur")
     all_in_projection = financial_projection.get("supplier_all_in_projection_eur")
     page2["term"].update({
-        "current": float(monthly_advance) if isinstance(monthly_advance, (int, float)) else 150.0,
+        "current": monthly_advance,
         "advice": all_in_projection if isinstance(all_in_projection, (int, float)) else None,
         "annual_cost": None,
         "balance": None,
@@ -2206,8 +2335,7 @@ def publish_month_output(
     work_folder: Path,
 ) -> dict[str, Any]:
     month_key = str(handoff["month"])
-    transfer_folder = Path(str(handoff["transfer_folder"]))
-    output_folder = transfer_folder.parent / "02_Output" / month_key
+    output_folder = NAS_DATA_ROOT / "02_Output" / "Rapportages" / month_key
     output_folder.mkdir(parents=True, exist_ok=True)
 
     contract = handoff.get("output_contract") or {}

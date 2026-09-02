@@ -1,5 +1,5 @@
 {
-  "version": "32.3.19",
+  "version": "32.3.20",
   "source_commit": "7f3f95fcd20395fb9a8fa42f39db2220a32882af",
   "files": [
     {
@@ -24,8 +24,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "84922fb7adcb8f9179039f456987b30c2767f9ff6c0ab227e9d8b497ec364da0",
-      "size": 93208
+      "sha256": "3848e60523971cc2ba4c6384c6262c534d7313b321ca6ddec10175d52c3b5d2b",
+      "size": 94024
     },
     {
       "path": "INSTALL.md",
@@ -64,7 +64,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "22f42c7fc83a11d85f8190054cc631457b9ec50b47936f6959d4b5f3074c3253",
+      "sha256": "4265df83fa23b8248faf04393a034dd8664e1d56ef66b1270ddf6348d4c23be1",
       "size": 8
     },
     {
@@ -164,8 +164,8 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "600678bd1fb596c74d243e2e4d409035dc046026f0341257d398b3ffbcd634e0",
-      "size": 485
+      "sha256": "1a2048039724693c6479a856d66e1a1e97a4ef9b9feb5da3a62fda3ffd11ad00",
+      "size": 362
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -184,7 +184,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "9107de78a1e5d3edf4b5cbad5f635d219d066ef02d1c66dbe48da2ec0c61aedb",
+      "sha256": "5087e57781fde01a244364b802ef4b2cf13264d30ba3a553ac8e070ead740b02",
       "size": 6103
     },
     {
@@ -239,12 +239,12 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "860f6b100569054469c486dc5d46dbb14cc9fc854012536e0063d071bdd1c08f",
-      "size": 934593
+      "sha256": "577bed5c37505703446601ee69125191da88fc17da4d174914c560fcec7b887e",
+      "size": 940963
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
-      "sha256": "d577061f7ad4e821a1e947c8b41595fa3e8d2479d74cc87da6bbe69dc475b954",
+      "sha256": "ca71c5bbbaa08236bac1c116d964fe49b39807b979e81427ca2991c0e1bfd482",
       "size": 1903
     },
     {
@@ -309,7 +309,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/MANIFEST_SHA256.txt",
-      "sha256": "b6e6f5c1b8401e1eb248071c8c29587dd4eb1741ebec60a07026cc3693580247",
+      "sha256": "d6e00cb7a0825ed3daee35569fa3b35d57f1e8cc5baf312f377ffbbe21063696",
       "size": 1626
     },
     {
@@ -334,8 +334,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/generate_energierapport_pagina1.py",
-      "sha256": "59ad3c3d7115760e1ddb1b22a9f334e94bdccea8093663392c036fd675aeeda5",
-      "size": 18477
+      "sha256": "aeca5ca3cc1d5760774d2cf5a2b6d0d880308b3f3ecf4afbe259d495bb9cc3d9",
+      "size": 19178
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/maanddata_schema.json",
@@ -374,8 +374,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/validate_maanddata.py",
-      "sha256": "f3b17698a9b5c269f92cddb804db272f252a75cf3eb950511883c6ea7bb5227d",
-      "size": 6120
+      "sha256": "57f349ad365b8cd1e242aa555776ffa45ae30a0acf8385c0999359331f16b79a",
+      "size": 6261
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina1_Echte_Generator_v7/verwerk_maandupdate.py",
@@ -419,8 +419,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina2_Generator_v6_0/src/generate_p2.py",
-      "sha256": "07e68f147ac6f612bce71b4a454bdee695f2d3545dd2b7fcb53234e7039bc47f",
-      "size": 20940
+      "sha256": "0752cbe6e64cc2ec7e0c68a06f8c696253db4559b680c99aa1517cc21b80c153",
+      "size": 21652
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/report_generators/Energierapport_Pagina2_Generator_v6_0/tests/test_generate.py",
@@ -599,37 +599,37 @@
     },
     {
       "path": "tests/test_static.py",
-      "sha256": "1ba52e3b3e403a2ec01e6fc718c3856266c05c46abc5364d3462f0d69f45ed51",
-      "size": 236550
+      "sha256": "c32b036c118af7e234b0018103aa964e60fb1eb488aff7fbba80d2dd299122a7",
+      "size": 236557
     },
     {
       "path": "tests/test_v32035_release_identity.py",
-      "sha256": "25303bc5c26d169a5797e145faf391d0e474d6c29a07bceaeac2d61386bd4a1f",
-      "size": 1783
+      "sha256": "93152e783642ac0bfe5446894eee814585ea5916e9971e080dba1001deaf942f",
+      "size": 1777
     },
     {
       "path": "tests/test_v32037_safe_github_publication.py",
-      "sha256": "da1ee88da2e9726ef08966c60c59ec374df46f0725e6e9edc02441c119a07586",
+      "sha256": "18b2683be73ff00872eaa00d19ae6edc8e1cff279b38b787f152b4f6c103df3a",
       "size": 3102
     },
     {
       "path": "tests/test_v32038_automatic_publication_chain.py",
-      "sha256": "049072c11d67ffb96cba833b5438b3a38d04b2ae6251b4ff2b7f98394a3da968",
+      "sha256": "73cd86dcadfa98247ae5a063c75dc0a1889f375734256b6527a29e5dfbca13a0",
       "size": 2574
     },
     {
       "path": "tests/test_v3210_historical_energy_excel.py",
-      "sha256": "016daf534f27eb14451d3e201a00106718f88f0606ac4ba21285797e238f896d",
+      "sha256": "03065a46fdc39d8f636aae15da4d18f5905a6469db09f85c09744006243b15af",
       "size": 2661
     },
     {
       "path": "tests/test_v3211_startup_excel_bootstrap.py",
-      "sha256": "c95fa25c39526f9d55f31ec72cacfff7b8eb8f397c8ee9e2b8cefc791b95b737",
+      "sha256": "d07c22fb6ea535ad39ac5d42ab8b15067c32778a4a5229a4254baeed62f7f532",
       "size": 3024
     },
     {
       "path": "tests/test_v3212_startup_excel_live_nas.py",
-      "sha256": "3a9f849d15033fedbda944e763f81f85f8cd7d675e6202656d169a29a992bd62",
+      "sha256": "c11cd72c5f349d99f652b8d573851463a6dccee9470d94bd992505a9b5b72b38",
       "size": 2500
     },
     {
@@ -639,7 +639,7 @@
     },
     {
       "path": "tests/test_v3220_knowledge_base_structure.py",
-      "sha256": "40b3197bbc26baee7bb8516c17eea60eb66937445320dd31cee5a67abbcf862a",
+      "sha256": "b538ea7a5a245a6714510717754eba33e9d591dcda9be39fd93c5339b47d8ab7",
       "size": 16266
     },
     {
@@ -679,7 +679,7 @@
     },
     {
       "path": "tests/test_v32312_release_identity.py",
-      "sha256": "551fe9db8b16eb5ef02a44bb76fd23ab93ca48c6b3abe45e335bc9145ddfac6d",
+      "sha256": "861461879722ae9f76bc473756c5eca7953ae2b704bf51f3574fc5c92d3612b8",
       "size": 721
     },
     {
@@ -764,7 +764,7 @@
     },
     {
       "path": "tests/test_v32319_auto_hold_release.py",
-      "sha256": "349bf54eda9cd2af778a212484f6be4da2ff46f9904e5d612ab6dc7917166ea3",
+      "sha256": "4d82459a2483f7e55a05d3d5238bcea338d0951348cffcf2e9108181dd7ce44a",
       "size": 4203
     },
     {
@@ -774,8 +774,8 @@
     },
     {
       "path": "tests/test_v32319_release_identity.py",
-      "sha256": "2bb2d3c74c9190a1ecd6d96ebd30d9172a4afe3f85d9087843bc9b33039f56e4",
-      "size": 1029
+      "sha256": "b25cf148c0f6e1cd838f0a5fa33c607f461c20ff6cda61ae8fb674a532d458bf",
+      "size": 1023
     },
     {
       "path": "tests/test_v3231_mcp_system_path_guard_hotfix.py",
@@ -783,18 +783,23 @@
       "size": 5550
     },
     {
+      "path": "tests/test_v32320_report_semantics.py",
+      "sha256": "99de68cc09ed6e761b81b895af8859735c0cf8ab2190660f2afa7b45c2c4486f",
+      "size": 1221
+    },
+    {
       "path": "tests/test_v3232_assistant_runtime_self_probe.py",
-      "sha256": "744db528a7ab583d60a1ed32cda656048aa62ede4271e63dfae1eb87a347e415",
+      "sha256": "b5ccb5e3d1c221407649a132e901daf300d0f064db324ff4bab02e32d1567bd7",
       "size": 5371
     },
     {
       "path": "tests/test_v3233_assistant_mount_timing_hotfix.py",
-      "sha256": "5fc92c6622077b0bbe32ca25bea158eb7c7cd73492a7c28e787913dd8f28296b",
+      "sha256": "151beacfb9aa001dcd0f4d055044deb5f88ca535a2b669f08f601d4c12b49ffe",
       "size": 2164
     },
     {
       "path": "tests/test_v3234_assistant_acceptance_handoff.py",
-      "sha256": "59f5da8d36562f60e37a04a7d92a592c0d3fa2a08403a9ddf26e185d9de61b7a",
+      "sha256": "c5c4b3700461cec28e93108d9f76fbc5879d261271d7d59a29081064e7875324",
       "size": 1778
     },
     {

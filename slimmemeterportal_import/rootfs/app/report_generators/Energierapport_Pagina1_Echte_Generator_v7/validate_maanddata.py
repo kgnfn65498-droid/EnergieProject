@@ -72,6 +72,9 @@ def validate(data: dict[str, Any]) -> None:
         for j, value in enumerate(obj["jaren"]): _number(value, f"maand.{key}.jaren[{j}]")
     if not isinstance(month["netto_maanden"], list) or len(month["netto_maanden"]) != 12:
         raise DataValidationError("maand.netto_maanden: exact 12 maandwaarden vereist")
+    for i, value in enumerate(month["netto_maanden"]):
+        if value is not None:
+            _number(value, f"maand.netto_maanden[{i}]")
 
     score = data["score"]
     _need(score, ["totaal", "onderdelen"], "score")
