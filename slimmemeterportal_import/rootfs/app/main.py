@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.20"
+APP_VERSION = "32.3.21"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1975,11 +1975,16 @@ def build_report_adapter_data(
         "paginas": 13,
         "comparison_label": comparison_label,
     })
+    offer_finance = nextenergy_offer_financial_summary()
+    page1["contract"].update({
+        "start": "3 september 2026",
+        "type": "Dynamisch + gasplafond 1 jaar",
+    })
     page1["samenvatting"] = [
         {"kleur": "groen", "tekst": f"Gemeten netverbruik bedraagt {import_kwh:.1f} kWh."},
         {"kleur": "groen", "tekst": f"Gemeten teruglevering bedraagt {export_kwh:.1f} kWh."},
         {"kleur": "groen", "tekst": f"Gemeten gasverbruik bedraagt {gas_m3:.1f} m³."},
-        {"kleur": "oranje", "tekst": "Financiële prognoses blijven voorlopig totdat contractkostendata volledig is gekoppeld."},
+        {"kleur": "groen", "tekst": "NextEnergy-offerteprognose € 1.836 per jaar; bevestigd termijnbedrag € 150 per maand."},
     ]
     top = page1["kpi_boven"]
     measured = [
@@ -1994,6 +1999,15 @@ def build_report_adapter_data(
         item["waarde"] = f"{value:.1f}".replace(".", ",")
         item["eenheid"] = unit
         item["delta"] = "-"
+    if len(top) > 5:
+        top[5].update({
+            "titel": "Jaarprognose",
+            "waarde": "€ 1.836",
+            "eenheid": "NextEnergy",
+            "delta": "offerte",
+            "kleur": "oranje",
+            "icoon": "euro",
+        })
     page1["maand"]["verbruik"].update({
         "waarde": round(import_kwh, 3),
         "delta": round(import_kwh - float(previous_import), 3) if isinstance(previous_import, (int, float)) else 0.0,
@@ -2064,15 +2078,14 @@ def build_report_adapter_data(
     contract_preview = financial_context.get("contract_formula_preview") or {}
     export_preview = contract_preview.get("export") or {}
     gas_preview = contract_preview.get("gas") or {}
-    monthly_advance = (supplier_context.get("contract") or {}).get("monthly_advance_eur", 150.0)
-    monthly_advance = float(monthly_advance) if isinstance(monthly_advance, (int, float)) else 150.0
+    monthly_advance = offer_finance["current_monthly_advance_eur"]
     page1["kpi_onder"] = [
-        {"titel": "Werkelijke kosten", "waarde": "Niet beschikbaar", "sub": "all-in nog niet compleet", "kleur": "groen"},
-        {"titel": "Huidige maandtermijn", "waarde": f"€ {monthly_advance:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), "sub": "actueel", "kleur": "blauw"},
-        {"titel": "Verwachte jaarkosten", "waarde": "Niet beschikbaar", "sub": "prognose niet gevalideerd", "kleur": "paars"},
-        {"titel": "Verwacht saldo", "waarde": "Niet beschikbaar", "sub": "prognose niet gevalideerd", "kleur": "turkoois"},
-        {"titel": "Benodigde termijn", "waarde": "Niet beschikbaar", "sub": "geen veilig advies", "kleur": "oranje"},
-        {"titel": "Verschil termijn", "waarde": "Niet beschikbaar", "sub": "geen veilig advies", "kleur": "rood"},
+        {"titel": "Offerteprognose", "waarde": "€ 153,00", "sub": "gemiddeld per maand", "kleur": "groen"},
+        {"titel": "Huidige maandtermijn", "waarde": "€ 150,00", "sub": "bevestigd door NextEnergy", "kleur": "blauw"},
+        {"titel": "Verwachte jaarkosten", "waarde": "€ 1.836,00", "sub": "NextEnergy-offerteprognose", "kleur": "paars"},
+        {"titel": "Verwachte betalingen", "waarde": "€ 1.800,00", "sub": "12 × € 150", "kleur": "turkoois"},
+        {"titel": "Benodigde termijn", "waarde": "€ 153,00", "sub": "volgens offerteprognose", "kleur": "oranje"},
+        {"titel": "Verwacht saldo", "waarde": "- € 36,00", "sub": "bij € 150 per maand", "kleur": "rood"},
     ]
 
     page2["costs"].update({
@@ -2104,10 +2117,11 @@ def build_report_adapter_data(
     all_in_projection = financial_projection.get("supplier_all_in_projection_eur")
     page2["term"].update({
         "current": monthly_advance,
-        "advice": all_in_projection if isinstance(all_in_projection, (int, float)) else None,
-        "annual_cost": None,
-        "balance": None,
-        "coverage_pct": min(100.0, max(0.0, float((financial_context.get("projection_eligibility") or {}).get("coverage_progress_pct") or 0.0))),
+        "advice": offer_finance["offer_monthly_projection_eur"],
+        "annual_cost": offer_finance["offer_annual_projection_eur"],
+        "balance": offer_finance["expected_balance_eur"],
+        "coverage_pct": round(offer_finance["expected_annual_payments_eur"] / offer_finance["offer_annual_projection_eur"] * 100.0, 1),
+        "source_label": offer_finance["source_label"],
     })
     page2["financial_validation"] = {
         "source": report_financial.get("source"),
@@ -7173,15 +7187,55 @@ def _nextenergy_month_telemetry(month_key: str) -> dict[str, Any]:
         return result
 
 
+def nextenergy_offer_financial_summary() -> dict[str, float | str]:
+    """Confirmed 2026-09-03 NextEnergy offer/advance figures for management reporting."""
+    current_monthly_advance_eur = 150.0
+    offer_monthly_projection_eur = 153.0
+    offer_annual_projection_eur = round(offer_monthly_projection_eur * 12.0, 2)
+    expected_annual_payments_eur = round(current_monthly_advance_eur * 12.0, 2)
+    expected_balance_eur = round(expected_annual_payments_eur - offer_annual_projection_eur, 2)
+    monthly_difference_eur = round(offer_monthly_projection_eur - current_monthly_advance_eur, 2)
+    return {
+        "current_monthly_advance_eur": current_monthly_advance_eur,
+        "offer_monthly_projection_eur": offer_monthly_projection_eur,
+        "offer_annual_projection_eur": offer_annual_projection_eur,
+        "expected_annual_payments_eur": expected_annual_payments_eur,
+        "expected_balance_eur": expected_balance_eur,
+        "monthly_difference_eur": monthly_difference_eur,
+        "source_label": "NextEnergy-offerteprognose",
+    }
+
+
+def visible_workflow_sources(source_status: dict[str, str]) -> dict[str, str]:
+    """Hide disabled legacy EPEX rows from the user-facing source status only."""
+    return {
+        key: value
+        for key, value in source_status.items()
+        if not (key in {"epex_electricity", "epex_gas"} and value == "not_configured")
+    }
+
+
+def report_overview_href(ingress_path: str = "") -> str:
+    """Return to the add-on overview without escaping the Home Assistant ingress base."""
+    base = (ingress_path or "").rstrip("/")
+    return f"{base}/" if base else "./"
+
+
 def _supplier_contract_context() -> dict[str, Any]:
     """Bekende contractcontext + live NextEnergy-prijstelemetrie zonder bedragen te verzinnen."""
     contract = {
         "supplier": "NextEnergy",
-        "contract_start": "2026-07-16",
+        "contract_start": "2026-09-03",
+        "contract_end": "2027-09-03",
+        "contract_type": "Dynamisch stroom + vast prijsplafond gas (1 jaar)",
         "electricity_pricing": "dynamic",
-        "gas_pricing": "dynamic",
+        "gas_pricing": "price_ceiling",
+        "gas_price_ceiling_eur_per_m3": 0.8558,
         "monthly_advance_eur": 150.0,
-        "termination_notice_workdays": 5,
+        "offer_monthly_projection_eur": 153.0,
+        "offer_annual_projection_eur": 1836.0,
+        "termination_notice_workdays": None,
+        "fixed_until": "2027-09-03",
     }
     live = {
         "available": False,
@@ -16823,7 +16877,7 @@ def html_page(ingress_path: str = "") -> bytes:
 
     source_items = "".join(
         f"<li><span>{esc(k)}</span><span class='pill {status_class(v)}'>{esc(v)}</span></li>"
-        for k, v in (state.get("workflow_sources") or {}).items()
+        for k, v in visible_workflow_sources(state.get("workflow_sources") or {}).items()
     ) or "<li><span>Nog geen bronstatus beschikbaar</span></li>"
 
     auto_text = (
@@ -18212,7 +18266,7 @@ def _github_publication_loop(stop_event):
                 return
 
 
-def render_reports_page() -> bytes:
+def render_reports_page(ingress_path: str = "") -> bytes:
     """Echte zichtbare rapportpagina voor de Home Assistant Web UI."""
     state = persist_normalized_status(Options.load())
     esc = html.escape
@@ -18268,7 +18322,7 @@ a{{color:#1667c5}}
 <body><div class="wrap">
 <div class="header">
 <div><h1>Rapportage</h1><div>Home Assistant · EnergieProject v{esc(APP_VERSION)}</div></div>
-<a class="button secondary" href="./">← Terug naar overzicht</a>
+<a class="button secondary" href="{esc(report_overview_href(ingress_path))}">← Terug naar overzicht</a>
 </div>
 
 <div class="card">
@@ -18465,7 +18519,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path.endswith("/reports") or path == "/reports":
             self.send_body(
                 HTTPStatus.OK,
-                render_reports_page(),
+                render_reports_page(self.headers.get("X-Ingress-Path", "")),
                 "text/html; charset=utf-8",
             )
         elif path.endswith("/report-generation-status") or path == "/report-generation-status":

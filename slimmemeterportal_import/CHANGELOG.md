@@ -1,8 +1,9 @@
 # Changelog
 
-## 32.3.20
+## 32.3.21
 
-- Dynamische jaar-op-jaarlabels en juli-juni contractjaarindexering op pagina 1.
-- Financiële KPI's fail-closed met actuele maandtermijn en geen demo-jaarkosten.
-- Pagina 2 bevat actuele gasreeks voor het lopende contractjaar en verdraagt ontbrekende toekomstige maanden.
-- Niet-canonieke Data/01_Input/02_Output-publicatie verwijderd.
+- Bevestigde NextEnergy-prognose en termijnbedrag in management- en termijnblokken.
+- Contractheader naar 03-09-2026 / dynamisch stroom + gasprijsplafond 1 jaar.
+- Ingress-veilige terugknop op de rapportpagina.
+- Niet-geconfigureerde EPEX-statusregels verborgen in de gebruikersinterface.
+- De v32.3.20 correcties voor maandvergelijking, gasreeks en canoniek outputpad blijven behouden.

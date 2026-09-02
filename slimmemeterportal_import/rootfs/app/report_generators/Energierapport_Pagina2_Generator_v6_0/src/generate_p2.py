@@ -305,7 +305,7 @@ def build(data, out):
         xx=margin+5+i*(cardw+cardgap); c.setStrokeColor(GRID); c.setFillColor(white); c.roundRect(xx,y7+35,cardw,39,5,fill=1,stroke=1)
         txt(c,xx+cardw/2,y7+63,lab,4.6,TEXT,'Helvetica-Bold','center'); txt(c,xx+cardw/2,y7+49,val,8.5,col,'Helvetica-Bold','center'); txt(c,xx+cardw/2,y7+40,sub,3.9,MUTED,align='center')
     c.setFillColor(LIGHT); c.roundRect(margin+6,y7+8,245,20,4,fill=1,stroke=0); txt(c,margin+14,y7+21,'Dekking jaarprognose',4.5,TEXT,'Helvetica-Bold'); c.setFillColor(HexColor('#DCE5EC')); c.roundRect(margin+14,y7+10,175,5,2,fill=1,stroke=0); c.setFillColor(ORANGE); c.roundRect(margin+14,y7+10,175*float(term.get('coverage_pct') or 0)/100,5,2,fill=1,stroke=0); txt(c,margin+239,y7+10,f"{float(term.get('coverage_pct') or 0):.1f}% gedekt".replace('.',','),4.4,ORANGE,'Helvetica-Bold','right')
-    c.setStrokeColor(ORANGE); c.setFillColor(HexColor('#FFF8E8')); c.roundRect(margin+258,y7+8,W-margin-(margin+258),20,4,fill=1,stroke=1); txt(c,margin+266,y7+21,'Advies',4.5,ORANGE,'Helvetica-Bold'); txt(c,margin+266,y7+12,'Nog geen termijnadvies zolang leverancier-all-in niet compleet is.',4.3,TEXT)
+    c.setStrokeColor(ORANGE); c.setFillColor(HexColor('#FFF8E8')); c.roundRect(margin+258,y7+8,W-margin-(margin+258),20,4,fill=1,stroke=1); txt(c,margin+266,y7+21,'Advies',4.5,ORANGE,'Helvetica-Bold'); txt(c,margin+266,y7+12,f"NextEnergy-offerteprognose: {euro(term['advice'])} per maand.",4.3,TEXT)
 
     txt(c,W-margin,8,'Energierapport - Pagina 2 | generator v6.0',4.2,MUTED,align='right')
     c.save()

@@ -1,3 +1,11 @@
+## 32.3.21 — NextEnergy-prognose + rapport-UI correcties
+- Managementrapport gebruikt het bevestigde termijnbedrag €150 en de NextEnergy-offerteprognose €153/maand = €1.836/jaar.
+- Verwachte jaarbetalingen €1.800 en verwacht saldo -€36 worden expliciet getoond; demo/lege managementbedragen vervallen.
+- Contractheader bijgewerkt naar start 03-09-2026 en dynamisch stroom + gasprijsplafond voor 1 jaar.
+- Rapportpagina gebruikt de Home Assistant ingress-basis voor de terugknop.
+- Niet-geconfigureerde EPEX-rijen worden niet meer in de zichtbare bronstatus getoond.
+- v32.3.20 outputpad-, maandvergelijkings- en gasreeksfixes blijven behouden.
+
 ## 32.3.20 — Rapportsemantiek augustus + outputpad hardening
 - Pagina 1 gebruikt een dynamische jaar-op-jaarvergelijking; augustus 2026 vergelijkt met augustus 2025 in plaats van hardcoded juli.
 - Contractjaargrafieken lopen juli t/m juni; toekomstige/niet beschikbare maanden blijven leeg in plaats van fictief nul.
