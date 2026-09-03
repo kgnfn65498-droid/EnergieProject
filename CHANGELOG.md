@@ -1,3 +1,8 @@
+## 32.3.38 — maandnotatie historische rapportherbouw robuust
+- Het invoerveld voor `Herbouw historisch rapport` gebruikt nu expliciet het canonieke formaat `YYYY_MM` in plaats van browserformaat `YYYY-MM`.
+- De centrale maandparser accepteert defensief zowel `YYYY_MM` als `YYYY-MM` en normaliseert intern naar dezelfde maand.
+- Nieuwe regressietests bewaken zowel de GUI-notatie als de browser-hyphen fallback.
+
 ## 32.3.37 — Safari/Home Assistant Ingress browserfallback voor rapportherbouw
 - Een gewone browser-POST naar `rebuild-historical-report` krijgt nu direct een HTML-voortgangspagina in plaats van de ruwe `202 started`-JSON.
 - De voortgangspagina pollt `report-generation-status` en navigeert bij completed/error automatisch naar de bestaande resultaatpagina.

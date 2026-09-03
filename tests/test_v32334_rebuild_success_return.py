@@ -22,7 +22,7 @@ def test_rebuild_success_has_explicit_return_button_and_no_auto_refresh():
 
 
 def test_v32334_release_identity():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.3.37'
-    assert 'version: "32.3.37"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.3.37"' in MAIN.read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.3.37"' in (ROOT / 'slimmemeterportal_import/rootfs/app/mode_entrypoint.py').read_text(encoding='utf-8')
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.3.38'
+    assert 'version: "32.3.38"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert 'APP_VERSION = "32.3.38"' in MAIN.read_text(encoding='utf-8')
+    assert 'TARGET_RELEASE_VERSION = "32.3.38"' in (ROOT / 'slimmemeterportal_import/rootfs/app/mode_entrypoint.py').read_text(encoding='utf-8')
