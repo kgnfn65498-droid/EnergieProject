@@ -103,6 +103,8 @@ def evaluate_assistant_runtime_acceptance(
     august_quality = august.get("quality") or {}
     august_source_quality = august_quality.get("source_quality") or {}
     quarter = august_source_quality.get("quarter_hour") or {}
+    boundary = august_source_quality.get("boundary_bridge") or {}
+    measurement = august_source_quality.get("measurement_period") or {}
     august_evidence = august.get("evidence") or {}
     finance_evidence = (finance.get("evidence") or {}).get("finance") or {}
     knowledge = (apparatus.get("evidence") or {}).get("knowledge") or {}
@@ -116,15 +118,19 @@ def evaluate_assistant_runtime_acceptance(
             and str(health.get("version")) == str(expected_version),
             "health moet ready/read-only zijn en exact de releaseversie melden",
         ),
-        "august_partial_quarter_hour": _check(
+        "august_reconciled_full_month": _check(
             (calls.get("august_gas") or {}).get("http_status") == 200
             and (august.get("resolved") or {}).get("month") == "2026_08"
             and "gas" in ((august.get("resolved") or {}).get("domains") or [])
-            and august_quality.get("status") == "PARTIAL"
-            and quarter.get("available") is True
-            and str(quarter.get("coverage_status") or "").startswith("partial")
-            and (august_evidence.get("sources") or {}).get("gas") == "home_assistant_quarter_hour_primary",
-            "augustus 2026 moet PARTIAL zijn met Home Assistant kwartierdata als gasbron",
+            and august_quality.get("status") == "COMPLETE"
+            and boundary.get("status") == "ready"
+            and boundary.get("source") == "smp_start_p1_end_boundary"
+            and measurement.get("complete") is True
+            and measurement.get("source") == "smp_start_p1_end_boundary"
+            and august_source_quality.get("gas_source") == "smp_start_p1_end_boundary"
+            and (august_evidence.get("sources") or {}).get("gas") == "smp_start_p1_end_boundary"
+            and ((august_evidence.get("metrics") or {}).get("gas_m3") is not None),
+            "augustus 2026 moet COMPLETE zijn via de gevalideerde SMP-start/P1-eind metergrensbrug",
         ),
         "session_previous_month": _check(
             (calls.get("previous_month") or {}).get("http_status") == 200

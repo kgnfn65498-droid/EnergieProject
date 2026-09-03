@@ -1,3 +1,10 @@
+## 32.3.29 — GUI-reconciliatie augustus + actuele rapportidentiteit
+- Nomad runtime-acceptatie volgt de gereconcilieerde augustusstatus: COMPLETE via de gevalideerde `smp_start_p1_end_boundary`-metergrensbrug in plaats van de verouderde PARTIAL-kwartierverwachting.
+- SlimmeMeterPortal-maandsamenvatting onderscheidt opgeslagen dagwrappers van echte metingen; een expliciete `usages: []` wordt niet langer als groene meetdag gepresenteerd.
+- Centrale GUI-validatie onderscheidt onvolledige SMP-detaildekking van volledig gereconcilieerde maandtotalen en toont dan een waarschuwing in plaats van een algemene maandfout.
+- Rapportoutput is alleen definitief wanneer het aangrenzende rapport-/outputmanifest de actieve releaseversie en `completed` bevestigt; een v32.3.23-rapport kan onder v32.3.29 dus nooit als definitief worden gelabeld.
+- Historische rapportherbouw blijft analysebestand-onafhankelijk en accepteert een volledige `smp_start_p1_end_boundary`-maand als geldige kernbron.
+
 ## 32.3.28 — Augustus semantic coverage + cumulatieve bronbrug
 - SlimmeMeterPortal raw-dagen met een expliciete lege `usages: []` tellen niet langer als meetdag, ook niet wanneer een oudere `month_summary.json` één record meldt.
 - Een opgeslagen groene SMP-dekkingsstatus wordt read-only opnieuw gecontroleerd tegen canonical raw evidence; echte opgeslagen PARTIEEL/error-statussen blijven fail-closed en worden niet overschreven.

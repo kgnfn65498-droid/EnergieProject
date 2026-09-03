@@ -158,6 +158,10 @@ def test_output_can_be_called_definitive_only_after_audit_and_full_quality(tmp_p
     rec = tmp_path / "Recovery_Update_2026_08.zip"
     pdf.write_bytes(b"%PDF-test")
     rec.write_bytes(b"PKtest")
+    (tmp_path / "report_manifest.json").write_text(
+        json.dumps({"version": m.APP_VERSION, "month": "2026_08", "status": "completed"}),
+        encoding="utf-8",
+    )
     state = {
         "report_output_last_status": "completed",
         "report_output_last_month": "2026_08",

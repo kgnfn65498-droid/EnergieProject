@@ -26,19 +26,28 @@ def passing_calls():
             "json": {
                 "resolved": {"month": "2026_08", "domains": ["gas"]},
                 "quality": {
-                    "status": "PARTIAL",
+                    "status": "COMPLETE",
                     "source_quality": {
-                        "gas_source": "home_assistant_quarter_hour_primary",
+                        "gas_source": "smp_start_p1_end_boundary",
+                        "grid_import_source": "smp_start_p1_end_boundary",
+                        "grid_export_source": "smp_start_p1_end_boundary",
+                        "boundary_bridge": {
+                            "status": "ready",
+                            "source": "smp_start_p1_end_boundary",
+                        },
+                        "measurement_period": {
+                            "complete": True,
+                            "source": "smp_start_p1_end_boundary",
+                        },
                         "quarter_hour": {
-                            "available": True,
-                            "coverage_status": "partial_current_month",
-                            "sample_count": 1032,
+                            "available": False,
+                            "coverage_status": "not_applicable_closed_month",
                         },
                     },
                 },
                 "evidence": {
-                    "metrics": {"gas_m3": 4.6},
-                    "sources": {"gas": "home_assistant_quarter_hour_primary"},
+                    "metrics": {"gas_m3": 9.074},
+                    "sources": {"gas": "smp_start_p1_end_boundary"},
                 },
             },
         },
@@ -90,14 +99,14 @@ def test_acceptance_evaluation_requires_all_runtime_evidence():
     assert all(item["passed"] for item in result["checks"].values())
 
 
-def test_acceptance_fails_if_august_is_not_quarter_hour_partial():
+def test_acceptance_fails_if_august_is_not_reconciled_full_month():
     m = load_module("probe_partial")
     calls = passing_calls()
-    calls["august_gas"]["json"]["quality"]["status"] = "COMPLETE"
+    calls["august_gas"]["json"]["quality"]["source_quality"]["boundary_bridge"]["status"] = "unavailable"
     result = m.evaluate_assistant_runtime_acceptance(calls, expected_version="32.3.13")
     assert result["status"] == "FAIL"
     assert result["voice_gate"] == "CLOSED"
-    assert result["checks"]["august_partial_quarter_hour"]["passed"] is False
+    assert result["checks"]["august_reconciled_full_month"]["passed"] is False
 
 
 def test_probe_transport_has_no_arbitrary_host_or_path_input():
@@ -121,13 +130,13 @@ def test_main_wires_one_startup_probe_and_rejects_extra_assistant_payload_fields
 
 
 def test_release_identity_and_changelog_are_v3232():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.28"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.29"
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     addon_changelog = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.3.28"' in config
-    assert 'APP_VERSION = "32.3.28"' in main
-    assert changelog.startswith("## 32.3.28")
-    assert addon_changelog.startswith("# Changelog\n\n## 32.3.28")
+    assert 'version: "32.3.29"' in config
+    assert 'APP_VERSION = "32.3.29"' in main
+    assert changelog.startswith("## 32.3.29")
+    assert addon_changelog.startswith("# Changelog\n\n## 32.3.29")
 

@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.28"
+APP_VERSION = "32.3.29"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1229,6 +1229,39 @@ def expected_count(kind: str, day: date, source: str = "slimmemeterportal") -> s
     profile = validation_profile(source, kind)
     expected = profile.get("expected_records_per_day", set())
     return set(expected)
+
+
+def smp_day_summary_from_payload(payload: Any, kind: str, day_iso: str) -> dict[str, Any]:
+    """Describe semantic SMP measurements separately from stored wrapper rows.
+
+    SlimmeMeterPortal can return one daily wrapper object whose ``usages`` list is
+    empty. Such a wrapper is stored for auditability but is not a measurement and
+    must never be presented as an ``ok`` day.
+    """
+    stored_rows = records_from(payload)
+    explicit_usages = payload.get("usages") if isinstance(payload, dict) and "usages" in payload else None
+    if isinstance(explicit_usages, list):
+        semantic_records = len(explicit_usages)
+        result = {
+            "date": day_iso,
+            "records": semantic_records,
+            "stored_records": len(stored_rows),
+            "expected_records": [">0"],
+            "status": "ok" if semantic_records > 0 else "warning",
+        }
+        if semantic_records == 0:
+            result["reason"] = "empty_usages"
+        return result
+
+    expected = expected_count(kind, date.fromisoformat(day_iso), "slimmemeterportal")
+    stored_count = len(stored_rows)
+    return {
+        "date": day_iso,
+        "records": stored_count,
+        "stored_records": stored_count,
+        "expected_records": sorted(expected),
+        "status": "ok" if not expected or stored_count in expected else "warning",
+    }
 
 
 def safe(value: str) -> str:
@@ -5177,17 +5210,16 @@ def run_import(year: int, month: int) -> None:
                         row.setdefault("_connection_type", kind)
                         row.setdefault("_connection_id", identifier)
                     all_rows.extend(rows)
-                    expected = expected_count(kind, current, "slimmemeterportal")
-                    day_result = {
-                        "date": current.isoformat(),
-                        "records": len(rows),
-                        "expected_records": sorted(expected),
-                        "status": "ok" if not expected or len(rows) in expected else "warning",
-                    }
+                    day_result = smp_day_summary_from_payload(payload, kind, current.isoformat())
                     if day_result["status"] == "warning":
-                        report["warnings"].append(
-                            f"{kind} {current.isoformat()}: {len(rows)} records, verwacht {sorted(expected)}."
-                        )
+                        if day_result.get("reason") == "empty_usages":
+                            report["warnings"].append(
+                                f"{kind} {current.isoformat()}: opgeslagen dagrecord bevat geen usages/meting."
+                            )
+                        else:
+                            report["warnings"].append(
+                                f"{kind} {current.isoformat()}: {day_result['records']} records, verwacht {day_result['expected_records']}."
+                            )
                     day_status.append(day_result)
                 except Exception as exc:
                     message = f"{kind} {current.isoformat()}: {exc}"
@@ -15464,6 +15496,20 @@ def analysis_quality_gate_snapshot(context: dict[str, Any], month: str | None = 
     quality = _analysis_quality_for_month(context, month)
     plausibility = quality.get("smp_plausibility") or (quality.get("smp") or {}).get("plausibility") or {}
     measurement = quality.get("measurement_period") or {}
+    smp = quality.get("smp") or {}
+    boundary = quality.get("boundary_bridge") or {}
+    core_sources = [
+        str(quality.get("grid_import_source") or ""),
+        str(quality.get("grid_export_source") or ""),
+        str(quality.get("gas_source") or ""),
+    ]
+    reconciled_by_boundary = bool(
+        measurement.get("complete") is True
+        and str(measurement.get("source") or "") == "smp_start_p1_end_boundary"
+        and boundary.get("status") == "ready"
+        and all(source == "smp_start_p1_end_boundary" for source in core_sources)
+    )
+    smp_detail_incomplete = str(smp.get("status") or "").lower() in {"incomplete", "error"} or str(smp.get("coverage_status") or "").lower() == "error"
     blockers: list[str] = []
     if str(plausibility.get("status") or "").lower() == "error":
         blockers.append("SMP-plausibiliteit")
@@ -15475,6 +15521,9 @@ def analysis_quality_gate_snapshot(context: dict[str, Any], month: str | None = 
         "blockers": blockers,
         "plausibility": plausibility,
         "measurement_period": measurement,
+        "smp_detail_incomplete": smp_detail_incomplete,
+        "reconciled_by_boundary": reconciled_by_boundary,
+        "boundary_bridge": boundary,
     }
 
 
@@ -15493,10 +15542,31 @@ def central_validation_ui_snapshot(state: dict[str, Any], context: dict[str, Any
             "quality_gate": quality_gate,
         }
     if technical_ok:
+        if quality_gate.get("reconciled_by_boundary") and quality_gate.get("smp_detail_incomplete"):
+            return {
+                "status": "warning",
+                "label": "Maandtotalen volledig · SMP-detail incompleet",
+                "detail": "SMP-detaildekking is onvolledig; volledige maandtotalen zijn gereconcilieerd via metergrenzen.",
+                "technical_status": technical,
+                "quality_gate": quality_gate,
+            }
         return {
             "status": "ok",
             "label": "Technisch ok",
             "detail": "Geen actuele datakwaliteitsblokkade.",
+            "technical_status": technical,
+            "quality_gate": quality_gate,
+        }
+
+    central_errors = [str(item) for item in (central.get("errors") or [])]
+    only_smp_detail_errors = bool(central_errors) and all(
+        item.startswith("SMP inhoudsdekking:") for item in central_errors
+    )
+    if only_smp_detail_errors and quality_gate.get("reconciled_by_boundary"):
+        return {
+            "status": "warning",
+            "label": "Maandtotalen volledig · SMP-detail incompleet",
+            "detail": "SMP-detaildekking is onvolledig; volledige maandtotalen zijn gereconcilieerd via metergrenzen.",
             "technical_status": technical,
             "quality_gate": quality_gate,
         }
@@ -15513,6 +15583,31 @@ def report_output_ui_snapshot(state: dict[str, Any], context: dict[str, Any]) ->
     month = str(state.get("report_output_last_month") or "").strip()
     published = [Path(path) for path in (state.get("report_output_last_files") or [])]
     expected = {f"Energierapport_{month}.pdf", f"Recovery_Update_{month}.zip"} if month else set()
+    report_version = None
+    report_manifest_status = None
+    manifest_candidates: list[Path] = []
+    for item in published:
+        for name in ("report_manifest.json", "output_manifest.json"):
+            candidate = item.parent / name
+            if candidate not in manifest_candidates:
+                manifest_candidates.append(candidate)
+    for manifest_path in manifest_candidates:
+        if not manifest_path.is_file():
+            continue
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(manifest, dict):
+            continue
+        if month and str(manifest.get("month") or "") != month:
+            continue
+        report_version = str(manifest.get("version") or "").strip() or None
+        report_manifest_status = str(manifest.get("status") or "").strip() or None
+        break
+    report_version_current = bool(
+        report_version == APP_VERSION and report_manifest_status == "completed"
+    )
     publication_complete = bool(
         month
         and state.get("report_output_last_status") == "completed"
@@ -15530,7 +15625,7 @@ def report_output_ui_snapshot(state: dict[str, Any], context: dict[str, Any]) ->
         not quality_gate.get("blocked")
         and (quality_gate.get("measurement_period") or {}).get("complete") is True
     )
-    definitive = publication_complete and audit_complete and quality_complete
+    definitive = publication_complete and audit_complete and quality_complete and report_version_current
     if definitive:
         return {
             "is_definitive": True,
@@ -15538,14 +15633,21 @@ def report_output_ui_snapshot(state: dict[str, Any], context: dict[str, Any]) ->
             "label": "Definitieve output",
             "text": f"{month}: {len(published)} bestand(en)",
             "quality_gate": quality_gate,
+            "report_version": report_version,
         }
     if month and published:
+        stale_suffix = ""
+        if report_version and report_version != APP_VERSION:
+            stale_suffix = f" · verouderd rapport v{report_version}; actuele release v{APP_VERSION}"
+        elif not report_version_current:
+            stale_suffix = " · rapportrelease niet actueel gevalideerd"
         return {
             "is_definitive": False,
             "status": "warning",
             "label": "Bestaande output",
-            "text": f"{month}: {len(published)} bestand(en) · niet definitief gevalideerd",
+            "text": f"{month}: {len(published)} bestand(en) · niet definitief gevalideerd{stale_suffix}",
             "quality_gate": quality_gate,
+            "report_version": report_version,
         }
     return {
         "is_definitive": False,
@@ -15553,6 +15655,7 @@ def report_output_ui_snapshot(state: dict[str, Any], context: dict[str, Any]) ->
         "label": "Laatste rapportoutput",
         "text": "Nog geen complete publicatie",
         "quality_gate": quality_gate,
+        "report_version": report_version,
     }
 
 

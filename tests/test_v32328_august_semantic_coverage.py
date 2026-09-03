@@ -213,9 +213,9 @@ def test_historical_actuals_use_same_smp_start_p1_end_bridge(tmp_path: Path):
 
 
 def test_v32328_release_identity_is_consistent():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.28"
-    assert 'version: "32.3.28"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.3.28"' in MAIN.read_text(encoding="utf-8")
-    assert 'TARGET_RELEASE_VERSION = "32.3.28"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
-    assert (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").startswith("## 32.3.28")
-    assert (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8").startswith("# Changelog\n\n## 32.3.28")
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.29"
+    assert 'version: "32.3.29"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
+    assert 'APP_VERSION = "32.3.29"' in MAIN.read_text(encoding="utf-8")
+    assert 'TARGET_RELEASE_VERSION = "32.3.29"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
+    assert (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").startswith("## 32.3.29")
+    assert (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8").startswith("# Changelog\n\n## 32.3.29")
