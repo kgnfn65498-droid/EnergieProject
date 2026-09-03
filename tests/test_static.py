@@ -16,7 +16,7 @@ def test_version_matches():
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
     cfg_version = re.search(r'version:\s*"([^"]+)"', config).group(1)
     app_version = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', main).group(1)
-    assert cfg_version == app_version == "32.3.36"
+    assert cfg_version == app_version == "32.3.37"
 
 def test_required_files():
     required = [
@@ -255,7 +255,7 @@ def test_integrity_failure_does_not_rewrite_validation_after_manifest():
 
 def test_production_release_has_no_experimental_stage():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
-    assert 'version: "32.3.36"' in config
+    assert 'version: "32.3.37"' in config
     assert "stage: experimental" not in config
 
 def test_disabled_sources_are_skipped_in_central_validation():
@@ -1158,8 +1158,8 @@ def test_v691_validates_required_report_inputs():
 def test_version_7_0_1_matches():
     config = (ADDON / "config.yaml").read_text(encoding="utf-8")
     main = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "32.3.36"' in config
-    assert 'APP_VERSION = "32.3.36"' in main
+    assert 'version: "32.3.37"' in config
+    assert 'APP_VERSION = "32.3.37"' in main
 
 
 def test_phase7_configuration_present():
@@ -2250,7 +2250,7 @@ def test_v8140_console_has_certificate_history_and_retry_debug():
 
 def test_v815_production_certificate_management_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.3.36"' in source
+    assert 'APP_VERSION = "32.3.37"' in source
     assert "def manage_production_certificate" in source
     assert '"certificate_id"' in source
     assert '"issued_by": "automatic_production_test"' in source
@@ -2437,7 +2437,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.3.36"' in source
+    assert 'APP_VERSION = "32.3.37"' in source
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
 
 
@@ -3148,7 +3148,7 @@ def test_v1430_completion_gate_marks_v14_complete_guarded():
 
 def test_v1430_home_assistant_addon_changelog_contains_only_current_release():
     changelog = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in changelog
+    assert "## 32.3.37" in changelog
     assert "10.6.1" not in changelog
     assert "10.6.0" not in changelog
     assert "10.5.39" not in changelog
@@ -3165,7 +3165,7 @@ def test_v1500_official_report_production_context_is_guarded():
 
 def test_v1500_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "14.3.0" not in c
 
@@ -3182,7 +3182,7 @@ def test_v1510_generator_field_contract_is_guarded():
 
 def test_v1510_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "15.0.0" not in c
 
@@ -3199,7 +3199,7 @@ def test_v1520_report_render_safety_blocks_unvalidated_values():
 
 def test_v1520_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "15.1.0" not in c
 
@@ -3215,7 +3215,7 @@ def test_v1530_completion_gate_closes_v15_guarded():
 
 def test_v1530_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "15.2.0" not in c
 
@@ -3231,7 +3231,7 @@ def test_v1600_financial_report_output_contract_is_guarded_and_automatic():
 
 def test_v1600_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "15.3.0" not in c
 
@@ -3248,7 +3248,7 @@ def test_v1610_output_activation_is_bound_to_runtime_gates():
 
 def test_v1610_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "16.0.0" not in c
 
@@ -3264,7 +3264,7 @@ def test_v1620_output_runtime_validation_is_auditable():
 
 def test_v1620_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "16.1.0" not in c
 
@@ -3279,7 +3279,7 @@ def test_v1630_completion_gate_closes_v16_guarded():
 
 def test_v1630_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "16.2.0" not in c
 
@@ -3298,7 +3298,7 @@ def test_v1700_financial_decision_output_is_strictly_guarded():
 
 def test_v1700_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "16.3.0" not in c
 
@@ -3319,7 +3319,7 @@ def test_v1710_savings_recommendation_contract_is_fully_guarded():
 
 def test_v1710_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "17.0.0" not in c
 
@@ -3337,7 +3337,7 @@ def test_v1720_recommendation_publication_gate_requires_complete_decision():
 
 def test_v1720_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "17.1.0" not in c
 
@@ -3354,7 +3354,7 @@ def test_v1730_completion_gate_closes_v17_guarded_chain():
 
 def test_v1730_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "17.2.0" not in c
 
@@ -3371,7 +3371,7 @@ def test_v1800_financial_explainability_contract_is_guarded():
 
 def test_v1800_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "17.3.0" not in c
 
@@ -3385,7 +3385,7 @@ def test_v1810_financial_explanation_runtime_is_guarded():
 
 def test_v1810_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "18.0.0" not in c
 
@@ -3404,7 +3404,7 @@ def test_v1820_report_explanation_handoff_is_guarded():
 
 def test_v1820_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "18.1.0" not in c
 
@@ -3422,7 +3422,7 @@ def test_v1830_completion_gate_closes_explainability_chain():
 
 def test_v1830_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "18.2.0" not in c
 
@@ -3438,7 +3438,7 @@ def test_v1900_financial_report_decision_presentation_is_guarded():
 
 def test_v1900_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "18.3.0" not in c
 
@@ -3455,7 +3455,7 @@ def test_v1910_report_action_mapping_is_guarded():
 
 def test_v1910_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
     assert "19.0.0" not in c
 
@@ -3471,7 +3471,7 @@ def test_v1920_report_action_quality_context():
 
 def test_v1920_ha_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text()
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
 
 
@@ -3488,7 +3488,7 @@ def test_v1930_completion_gate_closes_v19_chain():
 
 def test_v1930_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
 
 
@@ -3505,7 +3505,7 @@ def test_v2000_official_report_runtime_contract_is_guarded():
 
 def test_v2000_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
 
 
@@ -3521,7 +3521,7 @@ def test_v2010_official_report_value_mapping_is_guarded():
 
 def test_v2010_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
 
 
@@ -3538,7 +3538,7 @@ def test_v2020_official_report_publication_state_is_guarded():
 
 def test_v2020_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
 
 
@@ -3555,7 +3555,7 @@ def test_v2030_completion_gate_closes_v20_guarded_chain():
 
 def test_v2030_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
 
 
@@ -3571,7 +3571,7 @@ def test_v2040_savings_opportunity_engine_present():
 
 def test_v2040_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
 
 
@@ -3588,7 +3588,7 @@ def test_v2050_savings_priority_engine_present():
 
 def test_v2050_ha_changelog_current_release_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
 
 
@@ -3599,7 +3599,7 @@ def test_v2060_savings_action_handoff():
 
 def test_v2060_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2100_financial_action_runtime_present():
@@ -3609,7 +3609,7 @@ def test_v2100_financial_action_runtime_present():
 
 def test_v2100_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2110_runtime_gate_resolution_present():
@@ -3619,7 +3619,7 @@ def test_v2110_runtime_gate_resolution_present():
 
 def test_v2110_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2120_blocked_dependency_runtime_present():
@@ -3640,7 +3640,7 @@ def test_v2120_blocked_dependency_runtime_present():
 
 def test_v2120_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c
+    assert "## 32.3.37" in c
     assert c.count("\n## ") == 1
 
 
@@ -3651,7 +3651,7 @@ def test_v2130_financial_action_readiness_present():
 
 def test_v2130_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2140_financial_evaluation_contract_present():
@@ -3661,7 +3661,7 @@ def test_v2140_financial_evaluation_contract_present():
 
 def test_v2140_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2150_financial_action_selection_present():
@@ -3671,7 +3671,7 @@ def test_v2150_financial_action_selection_present():
 
 def test_v2150_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2160_completion_gate_present():
@@ -3681,7 +3681,7 @@ def test_v2160_completion_gate_present():
 
 def test_v2160_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2200_financial_decision_runtime_present():
@@ -3691,7 +3691,7 @@ def test_v2200_financial_decision_runtime_present():
 
 def test_v2200_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2210_decision_evidence_runtime_present():
@@ -3710,7 +3710,7 @@ def test_v2210_decision_evidence_runtime_present():
 
 def test_v2210_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2220_decision_confidence_runtime_present():
@@ -3720,7 +3720,7 @@ def test_v2220_decision_confidence_runtime_present():
 
 def test_v2220_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2230_decision_confidence_resolution_runtime_present():
@@ -3730,7 +3730,7 @@ def test_v2230_decision_confidence_resolution_runtime_present():
 
 def test_v2230_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2240_decision_publication_runtime_present():
@@ -3740,7 +3740,7 @@ def test_v2240_decision_publication_runtime_present():
 
 def test_v2240_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2250_decision_publication_payload_runtime_present():
@@ -3750,7 +3750,7 @@ def test_v2250_decision_publication_payload_runtime_present():
 
 def test_v2250_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2260_completion_gate_present():
@@ -3768,7 +3768,7 @@ def test_v2260_completion_gate_present():
 
 def test_v2260_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2300_savings_portfolio_runtime_present():
@@ -3787,7 +3787,7 @@ def test_v2300_savings_portfolio_runtime_present():
 
 def test_v2300_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2310_portfolio_evaluation_runtime_present():
@@ -3804,7 +3804,7 @@ def test_v2310_portfolio_evaluation_runtime_present():
 
 def test_v2310_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2320_portfolio_ranking_runtime_present():
@@ -3823,7 +3823,7 @@ def test_v2320_portfolio_ranking_runtime_present():
 
 def test_v2320_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2330_portfolio_selection_runtime_present():
@@ -3833,7 +3833,7 @@ def test_v2330_portfolio_selection_runtime_present():
 
 def test_v2330_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2340_portfolio_recommendation_runtime_present():
@@ -3843,7 +3843,7 @@ def test_v2340_portfolio_recommendation_runtime_present():
 
 def test_v2340_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2350_completion_publication_gate_present():
@@ -3853,7 +3853,7 @@ def test_v2350_completion_publication_gate_present():
 
 def test_v2350_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2400_action_handoff_runtime_present():
@@ -3872,15 +3872,15 @@ def test_v2400_action_handoff_runtime_present():
         assert x in main
 
 def test_v2400_version_consistency():
-    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.36"
+    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.37"
     config=(ROOT/"slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "32.3.36"' in config
-    assert 'APP_VERSION = "32.3.36"' in main
+    assert 'version: "32.3.37"' in config
+    assert 'APP_VERSION = "32.3.37"' in main
 
 def test_v2400_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2410_action_tracking_runtime_present():
@@ -3899,7 +3899,7 @@ def test_v2410_action_tracking_runtime_present():
 
 def test_v2410_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2420_realized_savings_runtime_present():
@@ -3920,7 +3920,7 @@ def test_v2420_realized_savings_runtime_present():
 
 def test_v2420_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2430_variance_learning_runtime_present():
@@ -3939,15 +3939,15 @@ def test_v2430_variance_learning_runtime_present():
         assert x in main
 
 def test_v2430_version_consistency():
-    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.36"
+    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.37"
     config=(ROOT/"slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "32.3.36"' in config
-    assert 'APP_VERSION = "32.3.36"' in main
+    assert 'version: "32.3.37"' in config
+    assert 'APP_VERSION = "32.3.37"' in main
 
 def test_v2430_changelog_latest_only():
     c=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## 32.3.36" in c and c.count("\n## ") == 1
+    assert "## 32.3.37" in c and c.count("\n## ") == 1
 
 
 def test_v2440_completion_gate_present():
@@ -3969,13 +3969,13 @@ def test_v2440_completion_gate_present():
         assert x in main
 
 def test_v2440_version_and_changelog_consistency():
-    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.36"
+    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.37"
     config=(ROOT/"slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
     changelog=(ROOT/"slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.3.36"' in config
-    assert 'APP_VERSION = "32.3.36"' in main
-    assert "## 32.3.36" in changelog and changelog.count("\n## ") == 1
+    assert 'version: "32.3.37"' in config
+    assert 'APP_VERSION = "32.3.37"' in main
+    assert "## 32.3.37" in changelog and changelog.count("\n## ") == 1
 
 
 def test_v2500_savings_ledger_runtime_present():
@@ -4029,11 +4029,11 @@ def test_v2520_monthly_budget_impact_runtime_present():
         assert x in source
 
 def test_v2520_version_consistency():
-    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.36"
+    assert (ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.37"
     config=(ROOT/"slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "32.3.36"' in config
-    assert 'APP_VERSION = "32.3.36"' in main
+    assert 'version: "32.3.37"' in config
+    assert 'APP_VERSION = "32.3.37"' in main
 
 
 def test_v2530_report_publication_runtime_present():
@@ -4570,7 +4570,7 @@ def test_v3208_github_status_is_server_rendered_without_browser_fetch():
 
 def test_v3209_smp_content_coverage_and_current_transfer_route():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.3.36"' in source
+    assert 'APP_VERSION = "32.3.37"' in source
     assert "def validate_smp_content_coverage(" in source
     assert '"content_coverage_report.json"' in source
     assert '"smp_content_coverage"' in source
@@ -4579,7 +4579,7 @@ def test_v3209_smp_content_coverage_and_current_transfer_route():
 
 def test_v32010_current_month_smp_lag_is_not_software_error():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.3.36"' in source
+    assert 'APP_VERSION = "32.3.37"' in source
     assert '"partial_current_month"' in source
     assert '"available_through"' in source
     assert '"calendar_expected_through"' in source
@@ -4590,7 +4590,7 @@ def test_v32010_current_month_smp_lag_is_not_software_error():
 def test_v32011_home_assistant_is_central_api_import_layer():
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'version: "32.3.36"' in config
+    assert 'version: "32.3.37"' in config
     assert 'workflow_mode: "full_month_workflow"' in config
     assert 'workflow_mode="full_month_workflow"' in main
 
@@ -4619,7 +4619,7 @@ def test_v32012_full_workflow_targets_current_month_and_analysis_is_ha_managed()
         import pytest
         pytest.skip("full-project Infra context not present in standalone release ZIP")
     analysis = analysis_path.read_text(encoding="utf-8")
-    assert 'version: "32.3.36"' in config
+    assert 'version: "32.3.37"' in config
     assert "full_workflow_use_previous_month: false" in config
     assert "full_workflow_use_previous_month=False" in main
     assert "SlimmeMeterPortal wordt bewust overgeslagen." not in analysis
@@ -4630,18 +4630,18 @@ def test_v32013_release_identity_is_synchronized():
     versie = (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert versie == "32.3.36"
-    assert 'version: "32.3.36"' in config
-    assert 'APP_VERSION = "32.3.36"' in main
+    assert versie == "32.3.37"
+    assert 'version: "32.3.37"' in config
+    assert 'APP_VERSION = "32.3.37"' in main
 
 
 def test_v32014_ha_smp_ipv4_and_dynamic_runtime_identity():
     versie = (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert versie == "32.3.36"
-    assert 'version: "32.3.36"' in config
-    assert 'APP_VERSION = "32.3.36"' in source
+    assert versie == "32.3.37"
+    assert 'version: "32.3.37"' in config
+    assert 'APP_VERSION = "32.3.37"' in source
     assert "_SMP_IPV4_RESOLVER_LOCK = threading.RLock()" in source
     assert "with _smp_ipv4_only_resolution():" in source
     assert '"transport": "ipv4_forced"' in source
@@ -4656,9 +4656,9 @@ def test_v32015_smp_content_coverage_uses_defined_workflow_month_key():
     source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     versie = (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
-    assert versie == "32.3.36"
-    assert 'version: "32.3.36"' in config
-    assert 'APP_VERSION = "32.3.36"' in source
+    assert versie == "32.3.37"
+    assert 'version: "32.3.37"' in config
+    assert 'APP_VERSION = "32.3.37"' in source
     define = '        workflow_month_key = f"{year:04d}_{month:02d}"'
     fixed = "        content_coverage = validate_smp_content_coverage(target, workflow_month_key)"
     buggy = "        content_coverage = validate_smp_content_coverage(target, month_key)"
@@ -4676,9 +4676,9 @@ def test_v32016_complete_smp_import_fix_and_diagnostics():
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     versie = (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
 
-    assert versie == "32.3.36"
-    assert 'version: "32.3.36"' in config
-    assert 'APP_VERSION = "32.3.36"' in source
+    assert versie == "32.3.37"
+    assert 'version: "32.3.37"' in config
+    assert 'APP_VERSION = "32.3.37"' in source
     assert 'month_key = f"{year:04d}_{month:02d}"' in source
     assert 'workflow_month_key = f"{year:04d}_{month:02d}"' in source
     assert "validate_smp_content_coverage(target, workflow_month_key)" in source
@@ -4709,9 +4709,9 @@ def test_v32017_smp_import_publishes_to_nas_month_input_without_replacing_month(
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     versie = (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
 
-    assert versie == "32.3.36"
-    assert 'version: "32.3.36"' in config
-    assert 'APP_VERSION = "32.3.36"' in source
+    assert versie == "32.3.37"
+    assert 'version: "32.3.37"' in config
+    assert 'APP_VERSION = "32.3.37"' in source
     assert "def publish_smp_import_to_nas_input" in source
     assert 'NAS_DATA_ROOT / "01_Input" / month_key' in source
     assert 'destination_root = ingress_root / "SlimmeMeterPortal"' in source
@@ -4742,9 +4742,9 @@ def test_v32033_smp_transfer_creates_homeassistant_ingress_when_missing():
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     versie = (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
 
-    assert versie == "32.3.36"
-    assert 'version: "32.3.36"' in config
-    assert 'APP_VERSION = "32.3.36"' in source
+    assert versie == "32.3.37"
+    assert 'version: "32.3.37"' in config
+    assert 'APP_VERSION = "32.3.37"' in source
     assert 'staging = destination_month / ".SlimmeMeterPortal.staging"' not in source
     assert 'backup = destination_month / ".SlimmeMeterPortal.backup"' not in source
     assert 'ingress_root = destination_month / "HomeAssistant"' in source
@@ -4903,6 +4903,6 @@ def test_v32026_release_identity_everywhere():
     versie=(ROOT/"VERSIE.txt").read_text(encoding="utf-8").strip()
     config=(ROOT/"slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     source=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
-    assert versie == "32.3.36"
-    assert 'version: "32.3.36"' in config
-    assert 'APP_VERSION = "32.3.36"' in source
+    assert versie == "32.3.37"
+    assert 'version: "32.3.37"' in config
+    assert 'APP_VERSION = "32.3.37"' in source

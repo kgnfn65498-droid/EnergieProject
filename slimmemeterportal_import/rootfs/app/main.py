@@ -31,7 +31,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 from zoneinfo import ZoneInfo
 import ipaddress
 
@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.36"
+APP_VERSION = "32.3.37"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -19142,7 +19142,7 @@ async function startHistoricalReportRebuild(event){{
   historicalReportTargetMonth=historicalMonthKey(monthInput?.value||'');
   setHistoricalReportButtonRunning(true,`Rapport ${{String(monthInput?.value||'')}} wordt gemaakt…`);
   try{{
-    const response=await fetch(form.action,{{method:'POST',body:new FormData(form),cache:'no-store'}});
+    const response=await fetch(form.action,{{method:'POST',body:new FormData(form),cache:'no-store',headers:{{'X-Requested-With':'fetch','Accept':'application/json'}}}});
     const payload=await response.json();
     if(response.status!==202){{
       setHistoricalReportButtonRunning(false,payload.error||payload.message||'Rapportherbouw kon niet worden gestart.');
@@ -20159,6 +20159,37 @@ a{{color:#1667c5}}
     return body.encode("utf-8")
 
 
+def render_historical_report_rebuild_progress(month_key: str, ingress_path: str = "") -> bytes:
+    """Render a browser-safe progress page for a background historical rebuild."""
+    display_month = str(month_key or "").replace("_", "-")
+    return_href = report_overview_href(ingress_path)
+    result_href = f"historical-report-rebuild-result?month={quote(display_month)}"
+    body = f"""<!doctype html><html lang='nl'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>Rapport wordt gemaakt</title>
+<style>body{{font-family:system-ui;margin:3rem;color:#0B2B57}}.box{{padding:1rem 1.25rem;border:1px solid #D89B00;background:#FFF7E0;border-radius:12px;max-width:42rem}}.return-button{{display:inline-block;margin-top:1rem;padding:.75rem 1rem;border-radius:9px;background:#0B2B57;color:#fff;text-decoration:none;font-weight:700}}</style></head><body>
+<div class='box'><h2>Rapport wordt gemaakt…</h2><p id='progress-message'>Rapport {html.escape(display_month)} wordt op de achtergrond opgebouwd.</p><p>Deze pagina gaat automatisch verder zodra de herbouw klaar is.</p><a class='return-button' href='{html.escape(return_href, quote=True)}'>Terug naar operationele console</a></div>
+<script>
+const targetMonth={json.dumps(str(month_key or ""))};
+async function pollRebuild(){{
+  try{{
+    const response=await fetch('report-generation-status',{{cache:'no-store'}});
+    if(!response.ok) return;
+    const data=await response.json();
+    const rebuild=data.historical_rebuild||{{}};
+    const status=String(rebuild.status||'').toLowerCase();
+    const month=String(rebuild.month||'');
+    if(month===targetMonth && ['completed','failed','error'].includes(status)){{
+      window.location.href='{result_href}';
+    }} else if(month===targetMonth && status==='running'){{
+      document.getElementById('progress-message').textContent='Rapport {html.escape(display_month)} wordt gemaakt…';
+    }}
+  }}catch(_err){{}}
+}}
+setInterval(pollRebuild,1000); pollRebuild();
+</script></body></html>"""
+    return body.encode("utf-8")
+
+
 class Handler(BaseHTTPRequestHandler):
     def _client_allowed(self) -> bool:
         # Home Assistant ingress/proxy addresses can vary between HA releases and
@@ -21133,7 +21164,29 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 result = {"status": "error", "error": str(exc)}
                 code = HTTPStatus.BAD_REQUEST
-            self.send_body(code, json.dumps(result, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+            wants_json = (
+                "application/json" in str(self.headers.get("Accept", "")).lower()
+                or str(self.headers.get("X-Requested-With", "")).lower() == "fetch"
+            )
+            if wants_json:
+                self.send_body(code, json.dumps(result, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+            elif result.get("status") in {"started", "busy"}:
+                self.send_body(
+                    HTTPStatus.ACCEPTED,
+                    render_historical_report_rebuild_progress(
+                        str(result.get("month") or selected),
+                        self.headers.get("X-Ingress-Path", ""),
+                    ),
+                    "text/html; charset=utf-8",
+                )
+            else:
+                return_href = report_overview_href(self.headers.get("X-Ingress-Path", ""))
+                message = html.escape(str(result.get("error") or result.get("message") or "Rapportherbouw kon niet worden gestart."))
+                self.send_body(
+                    code,
+                    (f"<!doctype html><html lang='nl'><meta charset='utf-8'><h2>Rapportherbouw mislukt</h2><p>{message}</p><p><a href='{html.escape(return_href, quote=True)}'>Terug naar operationele console</a></p></html>").encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
             return
 
         if path.endswith("/run-historical-month") or path == "/run-historical-month":

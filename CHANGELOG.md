@@ -1,3 +1,10 @@
+## 32.3.37 — Safari/Home Assistant Ingress browserfallback voor rapportherbouw
+- Een gewone browser-POST naar `rebuild-historical-report` krijgt nu direct een HTML-voortgangspagina in plaats van de ruwe `202 started`-JSON.
+- De voortgangspagina pollt `report-generation-status` en navigeert bij completed/error automatisch naar de bestaande resultaatpagina.
+- De fetch/JavaScript-route vraagt expliciet JSON via headers en behoudt daarmee de asynchrone console-ervaring.
+- De oplossing werkt ook wanneer Safari de submit-handler niet uitvoert: server-side progressive enhancement is de fallback.
+- Nieuwe regressietest bootst exact de live Home Assistant Ingress-browser-POST na.
+
 ## 32.3.36 — asynchrone historische rapportherbouw + dynamische v32-eindgate
 - `Herbouw historisch rapport` blokkeert de Home Assistant Ingress-request niet meer: de PDF/Recovery_Update-herbouw draait achter een aparte achtergrondlock.
 - De operationele console pollt de historische rapportstatus, behoudt `Rapport wordt gemaakt…` ook na refresh en navigeert bij completed/error automatisch naar een expliciete resultaatpagina.
