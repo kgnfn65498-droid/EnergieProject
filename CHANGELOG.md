@@ -1,3 +1,10 @@
+## 32.3.27 — GUI-statussemantiek: historie, datakwaliteit en definitieve output
+- Een mislukte workflow uit een oudere release blijft volledig in historie en foutdetails zichtbaar, maar wordt in de actuele release- en healthstatus als `Historische fout v…` weergegeven en telt niet meer als huidige softwarestoring.
+- Een workflowfout uit de actieve release blijft onverminderd een echte monitoring-/healthfout; de historische demping is dus fail-closed op release-identiteit.
+- `Centrale validatie` onderscheidt technische validatie van actuele maanddatakwaliteit. Bij een groene technische validatie maar een actieve SMP-plausibiliteits-/dekkingsblokkade toont de GUI `Technisch ok · maanddata geblokkeerd`.
+- Rapportbestanden worden alleen `Definitieve output` genoemd wanneer publicatie, workflow-audit én expliciet volledige meetperiode/datakwaliteit groen zijn. Bestaande bestanden zonder dat bewijs heten `Bestaande output · niet definitief gevalideerd`.
+- Er worden geen historische fouten, rapportbestanden of brondata gewist of aangepast; dit is uitsluitend status-/presentatielogica bovenop de bestaande fail-closed datagates.
+
 ## 32.3.26 — GUI-statusconsistentie + SMP/P1 plausibiliteitsgate
 - Live GUI-refresh synchroniseert de schakelaar voor automatische maandafsluiting voortaan met de actuele backendwaarde; een actieve scheduler kan niet meer als UIT blijven staan door verouderde DOM-status.
 - Productietest, scheduler-acceptatietest en certificaatweergave gebruiken de productiekernrevision als compatibiliteitsgrens. Een geldig certificaat van dezelfde kern blijft dus geldig over een release-update.

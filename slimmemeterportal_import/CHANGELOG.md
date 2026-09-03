@@ -1,8 +1,7 @@
 # Changelog
 
-## 32.3.26
+## 32.3.27
 
-- Synchroniseert de automatische-maandafsluitingsschakelaar bij live GUI-refresh met de backendstatus.
-- Productietest, scheduler-acceptatie en productiecertificaat worden in de GUI beoordeeld op productiekernrevision in plaats van releasenummer.
-- Niet-geconfigureerde uitgeschakelde Enphase/EPEX-bronnen tellen niet meer als monitoring- of healthfout.
-- Blokkeert een SMP full-month bron wanneer het maandtotaal fysiek lager is dan de overlappende P1-deelperiode; P1 blijft controlebron en de officiële historische rerender blijft fail-closed.
+- Oude workflowfouten uit eerdere releases blijven auditbaar maar worden niet meer als actuele releasefout geteld.
+- Centrale validatie toont technische status en actuele datakwaliteits-/plausibiliteitsblokkade afzonderlijk.
+- Rapportoutput heet alleen definitief wanneer publicatie, workflow-audit en volledige meetperiode aantoonbaar groen zijn.

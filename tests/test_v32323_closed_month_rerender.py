@@ -87,6 +87,6 @@ def test_closed_month_rerender_uses_isolated_handoff_and_preserves_sources(monke
 
 def test_release_identity_32323():
     source = MAIN.read_text(encoding="utf-8")
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.26"
-    assert 'APP_VERSION = "32.3.26"' in source
-    assert 'version: "32.3.26"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.27"
+    assert 'APP_VERSION = "32.3.27"' in source
+    assert 'version: "32.3.27"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")

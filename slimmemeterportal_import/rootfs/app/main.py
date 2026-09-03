@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.26"
+APP_VERSION = "32.3.27"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -15131,6 +15131,162 @@ def rebuild_historical_report(month_key: str) -> dict[str, Any]:
     return result
 
 
+def _workflow_result_for_ui(state: dict[str, Any]) -> dict[str, Any]:
+    """Lees alleen het duurzame resultaat van de laatst bekende workflow voor UI-semantiek."""
+    month = str(state.get("full_workflow_last_month") or "").strip()
+    if not month:
+        return {}
+    path = OUTPUT_ROOT / "workflow_results" / month / FULL_WORKFLOW_RESULT_NAME
+    if not path.is_file():
+        return {}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def workflow_ui_snapshot(state: dict[str, Any]) -> dict[str, Any]:
+    """Scheid een historische workflowfout van een fout in de actieve release."""
+    raw_status = str(state.get("full_workflow_last_status") or "").lower()
+    month = str(state.get("full_workflow_last_month") or "").strip()
+    result = _workflow_result_for_ui(state)
+    result_version = str(result.get("version") or "").strip()
+    historical = bool(
+        raw_status in {"error", "failed"}
+        and result_version
+        and result_version != APP_VERSION
+    )
+    if historical:
+        return {
+            "raw_status": raw_status,
+            "display_status": "stale",
+            "display_label": f"Historische fout v{result_version}",
+            "historical": True,
+            "version": result_version,
+            "month": month,
+            "detail": f"Historische fout uit v{result_version}; actieve release v{APP_VERSION} is hierdoor niet defect.",
+        }
+    return {
+        "raw_status": raw_status,
+        "display_status": raw_status or "unknown",
+        "display_label": raw_status or "Nog geen",
+        "historical": False,
+        "version": result_version or None,
+        "month": month,
+        "detail": raw_status or "nog geen run",
+    }
+
+
+def _analysis_quality_for_month(context: dict[str, Any], month: str | None = None) -> dict[str, Any]:
+    months = context.get("months") or []
+    if not isinstance(months, list) or not months:
+        return {}
+    if month:
+        for item in months:
+            if isinstance(item, dict) and str(item.get("month") or "") == month:
+                return item.get("quality") or {}
+    latest = months[-1]
+    return latest.get("quality") or {} if isinstance(latest, dict) else {}
+
+
+def analysis_quality_gate_snapshot(context: dict[str, Any], month: str | None = None) -> dict[str, Any]:
+    """Maak datakwaliteitsblokkades expliciet zonder technische validatie te vervalsen."""
+    quality = _analysis_quality_for_month(context, month)
+    plausibility = quality.get("smp_plausibility") or (quality.get("smp") or {}).get("plausibility") or {}
+    measurement = quality.get("measurement_period") or {}
+    blockers: list[str] = []
+    if str(plausibility.get("status") or "").lower() == "error":
+        blockers.append("SMP-plausibiliteit")
+    if measurement and measurement.get("complete") is False:
+        blockers.append("onvolledige meetperiode")
+    return {
+        "blocked": bool(blockers),
+        "status": "blocked" if blockers else "ok",
+        "blockers": blockers,
+        "plausibility": plausibility,
+        "measurement_period": measurement,
+    }
+
+
+def central_validation_ui_snapshot(state: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    central = state.get("last_central_validation") or {}
+    technical = str(central.get("status") or "Nog niet uitgevoerd")
+    technical_ok = technical.lower() in {"ok", "completed", "completed_warning"}
+    quality_gate = analysis_quality_gate_snapshot(context)
+    if technical_ok and quality_gate.get("blocked"):
+        blockers = ", ".join(quality_gate.get("blockers") or [])
+        return {
+            "status": "warning",
+            "label": "Technisch ok · maanddata geblokkeerd",
+            "detail": blockers or "Datakwaliteitscontrole blokkeert publicatie.",
+            "technical_status": technical,
+            "quality_gate": quality_gate,
+        }
+    if technical_ok:
+        return {
+            "status": "ok",
+            "label": "Technisch ok",
+            "detail": "Geen actuele datakwaliteitsblokkade.",
+            "technical_status": technical,
+            "quality_gate": quality_gate,
+        }
+    return {
+        "status": "error",
+        "label": technical,
+        "detail": "Technische centrale validatie is niet groen.",
+        "technical_status": technical,
+        "quality_gate": quality_gate,
+    }
+
+
+def report_output_ui_snapshot(state: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    month = str(state.get("report_output_last_month") or "").strip()
+    published = [Path(path) for path in (state.get("report_output_last_files") or [])]
+    expected = {f"Energierapport_{month}.pdf", f"Recovery_Update_{month}.zip"} if month else set()
+    publication_complete = bool(
+        month
+        and state.get("report_output_last_status") == "completed"
+        and len(published) == 2
+        and {path.name for path in published} == expected
+        and all(path.is_file() and path.stat().st_size > 0 for path in published)
+    )
+    audit_complete = bool(
+        month
+        and state.get("workflow_audit_last_month") == month
+        and state.get("workflow_audit_last_status") == "completed"
+    )
+    quality_gate = analysis_quality_gate_snapshot(context, month or None)
+    quality_complete = bool(
+        not quality_gate.get("blocked")
+        and (quality_gate.get("measurement_period") or {}).get("complete") is True
+    )
+    definitive = publication_complete and audit_complete and quality_complete
+    if definitive:
+        return {
+            "is_definitive": True,
+            "status": "ok",
+            "label": "Definitieve output",
+            "text": f"{month}: {len(published)} bestand(en)",
+            "quality_gate": quality_gate,
+        }
+    if month and published:
+        return {
+            "is_definitive": False,
+            "status": "warning",
+            "label": "Bestaande output",
+            "text": f"{month}: {len(published)} bestand(en) · niet definitief gevalideerd",
+            "quality_gate": quality_gate,
+        }
+    return {
+        "is_definitive": False,
+        "status": "neutral",
+        "label": "Laatste rapportoutput",
+        "text": "Nog geen complete publicatie",
+        "quality_gate": quality_gate,
+    }
+
+
 def read_monitoring_status() -> dict[str, Any]:
     """Lees de laatst vastgelegde monitoringstatus zonder runtime-acties te starten."""
     try:
@@ -15189,9 +15345,14 @@ def monitoring_snapshot(options: Options | None = None, *, force: bool = False, 
         api_ok = (state.get("api_test") or {}).get("status") == "ok"
         add("API", "ok" if api_ok else "warning", "verbonden" if api_ok else "API-test niet ok")
 
+        workflow_ui = workflow_ui_snapshot(state)
         last_status = str(state.get("full_workflow_last_status") or "")
-        workflow_ok = last_status in {"completed", "completed_warning", "running"}
-        add("Workflow", "ok" if workflow_ok else "warning", last_status or "nog geen run")
+        workflow_ok = bool(workflow_ui.get("historical")) or last_status in {"completed", "completed_warning", "running"}
+        add(
+            "Workflow",
+            "ok" if workflow_ok else "warning",
+            str(workflow_ui.get("detail") or last_status or "nog geen run"),
+        )
 
         cert_current = str(certificate.get("production_core_revision") or "") == PRODUCTION_CORE_REVISION
         cert_integrity_ok = certificate.get("integrity") in {"ok", "not_checked"}
@@ -15292,11 +15453,12 @@ def health_dashboard(options: Options | None = None) -> dict[str, Any]:
         (not WORKFLOW_LOCK.locked()) or workflow_running,
         "actieve verwerking" if workflow_running else ("vrij" if not WORKFLOW_LOCK.locked() else "onverwacht bezet"),
     )
+    workflow_ui = workflow_ui_snapshot(state)
     last_status = state.get("full_workflow_last_status")
     add(
         "Laatste workflow",
-        last_status in {"running", "completed", "completed_warning"},
-        str(last_status or "nog geen run"),
+        bool(workflow_ui.get("historical")) or last_status in {"running", "completed", "completed_warning"},
+        str(workflow_ui.get("detail") or last_status or "nog geen run"),
     )
     source_status = state.get("workflow_sources") or {}
     source_requirements = core_source_requirements(options)
@@ -15773,6 +15935,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
         limit=80,
     )
     visual = workflow_visualization(state, live_log)
+    workflow_ui = workflow_ui_snapshot(state)
     ledger_history = read_automatic_run_history(limit=12)
     if ledger_history:
         automatic_history = [{
@@ -15857,6 +16020,10 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
             "month": state.get("full_workflow_last_month"),
             "trigger": state.get("full_workflow_last_trigger") or "manual",
             "status": state.get("full_workflow_last_status"),
+            "display_status": workflow_ui.get("display_status"),
+            "display_label": workflow_ui.get("display_label"),
+            "historical": bool(workflow_ui.get("historical")),
+            "version": workflow_ui.get("version"),
             "step": state.get("full_workflow_last_step"),
             "error": state.get("full_workflow_last_error"),
             "error_type": state.get("full_workflow_last_error_type"),
@@ -17543,6 +17710,8 @@ def html_page(ingress_path: str = "") -> bytes:
 
     analysis_context = build_analysis_context()
     analysis_top = analysis_overview(analysis_context)
+    central_validation_ui = central_validation_ui_snapshot(state, analysis_context)
+    report_output_ui = report_output_ui_snapshot(state, analysis_context)
 
     history_rows = []
     for item in history:
@@ -17638,11 +17807,8 @@ def html_page(ingress_path: str = "") -> bytes:
     next_auto_run = auto_close.get("next_scheduled_run")
     next_auto_run_text = format_local_datetime(next_auto_run)
     latest_published = list(state.get("report_output_last_files") or [])
-    latest_output_text = (
-        f"{state.get('report_output_last_month')}: {len(latest_published)} bestand(en)"
-        if state.get("report_output_last_status") == "completed" and latest_published
-        else "Nog geen complete publicatie"
-    )
+    latest_output_text = str(report_output_ui.get("text") or "Nog geen complete publicatie")
+    latest_output_label = str(report_output_ui.get("label") or "Laatste rapportoutput")
 
     scheduler_acceptance = auto_close.get("scheduler_acceptance_last_result") or {}
     scheduler_acceptance_current = str(scheduler_acceptance.get("production_core_revision") or "") == PRODUCTION_CORE_REVISION
@@ -17775,7 +17941,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <div class="grid">
   <div class="metric"><small>Workflow</small><strong><span id="workflow-status" class="pill {status_class(workflow.get('status'))}">{esc(workflow.get('status') or 'onbekend')}</span></strong></div>
   <div class="metric"><small>Laatste maand</small><strong id="last-month">{esc(last_run.get('month') or 'Nog geen')}</strong></div>
-  <div class="metric"><small>Laatste run</small><strong><span id="last-run-status" class="pill {status_class(last_run.get('status'))}">{esc(last_run.get('status') or 'Nog geen')}</span></strong></div>
+  <div class="metric"><small>Laatste run</small><strong><span id="last-run-status" class="pill {status_class(last_run.get('display_status') or last_run.get('status'))}">{esc(last_run.get('display_label') or last_run.get('status') or 'Nog geen')}</span></strong></div>
   <div class="metric"><small>Automatische maandafsluiting</small><strong class="auto-status"><span id="auto-close-top-status" class="pill {'ok' if auto_close.get('enabled') else 'neutral'}">{'Aan' if auto_close.get('enabled') else 'Uit'}</span><small id="auto-close-top-detail">{('dag ' + esc(auto_close.get('day')) + ' · ' + esc(auto_close.get('hour')) + ':00 · retry ' + esc(auto_close.get('retry_hours')) + 'u') if auto_close.get('enabled') else 'Scheduler niet actief'}</small></strong>  <div class="metric"><small>Releaseketen</small><strong><span class="pill ok">Automatisch</span></strong><small class="test-detail">QNAP ZIP-only · watcher 5 s · installatie automatisch</small></div>
   <div class="metric"><small>HA-publicatie</small><strong><span id="github-publish-pill" class="pill {esc(github_ui.get('css') or 'warn')}">{esc(github_ui.get('label') or 'Onbekend')}</span></strong><small id="github-publish-detail" class="test-detail">{esc(github_ui.get('detail') or 'Publicatiestatus niet beschikbaar')}</small><button class="secondary" type="button" onclick="refreshGithubPublisherStatus(true)">Toon publicatiesleutel</button><pre id="github-public-key" style="display:none;white-space:pre-wrap;word-break:break-all;margin-top:8px">{esc(github_ui.get('public_key') or 'Publicatiesleutel niet beschikbaar')}</pre><span style="display:none">Automatische GitHub-publicatie wordt door Home Assistant uitgevoerd · Deploy Key</span></div>
 </div>
@@ -17823,7 +17989,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <div class="metric"><small>Productiegereedheid</small><strong><span id="production-readiness" class="pill {status_class(production_status)}">{esc(production_text)}</span></strong></div>
 <div class="metric"><small>Scheduler</small><strong id="production-scheduler">{esc(scheduler_text)}</strong></div>
 <div class="metric"><small>Volgende automatische run</small><strong id="production-next-run">{esc(next_auto_run_text)}</strong></div>
-<div class="metric"><small>Laatste definitieve output</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
+<div class="metric"><small id="production-last-output-label">{esc(latest_output_label)}</small><strong id="production-last-output">{esc(latest_output_text)}</strong></div>
 <div class="metric"><small>Productiecertificaat</small><strong id="production-certificate">{esc(production_certificate_text)}</strong></div>
 </div>
 <p class="hint">Het productiecertificaat wordt automatisch gegenereerd uit een geslaagde productietest van exact deze versie, continu op integriteit gecontroleerd en kan veilig uit bestaand hard testbewijs worden hersteld.</p>
@@ -17962,8 +18128,9 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <p class="hint">Dit blok hoort uitsluitend bij de knop <strong>Importeer SMP</strong>. Het blok Laatste workflowfout hieronder hoort bij de volledige maandworkflow.</p>
 </div>
 
-<div class="card" id="last-error-card" style="display:{'block' if last_run.get('error') else 'none'}"><h2>Laatste workflowfout</h2>
+<div class="card" id="last-error-card" style="display:{'block' if last_run.get('error') else 'none'}"><h2 id="last-error-heading">{'Historische workflowfout' if last_run.get('historical') else 'Laatste workflowfout'}</h2>
 <div><strong id="last-error-step">{esc(last_run.get('error_step') or last_run.get('step') or '—')}</strong></div>
+<div class="hint" id="last-error-version">{('Uit release v' + esc(last_run.get('version'))) if last_run.get('historical') and last_run.get('version') else ''}</div>
 <div class="hint" id="last-error-type">{esc(last_run.get('error_type') or '')}</div>
 <div id="last-error-message" class="log">{esc(last_run.get('error') or '')}</div>
 <p><a id="download-workflow-log" href="download-workflow-log?month={esc(last_run.get('month') or '')}">Download workflowlog</a></p>
@@ -17987,7 +18154,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <div class="card"><h2>Diagnostiek en beheer</h2>
 <div class="grid">
 <div class="metric"><small>API-test</small><strong>{esc(api_text)}</strong></div>
-<div class="metric"><small>Centrale validatie</small><strong>{esc((state.get('last_central_validation') or {}).get('status', 'Nog niet uitgevoerd'))}</strong></div>
+<div class="metric"><small>Centrale validatie &amp; datakwaliteit</small><strong><span class="pill {status_class(central_validation_ui.get('status'))}">{esc(central_validation_ui.get('label'))}</span></strong><small>{esc(central_validation_ui.get('detail'))}</small></div>
 <div class="metric"><small>Integriteit</small><strong>{esc(state.get('last_integrity_status') or 'Nog niet gecontroleerd')}</strong></div>
 <div class="metric"><small>Zelftest</small><strong>{esc((state.get('last_self_test') or {}).get('status', 'Nog niet uitgevoerd'))}</strong></div>
 </div>
@@ -18087,8 +18254,8 @@ async function refreshStatus(){{
     workflowStatus.textContent=op.workflow?.status || 'onbekend';
     workflowStatus.className=pillClass(op.workflow?.status);
     document.getElementById('last-month').textContent=op.last_run?.month || 'Nog geen';
-    lastRunStatus.textContent=op.last_run?.status || 'Nog geen';
-    lastRunStatus.className=pillClass(op.last_run?.status);
+    lastRunStatus.textContent=op.last_run?.display_label || op.last_run?.status || 'Nog geen';
+    lastRunStatus.className=pillClass(op.last_run?.display_status || op.last_run?.status);
 
     const active=['running','importing'].includes(String(op.workflow?.status||'').toLowerCase());
     document.querySelectorAll('.workflow-action').forEach(btn=>btn.disabled=active);
@@ -18226,6 +18393,10 @@ async function refreshStatus(){{
     const errCard=document.getElementById('last-error-card');
     if(op.last_run?.error){{
       errCard.style.display='block';
+      const errorHeading=document.getElementById('last-error-heading');
+      if(errorHeading) errorHeading.textContent=op.last_run?.historical?'Historische workflowfout':'Laatste workflowfout';
+      const errorVersion=document.getElementById('last-error-version');
+      if(errorVersion) errorVersion.textContent=op.last_run?.historical&&op.last_run?.version?`Uit release v${{op.last_run.version}}`:'';
       document.getElementById('last-error-step').textContent=op.last_run?.error_step || op.last_run?.step || '—';
       document.getElementById('last-error-type').textContent=op.last_run?.error_type || '';
       document.getElementById('last-error-message').textContent=op.last_run?.error || '';
