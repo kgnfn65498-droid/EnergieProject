@@ -1,3 +1,11 @@
+## 32.3.31 — historische rapportherbouw fail-closed en diagnosewaarheid
+- Pagina-1-validatie accepteert expliciete PV-modelprovenance (`modelled`/`model_label`) zonder deze metadata als numerieke KPI te behandelen; een augustusachtige adapterpayload wordt end-to-end door validator en PDF-generator getest.
+- De energiescore is op pagina 1 én pagina's 3–13 numeriek en onderling consistent; modelstatus blijft zichtbaar in plaats van een hardcoded `n.b.`.
+- De vaste PV-multiplier 1,84 is verwijderd. De modelverhouding wordt uitsluitend afgeleid uit `historical_energy_seed.json` (oude-sethistorie versus laatste volledige Extra set/Lounge-jaar) en blijft expliciet een historische modelwaarde, geen gemeten totale productie.
+- Pagina's 3–13 labelen model-PV niet langer als gemeten Enphase-totalen; productie, zelfconsumptie en zonnedekking krijgen dezelfde bron-/modelprovenance als pagina 1.
+- Een open automatische retry voor een maand die RecoveryManager al aantoonbaar `CLOSED` heeft verklaard wordt gecontroleerd afgesloten, zodat augustus niet onnodig opnieuw wordt verwerkt.
+- Health en diagnose kunnen geen 100/GO meer geven wanneer de laatste historische rapportherbouw is mislukt of een productie-retry nog OPEN/RUNNING/EXPIRED staat.
+
 ## 32.3.30 — rapportwaarden augustus + zichtbare herbouwfeedback
 - Pagina 1 gebruikt een echte cumulatieve watervalgrafiek: juli en augustus zijn de groene maandstappen en de blauwe totaalbalk is exact de som van de zichtbare maanden (juli + augustus = -761,3 kWh).
 - PV-afgeleide KPI's vullen augustus numeriek via een expliciet gelabeld model wanneer Enphase slechts een deelperiode/set dekt; gemeten Enphase-data blijft apart bewijs en de energiescore wordt als voorlopige modelscore getoond.

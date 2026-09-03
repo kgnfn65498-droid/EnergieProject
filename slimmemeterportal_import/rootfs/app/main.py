@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.30"
+APP_VERSION = "32.3.31"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1915,10 +1915,55 @@ def _pct_change(current: float, previous: Any) -> float | None:
     return (float(current) - float(previous)) / float(previous) * 100.0
 
 
-# Rapportmodel v32.3.30. De tweede PV-set is nog niet afzonderlijk gemeten.
-# De factor is uitsluitend een expliciete modelwaarde voor rapport-KPI's en
-# wordt nooit als gemeten productie opgeslagen.
-PV_SET_TOTAL_TO_ENPHASE_RATIO = 1.84
+def historical_pv_model_basis() -> dict[str, Any]:
+    """Derive the two-set PV model from stored historical production evidence.
+
+    No fixed multiplier is accepted here. The old-set baseline is the median of
+    the historical annual-ish old-set records and the Enphase/new-set baseline
+    is the latest full calendar-year `Extra set / Lounge` record. The model is
+    explicitly labelled and never promoted to a measured production value.
+    """
+    seed = _load_historical_energy_seed()
+    rows = seed.get("solar_periods") or []
+    old_values = sorted(
+        float(item["production_kwh"])
+        for item in rows
+        if isinstance(item, dict)
+        and item.get("set") == "Oude set"
+        and isinstance(item.get("production_kwh"), (int, float))
+        and float(item["production_kwh"]) > 0
+    )
+    new_rows = [
+        item for item in rows
+        if isinstance(item, dict)
+        and item.get("set") == "Extra set / Lounge"
+        and item.get("full_calendar_year") is True
+        and isinstance(item.get("production_kwh"), (int, float))
+        and float(item["production_kwh"]) > 0
+    ]
+    if not old_values or not new_rows:
+        return {
+            "available": False,
+            "factor": None,
+            "source": f"{_HISTORICAL_ENERGY_SEED.name}: onvoldoende PV-sethistorie",
+        }
+    n = len(old_values)
+    if n % 2:
+        old_baseline = old_values[n // 2]
+    else:
+        old_baseline = (old_values[n // 2 - 1] + old_values[n // 2]) / 2.0
+    latest_new = new_rows[-1]
+    new_baseline = float(latest_new["production_kwh"])
+    factor = 1.0 + old_baseline / new_baseline
+    return {
+        "available": True,
+        "factor": round(factor, 6),
+        "old_set_baseline_kwh": round(old_baseline, 3),
+        "enphase_set_baseline_kwh": round(new_baseline, 3),
+        "enphase_reference_period": latest_new.get("period"),
+        "source": f"{_HISTORICAL_ENERGY_SEED.name}: Oude set mediaan + Extra set / Lounge {latest_new.get('period')}",
+        "assumption": "Enphase vertegenwoordigt de extra/nieuwe PV-set; verhouding is een historische opbrengstschatting, geen meting van de rapportmaand.",
+    }
 
 
 def report_solar_model_metrics(
@@ -1946,13 +1991,27 @@ def report_solar_model_metrics(
             "label": "gemeten bronbalans",
         }
 
-    if isinstance(enphase_production_kwh, (int, float)) and float(enphase_production_kwh) > 0:
-        estimated_total = float(enphase_production_kwh) * PV_SET_TOTAL_TO_ENPHASE_RATIO
-    else:
-        # Alleen als expliciete rapportfallback voor een maand met aantoonbare
-        # netteruglevering; nooit promoten tot gemeten PV-productie.
-        estimated_total = float(grid_export_kwh) / 0.82 if float(grid_export_kwh) > 0 else 0.0
-    estimated_total = max(estimated_total, float(grid_export_kwh) * 1.01)
+    model_basis = historical_pv_model_basis()
+    if not (
+        model_basis.get("available")
+        and isinstance(model_basis.get("factor"), (int, float))
+        and isinstance(enphase_production_kwh, (int, float))
+        and float(enphase_production_kwh) > 0
+    ):
+        return {
+            "modelled": False,
+            "total_production_kwh": None,
+            "direct_solar_use_kwh": None,
+            "house_use_kwh": None,
+            "self_use_pct": None,
+            "self_supply_pct": None,
+            "label": "PV-model niet beschikbaar zonder bronvaste historische setverhouding",
+            "model_basis": model_basis,
+        }
+
+    estimated_total = float(enphase_production_kwh) * float(model_basis["factor"])
+    # Fysische ondergrens: totale productie kan niet lager zijn dan gemeten export.
+    estimated_total = max(estimated_total, float(grid_export_kwh))
     direct_use = max(0.0, estimated_total - float(grid_export_kwh))
     house_use = max(0.001, float(grid_import_kwh) + direct_use)
     self_use = (direct_use / estimated_total * 100.0) if estimated_total > 0 else 0.0
@@ -1964,7 +2023,8 @@ def report_solar_model_metrics(
         "house_use_kwh": round(house_use, 3),
         "self_use_pct": round(self_use, 1),
         "self_supply_pct": round(self_supply, 1),
-        "label": "modelwaarde uit Enphase + historische PV-setverhouding",
+        "label": "modelwaarde uit Enphase + bronvaste historische PV-setverhouding",
+        "model_basis": model_basis,
     }
 
 
@@ -2335,6 +2395,15 @@ def build_report_adapter_data(
         "modelled": bool(solar_report.get("modelled")),
         "toelichting": "Voorlopige modelscore; gemeten net/gas gecombineerd met geschatte PV-efficiëntie en NextEnergy-offerte als kostenreferentie." if solar_report.get("modelled") else "Voorlopige energiescore op basis van de gevalideerde rapport-KPI's.",
     })
+    if len(top) > 6:
+        top[6].update({
+            "titel": "Energiescore",
+            "waarde": str(score_total),
+            "eenheid": "/100",
+            "delta": "model" if solar_report.get("modelled") else "voorlopig",
+            "kleur": "oranje",
+            "icoon": "meter",
+        })
     battery_summary = battery_report_summary()
     page1["batterij"].update({
         "score": battery_summary["score"],
@@ -2464,7 +2533,7 @@ def build_report_adapter_data(
         "profile": {
             "annual_feed_in": int(offer_export),
             "net_import": int(offer_net),
-            "self_use_pct": None,
+            "self_use_pct": round(self_use_pct, 1) if isinstance(self_use_pct, (int, float)) else None,
             "estimated_shift": None,
         },
         "scenarios": [
@@ -2516,8 +2585,12 @@ def build_report_adapter_data(
         "solar": round(production_kwh, 1) if isinstance(production_kwh, (int, float)) else None,
         "self": round(self_use_pct, 1) if isinstance(self_use_pct, (int, float)) else None,
         "export": round(export_kwh, 1),
-        "score": None,
-        "quality": "Kernmetingen beschikbaar; afgeleide PV-KPI's bronbeperkt" if not solar_metrics_reliable else "Kernmetingen en PV-balans beschikbaar",
+        "score": score_total,
+        "quality": (
+            "Kernmetingen beschikbaar; PV-KPI's zijn expliciete historische modelwaarden"
+            if solar_report.get("modelled")
+            else ("Kernmetingen beschikbaar; afgeleide PV-KPI's bronbeperkt" if not solar_metrics_reliable else "Kernmetingen en PV-balans beschikbaar")
+        ),
     }
     pages["electricity"].update({
         "grid": round(import_kwh, 1),
@@ -2536,8 +2609,15 @@ def build_report_adapter_data(
         "self": round(self_use_pct, 1) if isinstance(self_use_pct, (int, float)) else None,
         "coverage": round(self_supply_pct, 1) if isinstance(self_supply_pct, (int, float)) else None,
         "reliable": solar_metrics_reliable,
-        "source": resolved_quality.get("production_source") or "not_available",
-        "limitation": None if solar_metrics_reliable else "Enphase-productie en P1-teruglevering representeren niet dezelfde totale PV-dekking; zelfconsumptie wordt daarom niet berekend.",
+        "modelled": bool(solar_report.get("modelled")),
+        "model_label": solar_report.get("label"),
+        "model_basis": solar_report.get("model_basis"),
+        "source": (solar_report.get("label") if solar_report.get("modelled") else (resolved_quality.get("production_source") or "not_available")),
+        "limitation": (
+            "PV-productie, direct eigen gebruik en zelfconsumptie zijn historische modelwaarden uit Enphase plus de in historical_energy_seed vastgelegde opbrengstverhouding tussen de oude en extra PV-set; geen gemeten totale PV-balans."
+            if solar_report.get("modelled")
+            else (None if solar_metrics_reliable else "Enphase-productie en P1-teruglevering representeren niet dezelfde totale PV-dekking; zelfconsumptie wordt daarom niet berekend.")
+        ),
     }
     pages["gas"] = {
         "month": round(gas_m3, 1),
@@ -2617,7 +2697,7 @@ def build_report_adapter_data(
     quality_checks = [
         ["Kernmetriek stroom", "ok", f"{import_kwh:.1f} kWh afname / {export_kwh:.1f} kWh teruglevering"],
         ["Kernmetriek gas", "ok", f"{gas_m3:.1f} m³"],
-        ["PV-balans", "ok" if solar_metrics_reliable else "aandacht", "consistent" if solar_metrics_reliable else "zelfconsumptie bewust niet berekend"],
+        ["PV-balans", "ok" if solar_metrics_reliable else "aandacht", "consistent" if solar_metrics_reliable else ("historische modelwaarde, geen totale meting" if solar_report.get("modelled") else "zelfconsumptie niet berekend")],
         ["Financiële offertebasis", "ok", "NextEnergy €153/mnd / €1.836/jaar"],
         ["Werkelijke augustus all-in", "aandacht", "nog niet factuurgevalideerd"],
         ["EPEX", "niet gebruikt", "niet geconfigureerd / geen leveranciers-all-in bron"],
@@ -15393,6 +15473,7 @@ def build_chat_transfer_package() -> bytes:
     """Maak een compacte nieuwe-chat overdracht met afspraken, roadmap en actuele status."""
     options = Options.load()
     op = operation_status(options)
+    state = load_state()
     health = health_dashboard(options)
     infra = infrastructure_snapshot()
     certificate = validate_production_certificate()
@@ -15921,6 +16002,33 @@ def monitoring_snapshot(options: Options | None = None, *, force: bool = False, 
         return result
 
 
+def release_health_risk_checks(
+    state: dict[str, Any],
+    retry: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Expose failures that must prevent a false 100/GO diagnosis."""
+    retry = retry or {}
+    rebuild_status = str(state.get("historical_report_rebuild_last_status") or "").lower()
+    rebuild_month = str(state.get("historical_report_rebuild_last_month") or "")
+    historical_ok = rebuild_status not in {"failed", "error"}
+    retry_state = str(retry.get("state") or "COMPLETED").upper()
+    retry_clear = retry_state not in {"OPEN", "RUNNING", "EXPIRED"}
+    issues: list[str] = []
+    if not historical_ok:
+        issues.append(f"Historisch rapport {rebuild_month or 'onbekend'} is mislukt.")
+    if not retry_clear:
+        issues.append(f"Automatische retry {retry_state} voor {retry.get('month') or 'onbekend'}.")
+    return {
+        "historical_report_rebuild_ok": historical_ok,
+        "historical_report_rebuild_status": rebuild_status or None,
+        "historical_report_rebuild_month": rebuild_month or None,
+        "automatic_retry_clear": retry_clear,
+        "automatic_retry_state": retry_state,
+        "automatic_retry_month": retry.get("month"),
+        "issues": issues,
+    }
+
+
 def health_dashboard(options: Options | None = None) -> dict[str, Any]:
     options = options or Options.load()
     state = load_state()
@@ -15990,6 +16098,21 @@ def health_dashboard(options: Options | None = None) -> dict[str, Any]:
     add(
         "Monitoring", monitoring_ok, monitoring_detail,
         status_if_not_ok="pending" if monitoring_errors == 0 else "warning",
+    )
+    runtime_risks = release_health_risk_checks(state, read_automatic_retry_state())
+    add(
+        "Historisch rapport",
+        bool(runtime_risks["historical_report_rebuild_ok"]),
+        (
+            "laatste herbouw niet mislukt"
+            if runtime_risks["historical_report_rebuild_ok"]
+            else f"{runtime_risks.get('historical_report_rebuild_month') or 'onbekend'}: {runtime_risks.get('historical_report_rebuild_status')}"
+        ),
+    )
+    add(
+        "Automatische retry",
+        bool(runtime_risks["automatic_retry_clear"]),
+        f"{runtime_risks.get('automatic_retry_state')} · {runtime_risks.get('automatic_retry_month') or 'geen maand'}",
     )
 
     weights = {"ok": 1.0, "pending": 0.9, "attention": 0.8, "warning": 0.0}
@@ -16107,6 +16230,35 @@ def workflow_visualization(state: dict[str, Any], log_lines: list[dict[str, Any]
     }
 
 
+def recovery_month_closure_proof(month_key: str) -> dict[str, Any]:
+    """Return read-only RecoveryManager proof that a month is already CLOSED."""
+    try:
+        year, month = parse_month_key(month_key)
+    except Exception as exc:
+        return {"closed": False, "evidence": None, "error": str(exc)}
+    try:
+        result = _mcp_call_project_tool(
+            "month_closure_status",
+            {"year": year, "month": month},
+            timeout=8.0,
+        )
+    except Exception as exc:
+        return {"closed": False, "evidence": None, "error": f"{type(exc).__name__}: {exc}"}
+    if not isinstance(result, dict):
+        return {"closed": False, "evidence": None, "error": "ongeldig RecoveryManager-antwoord"}
+    status_payload = result.get("status") if isinstance(result.get("status"), dict) else {}
+    status_text = str(status_payload.get("status") or result.get("closure_status") or "").upper()
+    closed = bool(result.get("closed")) or status_text == "CLOSED"
+    return {
+        "closed": closed,
+        "evidence": (
+            f"RecoveryManager MonthClosure_{month_key}=CLOSED"
+            if closed else None
+        ),
+        "raw_status": status_text or None,
+    }
+
+
 def finalize_proven_retry_state(
     state: dict[str, Any],
     retry: dict[str, Any],
@@ -16155,6 +16307,7 @@ def reconcile_automatic_retry_state(state: dict[str, Any]) -> tuple[dict[str, An
         ledger_proof = automatic_history_proves_completed(month)
         workflow_proof = workflow_history_proves_completed(month)
         marker = automatic_month_is_completed(month)
+        closure_proof = recovery_month_closure_proof(month)
         append_retry_debug(
             "reconcile_evidence",
             month=month,
@@ -16162,14 +16315,18 @@ def reconcile_automatic_retry_state(state: dict[str, Any]) -> tuple[dict[str, An
             workflow_proof=bool(workflow_proof),
             workflow_debug=workflow_history_debug(month),
             completion_marker=marker,
+            recovery_month_closed=bool(closure_proof.get("closed")),
+            recovery_month_evidence=closure_proof.get("evidence"),
         )
-        if ledger_proof or workflow_proof or marker:
+        if ledger_proof or workflow_proof or marker or closure_proof.get("closed"):
             if ledger_proof:
                 evidence = "Geslaagde echte Automatisch-run aangetroffen in append-only historie."
             elif workflow_proof:
                 evidence = "Historisch workflow_result bewijst een volledig geslaagde automatische run."
-            else:
+            elif marker:
                 evidence = "Duurzame completion-marker aangetroffen."
+            else:
+                evidence = str(closure_proof.get("evidence") or "RecoveryManager bewijst dat de maand CLOSED is.")
             state, retry = finalize_proven_retry_state(
                 state, retry, month=month, evidence=evidence
             )
@@ -17894,6 +18051,10 @@ def build_test_package() -> bytes:
     migration = nas_migration_snapshot()
     scheduler_enabled = bool((op.get("automatic_month_close") or {}).get("enabled"))
     scheduler_effective = bool((op.get("automatic_month_close") or {}).get("scheduler_effective"))
+    runtime_risks = release_health_risk_checks(
+        state,
+        (op.get("retry_state_machine") or read_automatic_retry_state()),
+    )
 
     criteria = {
         "production_ready": production_ready,
@@ -17904,6 +18065,8 @@ def build_test_package() -> bytes:
         "recovery_ok": recovery_status == "ok",
         "audit_integrity_ok": audit_integrity == "ok",
         "scheduler_effective": scheduler_effective,
+        "historical_report_rebuild_ok": bool(runtime_risks["historical_report_rebuild_ok"]),
+        "automatic_retry_clear": bool(runtime_risks["automatic_retry_clear"]),
     }
     failed_criteria = [name for name, ok in criteria.items() if not ok]
     verdict = "GO" if not failed_criteria else "NO-GO"
@@ -17951,6 +18114,7 @@ def build_test_package() -> bytes:
         "last_project_backup": state.get("last_project_backup"),
         "automatic_verdict": verdict,
         "failed_criteria": failed_criteria,
+        "runtime_risks": runtime_risks,
         "release_stage": "stable",
         "target_stable_release": "10.5.37",
         "note": "v10.5.6 voegt uitsluitend een read-only analysecontext toe bovenop bestaande maanddata; release-inbox, workflow, scheduler en productiekern 9.4-core1 blijven ongewijzigd.",

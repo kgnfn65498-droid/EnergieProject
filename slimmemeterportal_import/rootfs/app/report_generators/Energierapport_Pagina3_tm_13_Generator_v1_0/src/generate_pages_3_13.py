@@ -136,14 +136,16 @@ def page3(c, d):
         kpi_card(c, M + i * (cw + gap), H - 175, cw, 78, *val)
     rounded(c, M, H - 285, W - 2 * M, 88)
     txt(c, M + 20, H - 220, 'Energiescore', 8, True)
-    txt(c, W / 2, H - 260, 'n.b.', 18, True, ORANGE, 'center')
+    score = dash.get('score')
+    score_text = f"{score:.0f}/100" if isinstance(score, (int, float)) else 'n.b.'
+    txt(c, W / 2, H - 260, score_text, 18, True, ORANGE, 'center')
     txt(c, W / 2, H - 282, dash.get('quality', 'Bronstatus onbekend'), 7, True, TEXT, 'center')
     rows = [
         ['Netafname', fmt_num(d['electricity'].get('grid'), 'kWh'), 'Gemeten', 'P1'],
         ['Teruglevering', fmt_num(d['electricity'].get('feedin'), 'kWh'), 'Gemeten', 'P1'],
         ['Gas', fmt_num(d['gas'].get('month'), 'm³'), 'Gemeten', 'P1g'],
-        ['PV-productie', fmt_num(d['solar'].get('production'), 'kWh'), 'Gemeten bron', d['solar'].get('source', 'Enphase')],
-        ['Zelfconsumptie', fmt_num(d['solar'].get('self'), '%'), 'Bronbeperkt' if not d['solar'].get('reliable') else 'Beschikbaar', 'Geen nul-fallback'],
+        ['PV-productie', fmt_num(d['solar'].get('production'), 'kWh'), 'Modelwaarde' if d['solar'].get('modelled') else 'Gemeten bron', d['solar'].get('source', 'Enphase')],
+        ['Zelfconsumptie', fmt_num(d['solar'].get('self'), '%'), 'Modelwaarde' if d['solar'].get('modelled') else ('Bronbeperkt' if not d['solar'].get('reliable') else 'Beschikbaar'), 'Geen nul-fallback'],
         ['Financieel', '€ 1.836/jaar', 'Offerteprognose', 'NextEnergy'],
     ]
     table(c, M, H - 320, W - 2 * M, ['Onderdeel', 'Waarde', 'Status', 'Bron / regel'], rows, [.28, .20, .20, .32], 38, 7)
@@ -153,15 +155,15 @@ def page3(c, d):
 
 def page4(c, d):
     header(c, 4, '3. Meetbasis en bronafbakening', d['meta']['status'])
-    wrap(c, 'De rapportage gebruikt de bronwaarden van de gekozen rapportmaand. Afgeleide zonne-KPI’s worden alleen berekend wanneer productie en netteruglevering dezelfde totale meetdekking vertegenwoordigen.', M, H - 90, W - 2 * M, 8.3, 11, True)
+    wrap(c, 'De rapportage gebruikt de bronwaarden van de gekozen rapportmaand. Afgeleide zonne-KPI’s zijn gemeten waar de dekking consistent is, of expliciet als historische modelwaarde gemarkeerd wanneer een bronvaste PV-setverhouding wordt gebruikt.', M, H - 90, W - 2 * M, 8.3, 11, True)
     solar = d['solar']
     rows = [
         ['Netafname', fmt_num(d['electricity'].get('grid'), 'kWh'), 'P1'],
         ['Teruglevering', fmt_num(d['electricity'].get('feedin'), 'kWh'), 'P1'],
         ['Gas', fmt_num(d['gas'].get('month'), 'm³'), 'P1g'],
-        ['Enphase-productie', fmt_num(solar.get('production'), 'kWh'), solar.get('source', 'Enphase')],
-        ['Direct eigen gebruik', fmt_num(solar.get('direct'), 'kWh'), 'Alleen bij consistente totale PV-dekking'],
-        ['Totaal huishoudelijk gebruik', fmt_num(d['electricity'].get('house'), 'kWh'), 'Alleen bij consistente totale PV-dekking'],
+        ['Geschatte totale PV-productie' if solar.get('modelled') else 'Enphase-productie', fmt_num(solar.get('production'), 'kWh'), solar.get('source', 'Enphase')],
+        ['Direct eigen gebruik', fmt_num(solar.get('direct'), 'kWh'), 'Historische modelwaarde' if solar.get('modelled') else 'Alleen bij consistente totale PV-dekking'],
+        ['Totaal huishoudelijk gebruik', fmt_num(d['electricity'].get('house'), 'kWh'), 'Historische modelwaarde' if solar.get('modelled') else 'Alleen bij consistente totale PV-dekking'],
         ['Rapportmaand-contract', d['finance'].get('contract_label', 'NextEnergy'), 'Contract actief in rapportmaand'],
     ]
     table(c, M, H - 145, W - 2 * M, ['Waarde', 'Maanddata', 'Herkomst / regel'], rows, [.34, .24, .42], 42, 7.7)
@@ -193,11 +195,11 @@ def page6(c, d):
     header(c, 6, '5. Zonnepanelen en zelfconsumptie', d['meta']['status'])
     s = d['solar']
     rows = [
-        ['Gemeten Enphase-productie', fmt_num(s.get('production'), 'kWh'), s.get('source', 'Enphase')],
-        ['P1-teruglevering', fmt_num(s.get('feedin'), 'kWh'), 'P1'],
-        ['Direct eigen gebruik', fmt_num(s.get('direct'), 'kWh'), 'Alleen bij consistente totale PV-dekking'],
-        ['Zelfconsumptie', fmt_num(s.get('self'), '%'), 'Geen 0%-fallback'],
-        ['Directe zonnedekking woning', fmt_num(s.get('coverage'), '%'), 'Geen 0%-fallback'],
+        ['Geschatte totale PV-productie' if s.get('modelled') else 'Gemeten Enphase-productie', fmt_num(s.get('production'), 'kWh'), s.get('source', 'Enphase')],
+        ['P1-teruglevering', fmt_num(s.get('feedin'), 'kWh'), 'P1 gemeten'],
+        ['Direct eigen gebruik', fmt_num(s.get('direct'), 'kWh'), 'Historische modelwaarde' if s.get('modelled') else 'Alleen bij consistente totale PV-dekking'],
+        ['Zelfconsumptie', fmt_num(s.get('self'), '%'), 'Historische modelwaarde' if s.get('modelled') else 'Geen 0%-fallback'],
+        ['Directe zonnedekking woning', fmt_num(s.get('coverage'), '%'), 'Historische modelwaarde' if s.get('modelled') else 'Geen 0%-fallback'],
     ]
     table(c, M, H - 105, W - 2 * M, ['Indicator', 'Waarde', 'Interpretatie'], rows, [.38, .22, .40], 50, 8)
     if s.get('reliable'):

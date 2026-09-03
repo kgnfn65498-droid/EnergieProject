@@ -89,10 +89,15 @@ def validate(data: dict[str, Any]) -> None:
         if not 0 <= val <= 100: raise DataValidationError(f"score.onderdelen[{i}][1]: bereik 0..100")
 
     eff = data["efficientie"]
-    _need(eff, ["zelfvoorziening", "delta_zelf", "eigen_verbruik", "delta_eigen", "gas", "delta_gas"], "efficientie")
-    for key in eff:
+    numeric_efficiency_fields = ["zelfvoorziening", "delta_zelf", "eigen_verbruik", "delta_eigen", "gas", "delta_gas"]
+    _need(eff, numeric_efficiency_fields, "efficientie")
+    for key in numeric_efficiency_fields:
         if eff[key] is not None:
             _number(eff[key], f"efficientie.{key}")
+    if "modelled" in eff and not isinstance(eff["modelled"], bool):
+        raise DataValidationError("efficientie.modelled: verwacht boolean")
+    if eff.get("model_label") is not None:
+        _text(eff["model_label"], "efficientie.model_label", 120)
 
     bat = data["batterij"]
     _need(bat, ["score", "ontwikkeling", "capaciteit", "benutting", "besparing", "investering", "terugverdientijd"], "batterij")
