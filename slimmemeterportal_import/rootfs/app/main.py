@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.25"
+APP_VERSION = "32.3.26"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -6900,6 +6900,67 @@ def _month_input_metric_allowed(folder: Path, filename: str) -> bool:
     return filename not in blocked
 
 
+def _smp_partial_p1_plausibility(
+    smp: dict[str, Any],
+    *,
+    import_kwh: float | None,
+    export_kwh: float | None,
+    gas_m3: float | None,
+    p1e_coverage: dict[str, Any],
+    p1g_coverage: dict[str, Any],
+) -> dict[str, Any]:
+    """Fail closed when a claimed full SMP month is below an overlapping P1 subperiod.
+
+    A full calendar-month total cannot physically be smaller than a cumulative
+    delta measured over a subperiod of that same month. A small tolerance absorbs
+    rounding/source-boundary noise; large contradictions invalidate SMP as the
+    authoritative full-month source while preserving P1 as a read-only control.
+    """
+    checks: list[dict[str, Any]] = []
+    errors: list[str] = []
+
+    comparisons = [
+        ("grid_import_kwh", smp.get("grid_import_kwh"), import_kwh, p1e_coverage),
+        ("grid_export_kwh", smp.get("grid_export_kwh"), export_kwh, p1e_coverage),
+        ("gas_m3", smp.get("gas_m3"), gas_m3, p1g_coverage),
+    ]
+    for metric_name, smp_value, p1_value, coverage in comparisons:
+        if coverage.get("complete") or smp_value is None or p1_value is None:
+            continue
+        smp_number = float(smp_value)
+        p1_number = float(p1_value)
+        tolerance = max(0.1, abs(p1_number) * 0.01)
+        ok = smp_number + tolerance >= p1_number
+        check = {
+            "metric": metric_name,
+            "smp_full_month": _round_metric(smp_number),
+            "p1_partial_period": _round_metric(p1_number),
+            "tolerance": _round_metric(tolerance),
+            "p1_first_date": coverage.get("first_date"),
+            "p1_last_date": coverage.get("last_date"),
+            "status": "ok" if ok else "error",
+        }
+        checks.append(check)
+        if not ok:
+            errors.append(
+                f"{metric_name}: SMP volledige maand {smp_number:.3f} is lager dan "
+                f"P1-deelperiode {p1_number:.3f}."
+            )
+
+    if errors:
+        status = "error"
+    elif checks:
+        status = "ok"
+    else:
+        status = "not_checkable"
+    return {
+        "status": status,
+        "checks": checks,
+        "errors": errors,
+        "policy": "full_month_must_not_be_lower_than_overlapping_partial_p1",
+    }
+
+
 def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> dict[str, Any]:
     parse_month_key(month_key)
     folder = input_folder or (MONTH_INPUT_ROOT / month_key)
@@ -6932,6 +6993,28 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
         ("total_power_export_kwh", "energy_export_kwh", "export_kwh", "meter_reading_export_kwh"),
     ) if has_p1e else None
     gas_m3 = cumulative_delta(p1g_rows, ("total_gas_m3", "gas_m3", "meter_reading_gas_m3")) if has_p1g else None
+
+    smp_plausibility = _smp_partial_p1_plausibility(
+        smp,
+        import_kwh=import_kwh,
+        export_kwh=export_kwh,
+        gas_m3=gas_m3,
+        p1e_coverage=p1e_coverage,
+        p1g_coverage=p1g_coverage,
+    ) if smp_full_month else {
+        "status": "not_applicable",
+        "checks": [],
+        "errors": [],
+        "policy": "full_month_must_not_be_lower_than_overlapping_partial_p1",
+    }
+    if smp_plausibility.get("status") == "error":
+        smp = {
+            **smp,
+            "status": "implausible",
+            "plausibility": smp_plausibility,
+            "errors": list(smp.get("errors") or []) + list(smp_plausibility.get("errors") or []),
+        }
+        smp_full_month = False
 
     grid_import_source = "p1" if import_kwh is not None else "not_available"
     grid_export_source = "p1" if export_kwh is not None else "not_available"
@@ -7077,6 +7160,7 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
             "grid_export_source": grid_export_source,
             "gas_source": gas_source,
             "smp": smp,
+            "smp_plausibility": smp_plausibility,
             "p1_coverage": p1_coverage,
             "measurement_period": measurement_period,
             "quarter_hour": quarter_hour,
@@ -12526,8 +12610,18 @@ def report_input_readiness(
             "gas_m3": metrics.get("gas_m3"),
         }
         missing_core = sorted(name for name, value in core.items() if value is None)
+        quality = resolved.get("quality") or {}
+        measurement_period = quality.get("measurement_period") or {}
+        measurement_period_complete = bool(measurement_period.get("complete"))
+        plausibility = quality.get("smp_plausibility") or {}
+        plausibility_status = str(plausibility.get("status") or "not_available")
+        blocking_reasons: list[str] = []
+        if plausibility_status == "error":
+            blocking_reasons.extend(plausibility.get("errors") or ["SMP/P1 plausibiliteitscontrole mislukt."])
+        if not measurement_period_complete:
+            blocking_reasons.append("Geen gevalideerde volledige kalendermaand voor kernmetingen.")
         return {
-            "status": "ready" if not missing_core else "incomplete",
+            "status": "ready" if not missing_core and not blocking_reasons else "incomplete",
             "folder": str(folder),
             "historical": True,
             "expected": expected,
@@ -12535,6 +12629,11 @@ def report_input_readiness(
             "empty": sorted(empty),
             "core_metrics": core,
             "missing_core_metrics": missing_core,
+            "measurement_period_complete": measurement_period_complete,
+            "measurement_period": measurement_period,
+            "plausibility_status": plausibility_status,
+            "plausibility": plausibility,
+            "blocking_reasons": blocking_reasons,
             "energy_sources": {
                 "grid_import": (resolved.get("quality") or {}).get("grid_import_source"),
                 "grid_export": (resolved.get("quality") or {}).get("grid_export_source"),
@@ -14943,9 +15042,13 @@ def rebuild_historical_report(month_key: str) -> dict[str, Any]:
     options = Options.load()
     readiness = report_input_readiness(month_key, options, historical=True)
     if readiness.get("status") != "ready":
+        reasons = list(readiness.get("blocking_reasons") or [])
+        missing_metrics = list(readiness.get("missing_core_metrics") or [])
+        if missing_metrics:
+            reasons.append("Kernmetriek ontbreekt: " + ", ".join(missing_metrics))
         raise RuntimeError(
-            "Historische rapportherbouw geblokkeerd; kernmetriek ontbreekt: "
-            + ", ".join(readiness.get("missing_core_metrics") or [])
+            "Historische rapportherbouw geblokkeerd: "
+            + ("; ".join(reasons) if reasons else "rapportinput niet volledig gevalideerd")
         )
 
     input_folder = MONTH_INPUT_ROOT / month_key
@@ -15110,9 +15213,19 @@ def monitoring_snapshot(options: Options | None = None, *, force: bool = False, 
         else:
             add("Scheduler", "ok", "uitgeschakeld")
 
-        source_values = list((state.get("workflow_sources") or {}).values())
-        sources_ok = bool(source_values) and all(str(v).lower() in {"ready", "ok", "completed"} for v in source_values)
-        add("Bronnen", "ok" if sources_ok else "warning", ", ".join(map(str, source_values)) or "nog onbekend")
+        source_status = state.get("workflow_sources") or {}
+        source_requirements = core_source_requirements(options)
+        required_source_items = [
+            (name, source_status.get(name, "not_configured"))
+            for name, enabled in source_requirements.items()
+            if enabled
+        ]
+        sources_ok = bool(required_source_items) and all(
+            str(value).lower() in {"ready", "ok", "completed"}
+            for _name, value in required_source_items
+        )
+        source_detail = ", ".join(f"{name}={value}" for name, value in required_source_items) or "geen vereiste bronnen"
+        add("Bronnen", "ok" if sources_ok else "warning", source_detail)
 
         active = [item for item in checks if item["status"] != "ok"]
         errors = [item for item in active if item["status"] == "warning"]
@@ -15185,8 +15298,21 @@ def health_dashboard(options: Options | None = None) -> dict[str, Any]:
         last_status in {"running", "completed", "completed_warning"},
         str(last_status or "nog geen run"),
     )
-    source_values = list((state.get("workflow_sources") or {}).values())
-    add("Bronstatus", bool(source_values) and all(str(v).lower() in {"ready", "ok", "completed"} for v in source_values), ", ".join(map(str, source_values)) or "nog onbekend")
+    source_status = state.get("workflow_sources") or {}
+    source_requirements = core_source_requirements(options)
+    required_source_items = [
+        (name, source_status.get(name, "not_configured"))
+        for name, enabled in source_requirements.items()
+        if enabled
+    ]
+    required_sources_ok = bool(required_source_items) and all(
+        str(value).lower() in {"ready", "ok", "completed"}
+        for _name, value in required_source_items
+    )
+    required_source_detail = ", ".join(
+        f"{name}={value}" for name, value in required_source_items
+    ) or "geen vereiste bronnen"
+    add("Bronstatus", required_sources_ok, required_source_detail)
 
     certificate_validation = validate_production_certificate()
     certificate_current = str(certificate_validation.get("production_core_revision") or "") == PRODUCTION_CORE_REVISION
@@ -15717,6 +15843,7 @@ def operation_status(options: Options | None = None) -> dict[str, Any]:
         automatic_history_source = "legacy_workflow_results"
     return {
         "version": APP_VERSION,
+        "production_core_revision": PRODUCTION_CORE_REVISION,
         "generated_at": datetime.now(TZ).isoformat(),
         "infrastructure": infrastructure_snapshot(),
         "nas_migration": nas_migration_snapshot(),
@@ -17967,6 +18094,8 @@ async function refreshStatus(){{
     document.querySelectorAll('.workflow-action').forEach(btn=>btn.disabled=active);
 
     const auto=op.automatic_month_close||{{}};
+    const autoEnabled=document.getElementById('auto-close-enabled');
+    if(autoEnabled && document.activeElement!==autoEnabled) autoEnabled.checked=Boolean(auto.enabled);
     const topAuto=document.getElementById('auto-close-top-status');
     const topDetail=document.getElementById('auto-close-top-detail');
     if(topAuto){{
@@ -17980,13 +18109,13 @@ async function refreshStatus(){{
       const el=document.getElementById(id); if(el){{el.textContent=value||'Nog niet getest'; el.className=pillClass(value);}}
     }});
     const test=auto.test_last_result||{{}};
-    const currentTestVersion=String(test.version||'')===String(op.version||'');
+    const currentTestVersion=String(test.production_core_revision||'')===String(op.production_core_revision||'');
     const testStatus=currentTestVersion?(test.status||'Nog niet getest'):(test.status?'Opnieuw testen':'Nog niet getest');
     const testEl=document.getElementById('auto-last-test');
     if(testEl){{testEl.textContent=testStatus; testEl.className=pillClass(currentTestVersion?test.status:'stale');}}
     const testDetail=document.getElementById('auto-last-test-detail');
     if(testDetail){{
-      testDetail.textContent=currentTestVersion?(test.error||''):(test.status?`Laatste test was met versie ${{test.version||'onbekend'}}.`:'');
+      testDetail.textContent=currentTestVersion?(test.error||''):(test.status?`Laatste test hoort bij productiekern ${{test.production_core_revision||'legacy'}}; huidige kern is ${{op.production_core_revision||'onbekend'}}.`:'');
     }}
     const testOk=currentTestVersion && ['completed','completed_warning'].includes(String(test.status||'')) && test.preflight?.status==='ok' && test.finalization?.status==='ok';
     const prod=auto.production_readiness||{{}};
@@ -18003,7 +18132,7 @@ async function refreshStatus(){{
     const cert=certValidation.certificate||{{}};
     const prodCert=document.getElementById('production-certificate');
     if(prodCert){{
-      prodCert.textContent=certValidation.valid?`v${{cert.version||op.version||''}} · Afgegeven · ${{formatLocalDateTime(cert.accepted_at)}}`:(String(certValidation.version||'')!==String(op.version||'')?`Nog niet gecertificeerd — test v${{op.version||''}} vereist`:`Certificaat vereist aandacht — ${{certValidation.status||'ontbreekt'}}`);
+      prodCert.textContent=certValidation.valid?`v${{cert.version||op.version||''}} · Afgegeven · ${{formatLocalDateTime(cert.accepted_at)}}`:(String(certValidation.production_core_revision||'')!==String(op.production_core_revision||'')?`Productiekern ${{op.production_core_revision||''}} nog niet gecertificeerd`:`Certificaat vereist aandacht — ${{certValidation.status||'ontbreekt'}}`);
     }}
     const retryDebugCert=document.getElementById('retry-debug-certificate');
     if(retryDebugCert) retryDebugCert.textContent=`${{certValidation.exists?'FOUND':'NOT FOUND'}} · geldig ${{certValidation.valid?'JA':'NEE'}}`;
@@ -18022,7 +18151,7 @@ async function refreshStatus(){{
     }}
 
     const acceptance=auto.scheduler_acceptance_last_result||{{}};
-    const acceptanceCurrent=String(acceptance.version||'')===String(op.version||'');
+    const acceptanceCurrent=String(acceptance.production_core_revision||'')===String(op.production_core_revision||'');
     const acceptanceStatus=acceptanceCurrent?(acceptance.status||'Nog niet getest'):(acceptance.status?'Opnieuw testen':'Nog niet getest');
     const acceptanceEl=document.getElementById('scheduler-acceptance-status');
     if(acceptanceEl){{acceptanceEl.textContent=acceptanceStatus; acceptanceEl.className=pillClass(acceptanceCurrent?acceptance.status:'stale');}}
@@ -18038,8 +18167,9 @@ async function refreshStatus(){{
     const ready=document.getElementById('auto-readiness');
     if(ready){{
       const running=currentTestVersion && test.status==='running';
-      ready.textContent=testOk?'Klaar voor automatisch gebruik':(running?'Productietest loopt':'Productietest vereist');
-      ready.className=pillClass(testOk?'ready':(running?'running':'pending'));
+      const productionReady=Boolean(prod.ready);
+      ready.textContent=productionReady?'Klaar voor automatisch gebruik':(running?'Productietest loopt':'Productietest vereist');
+      ready.className=pillClass(productionReady?'ready':(running?'running':'pending'));
     }}
 
     document.getElementById('health-score').textContent=(op.health?.score ?? 0)+'%';

@@ -1,3 +1,11 @@
+## 32.3.26 — GUI-statusconsistentie + SMP/P1 plausibiliteitsgate
+- Live GUI-refresh synchroniseert de schakelaar voor automatische maandafsluiting voortaan met de actuele backendwaarde; een actieve scheduler kan niet meer als UIT blijven staan door verouderde DOM-status.
+- Productietest, scheduler-acceptatietest en certificaatweergave gebruiken de productiekernrevision als compatibiliteitsgrens. Een geldig certificaat van dezelfde kern blijft dus geldig over een release-update.
+- De kaart Automatische gereedheid volgt de gecertificeerde production-readiness in plaats van een releasenummervergelijking met een oudere maar compatibele productietest.
+- Monitoring en gezondheidsdashboard beoordelen uitsluitend vereiste/ingeschakelde bronnen; bewust uitgeschakelde Enphase/EPEX-bronnen met `not_configured` verlagen de gezondheid niet meer.
+- Nieuwe fail-closed SMP/P1 plausibiliteitscontrole: een als volledig gevalideerde SMP-maand mag niet lager zijn dan een overlappende P1/P1g-deelperiode van dezelfde maand (1%/0,1 absolute tolerantie). Bij een conflict wordt SMP als `implausible` gemarkeerd, blijft P1 controlebron en wordt CLOSED-maandrapportherbouw geblokkeerd zolang geen volledige betrouwbare maandbron beschikbaar is.
+- De plausibiliteitsgate corrigeert geen bronwaarden op basis van aannames; hij voorkomt dat aantoonbaar onmogelijke totalen als officiële maandcijfers worden gepubliceerd.
+
 ## 32.3.25 — Live SMP raw-interval dekking + stale coverage-hercontrole
 - Live Home Assistant-validatie toonde dat augustus-SlimmeMeterPortal raw data 96 kwartierrecords per elektriciteitsdag en 23/24/25 gasrecords per dag bevat, terwijl de oude validator alleen de dagaggregaatvorm van 1 record accepteerde.
 - De inhoudsvalidator accepteert nu beide geldige SMP-opslagvormen: 1 dagaggregaatrecord of raw kwartier-/uurintervallen.
