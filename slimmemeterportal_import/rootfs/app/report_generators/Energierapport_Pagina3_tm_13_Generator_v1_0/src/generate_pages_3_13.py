@@ -121,14 +121,55 @@ def fmt_num(value, unit='', decimals=1):
     return f'{text} {unit}'.strip()
 
 
+def page8_vertical_layout(row_count):
+    table_top = 290
+    row_h = 30
+    table_bottom = table_top - row_h * (row_count + 1)
+    conclusion_y = 24
+    conclusion_h = 70
+    return {
+        'table_top': table_top,
+        'row_h': row_h,
+        'table_bottom': table_bottom,
+        'conclusion_y': conclusion_y,
+        'conclusion_h': conclusion_h,
+        'conclusion_top': conclusion_y + conclusion_h,
+    }
+
+
+def page13_vertical_layout(source_count, check_count):
+    source_table_top = H - 140
+    source_row_h = 31
+    source_table_bottom = source_table_top - source_row_h * (source_count + 1)
+    checks_heading_y = source_table_bottom - 18
+    first_check_y = checks_heading_y - 31
+    check_spacing = 33
+    last_check_y = first_check_y - max(0, check_count - 1) * check_spacing
+    status_y = 45
+    status_h = 85
+    return {
+        'source_table_top': source_table_top,
+        'source_row_h': source_row_h,
+        'source_table_bottom': source_table_bottom,
+        'checks_heading_y': checks_heading_y,
+        'first_check_y': first_check_y,
+        'check_spacing': check_spacing,
+        'last_check_y': last_check_y,
+        'status_y': status_y,
+        'status_h': status_h,
+        'status_top': status_y + status_h,
+    }
+
+
 def page3(c, d):
     header(c, 3, f"2. Dashboard - {d['meta']['month']}", d['meta']['status'])
     dash = d['dashboard']
+    modelled = bool(d['solar'].get('modelled'))
     vals = [
-        (fmt_num(dash.get('house'), 'kWh'), 'Totaal huisverbruik', 'alleen bij complete PV-balans'),
-        (fmt_num(dash.get('solar'), 'kWh'), 'Gemeten Enphase-productie', 'gemeten PV-bron'),
-        (fmt_num(dash.get('self'), '%'), 'Zelfconsumptie', 'niet schatten bij bronverschil'),
-        (fmt_num(dash.get('export'), 'kWh'), 'Netto teruglevering', 'P1 gemeten'),
+        (fmt_num(dash.get('house'), 'kWh'), 'Geschat totaal huisverbruik' if modelled else 'Totaal huisverbruik', 'historische PV-modelwaarde' if modelled else 'complete PV-balans'),
+        (fmt_num(dash.get('solar'), 'kWh'), 'Geschatte totale PV-productie' if modelled else 'Gemeten Enphase-productie', 'tijdgecorrigeerd PV-model' if modelled else 'gemeten PV-bron'),
+        (fmt_num(dash.get('self'), '%'), 'Zelfconsumptie', 'historische PV-modelwaarde' if modelled else 'gemeten/afgeleid'),
+        (fmt_num(dash.get('export'), 'kWh'), 'P1-teruglevering', 'P1 gemeten'),
     ]
     gap = 12
     cw = (W - 2 * M - 3 * gap) / 4
@@ -184,7 +225,7 @@ def page5(c, d):
         ['Netto netpositie', fmt_num(e.get('net'), 'kWh'), direction],
         ['Gemiddelde netafname per kalenderdag', fmt_num(e.get('grid_day'), 'kWh'), 'Rekenkundig uit maandtotaal'],
         ['Gemiddelde teruglevering per kalenderdag', fmt_num(e.get('feedin_day'), 'kWh'), 'Rekenkundig uit maandtotaal'],
-        ['Totaal huisverbruik', fmt_num(e.get('house'), 'kWh'), 'Alleen bij betrouwbare PV-balans'],
+        ['Geschat totaal huisverbruik' if d['solar'].get('modelled') else 'Totaal huisverbruik', fmt_num(e.get('house'), 'kWh'), 'Historische modelwaarde' if d['solar'].get('modelled') else 'Alleen bij betrouwbare PV-balans'],
     ]
     table(c, M, H - 150, W - 2 * M, ['KPI', 'Waarde', 'Beoordeling'], rows, [.42, .22, .36], 45, 8)
     callout(c, M, 70, W - 2 * M, 105, 'Dagprofiel', 'Er wordt geen verzonnen dagcurve getoond. Een daggrafiek verschijnt pas wanneer de rapportadapter een echte, gevalideerde dag- of kwartierreeks aanlevert.')
@@ -225,7 +266,7 @@ def page8(c, d):
     g = d['gas']
     vals = [
         (fmt_num(g.get('month'), 'm³'), 'Gas rapportmaand', 'gemeten maandtotaal'),
-        (fmt_num(g.get('per_day'), 'm³'), 'Per dag', 'alleen bij gevalideerde dagdekking'),
+        (fmt_num(g.get('per_day'), 'm³', 2), 'Per dag', 'rekenkundig uit volledig maandtotaal'),
         (fmt_num(g.get('reference'), 'm³', 0), 'Jaarreferentie', 'officiële eindafrekening 2025-2026'),
     ]
     cw = (W - 2 * M - 20) / 3
@@ -234,11 +275,14 @@ def page8(c, d):
     callout(c, M, 330, W - 2 * M, 115, 'Dekking', g.get('coverage_note', 'Daggemiddelde niet gebruikt zonder afzonderlijk gevalideerde dekking.'), 'warn')
     rows = [
         ['Rapportmaand', fmt_num(g.get('month'), 'm³'), 'Gemeten'],
+        ['Per kalenderdag', fmt_num(g.get('per_day'), 'm³', 2), 'Rekenkundig uit volledig maandtotaal'],
+        ['Graaddagen', fmt_num(g.get('degree_days'), 'GD', 1), 'Eindhoven Airport, basis 18 C'],
+        ['Gas per graaddag', fmt_num(g.get('per_degree_day'), 'm³/GD', 2), 'Modelmatige weersnormalisatie'],
         ['Jaarreferentie', fmt_num(g.get('reference'), 'm³', 0), 'Officieel 2025-2026'],
-        ['Weerscorrectie', 'niet toegepast', 'Geen gevalideerde graaddagenbron'],
     ]
-    table(c, M, 290, W - 2 * M, ['Vergelijking', 'Waarde', 'Status'], rows, [.34, .24, .42], 46, 8)
-    callout(c, M, 65, W - 2 * M, 90, 'Conclusie', 'Het maandtotaal wordt gerapporteerd. Het rapport trekt geen weersconclusie en berekent geen daggemiddelde zolang de daarvoor benodigde brondekking niet afzonderlijk is gevalideerd.')
+    layout = page8_vertical_layout(len(rows))
+    table(c, M, layout['table_top'], W - 2 * M, ['Vergelijking', 'Waarde', 'Status'], rows, [.34, .24, .42], layout['row_h'], 7.2)
+    callout(c, M, layout['conclusion_y'], W - 2 * M, layout['conclusion_h'], 'Conclusie', 'Het maandtotaal is gemeten. Het daggemiddelde is rekenkundig uit 31 kalenderdagen; graaddagen en gas per graaddag zijn expliciete modelwaarden voor weersvergelijking.')
     footer(c)
 
 
@@ -277,7 +321,7 @@ def page10(c, d):
 def page11(c, d):
     header(c, 11, '10. Thuisbatterij - één modelbasis', d['meta']['status'])
     b = d['battery']
-    wrap(c, 'Alle batterijvermeldingen in dit rapport gebruiken dezelfde modelbasis. De bedragen zijn indicatieve modelwaarden en geen gemeten besparing.', M, H - 90, W - 2 * M, 8.3, 11, True)
+    wrap(c, 'Alle batterijvermeldingen gebruiken dezelfde historische juli-2026 modelbasis. De bedragen zijn indicatieve modelwaarden en geen gemeten besparing.', M, H - 90, W - 2 * M, 8.3, 11, True)
     table(c, M, H - 140, W - 2 * M, ['Scenario', 'Configuratie', 'Verschuifbaar', 'Jaarwaarde', 'Oordeel'], b['rows'], [.16, .28, .16, .20, .20], 50, 7)
     rows = [
         ['Kandidaat', b['candidate']],
@@ -309,12 +353,13 @@ def page12(c, d):
 def page13(c, d):
     header(c, 13, '12. Datakwaliteit en broncontrole', d['meta']['status'])
     wrap(c, 'Bronstatus en controles op deze pagina komen uit de rapportadapter. Er worden geen hardcoded groene vinkjes gebruikt.', M, H - 90, W - 2 * M, 8.3, 11, True)
-    table(c, M, H - 140, W - 2 * M, ['Bron', 'Status', 'Gebruik / beperking'], d['quality']['sources'], [.28, .24, .48], 39, 7.2)
-    txt(c, M, H - 425, 'Controlepunten', 10, True)
     checks = d['quality']['checks']
+    layout = page13_vertical_layout(len(d['quality']['sources']), len(checks))
+    table(c, M, layout['source_table_top'], W - 2 * M, ['Bron', 'Status', 'Gebruik / beperking'], d['quality']['sources'], [.28, .24, .48], layout['source_row_h'], 6.8)
+    txt(c, M, layout['checks_heading_y'], 'Controlepunten', 10, True)
     for i, check in enumerate(checks):
         label, status, detail = check
-        yy = H - 458 - i * 38
+        yy = layout['first_check_y'] - i * layout['check_spacing']
         color = GREEN if status == 'ok' else ORANGE if status in ('aandacht', 'niet gebruikt') else RED
         c.setFillColor(color)
         c.circle(M + 8, yy + 2, 7, fill=1, stroke=0)
@@ -322,7 +367,7 @@ def page13(c, d):
         txt(c, M + 24, yy + 3, label, 7.5, True)
         txt(c, M + 190, yy + 3, status, 7, True, color)
         wrap(c, detail, M + 265, yy + 3, W - M - (M + 265), 6.6, 8, False, GRAY, 2)
-    callout(c, M, 45, W - 2 * M, 85, 'Status', d['quality']['status'], 'warn' if any(row[1] != 'ok' for row in checks) else 'info')
+    callout(c, M, layout['status_y'], W - 2 * M, layout['status_h'], 'Status', d['quality']['status'], 'warn' if any(row[1] != 'ok' for row in checks) else 'info')
     footer(c)
 
 

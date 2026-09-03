@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.31"
+APP_VERSION = "32.3.32"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1869,6 +1869,35 @@ def _csv_month_coverage(rows: list[dict[str, str]], month_key: str) -> dict[str,
     }
 
 
+def _csv_month_time_coverage_fraction(rows: list[dict[str, str]], month_key: str) -> float | None:
+    """Fraction of the calendar month spanned by the first/last timestamp.
+
+    This is used only to normalize a cumulative Enphase delta that starts late
+    in a month. It is a model input, never a claim of measured full-month PV.
+    """
+    coverage = _csv_month_coverage(rows, month_key)
+    first_raw = coverage.get("first_timestamp")
+    last_raw = coverage.get("last_timestamp")
+    if not first_raw or not last_raw:
+        return None
+    try:
+        first = datetime.fromisoformat(str(first_raw))
+        last = datetime.fromisoformat(str(last_raw))
+    except ValueError:
+        return None
+    year, month = parse_month_key(month_key)
+    start = datetime(year, month, 1, tzinfo=TZ)
+    if month == 12:
+        end = datetime(year + 1, 1, 1, tzinfo=TZ)
+    else:
+        end = datetime(year, month + 1, 1, tzinfo=TZ)
+    total_seconds = (end - start).total_seconds()
+    observed_seconds = max(0.0, (last - first).total_seconds())
+    if total_seconds <= 0 or observed_seconds <= 0:
+        return None
+    return max(0.0, min(1.0, observed_seconds / total_seconds))
+
+
 def load_generator_example(role: str) -> dict[str, Any]:
     folder = BUNDLED_REPORT_GENERATORS / GENERATOR_BUNDLE_FOLDERS[role]
     if role == "page_1":
@@ -1974,6 +2003,7 @@ def report_solar_model_metrics(
     solar_balance_reliable: bool,
     measured_self_use_pct: float | None = None,
     measured_self_supply_pct: float | None = None,
+    enphase_coverage_fraction: float | None = 1.0,
 ) -> dict[str, Any]:
     """Return numeric solar report KPIs while preserving measured/model provenance.
 
@@ -2009,8 +2039,23 @@ def report_solar_model_metrics(
             "model_basis": model_basis,
         }
 
-    estimated_total = float(enphase_production_kwh) * float(model_basis["factor"])
-    # Fysische ondergrens: totale productie kan niet lager zijn dan gemeten export.
+    coverage_fraction = float(enphase_coverage_fraction) if isinstance(enphase_coverage_fraction, (int, float)) else 1.0
+    if not (0.0 < coverage_fraction <= 1.0) or coverage_fraction < 0.5:
+        return {
+            "modelled": False,
+            "total_production_kwh": None,
+            "direct_solar_use_kwh": None,
+            "house_use_kwh": None,
+            "self_use_pct": None,
+            "self_supply_pct": None,
+            "label": "PV-model niet beschikbaar: Enphase-dekking te klein voor maandnormalisatie",
+            "model_basis": {**model_basis, "coverage_fraction": round(coverage_fraction, 6)},
+        }
+
+    observed_enphase = float(enphase_production_kwh)
+    full_month_enphase = observed_enphase / coverage_fraction
+    estimated_total = full_month_enphase * float(model_basis["factor"])
+    # Fysische ondergrens blijft een veiligheidsnet, niet de modeluitkomst.
     estimated_total = max(estimated_total, float(grid_export_kwh))
     direct_use = max(0.0, estimated_total - float(grid_export_kwh))
     house_use = max(0.001, float(grid_import_kwh) + direct_use)
@@ -2018,13 +2063,20 @@ def report_solar_model_metrics(
     self_supply = direct_use / house_use * 100.0
     return {
         "modelled": True,
+        "enphase_observed_kwh": round(observed_enphase, 3),
+        "enphase_coverage_fraction": round(coverage_fraction, 6),
+        "enphase_full_month_estimate_kwh": round(full_month_enphase, 3),
         "total_production_kwh": round(estimated_total, 3),
         "direct_solar_use_kwh": round(direct_use, 3),
         "house_use_kwh": round(house_use, 3),
         "self_use_pct": round(self_use, 1),
         "self_supply_pct": round(self_supply, 1),
-        "label": "modelwaarde uit Enphase + bronvaste historische PV-setverhouding",
-        "model_basis": model_basis,
+        "label": "tijdgecorrigeerde Enphase-modelwaarde + bronvaste historische PV-setverhouding",
+        "model_basis": {
+            **model_basis,
+            "coverage_fraction": round(coverage_fraction, 6),
+            "normalization": "observed_cumulative_delta_divided_by_calendar_time_coverage",
+        },
     }
 
 
@@ -2219,6 +2271,25 @@ def _report_period_from_resolved_quality(month_key: str, quality: dict[str, Any]
     }
 
 
+def _report_smp_detail_coverage(input_folder: Path) -> dict[str, Any]:
+    path = input_folder / "HomeAssistant" / "SlimmeMeterPortal" / "content_coverage_report.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    except (OSError, json.JSONDecodeError):
+        payload = {}
+    expected = payload.get("days_expected")
+    measured = payload.get("days_with_measurements")
+    empty_days = payload.get("empty_days") or []
+    return {
+        "available": isinstance(expected, int) and isinstance(measured, int),
+        "days_expected": expected,
+        "days_with_measurements": measured,
+        "empty_days": len(empty_days) if isinstance(empty_days, list) else None,
+        "available_through": payload.get("available_through"),
+        "status": payload.get("status") or "not_available",
+    }
+
+
 def build_report_adapter_data(
     options: Options,
     handoff: dict[str, Any],
@@ -2271,6 +2342,7 @@ def build_report_adapter_data(
     self_use_pct = float(self_use_raw) if isinstance(self_use_raw, (int, float)) else None
     self_supply_pct = float(self_supply_raw) if isinstance(self_supply_raw, (int, float)) else None
     solar_metrics_reliable = resolved_quality.get("solar_balance_status") == "ok"
+    enphase_coverage_fraction = _csv_month_time_coverage_fraction(enphase_rows, month_key) if enphase_rows else 1.0
     solar_report = report_solar_model_metrics(
         grid_import_kwh=import_kwh,
         grid_export_kwh=export_kwh,
@@ -2278,6 +2350,7 @@ def build_report_adapter_data(
         solar_balance_reliable=solar_metrics_reliable,
         measured_self_use_pct=self_use_pct,
         measured_self_supply_pct=self_supply_pct,
+        enphase_coverage_fraction=enphase_coverage_fraction,
     )
     if not solar_metrics_reliable:
         production_kwh = solar_report.get("total_production_kwh")
@@ -2384,7 +2457,7 @@ def build_report_adapter_data(
         ["Verbruik", round(max(0.0, min(100.0, 100.0 - max(consumption_delta or 0.0, 0.0) * 2.0)))],
         ["Teruglevering", round(max(0.0, min(100.0, 100.0 + min(export_delta or 0.0, 0.0) * 1.5)))],
         ["Efficiëntie", round(max(0.0, min(100.0, ((self_use_pct or 0.0) + (self_supply_pct or 0.0)))))],
-        ["Kosten", 90],
+        ["Kosten", round(max(0.0, min(100.0, offer_finance["expected_annual_payments_eur"] / offer_finance["offer_annual_projection_eur"] * 100.0)))],
         ["Gas", round(max(0.0, min(100.0, 100.0 - max(gas_delta or 0.0, 0.0) * 2.0)))],
     ]
     score_total = round(sum(float(v) for _, v in score_parts) / len(score_parts))
@@ -2535,6 +2608,7 @@ def build_report_adapter_data(
             "net_import": int(offer_net),
             "self_use_pct": round(self_use_pct, 1) if isinstance(self_use_pct, (int, float)) else None,
             "estimated_shift": None,
+            "source_label": "NextEnergy-offerteprofiel",
         },
         "scenarios": [
             ["Geen batterij", "-", "€ 0", "Referentie"],
@@ -2614,14 +2688,18 @@ def build_report_adapter_data(
         "model_basis": solar_report.get("model_basis"),
         "source": (solar_report.get("label") if solar_report.get("modelled") else (resolved_quality.get("production_source") or "not_available")),
         "limitation": (
-            "PV-productie, direct eigen gebruik en zelfconsumptie zijn historische modelwaarden uit Enphase plus de in historical_energy_seed vastgelegde opbrengstverhouding tussen de oude en extra PV-set; geen gemeten totale PV-balans."
+            "PV-productie, direct eigen gebruik en zelfconsumptie zijn historische modelwaarden: de partiële Enphase-cumulatieve productie is eerst tijdgecorrigeerd naar de volledige kalendermaand en daarna gecombineerd met de in historical_energy_seed vastgelegde opbrengstverhouding tussen de oude en extra PV-set; geen gemeten totale PV-balans."
             if solar_report.get("modelled")
             else (None if solar_metrics_reliable else "Enphase-productie en P1-teruglevering representeren niet dezelfde totale PV-dekking; zelfconsumptie wordt daarom niet berekend.")
         ),
     }
     pages["gas"] = {
         "month": round(gas_m3, 1),
-        "per_day": None,
+        "per_day": gas_weather.get("per_day"),
+        "per_day_vs_ly": gas_weather.get("per_day_vs_ly"),
+        "degree_days": gas_weather.get("degree_days"),
+        "degree_days_vs_ly": gas_weather.get("degree_days_vs_ly"),
+        "per_degree_day": gas_weather.get("per_degree_day"),
         "reference": reference_gas,
         "history": [],
         "coverage_note": page2["gas"]["coverage_note"],
@@ -2640,12 +2718,21 @@ def build_report_adapter_data(
         if not rows:
             continue
         value = cumulative_delta(rows, ("total_power_import_kwh", "total_energy_kwh", "energy_kwh", "import_kwh", "value_kwh", "value"))
-        appliance_rows.append([label, f"{value:.1f}".replace(".", ","), "Gemeten", file_name])
+        coverage = _csv_month_coverage(rows, month_key)
+        if coverage.get("complete"):
+            measurement_status = "Gemeten volledige maand"
+        elif coverage.get("first_date") and coverage.get("last_date"):
+            first_day = int(str(coverage["first_date"])[8:10])
+            last_day = int(str(coverage["last_date"])[8:10])
+            measurement_status = f"Deelperiode {first_day}-{last_day} aug" if month == 8 else f"Gemeten deelperiode {first_day}-{last_day}"
+        else:
+            measurement_status = "Gemeten deelperiode"
+        appliance_rows.append([label, f"{value:.1f}".replace(".", ","), measurement_status, file_name])
     if not appliance_rows:
         appliance_rows = [["Geen bruikbare socketexport", "—", "Niet beschikbaar", "Geen waarde gesimuleerd"]]
     pages["appliances"] = {
         "rows": appliance_rows,
-        "note": "Alleen aanwezige HomeWizard-socketexports worden getoond; ontbrekende apparaten en restposten worden niet geschat.",
+        "note": "Alleen aanwezige HomeWizard-socketexports worden getoond. De status vermeldt expliciet of de export de volledige maand of slechts een deelperiode dekt; ontbrekende apparaten en restposten worden niet geschat.",
     }
     pages["finance"] = {
         "rows": [
@@ -2685,19 +2772,43 @@ def build_report_adapter_data(
         "payback": battery_summary["payback"],
         "advice": battery_summary["advice"],
         "score": battery_summary["score"],
+        "basis": "historische juli-2026 referentie; herijking nodig",
     }
+    smp_detail = _report_smp_detail_coverage(input_folder)
+    smp_detail_status = (
+        f"{smp_detail['days_with_measurements']}/{smp_detail['days_expected']} meetdagen"
+        if smp_detail.get("available") else "detaildekking onbekend"
+    )
+    smp_detail_note = (
+        f"{smp_detail.get('empty_days', 0)} lege aansluitingsdagen; maandtotalen compleet via {resolved_quality.get('grid_import_source') or 'gereconcilieerde metergrens'}"
+        if smp_detail.get("available") else "Geen detaildekkingsrapport beschikbaar"
+    )
+    enphase_fraction = solar_report.get("enphase_coverage_fraction")
+    enphase_observed = solar_report.get("enphase_observed_kwh")
+    if isinstance(enphase_fraction, (int, float)):
+        enphase_status = f"partieel {enphase_fraction * 100.0:.1f}% tijddekking".replace(".", ",")
+        enphase_note = (
+            f"{float(enphase_observed):.1f} kWh gemeten in deelperiode; volledige maand-PV is expliciete modelwaarde".replace(".", ",")
+            if isinstance(enphase_observed, (int, float))
+            else "Partiële Enphase-dekking; volledige maand-PV is expliciete modelwaarde"
+        )
+    else:
+        enphase_status = resolved_quality.get("production_source") or "niet beschikbaar"
+        enphase_note = "PV-bron; afgeleide KPI alleen bij consistente dekking"
     source_rows = [
         ["P1 stroom", resolved_quality.get("grid_import_source") or "niet beschikbaar", "Kernmeting"],
         ["P1 gas", resolved_quality.get("gas_source") or "niet beschikbaar", "Kernmeting"],
-        ["Enphase", resolved_quality.get("production_source") or "niet beschikbaar", "PV-bron; afgeleide KPI alleen bij consistente dekking"],
+        ["Enphase", enphase_status, enphase_note],
         ["HomeWizard sockets", "beschikbaar" if appliance_rows and appliance_rows[0][0] != "Geen bruikbare socketexport" else "niet beschikbaar", "Alleen gemeten exports"],
         ["SlimmeMeterPortal", "controlebron", "Dagaggregaten; centrale dekkingsvalidatie"],
+        ["SMP-detaildekking", smp_detail_status, smp_detail_note],
         ["NextEnergy", "offerte bevestigd", "€150 termijn / €153 prognose per maand"],
     ]
     quality_checks = [
         ["Kernmetriek stroom", "ok", f"{import_kwh:.1f} kWh afname / {export_kwh:.1f} kWh teruglevering"],
         ["Kernmetriek gas", "ok", f"{gas_m3:.1f} m³"],
-        ["PV-balans", "ok" if solar_metrics_reliable else "aandacht", "consistent" if solar_metrics_reliable else ("historische modelwaarde, geen totale meting" if solar_report.get("modelled") else "zelfconsumptie niet berekend")],
+        ["PV-balans", "ok" if solar_metrics_reliable else "aandacht", "consistent" if solar_metrics_reliable else ("tijdgecorrigeerde historische modelwaarde, geen totale meting" if solar_report.get("modelled") else "zelfconsumptie niet berekend")],
+        ["SMP-detaildekking", "aandacht" if smp_detail.get("available") and (smp_detail.get("empty_days") or 0) > 0 else "ok", smp_detail_note],
         ["Financiële offertebasis", "ok", "NextEnergy €153/mnd / €1.836/jaar"],
         ["Werkelijke augustus all-in", "aandacht", "nog niet factuurgevalideerd"],
         ["EPEX", "niet gebruikt", "niet geconfigureerd / geen leveranciers-all-in bron"],
@@ -2717,7 +2828,7 @@ def build_report_adapter_data(
         "priorities": [
             "Rapportinhoud groen valideren",
             "Workflowstatus groen valideren",
-            "Controleren dat geen Data/01_Input/02_Output terugkomt",
+            "Recovery_Update: geen Data/01_Input of Data/02_Output",
             "Daarna complete Crash Recovery maken",
         ],
     }
@@ -2747,6 +2858,9 @@ def build_report_adapter_data(
             "self_use_pct": round(self_use_pct, 3) if isinstance(self_use_pct, (int, float)) else None,
             "self_supply_pct": round(self_supply_pct, 3) if isinstance(self_supply_pct, (int, float)) else None,
             "solar_metrics_reliable": solar_metrics_reliable,
+            "enphase_coverage_fraction": solar_report.get("enphase_coverage_fraction"),
+            "enphase_observed_kwh": solar_report.get("enphase_observed_kwh"),
+            "enphase_full_month_estimate_kwh": solar_report.get("enphase_full_month_estimate_kwh"),
         },
         "files": [str(path) for path in outputs.values()],
         "coverage": report_coverage,

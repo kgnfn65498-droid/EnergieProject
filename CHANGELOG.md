@@ -1,3 +1,11 @@
+## 32.3.32 — rapportwaarheid augustus: PV-tijddekking, gas en bronkwaliteit
+- De partiële Enphase-cumulatieve augustusmeting wordt eerst genormaliseerd op de werkelijk waargenomen tijddekking van de kalendermaand en pas daarna gecombineerd met de bronvaste historische verhouding van beide PV-sets. Voor augustus resulteert dit model in circa 590,3 kWh totale PV-productie, 82,8 kWh direct eigen gebruik, 276,6 kWh totaal huisverbruik, 14,0% zelfconsumptie en 29,9% directe zonnedekking; alle waarden blijven expliciet modelwaarden.
+- Pagina 1 en pagina's 3–6 gebruiken dezelfde PV-modeluitkomst en dezelfde provenance; dashboardlabels noemen geschatte totale PV-productie/huishoudelijk gebruik en P1-teruglevering niet langer gemeten Enphase-totalen of netto-teruglevering. De kostencomponent van de voorlopige energiescore volgt nu de 98% financiële dekking in plaats van een vaste 90/100.
+- Pagina 8 gebruikt dezelfde numerieke gas-KPI's als pagina 2: 0,29 m³/dag, 14,7 graaddagen en 0,62 m³/GD. De oude `n.b.`/"geen graaddagenbron"-tekst is verwijderd en de layout voorkomt overlap met de conclusie.
+- Pagina 13 toont de echte SMP-detaildekking (10/62 aansluitingsdagen met meetrecords, 52 lege dagen) en vermeldt dat de volledige maandtotalen via de gevalideerde `smp_start_p1_end_boundary`-metergrens komen. Enphase toont bovendien de partiële tijddekking en gemeten deelperiodeproductie.
+- Pagina 7 markeert HomeWizard-socketwaarden als deelperiode wanneer de CSV niet de volledige kalendermaand dekt. Pagina 2 onderscheidt offerteprofielwaarden van het augustus-PV-model; pagina 11 noemt expliciet de historische juli-2026 batterijbasis en pagina 12 benoemt de Recovery_Update-scope ondubbelzinnig.
+- Nieuwe v32.3.32-regressies dekken PV-tijdnormalisatie, afgeleide KPI's/score, pagina-2-bronlabels, socketdekking, gaspagina, SMP-detailkwaliteit en niet-overlappende pagina-8/13-layout.
+
 ## 32.3.31 — historische rapportherbouw fail-closed en diagnosewaarheid
 - Pagina-1-validatie accepteert expliciete PV-modelprovenance (`modelled`/`model_label`) zonder deze metadata als numerieke KPI te behandelen; een augustusachtige adapterpayload wordt end-to-end door validator en PDF-generator getest.
 - De energiescore is op pagina 1 én pagina's 3–13 numeriek en onderling consistent; modelstatus blijft zichtbaar in plaats van een hardcoded `n.b.`.

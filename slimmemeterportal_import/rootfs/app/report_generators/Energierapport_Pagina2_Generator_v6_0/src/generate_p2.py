@@ -315,11 +315,11 @@ def build(data, out):
     xA=margin+14; wA=176
     xB=xA+wA+17; wB=214
     xC=xB+wB+17; wC=W-margin-12-xC
-    txt(c,xA,y6+bh-18,'Woningprofiel',6.2,TEXT,'Helvetica-Bold')
+    txt(c,xA,y6+bh-18,'Woningprofiel (NextEnergy-offerteprofiel)',4.7,TEXT,'Helvetica-Bold')
     prof=batt['profile']
     self_text=f"{prof['self_use_pct']}%" if isinstance(prof.get('self_use_pct'),(int,float)) else 'n.b. - PV bronbeperkt'
     shift_text=f"{prof['estimated_shift']} kWh/mnd" if isinstance(prof.get('estimated_shift'),(int,float)) else 'nog niet berekend'
-    profile=[('Teruglevering per jaar',f"{prof['annual_feed_in']:,} kWh".replace(',','.')),('Netto levering',f"{prof['net_import']} kWh"),('Eigen verbruik opwek',self_text),('Geschat verschuifbaar',shift_text)]
+    profile=[('Teruglevering per jaar (offerte)',f"{prof['annual_feed_in']:,} kWh".replace(',','.')),('Netto levering (offerte)',f"{prof['net_import']} kWh"),('Eigen verbruik opwek (aug-model)',self_text),('Geschat verschuifbaar',shift_text)]
     for i,(lab,val) in enumerate(profile):
         yy=y6+bh-34-i*13; txt(c,xA,yy,lab,4.35); txt(c,xA+wA-4,yy,val,4.15,TEXT,'Helvetica-Bold','right')
     c.setStrokeColor(BLUE); c.setFillColor(HexColor('#EDF6FD')); c.roundRect(xA,y6+14,wA-4,38,4,fill=1,stroke=1)
@@ -341,7 +341,7 @@ def build(data, out):
     section(c,margin,H-699,W-2*margin,'6. Maandtermijn - financieel advies')
     y7=H-795; fh=81; panel(c,margin,y7,W-2*margin,fh)
     term=data['term']; cardgap=6; cardw=(W-2*margin-3*cardgap-10)/4
-    vals=[('Huidige maandtermijn',euro(term['current']),'per maand',GREEN),('Advies maandtermijn',euro(term['advice']),'incl. buffer',ORANGE),('Verwachte jaarkosten',euro(term['annual_cost']),'huidige prognose',GREEN),('Verwacht saldo',euro(term['balance']),'nabetaling voorkomen',ORANGE)]
+    vals=[('Huidige maandtermijn',euro(term['current']),'per maand',GREEN),('Benodigde termijn',euro(term['advice']),'volgens offerte',ORANGE),('Verwachte jaarkosten',euro(term['annual_cost']),'offerteprognose',GREEN),('Verwacht saldo',euro(term['balance']),'nabetaling voorkomen',ORANGE)]
     for i,(lab,val,sub,col) in enumerate(vals):
         xx=margin+5+i*(cardw+cardgap); c.setStrokeColor(GRID); c.setFillColor(white); c.roundRect(xx,y7+35,cardw,39,5,fill=1,stroke=1)
         txt(c,xx+cardw/2,y7+63,lab,4.6,TEXT,'Helvetica-Bold','center'); txt(c,xx+cardw/2,y7+49,val,8.5,col,'Helvetica-Bold','center'); txt(c,xx+cardw/2,y7+40,sub,3.9,MUTED,align='center')
