@@ -19,9 +19,9 @@ def load_main(name='v32322_main'):
 
 
 def test_release_identity_32322():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.3.29'
-    assert 'APP_VERSION = "32.3.29"' in MAIN.read_text(encoding='utf-8')
-    assert 'version: "32.3.29"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.3.30'
+    assert 'APP_VERSION = "32.3.30"' in MAIN.read_text(encoding='utf-8')
+    assert 'version: "32.3.30"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
 
 
 def test_offer_summary_carries_report_profile_and_contract_period_context():
@@ -137,8 +137,8 @@ def test_report_month_labels_are_dutch_and_page2_unavailable_gas_kpis_are_compac
     assert m._dutch_month_name(8) == 'augustus'
     assert m._dutch_month_label(2026, 8) == 'augustus 2026'
     s = P2.read_text(encoding='utf-8')
-    assert "('Graaddagen'," in s and "else 'n.b.','' if degree_days_available else 'niet gekoppeld'" in s
-    assert "('Weerscorrectie'," in s and "else 'n.b.','' if degree_days_available else 'niet toegepast'" in s
+    assert "('Graaddagen'," in s and "'GD' if degree_days_available else 'niet gekoppeld'" in s
+    assert "('Weerscorrectie'," in s and "'m³/GD' if degree_days_available else 'niet toegepast'" in s
     assert "'nog niet gevalideerd'" in s
 
 

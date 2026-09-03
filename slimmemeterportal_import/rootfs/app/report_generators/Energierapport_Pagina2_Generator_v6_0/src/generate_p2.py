@@ -139,6 +139,26 @@ def bars(c, x, y, w, h, a, b, labels=None):
         if labels: txt(c,x+i*group+group/2,y-8,labels[i],3.5,MUTED,align='center')
 
 
+def nice_axis_step(max_value):
+    """Return a readable y-axis step with about 4-7 labels."""
+    if max_value <= 0:
+        return 10
+    raw=max_value/5.0
+    magnitude=10 ** math.floor(math.log10(raw))
+    normalized=raw/magnitude
+    if normalized <= 1:
+        nice=1
+    elif normalized <= 2:
+        nice=2
+    elif normalized <= 2.5:
+        nice=2.5
+    elif normalized <= 5:
+        nice=5
+    else:
+        nice=10
+    return max(1, int(nice*magnitude) if float(nice*magnitude).is_integer() else nice*magnitude)
+
+
 def small_table(c, x, y, widths, rows, row_h=17, header=True, font_size=5.5):
     total=sum(widths)
     for r,row in enumerate(rows):
@@ -173,8 +193,8 @@ def build(data, out):
     gas_kpis=[
         ('Gasverbruik',f"{g['month']}",'m³',f"{g['month_vs_ly']:+.0f}%",'flame',GREEN),
         ('Gemiddeld per dag',f"{g['per_day']:.2f}" if isinstance(g.get('per_day'),(int,float)) else 'n.b.','m³','-' if not isinstance(g.get('per_day_vs_ly'),(int,float)) else f"{g['per_day_vs_ly']:+.1f}%",'clock',GREEN),
-        ('Graaddagen',f"{g['degree_days']:,}".replace(',','.') if degree_days_available and isinstance(g.get('degree_days'),(int,float)) else 'n.b.','' if degree_days_available else 'niet gekoppeld','-','thermo',ORANGE),
-        ('Weerscorrectie',f"{g['per_degree_day']}" if degree_days_available and isinstance(g.get('per_degree_day'),(int,float)) else 'n.b.','' if degree_days_available else 'niet toegepast','-','bars',ORANGE),
+        ('Graaddagen',f"{g['degree_days']:.1f}" if degree_days_available and isinstance(g.get('degree_days'),(int,float)) else 'n.b.','GD' if degree_days_available else 'niet gekoppeld','-' if not isinstance(g.get('degree_days_vs_ly'),(int,float)) else f"{g['degree_days_vs_ly']:+.1f}%",'thermo',ORANGE),
+        ('Weerscorrectie',f"{g['per_degree_day']:.2f}" if degree_days_available and isinstance(g.get('per_degree_day'),(int,float)) else 'n.b.','m³/GD' if degree_days_available else 'niet toegepast','model' if degree_days_available else '-','bars',ORANGE),
     ]
     for i,(t,v,u,d,gl,col) in enumerate(gas_kpis):
         kpi(c,margin+colw+gap+i*gw,y,gw,ph,t,str(v).replace('.',','),u,d,gl,col,i>0,gas=True)
@@ -201,15 +221,19 @@ def build(data, out):
     plot_x, plot_y, plot_w, plot_h = gx+24, y2+20, chartw-36, h2-55
     gas_numeric=[float(v) for vals in g['series'].values() for v in vals if isinstance(v,(int,float))]
     maxv=max(gas_numeric) if gas_numeric else 1
-    axis_max=max(10,math.ceil(maxv/10)*10)
-    for tick in range(0, axis_max+1, 10):
+    axis_step=nice_axis_step(maxv)
+    axis_max=max(axis_step, math.ceil(maxv/axis_step)*axis_step)
+    tick=0
+    while tick <= axis_max + 1e-9:
         yy=plot_y+(tick/axis_max)*plot_h
-        txt(c,plot_x-6,yy-1,str(tick),3.7,MUTED,align='right')
+        label=str(int(tick)) if float(tick).is_integer() else str(tick).replace('.',',')
+        txt(c,plot_x-6,yy-1,label,3.7,MUTED,align='right')
+        tick += axis_step
     txt(c,gx+7,plot_y+plot_h/2,'m³',3.8,MUTED,'Helvetica-Bold',align='center')
     line_chart(c,plot_x,plot_y,plot_w,plot_h,g['series'],gas_colors,['jul','aug','sep','okt','nov','dec','jan','feb','mrt','apr','mei','jun'])
     ix=gx+chartw+gap
     txt(c,ix+10,y2+h2-14,'Inzichten',5.8,TEXT,'Helvetica-Bold')
-    insights=[('Gasvergelijking gebruikt dezelfde','kalendermaand vorig jaar.'),('Lopend contractjaar toont alleen','werkelijk beschikbare maanden.'),('Geen weersverklaring zonder','gevalideerde graaddagenbron.')]
+    insights=[('Gasvergelijking gebruikt dezelfde','kalendermaand vorig jaar.'),('Lopend contractjaar toont alleen','werkelijk beschikbare maanden.'),('Graaddagen/weerscorrectie gebruiken','Eindhoven dagtemperaturen (18 C basis).')]
     for i,(line1,line2) in enumerate(insights):
         yy=y2+h2-31-i*25
         c.setFillColor(GREEN if i<2 else ORANGE); c.circle(ix+17,yy,4,fill=1,stroke=0)

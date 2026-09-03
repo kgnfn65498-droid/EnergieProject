@@ -1,3 +1,11 @@
+## 32.3.30 — rapportwaarden augustus + zichtbare herbouwfeedback
+- Pagina 1 gebruikt een echte cumulatieve watervalgrafiek: juli en augustus zijn de groene maandstappen en de blauwe totaalbalk is exact de som van de zichtbare maanden (juli + augustus = -761,3 kWh).
+- PV-afgeleide KPI's vullen augustus numeriek via een expliciet gelabeld model wanneer Enphase slechts een deelperiode/set dekt; gemeten Enphase-data blijft apart bewijs en de energiescore wordt als voorlopige modelscore getoond.
+- Pagina 2 toont voor augustus numeriek gas per dag, 18 °C-graaddagen en modelmatige weerscorrectie op basis van Eindhoven-dagtemperaturen; de gasgrafiek gebruikt een leesbare dynamische y-as en behoudt de lopende 2026-2027-reeks.
+- Het Marstek Venus 3-blok presenteert de juli-2026 batterijberekening voortaan expliciet als historische referentie en niet als een actuele augustus-businesscase; herijking blijft vereist vóór koopadvies.
+- `Herbouw historisch rapport` toont direct `Rapport wordt gemaakt...` en na terugkeer een zichtbare succes-/foutmelding.
+- Financiële semantiek blijft ongewijzigd en expliciet: huidig laatst afgesproken NextEnergy-termijnbedrag €150; offerteprognose €153 per maand / €1.836 per jaar. €197 wordt niet als actuele rapportwaarde gebruikt.
+
 ## 32.3.29 — GUI-reconciliatie augustus + actuele rapportidentiteit
 - Nomad runtime-acceptatie volgt de gereconcilieerde augustusstatus: COMPLETE via de gevalideerde `smp_start_p1_end_boundary`-metergrensbrug in plaats van de verouderde PARTIAL-kwartierverwachting.
 - SlimmeMeterPortal-maandsamenvatting onderscheidt opgeslagen dagwrappers van echte metingen; een expliciete `usages: []` wordt niet langer als groene meetdag gepresenteerd.

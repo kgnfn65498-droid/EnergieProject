@@ -158,20 +158,33 @@ def draw_month(c,d):
     rr(c,1015,1168,918,412,20)
     txt(c,'NETTO ELEKTRICITEITSBALANS PER MAAND (kWh)',1474,1212,24,True,'ink','center')
     top=1264; bottom=1532; vals=d['maand']['netto_maanden']; months=['jul','aug','sep','okt','nov','dec','jan','feb','mrt','apr','mei','jun']
-    c.setStrokeColor(C['line']); c.line(X(1090),Y(top),X(1885),Y(top)); c.line(X(1090),Y(bottom),X(1885),Y(bottom))
-    txt(c,'0',1100,top+3,11,False,'muted','right'); txt(c,'-50',1100,bottom+3,11,False,'muted','right')
-    numeric_vals=[]
+    numeric_vals=[float(v) for v in vals if isinstance(v,(int,float))]
+    cumulative_points=[0.0]
+    cumulative=0.0
+    for v in vals:
+        if isinstance(v,(int,float)):
+            cumulative += float(v)
+            cumulative_points.append(cumulative)
+    extent=max([abs(v) for v in cumulative_points] + [abs(v) for v in numeric_vals] + [1.0])
+    scale=(bottom-top-24)/extent
+    def cy(value): return top + abs(float(value))*scale
+    c.setStrokeColor(C['line']); c.line(X(1090),Y(top),X(1900),Y(top)); c.line(X(1090),Y(bottom),X(1900),Y(bottom))
+    txt(c,'0',1100,top+3,11,False,'muted','right')
+    cumulative=0.0
     for i,v in enumerate(vals):
         x=1130+i*63
         if not isinstance(v,(int,float)):
             txt(c,'-',x+15,top+18,10,True,'muted','center'); txt(c,months[i],x+15,1554,11,False,'muted','center'); continue
-        numeric_vals.append(v); h=min(250,abs(v)*5.2)
-        c.setFillColor(C['green'] if v<=0 else C['red'])
-        if abs(v)>0.05: c.rect(X(x),Y(top+h),X(30),h*SY,fill=1,stroke=0)
-        txt(c,str(v).replace('.',','),x+15,top+18,10,True,'green','center'); txt(c,months[i],x+15,1554,11,False,'muted','center')
-    total=abs(sum(numeric_vals)); h=min(250,total*5.2)
-    c.setFillColor(C['navy']); c.rect(X(1860),Y(top+h),X(30),h*SY,fill=1,stroke=0)
-    txt(c,f"-{total:.1f}".replace('.',','),1875,top+h-7,11,True,white,'center')
+        start=cumulative; cumulative += float(v)
+        y1=cy(start); y2=cy(cumulative); bar_top=min(y1,y2); bar_h=max(2.0,abs(y2-y1))
+        c.setFillColor(C['green'] if v<=0 else C['red']); c.rect(X(x),Y(bar_top+bar_h),X(30),bar_h*SY,fill=1,stroke=0)
+        if i < len(vals)-1:
+            c.setStrokeColor(C['line']); c.line(X(x+30),Y(y2),X(x+63),Y(y2))
+        label=f"{float(v):+.1f}".replace('.',',').replace('+','')
+        txt(c,label,x+15,max(top+18,bar_top-7),10,True,'green' if v<=0 else 'red','center'); txt(c,months[i],x+15,1554,11,False,'muted','center')
+    total=cumulative; total_h=max(2.0,abs(cy(total)-cy(0.0)))
+    c.setFillColor(C['navy']); c.rect(X(1860),Y(top+total_h),X(30),total_h*SY,fill=1,stroke=0)
+    txt(c,f"{total:.1f}".replace('.',','),1875,top+total_h-7,11,True,white,'center')
     txt(c,'Totaal',1875,1572,11,False,'muted','center')
 
 def gauge(c,cx,cy,r,score,color='green',segments=False):
@@ -226,14 +239,14 @@ def draw_score_eff(c,d):
         y=1718+i*90
         icon(c,'huis' if i==0 else 'balans' if i==1 else 'vlam',1060,y+28,col)
         txt(c,name,1108,y+18,22,True)
-        desc='Alleen beschikbaar bij consistente totale PV-dekking' if i<2 else 'Vergelijking met dezelfde kalendermaand vorig jaar'
+        desc=(d['efficientie'].get('model_label') or 'Modelwaarde') if i<2 and d['efficientie'].get('modelled') else ('Volledige PV-bronbalans' if i<2 else 'Vergelijking met dezelfde kalendermaand vorig jaar')
         txt(c,desc,1108,y+48,13,False,'muted')
         if isinstance(val,(int,float)):
             value_text=(f'{val:.1f}%'.replace('.',',') if i<2 else f'{val:.1f} m³'.replace('.',','))
         else:
             value_text='n.b.'
         txt(c,value_text,1905,y+34,34,True,'ink','right')
-        delta_text=f'({delta:+.1f}%)'.replace('.',',') if isinstance(delta,(int,float)) else 'bronbeperkt'
+        delta_text=('modelwaarde' if i<2 and d['efficientie'].get('modelled') else (f'({delta:+.1f}%)'.replace('.',',') if isinstance(delta,(int,float)) else '-'))
         txt(c,delta_text,1905,y+64,15,True,'muted','right')
         c.setFillColor(C['line']); c.roundRect(X(1108),Y(y+82),X(675),20*SY,10*SX,fill=1,stroke=0)
         if isinstance(val,(int,float)):
@@ -241,12 +254,12 @@ def draw_score_eff(c,d):
             c.setFillColor(C[col]); c.roundRect(X(1108),Y(y+82),X(675*scaled),20*SY,10*SX,fill=1,stroke=0)
     rr(c,1045,2010,875,123,16,fill=C['lightgreen'],stroke=C['green'])
     txt(c,'Belangrijkste optimalisatie',1075,2042,18,True)
-    wrap(c,'Verschuif vaatwasser, wasmachine en andere flexibele verbruikers naar zonnige uren tussen 11:00 en 16:00. Zelfconsumptie wordt pas gekwantificeerd zodra de totale PV-productie bronvast is.',1075,2072,800,13,18,False,'ink',3)
+    wrap(c,'Verschuif vaatwasser, wasmachine en andere flexibele verbruikers naar zonnige uren tussen 11:00 en 16:00. Zelfconsumptie is voor deze maand modelmatig geschat; herijken zodra beide PV-sets volledig bronvast zijn.' if d['efficientie'].get('modelled') else 'Verschuif flexibele verbruikers naar zonnige uren tussen 11:00 en 16:00.',1075,2072,800,13,18,False,'ink',3)
 
 def draw_battery(c,d):
     rr(c,27,2255,620,444,24); rr(c,680,2255,620,444,24); rr(c,1335,2255,623,444,24)
     gauge(c,330,2453,140,d['batterij']['score'],'green'); txt(c,d['batterij']['score'],330,2514,58,True,'green','center'); txt(c,'/100',330,2552,18,True,'ink','center')
-    rr(c,83,2585,500,126,18,fill=C['lightgreen'],stroke=C['lightgreen']); txt(c,'Drempel gehaald - nog volgen',110,2630,22,True,'green'); wrap(c,'De modelscore passeert de volgdrempel; dit is nog geen koopadvies.',110,2665,430,14,19,False,'ink',3)
+    rr(c,83,2585,500,126,18,fill=C['pale'],stroke=C['blue']); txt(c,'Historische referentie - herijking nodig',110,2630,19,True,'ink'); wrap(c,'Laatste batterijmodel is een historische juli-2026 referentie; geen actueel koopadvies totdat prijsprofiel, eigen verbruik en terugverdientijd opnieuw zijn gevalideerd.',110,2660,430,13,18,False,'ink',4)
     txt(c,'Ontwikkeling score',990,2320,23,True,'ink','center'); vals=d['batterij']['ontwikkeling']; pts=[]
     chart_left, chart_right, chart_top, chart_bottom = 748, 1225, 2370, 2555
     # Vaste assen en posities: maanddata veranderen alleen waarden, nooit de template-layout.
@@ -268,11 +281,11 @@ def draw_battery(c,d):
     for i,(x,y) in enumerate(pts): c.setFillColor(C['green']); c.circle(X(x),Y(y),7*SX,fill=1,stroke=0); txt(c,str(vals[i]),x,y-16,13,True,'ink','center')
     threshold_y=chart_bottom-(70-35)*4.2
     c.setStrokeColor(C['orange']); c.line(X(chart_left),Y(threshold_y),X(chart_right),Y(threshold_y)); txt(c,'Drempel interessant (>=70)',770,threshold_y-15,12,False,'orange')
-    rr(c,735,2580,510,96,14,fill=C['pale'],stroke=C['blue']); txt(c,'Batterijbeoordeling: Marstek Venus 3.0',990,2620,17,True,'ink','center'); txt(c,'Uitgangspunt: 5,12 kWh plug-in thuisbatterij',990,2650,12,False,'muted','center')
+    rr(c,735,2580,510,96,14,fill=C['pale'],stroke=C['blue']); txt(c,'Batterijbeoordeling: Marstek Venus 3.0',990,2620,17,True,'ink','center'); txt(c,f"Historisch model t/m juli 2026 - rapportmaand {d['rapport'].get('maand','').lower()}",990,2650,12,False,'muted','center')
     txt(c,'Samenvatting batterij-simulatie',1375,2320,25,True); rows=[('Geschikte capaciteit',d['batterij']['capaciteit']),('Benutting batterij (geschat)',d['batterij']['benutting']),('Jaarlijkse besparing (geschat)',d['batterij']['besparing']),('Investering (plug-in 5 kWh)',d['batterij']['investering']),('Terugverdientijd (huidig)',d['batterij']['terugverdientijd'])]
     for i,(a,b) in enumerate(rows): txt(c,a,1375,2370+i*48,17,False); txt(c,b,1905,2370+i*48,17,True,'ink','right')
     txt(c,'Belangrijkste factoren',1375,2620,20,True)
-    for i,s in enumerate(['Saldering loopt verder af richting 2027','Dynamische tarieven bieden kansen','Zelfconsumptie nog bronbeperkt','Monitoring blijft belangrijk']): txt(c,'✓',1390,2638+i*24,17,True,'green'); txt(c,s,1420,2638+i*24,15,False)
+    for i,s in enumerate(['Saldering loopt verder af richting 2027','Dynamische tarieven bieden kansen','Zelfconsumptie augustus is modelwaarde','Prijs/terugverdientijd opnieuw valideren']): txt(c,'✓',1390,2638+i*24,17,True,'green'); txt(c,s,1420,2638+i*24,15,False)
 
 def generate(data_path:Path,out:Path,assets:Path):
     d=load_and_validate(data_path); out.parent.mkdir(parents=True,exist_ok=True)

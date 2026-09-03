@@ -1,9 +1,10 @@
 # Changelog
 
-## 32.3.29
+## 32.3.30
 
-- Nomad accepteert augustus als COMPLETE via de gevalideerde SMP-start/P1-eind metergrensbrug.
-- Lege `usages`-dagen worden in de maandsamenvatting niet meer als `ok` getoond.
-- GUI onderscheidt incomplete SMP-detaildekking van volledig gereconcilieerde maandtotalen.
-- Alleen rapportoutput met een manifest van de actieve release kan `Definitieve output` heten.
-- Historische rapportherbouw blijft zonder Analysis-bestand reproduceerbaar vanuit volledige grensbronnen.
+- Pagina 1 gebruikt een cumulatieve watervalgrafiek; de blauwe totaalbalk is exact de som van de zichtbare maandstappen.
+- PV-afgeleide KPI's blijven numeriek via een expliciet gelabeld model wanneer beide PV-sets niet bronvast afzonderlijk worden gemeten.
+- Pagina 2 toont voor augustus gas per dag, 18 °C-graaddagen en modelmatige weerscorrectie; de gasgrafiek gebruikt een leesbare dynamische y-as.
+- Het Marstek Venus 3-blok is expliciet een historische juli-2026 referentie en geen actueel koopadvies.
+- Historische rapportherbouw geeft direct voortgang en zichtbare succesfeedback.
+- Actueel NextEnergy-termijnbedrag blijft €150; €153 is uitsluitend de offerteprognose.

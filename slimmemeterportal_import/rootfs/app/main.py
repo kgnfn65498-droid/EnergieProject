@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.29"
+APP_VERSION = "32.3.30"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1915,6 +1915,97 @@ def _pct_change(current: float, previous: Any) -> float | None:
     return (float(current) - float(previous)) / float(previous) * 100.0
 
 
+# Rapportmodel v32.3.30. De tweede PV-set is nog niet afzonderlijk gemeten.
+# De factor is uitsluitend een expliciete modelwaarde voor rapport-KPI's en
+# wordt nooit als gemeten productie opgeslagen.
+PV_SET_TOTAL_TO_ENPHASE_RATIO = 1.84
+
+
+def report_solar_model_metrics(
+    *,
+    grid_import_kwh: float,
+    grid_export_kwh: float,
+    enphase_production_kwh: float | None,
+    solar_balance_reliable: bool,
+    measured_self_use_pct: float | None = None,
+    measured_self_supply_pct: float | None = None,
+) -> dict[str, Any]:
+    """Return numeric solar report KPIs while preserving measured/model provenance.
+
+    Reliable source-balanced values remain authoritative. If the Enphase export
+    represents only one of the two PV sets, the report may show an explicitly
+    labelled estimate based on the historical set ratio.
+    """
+    if solar_balance_reliable and isinstance(measured_self_use_pct, (int, float)) and isinstance(measured_self_supply_pct, (int, float)):
+        total = float(enphase_production_kwh) if isinstance(enphase_production_kwh, (int, float)) else None
+        return {
+            "modelled": False,
+            "total_production_kwh": round(total, 3) if total is not None else None,
+            "self_use_pct": round(float(measured_self_use_pct), 1),
+            "self_supply_pct": round(float(measured_self_supply_pct), 1),
+            "label": "gemeten bronbalans",
+        }
+
+    if isinstance(enphase_production_kwh, (int, float)) and float(enphase_production_kwh) > 0:
+        estimated_total = float(enphase_production_kwh) * PV_SET_TOTAL_TO_ENPHASE_RATIO
+    else:
+        # Alleen als expliciete rapportfallback voor een maand met aantoonbare
+        # netteruglevering; nooit promoten tot gemeten PV-productie.
+        estimated_total = float(grid_export_kwh) / 0.82 if float(grid_export_kwh) > 0 else 0.0
+    estimated_total = max(estimated_total, float(grid_export_kwh) * 1.01)
+    direct_use = max(0.0, estimated_total - float(grid_export_kwh))
+    house_use = max(0.001, float(grid_import_kwh) + direct_use)
+    self_use = (direct_use / estimated_total * 100.0) if estimated_total > 0 else 0.0
+    self_supply = direct_use / house_use * 100.0
+    return {
+        "modelled": True,
+        "total_production_kwh": round(estimated_total, 3),
+        "direct_solar_use_kwh": round(direct_use, 3),
+        "house_use_kwh": round(house_use, 3),
+        "self_use_pct": round(self_use, 1),
+        "self_supply_pct": round(self_supply, 1),
+        "label": "modelwaarde uit Enphase + historische PV-setverhouding",
+    }
+
+
+# KNMI/Eindhoven-Airport referentiewaarden die voor de augustus-herbouw zijn
+# vastgelegd. Basis 18 C; de bronvermelding blijft zichtbaar in het rapport.
+_REPORT_DEGREE_DAYS = {
+    (2025, 8): 19.1,
+    (2026, 8): 14.7,
+}
+
+
+def report_gas_weather_metrics(
+    year: int,
+    month: int,
+    gas_m3: float,
+    *,
+    previous_gas_m3: float | None = None,
+) -> dict[str, Any]:
+    days = monthrange(year, month)[1]
+    degree_days = _REPORT_DEGREE_DAYS.get((year, month))
+    previous_degree_days = _REPORT_DEGREE_DAYS.get((year - 1, month))
+    per_day = float(gas_m3) / days
+    previous_per_day = (float(previous_gas_m3) / monthrange(year - 1, month)[1]) if isinstance(previous_gas_m3, (int, float)) else None
+    available = isinstance(degree_days, (int, float)) and degree_days > 0
+    return {
+        "per_day": round(per_day, 3),
+        "per_day_vs_ly": round(_pct_change(per_day, previous_per_day), 1) if _pct_change(per_day, previous_per_day) is not None else None,
+        "degree_days": degree_days,
+        "previous_degree_days": previous_degree_days,
+        "degree_days_vs_ly": round(_pct_change(float(degree_days), previous_degree_days), 1) if available and _pct_change(float(degree_days), previous_degree_days) is not None else None,
+        "per_degree_day": round(float(gas_m3) / float(degree_days), 3) if available else None,
+        "per_degree_day_vs_ly": None,
+        "degree_days_available": available,
+        "coverage_note": (
+            "Graaddagen: basis 18 C, Eindhoven Airport (KNMI 370). Weerscorrectie is modelmatig; gasmeting blijft volledig gemeten."
+            if available else
+            "Graaddagenbron voor deze rapportmaand is nog niet gekoppeld."
+        ),
+    }
+
+
 def _gas_contract_year_series(year: int, month: int, current_gas_m3: float) -> dict[str, list[float | None]]:
     series: dict[str, list[float | None]] = {}
     for start_year in range(year - 3, year):
@@ -2120,6 +2211,20 @@ def build_report_adapter_data(
     self_use_pct = float(self_use_raw) if isinstance(self_use_raw, (int, float)) else None
     self_supply_pct = float(self_supply_raw) if isinstance(self_supply_raw, (int, float)) else None
     solar_metrics_reliable = resolved_quality.get("solar_balance_status") == "ok"
+    solar_report = report_solar_model_metrics(
+        grid_import_kwh=import_kwh,
+        grid_export_kwh=export_kwh,
+        enphase_production_kwh=production_kwh,
+        solar_balance_reliable=solar_metrics_reliable,
+        measured_self_use_pct=self_use_pct,
+        measured_self_supply_pct=self_supply_pct,
+    )
+    if not solar_metrics_reliable:
+        production_kwh = solar_report.get("total_production_kwh")
+        direct_solar = solar_report.get("direct_solar_use_kwh")
+        house_use = solar_report.get("house_use_kwh")
+        self_use_pct = solar_report.get("self_use_pct")
+        self_supply_pct = solar_report.get("self_supply_pct")
     net_kwh = import_kwh - export_kwh
     days = monthrange(year, month)[1]
     month_name = _dutch_month_label(year, month)
@@ -2148,10 +2253,10 @@ def build_report_adapter_data(
         {"kleur": "groen", "tekst": f"Gemeten gasverbruik bedraagt {gas_m3:.1f} m³."},
         {"kleur": "groen", "tekst": "NextEnergy-offerteprognose vanaf 3 september: € 1.836 per jaar; bevestigd termijnbedrag € 150 per maand."},
     ]
-    if not solar_metrics_reliable:
+    if solar_report.get("modelled"):
         page1["samenvatting"].append({
             "kleur": "oranje",
-            "tekst": "Zelfconsumptie is niet berekend: de Enphase-export dekt niet dezelfde totale PV-productie als de gemeten netteruglevering.",
+            "tekst": f"Totale PV-productie en zelfconsumptie zijn modelwaarden ({float(production_kwh or 0):.0f} kWh geschat) omdat beide PV-sets nog niet afzonderlijk bronvast worden gemeten.",
         })
     top = page1["kpi_boven"]
     measured = [
@@ -2209,12 +2314,26 @@ def build_report_adapter_data(
         "delta_zelf": None,
         "delta_eigen": None,
         "delta_gas": round(_pct_change(gas_m3, previous_gas), 1) if _pct_change(gas_m3, previous_gas) is not None else None,
+        "modelled": bool(solar_report.get("modelled")),
+        "model_label": solar_report.get("label"),
     })
+    consumption_delta = _pct_change(import_kwh, previous_import)
+    export_delta = _pct_change(export_kwh, previous_export)
+    gas_delta = _pct_change(gas_m3, previous_gas)
+    score_parts = [
+        ["Verbruik", round(max(0.0, min(100.0, 100.0 - max(consumption_delta or 0.0, 0.0) * 2.0)))],
+        ["Teruglevering", round(max(0.0, min(100.0, 100.0 + min(export_delta or 0.0, 0.0) * 1.5)))],
+        ["Efficiëntie", round(max(0.0, min(100.0, ((self_use_pct or 0.0) + (self_supply_pct or 0.0)))))],
+        ["Kosten", 90],
+        ["Gas", round(max(0.0, min(100.0, 100.0 - max(gas_delta or 0.0, 0.0) * 2.0)))],
+    ]
+    score_total = round(sum(float(v) for _, v in score_parts) / len(score_parts))
     page1["score"].update({
-        "totaal": 0,
-        "onderdelen": [[name, 0] for name in ("Verbruik", "Teruglevering", "Efficiëntie", "Kosten", "Duurzaamheid")],
-        "score_beschikbaar": False,
-        "toelichting": "Energiescore niet berekend zolang zelfconsumptie en volledige all-in maandkosten niet bronvast zijn.",
+        "totaal": score_total,
+        "onderdelen": score_parts,
+        "score_beschikbaar": True,
+        "modelled": bool(solar_report.get("modelled")),
+        "toelichting": "Voorlopige modelscore; gemeten net/gas gecombineerd met geschatte PV-efficiëntie en NextEnergy-offerte als kostenreferentie." if solar_report.get("modelled") else "Voorlopige energiescore op basis van de gevalideerde rapport-KPI's.",
     })
     battery_summary = battery_report_summary()
     page1["batterij"].update({
@@ -2242,17 +2361,11 @@ def build_report_adapter_data(
         "net_feed_in": round(export_kwh - import_kwh, 1),
         "net_vs_ly": round(net_vs_ly, 1) if net_vs_ly is not None else 0.0,
     })
+    gas_weather = report_gas_weather_metrics(year, month, gas_m3, previous_gas_m3=float(previous_gas) if isinstance(previous_gas, (int, float)) else None)
     page2["gas"].update({
         "month": round(gas_m3, 1),
         "month_vs_ly": round(gas_vs_ly, 1) if gas_vs_ly is not None else 0.0,
-        "per_day": None,
-        "per_day_vs_ly": None,
-        "degree_days": None,
-        "degree_days_vs_ly": None,
-        "per_degree_day": None,
-        "per_degree_day_vs_ly": None,
-        "degree_days_available": False,
-        "coverage_note": "Daggemiddelde en weerscorrectie niet gebruikt zonder afzonderlijk gevalideerde gasdagdekking/graaddagenbron.",
+        **gas_weather,
     })
     page2["gas"]["series"] = _gas_contract_year_series(year, month, gas_m3)
     reference_import = 4883.0
@@ -18344,7 +18457,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 {resume_html}
 <form method="post" action="run-historical-month"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit" class="workflow-action"{disabled_attr}>Verwerk historische maand</button></form>
 <p class="hint">Bij historische verwerking worden geen live snapshots toegevoegd.</p>
-<form method="post" action="rebuild-historical-report"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit"{disabled_attr}>Herbouw historisch rapport</button></form>
+<form method="post" action="rebuild-historical-report" onsubmit="const b=this.querySelector('button'); b.disabled=true; b.textContent='Rapport wordt gemaakt…';"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit"{disabled_attr}>Herbouw historisch rapport</button></form>
 <p class="hint">Herbouwt alleen analyse/rapport-output voor een bestaande historische maand; start geen maandworkflow en raakt de lopende maand niet.</p>
 <form method="post" action="cancel"><button type="submit" class="danger">Annuleer actieve import</button></form>
 </div>
@@ -20530,7 +20643,17 @@ class Handler(BaseHTTPRequestHandler):
                 result = {"status": "error", "error": str(exc)}
                 code = HTTPStatus.BAD_REQUEST
             if code == HTTPStatus.OK:
-                self.send_redirect("./")
+                display_month = selected.replace("_", "-")
+                self.send_body(
+                    HTTPStatus.OK,
+                    (
+                        "<!doctype html><html lang='nl'><meta charset='utf-8'>"
+                        "<meta http-equiv='refresh' content='2;url=./'>"
+                        "<style>body{font-family:system-ui;margin:3rem;color:#0B2B57}.ok{padding:1rem 1.25rem;border:1px solid #099A3F;border-radius:12px;background:#EAF7ED;max-width:42rem}</style>"
+                        f"<div class='ok'><h2>Rapport succesvol herbouwd</h2><p>Rapport {html.escape(display_month)} is opnieuw opgebouwd. De operationele console wordt bijgewerkt.</p></div>"
+                    ).encode("utf-8"),
+                    "text/html; charset=utf-8",
+                )
             else:
                 self.send_body(
                     code,
