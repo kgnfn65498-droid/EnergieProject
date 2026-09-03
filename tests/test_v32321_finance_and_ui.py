@@ -61,7 +61,7 @@ def test_report_payload_wires_confirmed_offer_into_page1_and_page2():
 
 
 def test_current_release_identity():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.3.32'
-    assert 'version: "32.3.32"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.3.32"' in MAIN.read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.3.32"' in (ROOT / 'slimmemeterportal_import/rootfs/app/mode_entrypoint.py').read_text(encoding='utf-8')
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.3.33'
+    assert 'version: "32.3.33"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert 'APP_VERSION = "32.3.33"' in MAIN.read_text(encoding='utf-8')
+    assert 'TARGET_RELEASE_VERSION = "32.3.33"' in (ROOT / 'slimmemeterportal_import/rootfs/app/mode_entrypoint.py').read_text(encoding='utf-8')

@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.32"
+APP_VERSION = "32.3.33"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -2271,7 +2271,17 @@ def _report_period_from_resolved_quality(month_key: str, quality: dict[str, Any]
     }
 
 
-def _report_smp_detail_coverage(input_folder: Path) -> dict[str, Any]:
+def _report_smp_detail_coverage(
+    input_folder: Path,
+    resolved_quality: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return semantic SMP detail coverage for the report.
+
+    Prefer the dedicated content coverage report when present. Historical
+    rebuilds may legitimately lack that derived file even though the resolved
+    month-quality payload already contains the same semantic coverage. In that
+    case use ``quality.smp`` rather than degrading page 13 to "unknown".
+    """
     path = input_folder / "HomeAssistant" / "SlimmeMeterPortal" / "content_coverage_report.json"
     try:
         payload = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
@@ -2280,13 +2290,30 @@ def _report_smp_detail_coverage(input_folder: Path) -> dict[str, Any]:
     expected = payload.get("days_expected")
     measured = payload.get("days_with_measurements")
     empty_days = payload.get("empty_days") or []
+    if isinstance(expected, int) and isinstance(measured, int):
+        return {
+            "available": True,
+            "days_expected": expected,
+            "days_with_measurements": measured,
+            "empty_days": len(empty_days) if isinstance(empty_days, list) else max(expected - measured, 0),
+            "available_through": payload.get("available_through"),
+            "status": payload.get("status") or "not_available",
+            "source": "content_coverage_report",
+        }
+
+    quality = resolved_quality if isinstance(resolved_quality, dict) else {}
+    smp = quality.get("smp") if isinstance(quality.get("smp"), dict) else {}
+    expected = smp.get("days_expected")
+    measured = smp.get("days_covered")
+    available = isinstance(expected, int) and isinstance(measured, int)
     return {
-        "available": isinstance(expected, int) and isinstance(measured, int),
+        "available": available,
         "days_expected": expected,
         "days_with_measurements": measured,
-        "empty_days": len(empty_days) if isinstance(empty_days, list) else None,
-        "available_through": payload.get("available_through"),
-        "status": payload.get("status") or "not_available",
+        "empty_days": max(expected - measured, 0) if available else None,
+        "available_through": smp.get("available_through"),
+        "status": smp.get("coverage_status") or smp.get("status") or "not_available",
+        "source": "resolved_quality.smp" if available else "not_available",
     }
 
 
@@ -2774,7 +2801,7 @@ def build_report_adapter_data(
         "score": battery_summary["score"],
         "basis": "historische juli-2026 referentie; herijking nodig",
     }
-    smp_detail = _report_smp_detail_coverage(input_folder)
+    smp_detail = _report_smp_detail_coverage(input_folder, resolved_quality)
     smp_detail_status = (
         f"{smp_detail['days_with_measurements']}/{smp_detail['days_expected']} meetdagen"
         if smp_detail.get("available") else "detaildekking onbekend"

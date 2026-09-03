@@ -1,3 +1,9 @@
+## 32.3.33 — SMP-detaildekking pagina 13 bronfallback
+- Pagina 13 gebruikt `content_coverage_report.json` wanneer aanwezig, maar valt bij historische herbouw betrouwbaar terug op de reeds gevalideerde `quality.smp`-dekking uit de maandanalyse.
+- Augustus toont daardoor ook zonder apart coverage-bestand correct 10/62 aansluitingsdagen met meetrecords en 52 lege aansluitingsdagen; maandtotalen blijven expliciet compleet via `smp_start_p1_end_boundary`.
+- Het controlepunt `SMP-detaildekking` wordt bij ontbrekende detailrecords `aandacht` in plaats van ten onrechte groen/`onbekend`.
+- Nieuwe regressietest bootst exact de live v32.3.32-situatie na: geen `content_coverage_report.json`, wel `quality.smp` met 10/62 dekking.
+
 ## 32.3.32 — rapportwaarheid augustus: PV-tijddekking, gas en bronkwaliteit
 - De partiële Enphase-cumulatieve augustusmeting wordt eerst genormaliseerd op de werkelijk waargenomen tijddekking van de kalendermaand en pas daarna gecombineerd met de bronvaste historische verhouding van beide PV-sets. Voor augustus resulteert dit model in circa 590,3 kWh totale PV-productie, 82,8 kWh direct eigen gebruik, 276,6 kWh totaal huisverbruik, 14,0% zelfconsumptie en 29,9% directe zonnedekking; alle waarden blijven expliciet modelwaarden.
 - Pagina 1 en pagina's 3–6 gebruiken dezelfde PV-modeluitkomst en dezelfde provenance; dashboardlabels noemen geschatte totale PV-productie/huishoudelijk gebruik en P1-teruglevering niet langer gemeten Enphase-totalen of netto-teruglevering. De kostencomponent van de voorlopige energiescore volgt nu de 98% financiële dekking in plaats van een vaste 90/100.

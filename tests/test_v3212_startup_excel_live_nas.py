@@ -47,7 +47,7 @@ def test_wait_for_live_nas_retries_instead_of_returning_unmounted_fallback(tmp_p
 
 def test_startup_excel_uses_fresh_live_nas_root_and_writes_status_file():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.3.32"' in source
+    assert 'APP_VERSION = "32.3.33"' in source
     start = source.index("def startup_historical_energy_excel")
     end = source.index("threading.Thread(\n        target=startup_historical_energy_excel", start)
     block = source[start:end]

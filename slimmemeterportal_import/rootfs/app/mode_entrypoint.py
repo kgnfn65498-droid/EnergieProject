@@ -20,7 +20,7 @@ from operating_mode_crash_recovery import (
 from release_validation_hold import ensure_release_hold_state
 from operating_mode_auto_release import automatic_release_hold_worker
 
-TARGET_RELEASE_VERSION = "32.3.32"
+TARGET_RELEASE_VERSION = "32.3.33"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 
