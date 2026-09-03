@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.24"
+APP_VERSION = "32.3.25"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -735,6 +735,7 @@ def validate_smp_content_coverage(target: Path, month_key: str) -> dict[str, Any
     empty_days = []
     missing_days = []
     connection_days = {}
+    raw_measurement_days: set[tuple[str, date]] = set()
     summary_day_counts: dict[str, dict[date, int]] = {}
     try:
         summary_payload = json.loads((target / "month_summary.json").read_text(encoding="utf-8"))
@@ -827,6 +828,7 @@ def validate_smp_content_coverage(target: Path, month_key: str) -> dict[str, Any
             if count == 0:
                 count = int((summary_day_counts.get(keybase) or {}).get(day) or 0)
             daymap[day] = count
+            raw_measurement_days.add((keybase, day))
             if count == 0:
                 empty_days.append(key)
             day += timedelta(days=1)
@@ -859,6 +861,11 @@ def validate_smp_content_coverage(target: Path, month_key: str) -> dict[str, Any
                 continue
             days_with_measurements += 1
             expected = expected_count(ctype, d, "slimmemeterportal")
+            if (keybase, d) in raw_measurement_days:
+                # Historical SMP storage exists in two valid shapes: a single
+                # daily aggregate record, or raw quarter-hour/hourly API rows.
+                # Accept both without rewriting the CLOSED source tree.
+                expected |= expected_count(ctype, d, "homewizard")
             if expected and count not in expected:
                 errors.append(
                     f"{keybase}/{d.isoformat()}: {count} record(s), verwacht {sorted(expected)} voor SlimmeMeterPortal."
@@ -6664,20 +6671,59 @@ def load_smp_month_metrics(month_key: str) -> dict[str, Any]:
     coverage: dict[str, Any] = {}
     for candidate in _smp_source_candidates(month_key):
         coverage_path = candidate / "content_coverage_report.json"
-        if not coverage_path.is_file():
-            continue
-        try:
-            value = json.loads(coverage_path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            if incomplete is None:
-                incomplete = {
-                    **base,
-                    "status": "error",
-                    "source_root": str(candidate),
-                    "coverage_status": "unreadable",
-                    "errors": [f"content_coverage_report.json niet leesbaar: {exc}"],
-                }
-            continue
+        value: dict[str, Any] | None = None
+        stored_coverage: dict[str, Any] | None = None
+
+        if coverage_path.is_file():
+            try:
+                stored = json.loads(coverage_path.read_text(encoding="utf-8"))
+                if isinstance(stored, dict):
+                    stored_coverage = stored
+            except Exception as exc:
+                if incomplete is None:
+                    incomplete = {
+                        **base,
+                        "status": "error",
+                        "source_root": str(candidate),
+                        "coverage_status": "unreadable",
+                        "errors": [f"content_coverage_report.json niet leesbaar: {exc}"],
+                    }
+                continue
+
+        stored_errors = list((stored_coverage or {}).get("errors") or [])
+        legacy_count_mismatch = bool(
+            stored_coverage
+            and str(stored_coverage.get("status") or "") == "error"
+            and not (stored_coverage.get("missing_days") or [])
+            and not (stored_coverage.get("empty_days") or [])
+            and stored_errors
+            and all("record(s), verwacht" in str(item) for item in stored_errors)
+        )
+
+        # Revalidate only when there is no durable report yet, or when the
+        # durable report is a known legacy record-count mismatch. Genuine
+        # partial/missing-day states remain authoritative and fail closed.
+        should_revalidate = (candidate / "connections.json").is_file() and (
+            stored_coverage is None or legacy_count_mismatch
+        )
+        if should_revalidate:
+            try:
+                fresh_coverage = validate_smp_content_coverage(candidate, month_key)
+                if isinstance(fresh_coverage, dict):
+                    value = fresh_coverage
+            except Exception as exc:
+                if incomplete is None:
+                    incomplete = {
+                        **base,
+                        "status": "error",
+                        "source_root": str(candidate),
+                        "coverage_status": "revalidation_error",
+                        "errors": [f"SMP inhoudshercontrole mislukt: {exc}"],
+                    }
+                continue
+        else:
+            value = stored_coverage
+
         if not isinstance(value, dict):
             continue
         complete = bool(

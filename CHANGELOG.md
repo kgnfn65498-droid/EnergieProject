@@ -1,3 +1,10 @@
+## 32.3.25 — Live SMP raw-interval dekking + stale coverage-hercontrole
+- Live Home Assistant-validatie toonde dat augustus-SlimmeMeterPortal raw data 96 kwartierrecords per elektriciteitsdag en 23/24/25 gasrecords per dag bevat, terwijl de oude validator alleen de dagaggregaatvorm van 1 record accepteerde.
+- De inhoudsvalidator accepteert nu beide geldige SMP-opslagvormen: 1 dagaggregaatrecord of raw kwartier-/uurintervallen.
+- Een CLOSED maand met een oude `content_coverage_report.json` die uitsluitend door de legacy record-count mismatch op `error` staat, wordt read-only opnieuw gevalideerd uit de canonieke raw brondata.
+- Echte partial/missing-day statussen blijven fail-closed en worden niet door de hercontrole overschreven.
+- De bronbestanden zelf worden niet aangepast; dit herstelt de afgesproken SMP-first bronkeuze voor augustus zonder de CLOSED-status te openen.
+
 ## 32.3.24 — CLOSED-rerender validatie geïsoleerd van legacy workflowstatus
 - Historische/CLOSED rapportherbouw maakt een verse, maandgebonden validatie uit de actuele historische report-readiness in plaats van een oude `central_validation.json` te hergebruiken.
 - De eindcontrole van een historische rerender gebruikt de validatie uit de actuele handoff en niet `last_central_validation` van een eerdere volledige maandworkflow.
