@@ -11,17 +11,14 @@ def rebuild_success_route_source() -> str:
     return source[start:end]
 
 
-def test_rebuild_success_has_explicit_return_button_and_no_auto_refresh():
+def test_rebuild_success_return_uses_home_assistant_ingress_root():
     route = rebuild_success_route_source()
-    assert 'Rapport succesvol herbouwd' in route
-    assert 'Terug naar operationele console' in route
-    assert "class='return-button'" in route
-    assert 'report_overview_href' in route
     assert 'X-Ingress-Path' in route
-    assert "meta http-equiv='refresh'" not in route
+    assert 'report_overview_href' in route
+    assert "href='./'" not in route
 
 
-def test_v32334_release_identity():
+def test_v32335_release_identity():
     assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.3.35'
     assert 'version: "32.3.35"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
     assert 'APP_VERSION = "32.3.35"' in MAIN.read_text(encoding='utf-8')

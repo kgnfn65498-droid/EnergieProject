@@ -1,7 +1,7 @@
 # Changelog
 
-## 32.3.34
+## 32.3.35
 
-- Succesvolle historische rapportherbouw toont een expliciete knop `Terug naar operationele console`.
-- De automatische redirect na twee seconden is verwijderd zodat de bevestiging zichtbaar blijft totdat de gebruiker teruggaat.
-- Regressietest bewaakt de nieuwe navigatiecontracten.
+- De retourknop na succesvolle historische rapportherbouw gebruikt nu de Home Assistant ingress-root uit `X-Ingress-Path`.
+- Buiten Home Assistant ingress blijft `./` de veilige fallback.
+- De regressietest dekt expliciet de ingress-navigatie.

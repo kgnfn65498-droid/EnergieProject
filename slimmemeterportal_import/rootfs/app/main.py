@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.34"
+APP_VERSION = "32.3.35"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -20947,6 +20947,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 result = {"status": "error", "error": str(exc)}
                 code = HTTPStatus.BAD_REQUEST
+            return_href = report_overview_href(self.headers.get("X-Ingress-Path", ""))
             if code == HTTPStatus.OK:
                 display_month = selected.replace("_", "-")
                 self.send_body(
@@ -20954,7 +20955,7 @@ class Handler(BaseHTTPRequestHandler):
                     (
                         "<!doctype html><html lang='nl'><meta charset='utf-8'>"
                         "<style>body{font-family:system-ui;margin:3rem;color:#0B2B57}.ok{padding:1rem 1.25rem;border:1px solid #099A3F;border-radius:12px;background:#EAF7ED;max-width:42rem}.return-button{display:inline-block;margin-top:1rem;padding:.75rem 1rem;border-radius:9px;background:#0B2B57;color:#fff;text-decoration:none;font-weight:700}.return-button:hover{background:#174577}</style>"
-                        f"<div class='ok'><h2>Rapport succesvol herbouwd</h2><p>Rapport {html.escape(display_month)} is opnieuw opgebouwd. De operationele console wordt bijgewerkt.</p><a class='return-button' href='./'>Terug naar operationele console</a></div>"
+                        f"<div class='ok'><h2>Rapport succesvol herbouwd</h2><p>Rapport {html.escape(display_month)} is opnieuw opgebouwd. De operationele console wordt bijgewerkt.</p><a class='return-button' href='{html.escape(return_href, quote=True)}'>Terug naar operationele console</a></div>"
                     ).encode("utf-8"),
                     "text/html; charset=utf-8",
                 )
@@ -20964,7 +20965,7 @@ class Handler(BaseHTTPRequestHandler):
                     (
                         "<html><meta charset='utf-8'><p>"
                         + html.escape(json.dumps(result, ensure_ascii=False))
-                        + "</p><p><a href='./'>Terug naar operationele console</a></p></html>"
+                        + f"</p><p><a href='{html.escape(return_href, quote=True)}'>Terug naar operationele console</a></p></html>"
                     ).encode("utf-8"),
                     "text/html; charset=utf-8",
                 )

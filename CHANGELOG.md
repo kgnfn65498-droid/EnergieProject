@@ -1,3 +1,9 @@
+## 32.3.35 — Home Assistant Ingress retourknop + Crash-Recovery pre-gate
+- `Terug naar operationele console` gebruikt na succesvolle historische rapportherbouw nu de Home Assistant `X-Ingress-Path` via de bestaande `report_overview_href`-helper; `./` blijft alleen fallback buiten ingress.
+- Ook de foutpagina van dezelfde herbouwroute gebruikt de ingress-veilige retourbestemming.
+- Nieuwe regressietest simuleert de ingress-navigatie en voorkomt terugkeer naar de defecte relatieve link.
+- Crash-Recovery pre-gate is in dezelfde build gecontroleerd; bestaande CR-, installer- en release-holdtests blijven vereist vóór distributie.
+
 ## 32.3.34 — rapportherbouw retourknop en DEVELOPMENT-tijdmeting
 - De succesmelding na `Herbouw historisch rapport` blijft staan totdat de gebruiker zelf teruggaat; de automatische 2-seconden-refresh is verwijderd.
 - De succespagina bevat een duidelijke knop `Terug naar operationele console`.
