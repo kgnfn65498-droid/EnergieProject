@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.23"
+APP_VERSION = "32.3.24"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -3432,16 +3432,25 @@ def build_compact_workflow_summary(month_key: str) -> dict[str, Any]:
 
 
 
-def audit_completed_month_workflow(month_key: str) -> dict[str, Any]:
+def audit_completed_month_workflow(
+    month_key: str,
+    *,
+    central_validation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     state = load_state()
     checks: list[dict[str, Any]] = []
+    audit_validation = (
+        central_validation
+        if isinstance(central_validation, dict)
+        else (state.get("last_central_validation") or {})
+    )
 
     def add(name: str, status: str, detail: Any = None) -> None:
         checks.append({"name": name, "status": status, "detail": detail})
 
     add("central_validation",
-        "ok" if (state.get("last_central_validation") or {}).get("status") == "ok" else "error",
-        state.get("last_central_validation"))
+        "ok" if audit_validation.get("status") == "ok" else "error",
+        audit_validation)
     add("report_runtime",
         "ok" if state.get("report_runtime_last_status") == "ok" else "error",
         state.get("report_runtime_modules"))
@@ -3631,7 +3640,11 @@ def run_report_generation_from_handoff(
             report_generation_last_error=local_result.get("error"),
         )
         if result["status"] == "completed":
-            result["audit"] = audit_completed_month_workflow(month_key)
+            audit_validation = handoff.get("central_validation") if historical_mode else None
+            result["audit"] = audit_completed_month_workflow(
+                month_key,
+                central_validation=audit_validation,
+            )
             if result["audit"].get("status") != "completed":
                 result["status"] = "failed"
                 update_state(
@@ -14910,18 +14923,22 @@ def rebuild_historical_report(month_key: str) -> dict[str, Any]:
         for source_root in source_roots
     }
 
-    central_validation: dict[str, Any] = {"status": "ok", "source": "historical_smp_fallback"}
-    for candidate in _smp_source_candidates(month_key):
-        path = candidate / "central_validation.json"
-        if not path.is_file():
-            continue
-        try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(value, dict):
-                central_validation = value
-                break
-        except Exception:
-            continue
+    # A CLOSED-month rerender must be judged on the evidence available now, not
+    # on a central_validation.json left behind by an older failed full workflow.
+    # report_input_readiness(historical=True) has already resolved the canonical
+    # month metrics (including SMP-first fallback), so materialize that result as
+    # the scoped validation carried by this rerender handoff.
+    central_validation: dict[str, Any] = {
+        "version": APP_VERSION,
+        "checked_at": datetime.now(TZ).isoformat(),
+        "status": "ok",
+        "source": "historical_rerender_readiness",
+        "month": month_key,
+        "historical_mode": True,
+        "errors": [],
+        "warnings": [],
+        "readiness": readiness,
+    }
 
     handoff = create_report_handoff(
         year,

@@ -1,3 +1,10 @@
+## 32.3.24 — CLOSED-rerender validatie geïsoleerd van legacy workflowstatus
+- Historische/CLOSED rapportherbouw maakt een verse, maandgebonden validatie uit de actuele historische report-readiness in plaats van een oude `central_validation.json` te hergebruiken.
+- De eindcontrole van een historische rerender gebruikt de validatie uit de actuele handoff en niet `last_central_validation` van een eerdere volledige maandworkflow.
+- Een oude centrale validatiefout kan daardoor een aantoonbaar succesvolle CLOSED-rerender niet meer onterecht als `failed` markeren.
+- De gewone maandworkflow blijft de bestaande centrale workflowvalidatie gebruiken; de afwijkende route geldt uitsluitend voor historische rapportherbouw.
+- De v32.3.23 bronbescherming blijft behouden: geen writes in `Data/01_Input`, bronfingerprints vóór/na en geen afhankelijkheid van een oud Analysis-bestand.
+
 ## 32.3.23 — CLOSED-month rerender zonder bronmutatie
 - Historische/CLOSED rapportherbouw schrijft rapportaanvraag en manifest niet langer in `Data/01_Input/YYYY_MM`, maar in een geïsoleerde rapportservice-workmap.
 - De rerender gebruikt de bestaande canonieke maandbronnen rechtstreeks; een oud `Analysis/energieanalyse_YYYY_MM.json` is niet vereist.
