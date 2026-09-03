@@ -12,9 +12,9 @@ def test_current_release_identity_is_synchronized():
     main = MAIN.read_text(encoding="utf-8")
     config = CONFIG.read_text(encoding="utf-8")
     versie = VERSIE.read_text(encoding="utf-8").strip()
-    assert versie == "32.3.35"
-    assert 'version: "32.3.35"' in config
-    assert 'APP_VERSION = "32.3.35"' in main
+    assert versie == "32.3.36"
+    assert 'version: "32.3.36"' in config
+    assert 'APP_VERSION = "32.3.36"' in main
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in main
 
 
@@ -30,7 +30,7 @@ def test_v32035_smp_report_fallback_contract_is_preserved():
 
 def test_current_changelog_preserves_smp_report_fallback_history():
     changelog = CHANGELOG.read_text(encoding="utf-8")
-    assert changelog.startswith("## 32.3.35")
+    assert changelog.startswith("## 32.3.36")
     assert "## v32.0.35 — Pagina 2 onbekende terugleververgoeding" in changelog
     assert "feed_in_compensation" in changelog
     assert "€0" in changelog
@@ -39,6 +39,6 @@ def test_current_changelog_preserves_smp_report_fallback_history():
 
 def test_current_addon_changelog_is_current_release_only():
     changelog = ADDON_CHANGELOG.read_text(encoding="utf-8")
-    assert "## 32.3.35" in changelog
+    assert "## 32.3.36" in changelog
     assert changelog.count("\n## ") == 1
     assert "\n## 32.0.33" not in changelog

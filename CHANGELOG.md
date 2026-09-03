@@ -1,3 +1,11 @@
+## 32.3.36 — asynchrone historische rapportherbouw + dynamische v32-eindgate
+- `Herbouw historisch rapport` blokkeert de Home Assistant Ingress-request niet meer: de PDF/Recovery_Update-herbouw draait achter een aparte achtergrondlock.
+- De operationele console pollt de historische rapportstatus, behoudt `Rapport wordt gemaakt…` ook na refresh en navigeert bij completed/error automatisch naar een expliciete resultaatpagina.
+- Dubbele historische herbouwstarts worden geweigerd zolang één rebuild actief is; status bewaart start/eindtijd, maand, resultaat en fout.
+- De resultaatpagina behoudt de Home Assistant Ingress-root voor `Terug naar operationele console`.
+- De v32 final validation gate wordt afgeleid uit matchende geïnstalleerde release-identiteit plus bereikbare Home Assistant Supervisor API; `complete_guarded` is niet langer handmatig/hardcoded.
+- Nieuwe regressies dekken de volledige async flow, duplicate lock en dynamische final-validation states.
+
 ## 32.3.35 — Home Assistant Ingress retourknop + Crash-Recovery pre-gate
 - `Terug naar operationele console` gebruikt na succesvolle historische rapportherbouw nu de Home Assistant `X-Ingress-Path` via de bestaande `report_overview_href`-helper; `./` blijft alleen fallback buiten ingress.
 - Ook de foutpagina van dezelfde herbouwroute gebruikt de ingress-veilige retourbestemming.

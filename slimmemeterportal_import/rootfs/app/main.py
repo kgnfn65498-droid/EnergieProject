@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.35"
+APP_VERSION = "32.3.36"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -174,6 +174,7 @@ LOGGER = logging.getLogger("slimmemeterportal_import")
 STOP = threading.Event()
 RUN_LOCK = threading.Lock()
 WORKFLOW_LOCK = threading.Lock()
+HISTORICAL_REPORT_REBUILD_LOCK = threading.Lock()
 WORKFLOW_LOCK_META = threading.Lock()
 WORKFLOW_ACTIVE: dict[str, Any] = {}
 STATE_LOCK = threading.RLock()
@@ -529,6 +530,12 @@ def default_state() -> dict[str, Any]:
         "last_validation_status": None,
         "next_scheduled_run": None,
         "api_test": None,
+        "historical_report_rebuild_last_month": None,
+        "historical_report_rebuild_last_status": None,
+        "historical_report_rebuild_last_started": None,
+        "historical_report_rebuild_last_finished": None,
+        "historical_report_rebuild_last_result": None,
+        "historical_report_rebuild_last_error": None,
         "progress_current": 0,
         "progress_total": 0,
         "progress_message": None,
@@ -9136,7 +9143,44 @@ def build_cost_saving_decision_support(
     return result
 
 
+def v32_final_validation_release_state() -> dict[str, Any]:
+    """Derive the v32 completion gate from live HA reachability and installed release identity."""
+    installed_version = None
+    try:
+        installed_version = (NAS_PROJECT_ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() or None
+    except OSError:
+        installed_version = None
+    release_identity_match = installed_version == APP_VERSION
+    ha_api_reachable = False
+    ha_error = None
+    if os.environ.get("SUPERVISOR_TOKEN", "").strip():
+        try:
+            home_assistant_states(timeout=3)
+            ha_api_reachable = True
+        except Exception as exc:
+            ha_error = str(exc)
+    else:
+        ha_error = "SUPERVISOR_TOKEN ontbreekt"
+    if installed_version is not None and not release_identity_match:
+        release_state = "blocked"
+    elif release_identity_match and ha_api_reachable:
+        release_state = "complete_guarded"
+    else:
+        release_state = "awaiting_home_assistant_validation"
+    return {
+        "release_state": release_state,
+        "installed_project_version": installed_version,
+        "app_version": APP_VERSION,
+        "release_identity_match": release_identity_match,
+        "home_assistant_api_reachable": ha_api_reachable,
+        "home_assistant_error": ha_error,
+        "checked_at": datetime.now(TZ).isoformat(),
+    }
+
+
 def build_analysis_context(year: int | None = None) -> dict[str, Any]:
+    v32_validation = v32_final_validation_release_state()
+    v32_release_state = v32_validation["release_state"]
     months: list[dict[str, Any]] = []
     if MONTH_INPUT_ROOT.is_dir():
         for folder in sorted(MONTH_INPUT_ROOT.iterdir()):
@@ -10391,7 +10435,8 @@ def build_analysis_context(year: int | None = None) -> dict[str, Any]:
                     "blocked": "one_or_more_required_software_validation_checks_failed"
                 },
                 "roadmap_state": "v32_step_3_of_3_final_validation_gate_active_guarded",
-                "release_state": "awaiting_home_assistant_validation",
+                "release_state": v32_release_state,
+                "validation_evidence": v32_validation,
                 "next_step_after_success": "maintenance_only_or_explicit_new_roadmap",
                 "status": "final_validation_gate_active_guarded"
             },
@@ -15767,6 +15812,50 @@ def rebuild_historical_report(month_key: str) -> dict[str, Any]:
     return result
 
 
+def start_historical_report_rebuild_background(month_key: str) -> dict[str, Any]:
+    """Start one CLOSED-month report rebuild without holding the HA ingress request open."""
+    month_key = historical_month_allowed(month_key)
+    if not HISTORICAL_REPORT_REBUILD_LOCK.acquire(blocking=False):
+        state = load_state()
+        return {
+            "status": "busy",
+            "month": state.get("historical_report_rebuild_last_month"),
+            "message": "Er wordt al een historisch rapport herbouwd.",
+        }
+    started_at = datetime.now(TZ).isoformat()
+    update_state(
+        historical_report_rebuild_last_month=month_key,
+        historical_report_rebuild_last_status="running",
+        historical_report_rebuild_last_started=started_at,
+        historical_report_rebuild_last_finished=None,
+        historical_report_rebuild_last_result=None,
+        historical_report_rebuild_last_error=None,
+    )
+
+    def worker() -> None:
+        try:
+            result = rebuild_historical_report(month_key)
+            status = str(result.get("status") or "error")
+            update_state(
+                historical_report_rebuild_last_status=status,
+                historical_report_rebuild_last_result=result,
+                historical_report_rebuild_last_error=(None if status == "completed" else str(result.get("error") or result)),
+            )
+        except Exception as exc:
+            LOGGER.exception("Historische rapportherbouw mislukt: %s", exc)
+            update_state(
+                historical_report_rebuild_last_status="error",
+                historical_report_rebuild_last_result={"status": "error", "month": month_key, "error": str(exc)},
+                historical_report_rebuild_last_error=str(exc),
+            )
+        finally:
+            update_state(historical_report_rebuild_last_finished=datetime.now(TZ).isoformat())
+            HISTORICAL_REPORT_REBUILD_LOCK.release()
+
+    threading.Thread(target=worker, daemon=True, name=f"historical-report-{month_key}").start()
+    return {"status": "started", "month": month_key, "started_at": started_at}
+
+
 def _workflow_result_for_ui(state: dict[str, Any]) -> dict[str, Any]:
     """Lees alleen het duurzame resultaat van de laatst bekende workflow voor UI-semantiek."""
     month = str(state.get("full_workflow_last_month") or "").strip()
@@ -18762,7 +18851,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 {resume_html}
 <form method="post" action="run-historical-month"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit" class="workflow-action"{disabled_attr}>Verwerk historische maand</button></form>
 <p class="hint">Bij historische verwerking worden geen live snapshots toegevoegd.</p>
-<form method="post" action="rebuild-historical-report" onsubmit="const b=this.querySelector('button'); b.disabled=true; b.textContent='Rapport wordt gemaakt…';"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit"{disabled_attr}>Herbouw historisch rapport</button></form>
+<form id="historical-report-rebuild-form" method="post" action="rebuild-historical-report"><input type="month" name="month" value="{esc(default_month)}" required> <button id="historical-report-rebuild-button" type="submit"{disabled_attr}>Herbouw historisch rapport</button></form><p id="historical-report-rebuild-feedback" class="hint" aria-live="polite"></p>
 <p class="hint">Herbouwt alleen analyse/rapport-output voor een bestaande historische maand; start geen maandworkflow en raakt de lopende maand niet.</p>
 <form method="post" action="cancel"><button type="submit" class="danger">Annuleer actieve import</button></form>
 </div>
@@ -19017,6 +19106,56 @@ function formatLocalDateTime(value){{
   if(Number.isNaN(d.getTime())) return String(value);
   return new Intl.DateTimeFormat('nl-NL',{{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}}).format(d).replace(',','');
 }}
+let historicalReportPollTimer=null;
+let historicalReportTargetMonth='';
+function historicalMonthKey(value){{ return String(value||'').replace('-','_'); }}
+function setHistoricalReportButtonRunning(running,message){{
+  const button=document.getElementById('historical-report-rebuild-button');
+  const feedback=document.getElementById('historical-report-rebuild-feedback');
+  if(button){{button.disabled=Boolean(running);button.textContent=running?'Rapport wordt gemaakt…':'Herbouw historisch rapport';}}
+  if(feedback && message!==undefined) feedback.textContent=message||'';
+}}
+async function pollHistoricalReportRebuild(){{
+  try{{
+    const response=await fetch('report-generation-status',{{cache:'no-store'}});
+    if(!response.ok) return;
+    const data=await response.json();
+    const rebuild=data.historical_rebuild||{{}};
+    const status=String(rebuild.status||'').toLowerCase();
+    const month=String(rebuild.month||'');
+    if(status==='running'){{
+      if(!historicalReportTargetMonth) historicalReportTargetMonth=month;
+      setHistoricalReportButtonRunning(true,`Rapport ${{month.replace('_','-')}} wordt gemaakt…`);
+      return;
+    }}
+    setHistoricalReportButtonRunning(false,'');
+    if(historicalReportPollTimer){{clearInterval(historicalReportPollTimer);historicalReportPollTimer=null;}}
+    if(historicalReportTargetMonth && month===historicalReportTargetMonth && ['completed','failed','error'].includes(status)){{
+      window.location.href='historical-report-rebuild-result?month='+encodeURIComponent(month.replace('_','-'));
+    }}
+  }}catch(_err){{}}
+}}
+async function startHistoricalReportRebuild(event){{
+  event.preventDefault();
+  const form=event.currentTarget;
+  const monthInput=form.querySelector('input[name="month"]');
+  historicalReportTargetMonth=historicalMonthKey(monthInput?.value||'');
+  setHistoricalReportButtonRunning(true,`Rapport ${{String(monthInput?.value||'')}} wordt gemaakt…`);
+  try{{
+    const response=await fetch(form.action,{{method:'POST',body:new FormData(form),cache:'no-store'}});
+    const payload=await response.json();
+    if(response.status!==202){{
+      setHistoricalReportButtonRunning(false,payload.error||payload.message||'Rapportherbouw kon niet worden gestart.');
+      return;
+    }}
+    if(historicalReportPollTimer) clearInterval(historicalReportPollTimer);
+    historicalReportPollTimer=setInterval(pollHistoricalReportRebuild,1000);
+    await pollHistoricalReportRebuild();
+  }}catch(err){{
+    setHistoricalReportButtonRunning(false,`Rapportherbouw kon niet worden gestart: ${{err}}`);
+  }}
+}}
+
 async function refreshStatus(){{
   try{{
     const [statusResp, opResp] = await Promise.all([fetch('status.json',{{cache:'no-store'}}),fetch('operation-status',{{cache:'no-store'}})]);
@@ -19348,7 +19487,10 @@ document.querySelectorAll('form[action="start-month-workflow"],form[action="resu
   document.getElementById('workflow-detail').textContent='Initialiseren…';
   document.getElementById('workflow-eta').textContent='';
 }}));
+const historicalReportForm=document.getElementById('historical-report-rebuild-form');
+if(historicalReportForm) historicalReportForm.addEventListener('submit',startHistoricalReportRebuild);
 refreshStatus();
+pollHistoricalReportRebuild();
 const INGRESS_BASE = {json.dumps(ingress_path)};
 function ingressApiUrl(path) {{
   const p = path.startsWith('/') ? path : '/'+path;
@@ -20171,6 +20313,41 @@ class Handler(BaseHTTPRequestHandler):
                 "error": state.get("workflow_audit_last_error"),
             }, ensure_ascii=False, indent=2).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+        elif path.endswith("/historical-report-rebuild-result") or path == "/historical-report-rebuild-result":
+            query = parse_qs(parsed.query)
+            selected = ((query.get("month") or [""])[0]).strip().replace("-", "_")
+            state = load_state()
+            status = str(state.get("historical_report_rebuild_last_status") or "").lower()
+            recorded_month = str(state.get("historical_report_rebuild_last_month") or "")
+            return_href = report_overview_href(self.headers.get("X-Ingress-Path", ""))
+            display_month = (selected or recorded_month or "onbekend").replace("_", "-")
+            if selected and recorded_month and selected != recorded_month:
+                status = "error"
+                error_text = "De gevraagde maand hoort niet bij het laatste herbouwresultaat."
+            else:
+                error_text = str(state.get("historical_report_rebuild_last_error") or "")
+            style = "body{font-family:system-ui;margin:3rem;color:#0B2B57}.box{padding:1rem 1.25rem;border-radius:12px;max-width:42rem}.ok{border:1px solid #099A3F;background:#EAF7ED}.bad{border:1px solid #C62828;background:#FDECEC}.wait{border:1px solid #D89B00;background:#FFF7E0}.return-button{display:inline-block;margin-top:1rem;padding:.75rem 1rem;border-radius:9px;background:#0B2B57;color:#fff;text-decoration:none;font-weight:700}.return-button:hover{background:#174577}"
+            if status == "completed":
+                title = "Rapport succesvol herbouwd"
+                message = f"Rapport {display_month} is opnieuw opgebouwd. De operationele console is bijgewerkt."
+                klass = "ok"
+            elif status in {"failed", "error"}:
+                title = "Rapportherbouw mislukt"
+                message = error_text or f"Rapport {display_month} kon niet worden herbouwd."
+                klass = "bad"
+            else:
+                title = "Rapport wordt gemaakt…"
+                message = f"Rapport {display_month} wordt nog opgebouwd."
+                klass = "wait"
+            self.send_body(
+                HTTPStatus.OK,
+                (
+                    "<!doctype html><html lang='nl'><meta charset='utf-8'>"
+                    f"<style>{style}</style>"
+                    f"<div class='box {klass}'><h2>{html.escape(title)}</h2><p>{html.escape(message)}</p><a class='return-button' href='{html.escape(return_href, quote=True)}'>Terug naar operationele console</a></div>"
+                ).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
         elif path.endswith("/reports") or path == "/reports":
             self.send_body(
                 HTTPStatus.OK,
@@ -20187,6 +20364,15 @@ class Handler(BaseHTTPRequestHandler):
                 "finished": state.get("report_generation_last_finished"),
                 "response": state.get("report_generation_last_response"),
                 "error": state.get("report_generation_last_error"),
+                "historical_rebuild": {
+                    "status": state.get("historical_report_rebuild_last_status"),
+                    "month": state.get("historical_report_rebuild_last_month"),
+                    "started": state.get("historical_report_rebuild_last_started"),
+                    "finished": state.get("historical_report_rebuild_last_finished"),
+                    "result": state.get("historical_report_rebuild_last_result"),
+                    "error": state.get("historical_report_rebuild_last_error"),
+                    "running": HISTORICAL_REPORT_REBUILD_LOCK.locked(),
+                },
             }, ensure_ascii=False, indent=2).encode("utf-8")
             self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
         elif path.endswith("/download-smp-import-diagnose") or path == "/download-smp-import-diagnose":
@@ -20942,33 +21128,12 @@ class Handler(BaseHTTPRequestHandler):
             form = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
             selected = (form.get("month") or [""])[0].strip().replace("-", "_")
             try:
-                result = rebuild_historical_report(selected)
-                code = HTTPStatus.OK if result.get("status") == "completed" else HTTPStatus.BAD_REQUEST
+                result = start_historical_report_rebuild_background(selected)
+                code = HTTPStatus.ACCEPTED if result.get("status") == "started" else HTTPStatus.CONFLICT
             except Exception as exc:
                 result = {"status": "error", "error": str(exc)}
                 code = HTTPStatus.BAD_REQUEST
-            return_href = report_overview_href(self.headers.get("X-Ingress-Path", ""))
-            if code == HTTPStatus.OK:
-                display_month = selected.replace("_", "-")
-                self.send_body(
-                    HTTPStatus.OK,
-                    (
-                        "<!doctype html><html lang='nl'><meta charset='utf-8'>"
-                        "<style>body{font-family:system-ui;margin:3rem;color:#0B2B57}.ok{padding:1rem 1.25rem;border:1px solid #099A3F;border-radius:12px;background:#EAF7ED;max-width:42rem}.return-button{display:inline-block;margin-top:1rem;padding:.75rem 1rem;border-radius:9px;background:#0B2B57;color:#fff;text-decoration:none;font-weight:700}.return-button:hover{background:#174577}</style>"
-                        f"<div class='ok'><h2>Rapport succesvol herbouwd</h2><p>Rapport {html.escape(display_month)} is opnieuw opgebouwd. De operationele console wordt bijgewerkt.</p><a class='return-button' href='{html.escape(return_href, quote=True)}'>Terug naar operationele console</a></div>"
-                    ).encode("utf-8"),
-                    "text/html; charset=utf-8",
-                )
-            else:
-                self.send_body(
-                    code,
-                    (
-                        "<html><meta charset='utf-8'><p>"
-                        + html.escape(json.dumps(result, ensure_ascii=False))
-                        + f"</p><p><a href='{html.escape(return_href, quote=True)}'>Terug naar operationele console</a></p></html>"
-                    ).encode("utf-8"),
-                    "text/html; charset=utf-8",
-                )
+            self.send_body(code, json.dumps(result, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
             return
 
         if path.endswith("/run-historical-month") or path == "/run-historical-month":
