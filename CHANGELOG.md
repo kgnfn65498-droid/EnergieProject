@@ -1,3 +1,11 @@
+## 32.3.28 — Augustus semantic coverage + cumulatieve bronbrug
+- SlimmeMeterPortal raw-dagen met een expliciete lege `usages: []` tellen niet langer als meetdag, ook niet wanneer een oudere `month_summary.json` één record meldt.
+- Een opgeslagen groene SMP-dekkingsstatus wordt read-only opnieuw gecontroleerd tegen canonical raw evidence; echte opgeslagen PARTIEEL/error-statussen blijven fail-closed en worden niet overschreven.
+- CSV-wrapperdatums zonder meetrecords maken een historische maand niet langer VOLLEDIG.
+- Voor de overgangsmaand augustus 2026 kan een betrouwbare cumulatieve maandwaarde worden opgebouwd uit de SMP-meterstandgrens op dag 1 en de P1/P1g-cumulatieve eindstand op de laatste kalenderdag. Hierdoor wordt het gat tussen SMP en de later gestarte HomeWizard-reeks overbrugd zonder intervalwaarden te verzinnen of dubbel te tellen.
+- Rapport-readiness accepteert deze boundary-bridge alleen wanneer import, export en gas elk een geldige dag-1 startgrens én laatste-kalenderdag P1-eindstand hebben; anders blijft de maand PARTIEEL.
+- Regressietests dekken de exacte v32.3.27 false-green, stale-green hercontrole, historische wrappersemantiek en de SMP-start/P1-eind bronbrug.
+
 ## 32.3.27 — GUI-statussemantiek: historie, datakwaliteit en definitieve output
 - Een mislukte workflow uit een oudere release blijft volledig in historie en foutdetails zichtbaar, maar wordt in de actuele release- en healthstatus als `Historische fout v…` weergegeven en telt niet meer als huidige softwarestoring.
 - Een workflowfout uit de actieve release blijft onverminderd een echte monitoring-/healthfout; de historische demping is dus fail-closed op release-identiteit.

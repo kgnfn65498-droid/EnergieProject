@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.27"
+APP_VERSION = "32.3.28"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -824,9 +824,11 @@ def validate_smp_content_coverage(target: Path, month_key: str) -> dict[str, Any
                 day += timedelta(days=1)
                 continue
             usages = payload.get("usages") if isinstance(payload, dict) else None
+            # Raw inhoud is leidend wanneer het dagbestand bestaat. Een oude
+            # month_summary mag een expliciete lege usages-lijst nooit naar
+            # een gevulde meetdag promoveren; dat veroorzaakte de false-green
+            # augustusstatus in v32.3.27.
             count = len(usages) if isinstance(usages, list) else 0
-            if count == 0:
-                count = int((summary_day_counts.get(keybase) or {}).get(day) or 0)
             daymap[day] = count
             raw_measurement_days.add((keybase, day))
             if count == 0:
@@ -6700,11 +6702,13 @@ def load_smp_month_metrics(month_key: str) -> dict[str, Any]:
             and all("record(s), verwacht" in str(item) for item in stored_errors)
         )
 
-        # Revalidate only when there is no durable report yet, or when the
-        # durable report is a known legacy record-count mismatch. Genuine
-        # partial/missing-day states remain authoritative and fail closed.
+        # Revalidate a missing, known-legacy, or green durable report whenever
+        # canonical raw evidence is available. This catches the v32.3.27
+        # false-green without overriding a genuine persisted partial/error
+        # state that may intentionally describe source availability.
+        stored_status = str((stored_coverage or {}).get("status") or "")
         should_revalidate = (candidate / "connections.json").is_file() and (
-            stored_coverage is None or legacy_count_mismatch
+            stored_coverage is None or legacy_count_mismatch or stored_status == "ok"
         )
         if should_revalidate:
             try:
@@ -6900,6 +6904,245 @@ def _month_input_metric_allowed(folder: Path, filename: str) -> bool:
     return filename not in blocked
 
 
+
+def _smp_boundary_number(value: Any) -> float | None:
+    """Parse both regular decimals and Dutch thousands/decimal notation."""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().replace(" ", "")
+    if not text:
+        return None
+    try:
+        if "," in text and "." in text:
+            if text.rfind(",") > text.rfind("."):
+                text = text.replace(".", "").replace(",", ".")
+            else:
+                text = text.replace(",", "")
+        elif "," in text:
+            text = text.replace(",", ".")
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _smp_boundary_component(
+    usage: dict[str, Any],
+    direct: str,
+    high: str,
+    low: str,
+) -> float:
+    direct_value = _smp_boundary_number(usage.get(direct))
+    if direct_value is not None:
+        return direct_value
+    high_value = _smp_boundary_number(usage.get(high)) or 0.0
+    low_value = _smp_boundary_number(usage.get(low)) or 0.0
+    return high_value + low_value
+
+
+def _smp_month_start_boundaries(month_key: str) -> dict[str, Any]:
+    """Read cumulative meter boundaries at the start of a calendar month.
+
+    This deliberately does not claim SMP coverage. It only extracts the first
+    trustworthy cumulative meter boundary on day 1, allowing a later P1
+    cumulative reading to bridge an interval gap without summing partial data.
+    """
+    year, month = parse_month_key(month_key)
+    first_day = f"{year:04d}-{month:02d}-01"
+    result: dict[str, Any] = {
+        "status": "unavailable",
+        "boundary_date": first_day,
+        "grid_import_start_kwh": None,
+        "grid_export_start_kwh": None,
+        "gas_start_m3": None,
+        "source_root": None,
+        "evidence": [],
+    }
+
+    def consume(connection_type: str, usages: Any, source: str) -> None:
+        if isinstance(usages, str):
+            try:
+                usages = json.loads(usages)
+            except json.JSONDecodeError:
+                return
+        if not isinstance(usages, list) or not usages:
+            return
+        usage = next((item for item in usages if isinstance(item, dict)), None)
+        if usage is None:
+            return
+        ctype = connection_type.lower()
+        if ctype in {"elektriciteit", "electricity"}:
+            import_reading = _smp_boundary_number(usage.get("delivery_reading_combined"))
+            export_reading = _smp_boundary_number(usage.get("returned_delivery_reading_combined"))
+            if import_reading is None:
+                high = _smp_boundary_number(usage.get("delivery_reading_high"))
+                low = _smp_boundary_number(usage.get("delivery_reading_low"))
+                if high is not None or low is not None:
+                    import_reading = (high or 0.0) + (low or 0.0)
+            if export_reading is None:
+                high = _smp_boundary_number(usage.get("returned_delivery_reading_high"))
+                low = _smp_boundary_number(usage.get("returned_delivery_reading_low"))
+                if high is not None or low is not None:
+                    export_reading = (high or 0.0) + (low or 0.0)
+            import_usage = _smp_boundary_component(usage, "delivery", "delivery_high", "delivery_low")
+            export_usage = _smp_boundary_component(
+                usage, "returned_delivery", "returned_delivery_high", "returned_delivery_low"
+            )
+            if import_reading is not None and result["grid_import_start_kwh"] is None:
+                result["grid_import_start_kwh"] = max(0.0, import_reading - import_usage)
+                result["evidence"].append(source)
+            if export_reading is not None and result["grid_export_start_kwh"] is None:
+                result["grid_export_start_kwh"] = max(0.0, export_reading - export_usage)
+                result["evidence"].append(source)
+        elif ctype == "gas":
+            gas_reading = None
+            for key in (
+                "delivery_reading",
+                "delivery_reading_combined",
+                "meter_reading_m3",
+                "meter_reading",
+                "reading",
+                "meterstand",
+            ):
+                gas_reading = _smp_boundary_number(usage.get(key))
+                if gas_reading is not None:
+                    break
+            gas_usage = _smp_boundary_number(usage.get("delivery")) or 0.0
+            if gas_reading is not None and result["gas_start_m3"] is None:
+                result["gas_start_m3"] = max(0.0, gas_reading - gas_usage)
+                result["evidence"].append(source)
+
+    for candidate in _smp_source_candidates(month_key):
+        if not candidate.is_dir():
+            continue
+        result["source_root"] = str(candidate)
+        # CSV wrappers are compact and preserve the exact day-1 payload.
+        for ctype in ("elektriciteit", "electricity", "gas"):
+            for csv_path in sorted(candidate.glob(f"{ctype}_*_{year:04d}_{month:02d}.csv")):
+                try:
+                    with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+                        for row in csv.DictReader(handle):
+                            if str(row.get("_date") or "") != first_day:
+                                continue
+                            consume(ctype, row.get("usages"), csv_path.name)
+                            break
+                except OSError:
+                    continue
+        # Durable monthly JSONL is the next preferred representation.
+        for monthly_path in sorted(candidate.glob(f"*_{year:04d}_{month:02d}.jsonl")):
+            default_type = monthly_path.name.split("_", 1)[0].strip().lower()
+            try:
+                with monthly_path.open("r", encoding="utf-8") as handle:
+                    for line in handle:
+                        if not line.strip():
+                            continue
+                        try:
+                            row = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        if not isinstance(row, dict) or str(row.get("_date") or "") != first_day:
+                            continue
+                        consume(str(row.get("_connection_type") or default_type), row.get("usages"), monthly_path.name)
+            except OSError:
+                continue
+        # Finally accept the canonical daily raw day-1 evidence.
+        raw_root = candidate / "raw"
+        if raw_root.is_dir():
+            for raw_path in sorted(raw_root.glob(f"*_{first_day}.json")):
+                ctype = raw_path.name.split("_", 1)[0].strip().lower()
+                try:
+                    payload = json.loads(raw_path.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                consume(ctype, payload.get("usages") if isinstance(payload, dict) else None, raw_path.name)
+        if all(result.get(key) is not None for key in (
+            "grid_import_start_kwh", "grid_export_start_kwh", "gas_start_m3"
+        )):
+            result["status"] = "ready"
+            break
+
+    if result["status"] != "ready" and any(
+        result.get(key) is not None for key in (
+            "grid_import_start_kwh", "grid_export_start_kwh", "gas_start_m3"
+        )
+    ):
+        result["status"] = "partial"
+    result["evidence"] = sorted(set(result["evidence"]))
+    return result
+
+
+def _last_numeric_value(rows: list[dict[str, str]], candidates: tuple[str, ...]) -> float | None:
+    values = numeric_values(rows, candidates)
+    return values[-1] if values else None
+
+
+def _smp_p1_boundary_bridge(
+    month_key: str,
+    *,
+    p1e_rows: list[dict[str, str]],
+    p1g_rows: list[dict[str, str]],
+    p1e_coverage: dict[str, Any],
+    p1g_coverage: dict[str, Any],
+) -> dict[str, Any]:
+    """Bridge a partial SMP start boundary to cumulative P1 on the last day."""
+    year, month = parse_month_key(month_key)
+    month_end = date(year, month, monthrange(year, month)[1]).isoformat()
+    start = _smp_month_start_boundaries(month_key)
+    result: dict[str, Any] = {
+        "status": "unavailable",
+        "source": "smp_start_p1_end_boundary",
+        "period_start_date": f"{year:04d}-{month:02d}-01",
+        "period_end_date": month_end,
+        "grid_import_kwh": None,
+        "grid_export_kwh": None,
+        "gas_m3": None,
+        "start_boundary": start,
+        "errors": [],
+    }
+    if start.get("status") not in {"ready", "partial"}:
+        return result
+
+    p1e_at_month_end = str(p1e_coverage.get("last_date") or "") == month_end
+    p1g_at_month_end = str(p1g_coverage.get("last_date") or "") == month_end
+    if p1e_at_month_end:
+        import_end = _last_numeric_value(
+            p1e_rows,
+            ("total_power_import_kwh", "energy_import_kwh", "import_kwh", "meter_reading_import_kwh"),
+        )
+        export_end = _last_numeric_value(
+            p1e_rows,
+            ("total_power_export_kwh", "energy_export_kwh", "export_kwh", "meter_reading_export_kwh"),
+        )
+        for metric, end_value, start_key in (
+            ("grid_import_kwh", import_end, "grid_import_start_kwh"),
+            ("grid_export_kwh", export_end, "grid_export_start_kwh"),
+        ):
+            start_value = start.get(start_key)
+            if end_value is not None and start_value is not None:
+                delta = float(end_value) - float(start_value)
+                if delta >= -0.001:
+                    result[metric] = max(0.0, delta)
+                else:
+                    result["errors"].append(f"{metric}: eindmeterstand ligt onder maandstart.")
+    if p1g_at_month_end:
+        gas_end = _last_numeric_value(p1g_rows, ("total_gas_m3", "gas_m3", "meter_reading_gas_m3"))
+        gas_start = start.get("gas_start_m3")
+        if gas_end is not None and gas_start is not None:
+            delta = float(gas_end) - float(gas_start)
+            if delta >= -0.001:
+                result["gas_m3"] = max(0.0, delta)
+            else:
+                result["errors"].append("gas_m3: eindmeterstand ligt onder maandstart.")
+
+    core = (result["grid_import_kwh"], result["grid_export_kwh"], result["gas_m3"])
+    if all(value is not None for value in core) and not result["errors"]:
+        result["status"] = "ready"
+    elif any(value is not None for value in core):
+        result["status"] = "partial"
+    return result
+
+
 def _smp_partial_p1_plausibility(
     smp: dict[str, Any],
     *,
@@ -6994,6 +7237,18 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
     ) if has_p1e else None
     gas_m3 = cumulative_delta(p1g_rows, ("total_gas_m3", "gas_m3", "meter_reading_gas_m3")) if has_p1g else None
 
+    boundary_bridge = _smp_p1_boundary_bridge(
+        month_key,
+        p1e_rows=p1e_rows if has_p1e else [],
+        p1g_rows=p1g_rows if has_p1g else [],
+        p1e_coverage=p1e_coverage,
+        p1g_coverage=p1g_coverage,
+    ) if not smp_full_month else {
+        "status": "not_applicable",
+        "source": "smp_start_p1_end_boundary",
+        "errors": [],
+    }
+
     smp_plausibility = _smp_partial_p1_plausibility(
         smp,
         import_kwh=import_kwh,
@@ -7032,6 +7287,17 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
         if smp.get("gas_m3") is not None and (gas_m3 is None or (smp_full_month and not p1g_coverage.get("complete"))):
             gas_m3 = float(smp["gas_m3"])
             gas_source = "slimmemeterportal_full_month_primary" if smp_full_month else "slimmemeterportal_fallback"
+
+    if boundary_bridge.get("status") in {"ready", "partial"}:
+        if boundary_bridge.get("grid_import_kwh") is not None and not p1e_coverage.get("complete"):
+            import_kwh = float(boundary_bridge["grid_import_kwh"])
+            grid_import_source = "smp_start_p1_end_boundary"
+        if boundary_bridge.get("grid_export_kwh") is not None and not p1e_coverage.get("complete"):
+            export_kwh = float(boundary_bridge["grid_export_kwh"])
+            grid_export_source = "smp_start_p1_end_boundary"
+        if boundary_bridge.get("gas_m3") is not None and not p1g_coverage.get("complete"):
+            gas_m3 = float(boundary_bridge["gas_m3"])
+            gas_source = "smp_start_p1_end_boundary"
 
     quarter_hour = {"available": False, "coverage_status": "not_applicable_closed_month"}
     if month_key == datetime.now(TZ).strftime("%Y_%m"):
@@ -7087,7 +7353,7 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
             ("P1e", "P1e.csv"), ("P1g", "P1g.csv"), ("Enphase", "Enphase.csv"),
         ) if (folder / file_name).is_file()
     ]
-    if any(source.startswith("slimmemeterportal_") for source in (grid_import_source, grid_export_source, gas_source)):
+    if any(source.startswith("slimmemeterportal_") or source == "smp_start_p1_end_boundary" for source in (grid_import_source, grid_export_source, gas_source)):
         available_sources.append("SlimmeMeterPortal")
     if any(source == "home_assistant_quarter_hour_primary" for source in (grid_import_source, grid_export_source, gas_source)):
         available_sources.append("HomeAssistantQuarterHour")
@@ -7100,7 +7366,7 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
     month_end = date(year, month, monthrange(year, month)[1])
     selected_sources = (grid_import_source, grid_export_source, gas_source)
     all_core_full = all(
-        source == "slimmemeterportal_full_month_primary"
+        source in {"slimmemeterportal_full_month_primary", "smp_start_p1_end_boundary"}
         or (source == "p1" and p1e_coverage.get("complete"))
         or (source == "p1g" and p1g_coverage.get("complete"))
         for source in selected_sources
@@ -7109,6 +7375,8 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
     if all_core_full:
         if all(source == "slimmemeterportal_full_month_primary" for source in selected_sources):
             period_source = "slimmemeterportal_full_month_primary"
+        elif all(source == "smp_start_p1_end_boundary" for source in selected_sources):
+            period_source = "smp_start_p1_end_boundary"
         else:
             period_source = "validated_full_month_sources"
         measurement_period = {
@@ -7161,6 +7429,7 @@ def _month_energy_metrics(month_key: str, input_folder: Path | None = None) -> d
             "gas_source": gas_source,
             "smp": smp,
             "smp_plausibility": smp_plausibility,
+            "boundary_bridge": boundary_bridge,
             "p1_coverage": p1_coverage,
             "measurement_period": measurement_period,
             "quarter_hour": quarter_hour,

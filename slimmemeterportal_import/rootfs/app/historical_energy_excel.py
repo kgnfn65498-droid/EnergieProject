@@ -250,7 +250,8 @@ def _smp_csv_month_actuals(month_dir: Path, month_key: str) -> dict[str, Any] | 
     import_kwh = 0.0
     export_kwh = 0.0
     gas_m3 = 0.0
-    day_dates: set[date] = set()
+    electricity_day_dates: set[date] = set()
+    gas_day_dates: set[date] = set()
 
     for csv_path in elec:
         interval_import = 0.0
@@ -266,8 +267,8 @@ def _smp_csv_month_actuals(month_dir: Path, month_key: str) -> dict[str, Any] | 
         with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
             for row in csv.DictReader(handle):
                 usages = json.loads(row.get("usages") or "[]")
-                if row.get("_date"):
-                    day_dates.add(date.fromisoformat(row["_date"]))
+                if usages and row.get("_date"):
+                    electricity_day_dates.add(date.fromisoformat(row["_date"]))
                 for usage in usages:
                     delivery = (_dutch_number(usage.get("delivery_high")) or 0.0) + (_dutch_number(usage.get("delivery_low")) or 0.0)
                     returned = (_dutch_number(usage.get("returned_delivery_high")) or 0.0) + (_dutch_number(usage.get("returned_delivery_low")) or 0.0)
@@ -314,6 +315,8 @@ def _smp_csv_month_actuals(month_dir: Path, month_key: str) -> dict[str, Any] | 
         with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
             for row in csv.DictReader(handle):
                 usages = json.loads(row.get("usages") or "[]")
+                if usages and row.get("_date"):
+                    gas_day_dates.add(date.fromisoformat(row["_date"]))
                 for usage in usages:
                     delivery = _dutch_number(usage.get("delivery")) or 0.0
                     interval_gas += delivery
@@ -337,8 +340,12 @@ def _smp_csv_month_actuals(month_dir: Path, month_key: str) -> dict[str, Any] | 
 
     year, month = (int(part) for part in month_key.split("_"))
     expected_days = calendar.monthrange(year, month)[1]
-    complete = len(day_dates) == expected_days
-    last_day = max(day_dates).day if day_dates else 1
+    complete = len(electricity_day_dates) == expected_days and len(gas_day_dates) == expected_days
+    common_last = min(
+        max(electricity_day_dates) if electricity_day_dates else date(year, month, 1),
+        max(gas_day_dates) if gas_day_dates else date(year, month, 1),
+    )
+    last_day = common_last.day
     return {
         "month": month_key,
         "status": "VOLLEDIG" if complete else "PARTIEEL",
@@ -352,6 +359,163 @@ def _smp_csv_month_actuals(month_dir: Path, month_key: str) -> dict[str, Any] | 
     }
 
 
+
+def _boundary_number(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().replace(" ", "")
+    if not text:
+        return None
+    try:
+        if "," in text and "." in text:
+            if text.rfind(",") > text.rfind("."):
+                text = text.replace(".", "").replace(",", ".")
+            else:
+                text = text.replace(",", "")
+        elif "," in text:
+            text = text.replace(",", ".")
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _usage_component(usage: dict[str, Any], direct: str, high: str, low: str) -> float:
+    value = _boundary_number(usage.get(direct))
+    if value is not None:
+        return value
+    return (_boundary_number(usage.get(high)) or 0.0) + (_boundary_number(usage.get(low)) or 0.0)
+
+
+def _smp_csv_start_boundaries(month_dir: Path, month_key: str) -> dict[str, float | None]:
+    year, month = _month_tuple(month_key)
+    first_day = f"{year:04d}-{month:02d}-01"
+    result: dict[str, float | None] = {
+        "grid_import_start_kwh": None,
+        "grid_export_start_kwh": None,
+        "gas_start_m3": None,
+    }
+    for csv_path in sorted(month_dir.glob(f"elektriciteit_*_{year:04d}_{month:02d}.csv")):
+        with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            for row in csv.DictReader(handle):
+                if str(row.get("_date") or "") != first_day:
+                    continue
+                usages = json.loads(row.get("usages") or "[]")
+                usage = next((item for item in usages if isinstance(item, dict)), None)
+                if usage is None:
+                    continue
+                import_reading = _boundary_number(usage.get("delivery_reading_combined"))
+                export_reading = _boundary_number(usage.get("returned_delivery_reading_combined"))
+                if import_reading is not None:
+                    result["grid_import_start_kwh"] = max(
+                        0.0, import_reading - _usage_component(usage, "delivery", "delivery_high", "delivery_low")
+                    )
+                if export_reading is not None:
+                    result["grid_export_start_kwh"] = max(
+                        0.0,
+                        export_reading - _usage_component(
+                            usage, "returned_delivery", "returned_delivery_high", "returned_delivery_low"
+                        ),
+                    )
+                break
+        if result["grid_import_start_kwh"] is not None and result["grid_export_start_kwh"] is not None:
+            break
+    for csv_path in sorted(month_dir.glob(f"gas_*_{year:04d}_{month:02d}.csv")):
+        with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            for row in csv.DictReader(handle):
+                if str(row.get("_date") or "") != first_day:
+                    continue
+                usages = json.loads(row.get("usages") or "[]")
+                usage = next((item for item in usages if isinstance(item, dict)), None)
+                if usage is None:
+                    continue
+                reading = _boundary_number(usage.get("delivery_reading"))
+                if reading is None:
+                    reading = _boundary_number(usage.get("delivery_reading_combined"))
+                if reading is not None:
+                    result["gas_start_m3"] = max(0.0, reading - (_boundary_number(usage.get("delivery")) or 0.0))
+                break
+        if result["gas_start_m3"] is not None:
+            break
+    return result
+
+
+def _last_p1_value_on_month_end(path: Path, month_key: str, candidates: tuple[str, ...]) -> float | None:
+    if not path.is_file():
+        return None
+    year, month = _month_tuple(month_key)
+    expected = date(year, month, calendar.monthrange(year, month)[1])
+    last_date: date | None = None
+    last_value: float | None = None
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            raw_timestamp = next((str(row.get(key) or "").strip() for key in ("captured_at", "timestamp", "time", "datetime", "date") if str(row.get(key) or "").strip()), "")
+            if not raw_timestamp:
+                continue
+            try:
+                observed_date = datetime.fromisoformat(raw_timestamp.replace("Z", "+00:00")).date()
+            except ValueError:
+                try:
+                    observed_date = date.fromisoformat(raw_timestamp[:10])
+                except ValueError:
+                    continue
+            value = None
+            lower = {str(k).strip().lower(): v for k, v in row.items()}
+            for candidate in candidates:
+                value = _boundary_number(lower.get(candidate.lower()))
+                if value is not None:
+                    break
+            if value is not None:
+                last_date = observed_date
+                last_value = value
+    return last_value if last_date == expected else None
+
+
+def _smp_p1_hybrid_actuals(project_root: Path, month_key: str, month_dir: Path) -> dict[str, Any] | None:
+    boundaries = _smp_csv_start_boundaries(month_dir, month_key)
+    month_root = project_root / "Data" / "01_Input" / month_key
+    import_end = _last_p1_value_on_month_end(
+        month_root / "P1e.csv", month_key,
+        ("total_power_import_kwh", "energy_import_kwh", "import_kwh", "meter_reading_import_kwh"),
+    )
+    export_end = _last_p1_value_on_month_end(
+        month_root / "P1e.csv", month_key,
+        ("total_power_export_kwh", "energy_export_kwh", "export_kwh", "meter_reading_export_kwh"),
+    )
+    gas_end = _last_p1_value_on_month_end(
+        month_root / "P1g.csv", month_key,
+        ("total_gas_m3", "gas_m3", "meter_reading_gas_m3"),
+    )
+    starts = (
+        boundaries.get("grid_import_start_kwh"),
+        boundaries.get("grid_export_start_kwh"),
+        boundaries.get("gas_start_m3"),
+    )
+    ends = (import_end, export_end, gas_end)
+    if any(value is None for value in starts + ends):
+        return None
+    import_kwh = float(import_end) - float(starts[0])
+    export_kwh = float(export_end) - float(starts[1])
+    gas_m3 = float(gas_end) - float(starts[2])
+    if min(import_kwh, export_kwh, gas_m3) < -0.001:
+        return None
+    year, month = _month_tuple(month_key)
+    last_day = calendar.monthrange(year, month)[1]
+    return {
+        "month": month_key,
+        "status": "VOLLEDIG",
+        "period_start": f"{year:04d}-{month:02d}-01",
+        "period_end": f"{year:04d}-{month:02d}-{last_day:02d}",
+        "import_kwh": round(max(0.0, import_kwh), 3),
+        "export_kwh": round(max(0.0, export_kwh), 3),
+        "net_kwh": round(max(0.0, import_kwh) - max(0.0, export_kwh), 3),
+        "gas_m3": round(max(0.0, gas_m3), 3),
+        "source": f"{month_dir} + {month_root}",
+        "source_method": "smp_start_p1_end_boundary",
+    }
+
+
 def read_project_month_actuals(project_root: Path, month_key: str) -> dict[str, Any] | None:
     month_dir = project_root / "Data" / "01_Input" / month_key / "HomeAssistant" / "SlimmeMeterPortal"
     if not month_dir.is_dir():
@@ -359,22 +523,26 @@ def read_project_month_actuals(project_root: Path, month_key: str) -> dict[str, 
     prepared = month_dir / "historical_energy_month_actuals.json"
     if prepared.is_file():
         return _load_json(prepared)
-    coverage = month_dir / "content_coverage_report.json"
-    if coverage.is_file():
-        coverage_data = _load_json(coverage)
-        if coverage_data.get("status") == "ok":
-            actuals = _smp_csv_month_actuals(month_dir, month_key)
-            if actuals is not None:
-                actuals["status"] = (
-                    "VOLLEDIG"
-                    if coverage_data.get("available_through") == coverage_data.get("calendar_expected_through")
-                    and not coverage_data.get("missing_days")
-                    and not coverage_data.get("empty_days")
-                    else "PARTIEEL"
-                )
-                return actuals
-    return _smp_csv_month_actuals(month_dir, month_key)
 
+    actuals = _smp_csv_month_actuals(month_dir, month_key)
+    coverage = month_dir / "content_coverage_report.json"
+    if coverage.is_file() and actuals is not None:
+        coverage_data = _load_json(coverage)
+        # Durable green coverage may be stale (v32.3.27 false-green). Never
+        # promote CSV wrapper dates without usages to VOLLEDIG.
+        if (
+            coverage_data.get("status") == "ok"
+            and actuals.get("status") == "VOLLEDIG"
+            and coverage_data.get("available_through") == coverage_data.get("calendar_expected_through")
+            and not coverage_data.get("missing_days")
+            and not coverage_data.get("empty_days")
+        ):
+            return actuals
+
+    hybrid = _smp_p1_hybrid_actuals(project_root, month_key, month_dir)
+    if hybrid is not None:
+        return hybrid
+    return actuals
 
 def _month_tuple(month_key: str) -> tuple[int, int]:
     match = re.fullmatch(r"(\d{4})_(0[1-9]|1[0-2])", str(month_key))
