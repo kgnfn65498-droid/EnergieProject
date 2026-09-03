@@ -1,3 +1,9 @@
+## 32.3.34 — rapportherbouw retourknop en DEVELOPMENT-tijdmeting
+- De succesmelding na `Herbouw historisch rapport` blijft staan totdat de gebruiker zelf teruggaat; de automatische 2-seconden-refresh is verwijderd.
+- De succespagina bevat een duidelijke knop `Terug naar operationele console`.
+- Nieuwe regressietest bewaakt zowel de expliciete retourknop als het ontbreken van automatische redirect.
+- DEVELOPMENT-tijdmeting telt voortaan expliciet alle test- en verificatietijd mee, inclusief volledige regressiesuite, manifests, ZIP-integriteit, clean-extract en visuele controle.
+
 ## 32.3.33 — SMP-detaildekking pagina 13 bronfallback
 - Pagina 13 gebruikt `content_coverage_report.json` wanneer aanwezig, maar valt bij historische herbouw betrouwbaar terug op de reeds gevalideerde `quality.smp`-dekking uit de maandanalyse.
 - Augustus toont daardoor ook zonder apart coverage-bestand correct 10/62 aansluitingsdagen met meetrecords en 52 lege aansluitingsdagen; maandtotalen blijven expliciet compleet via `smp_start_p1_end_boundary`.

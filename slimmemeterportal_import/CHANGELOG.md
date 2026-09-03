@@ -1,6 +1,7 @@
 # Changelog
 
-## 32.3.33
+## 32.3.34
 
-- Historische rapportherbouw gebruikt voor pagina 13 de gevalideerde `quality.smp`-dekking wanneer `content_coverage_report.json` ontbreekt.
-- Augustus toont 10/62 meetdagen, 52 lege aansluitingsdagen en de `smp_start_p1_end_boundary`-reconciliatie als aandachtspunt in plaats van `detaildekking onbekend`/groen.
+- Succesvolle historische rapportherbouw toont een expliciete knop `Terug naar operationele console`.
+- De automatische redirect na twee seconden is verwijderd zodat de bevestiging zichtbaar blijft totdat de gebruiker teruggaat.
+- Regressietest bewaakt de nieuwe navigatiecontracten.
