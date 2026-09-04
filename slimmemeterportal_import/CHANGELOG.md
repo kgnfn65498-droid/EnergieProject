@@ -1,7 +1,7 @@
 # Changelog
 
-## 32.3.38
+## 32.3.39
 
-- Historische rapportherbouw toont en gebruikt nu standaard `YYYY_MM`.
-- Backend accepteert daarnaast veilig browserinvoer `YYYY-MM` en normaliseert die automatisch.
-- Regressietests dekken beide maandnotaties en de bestaande Home Assistant Ingress-voortgangsflow.
+- Historische rapportherbouw gebruikt hetzelfde native maandformulier als de werkende SMP-importknop.
+- Safari kan de actie niet meer blokkeren op een afwijkende `YYYY_MM` pattern-validatie.
+- De start verloopt server-side zonder afhankelijkheid van JavaScript-submit-interceptie; backend normaliseert de maand en retourneert de Ingress-veilige voortgangspagina.

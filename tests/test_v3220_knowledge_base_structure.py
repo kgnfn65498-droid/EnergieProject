@@ -104,7 +104,7 @@ def test_v3220_conflict_is_fail_closed(tmp_path: Path):
 @pytest.mark.skipif(not STRUCTURE.is_file(), reason="RED gate")
 def test_v3220_main_migrates_before_bootstrap_and_sidecar():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.3.38"' in source
+    assert 'APP_VERSION = "32.3.39"' in source
     assert "from project_structure import HISTORICAL_BOOTSTRAP_STATUS_RELATIVE, migrate_project_structure" in source
     start = source.index("def startup_historical_energy_excel")
     end = source.index("threading.Thread(\n        target=startup_historical_energy_excel", start)
@@ -131,9 +131,9 @@ def test_v3220_active_writers_have_no_legacy_write_paths():
 
 
 def test_v3220_release_identity():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.38"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.3.39"
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
-    assert 'version: "32.3.38"' in config
+    assert 'version: "32.3.39"' in config
 
 @pytest.mark.skipif(not STRUCTURE.is_file(), reason="RED gate")
 def test_v3221_existing_readonly_knowledge_base_is_rehomed_without_data_loss(tmp_path: Path, monkeypatch):

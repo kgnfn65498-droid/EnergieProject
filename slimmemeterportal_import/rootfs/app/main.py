@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.3.38"
+APP_VERSION = "32.3.39"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -18852,7 +18852,7 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 {resume_html}
 <form method="post" action="run-historical-month"><input type="month" name="month" value="{esc(default_month)}" required> <button type="submit" class="workflow-action"{disabled_attr}>Verwerk historische maand</button></form>
 <p class="hint">Bij historische verwerking worden geen live snapshots toegevoegd.</p>
-<form id="historical-report-rebuild-form" method="post" action="rebuild-historical-report"><input type="text" name="month" value="{esc(default_month.replace('-', '_'))}" pattern="[0-9]{4}_(0[1-9]|1[0-2])" placeholder="YYYY_MM" required> <button id="historical-report-rebuild-button" type="submit"{disabled_attr}>Herbouw historisch rapport</button></form><p id="historical-report-rebuild-feedback" class="hint" aria-live="polite"></p>
+<form id="historical-report-rebuild-form" method="post" action="rebuild-historical-report"><input type="month" name="month" value="{esc(default_month)}" required> <button id="historical-report-rebuild-button" type="submit"{disabled_attr}>Herbouw historisch rapport</button></form><p id="historical-report-rebuild-feedback" class="hint" aria-live="polite"></p>
 <p class="hint">Herbouwt alleen analyse/rapport-output voor een bestaande historische maand; start geen maandworkflow en raakt de lopende maand niet.</p>
 <form method="post" action="cancel"><button type="submit" class="danger">Annuleer actieve import</button></form>
 </div>
@@ -19488,8 +19488,6 @@ document.querySelectorAll('form[action="start-month-workflow"],form[action="resu
   document.getElementById('workflow-detail').textContent='Initialiseren…';
   document.getElementById('workflow-eta').textContent='';
 }}));
-const historicalReportForm=document.getElementById('historical-report-rebuild-form');
-if(historicalReportForm) historicalReportForm.addEventListener('submit',startHistoricalReportRebuild);
 refreshStatus();
 pollHistoricalReportRebuild();
 const INGRESS_BASE = {json.dumps(ingress_path)};

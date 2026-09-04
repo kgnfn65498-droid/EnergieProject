@@ -1,3 +1,10 @@
+## 32.3.39 — robuuste native historische rapportherbouw
+- `Herbouw historisch rapport` gebruikt nu hetzelfde native `type="month"` formulierpatroon als de aantoonbaar werkende SMP-importactie.
+- De browser-side `pattern`-validatie die Safari vóór de POST blokkeerde is verwijderd; maandvalidatie/normalisatie gebeurt server-side.
+- De start is niet meer afhankelijk van een JavaScript submit-interceptor; een gewone formulier-POST start de background rebuild en retourneert de HTML-voortgangspagina.
+- Backend normaliseert `YYYY-MM` naar `YYYY_MM`; de bestaande progress/result/Ingress-route blijft behouden.
+- Regressietests bewaken native formuliergedrag, afwezigheid van submit-interceptie en de volledige serverroute.
+
 ## 32.3.38 — maandnotatie historische rapportherbouw robuust
 - Het invoerveld voor `Herbouw historisch rapport` gebruikt nu expliciet het canonieke formaat `YYYY_MM` in plaats van browserformaat `YYYY-MM`.
 - De centrale maandparser accepteert defensief zowel `YYYY_MM` als `YYYY-MM` en normaliseert intern naar dezelfde maand.
