@@ -1,7 +1,7 @@
 # Changelog
 
-## 32.3.39
+## 32.4.0
 
-- Historische rapportherbouw gebruikt hetzelfde native maandformulier als de werkende SMP-importknop.
-- Safari kan de actie niet meer blokkeren op een afwijkende `YYYY_MM` pattern-validatie.
-- De start verloopt server-side zonder afhankelijkheid van JavaScript-submit-interceptie; backend normaliseert de maand en retourneert de Ingress-veilige voortgangspagina.
+- Energie Projectmanager V2 embedded toegevoegd aan de bestaande add-on runtime.
+- PM-start is fail-safe: een PM-fout stopt de primaire Energie-app niet.
+- De bestaande USER/DEVELOPMENT/MAINTENANCE-controller blijft de canonieke modusbron.

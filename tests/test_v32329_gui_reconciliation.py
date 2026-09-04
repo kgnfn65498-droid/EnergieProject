@@ -52,7 +52,7 @@ def reconciled_august_context():
 def test_assistant_acceptance_accepts_reconciled_complete_august():
     m = load(PROBE, "v32329_probe")
     calls = {
-        "health": {"http_status": 200, "json": {"status": "ready", "version": "32.3.39", "read_only": True}},
+        "health": {"http_status": 200, "json": {"status": "ready", "version": "32.4.0", "read_only": True}},
         "august_gas": {"http_status": 200, "json": {
             "resolved": {"month": "2026_08", "domains": ["gas"]},
             "quality": {"status": "COMPLETE", "source_quality": {
@@ -72,7 +72,7 @@ def test_assistant_acceptance_accepts_reconciled_complete_august():
         "negative_payload": {"http_status": 400, "json": {"status": "error"}},
     }
 
-    result = m.evaluate_assistant_runtime_acceptance(calls, expected_version="32.3.39")
+    result = m.evaluate_assistant_runtime_acceptance(calls, expected_version="32.4.0")
 
     assert result["status"] == "PASS"
     assert result["voice_gate"] == "OPEN_FOR_NEXT_ACCEPTANCE_STEP"
@@ -138,12 +138,12 @@ def test_stale_report_manifest_can_never_be_called_definitive(tmp_path):
 
 def test_current_report_manifest_can_be_definitive(tmp_path, monkeypatch):
     m = load(MAIN, "v32329_current_report")
-    monkeypatch.setattr(m, "APP_VERSION", "32.3.39")
+    monkeypatch.setattr(m, "APP_VERSION", "32.4.0")
     pdf = tmp_path / "Energierapport_2026_08.pdf"
     recovery = tmp_path / "Recovery_Update_2026_08.zip"
     pdf.write_bytes(b"%PDF-current")
     recovery.write_bytes(b"PK-current")
-    (tmp_path / "report_manifest.json").write_text(json.dumps({"version": "32.3.39", "month": "2026_08", "status": "completed"}), encoding="utf-8")
+    (tmp_path / "report_manifest.json").write_text(json.dumps({"version": "32.4.0", "month": "2026_08", "status": "completed"}), encoding="utf-8")
     state = {
         "report_output_last_status": "completed",
         "report_output_last_month": "2026_08",
@@ -155,7 +155,7 @@ def test_current_report_manifest_can_be_definitive(tmp_path, monkeypatch):
     snapshot = m.report_output_ui_snapshot(state, reconciled_august_context())
 
     assert snapshot["is_definitive"] is True
-    assert snapshot["report_version"] == "32.3.39"
+    assert snapshot["report_version"] == "32.4.0"
 
 
 def test_historical_report_readiness_accepts_reconciled_boundary_without_analysis(monkeypatch, tmp_path):

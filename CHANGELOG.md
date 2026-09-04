@@ -1,3 +1,10 @@
+## 32.4.0 — Energie Projectmanager V2 embedded
+- Projectmanager V2 draait als fail-safe achtergrondruntime in de bestaande SlimmeMeterPortal add-on; geen extra Docker-service.
+- Runtime-first status, handover, beslisqueue, health, evidence, opportunity radar en veilige Nomad/chat-commandqueue zijn toegevoegd.
+- Productiedeploy, architectuurwijzigingen en betaalde verplichtingen blijven expliciete Peter-gates.
+- Runtime schrijft canoniek onder Data/03_Systeem/Projectmanager/RuntimeV2 en synchroniseert beheerde KB/roadmap-secties.
+- Stagingacceptatie en volledige App-regressie zijn verplichte releasegates.
+
 ## 32.3.39 — robuuste native historische rapportherbouw
 - `Herbouw historisch rapport` gebruikt nu hetzelfde native `type="month"` formulierpatroon als de aantoonbaar werkende SMP-importactie.
 - De browser-side `pattern`-validatie die Safari vóór de POST blokkeerde is verwijderd; maandvalidatie/normalisatie gebeurt server-side.

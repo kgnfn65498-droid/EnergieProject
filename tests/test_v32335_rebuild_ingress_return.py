@@ -19,7 +19,7 @@ def test_rebuild_success_return_uses_home_assistant_ingress_root():
 
 
 def test_v32335_release_identity():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.3.39'
-    assert 'version: "32.3.39"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.3.39"' in MAIN.read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.3.39"' in (ROOT / 'slimmemeterportal_import/rootfs/app/mode_entrypoint.py').read_text(encoding='utf-8')
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.0'
+    assert 'version: "32.4.0"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert 'APP_VERSION = "32.4.0"' in MAIN.read_text(encoding='utf-8')
+    assert 'TARGET_RELEASE_VERSION = "32.4.0"' in (ROOT / 'slimmemeterportal_import/rootfs/app/mode_entrypoint.py').read_text(encoding='utf-8')
