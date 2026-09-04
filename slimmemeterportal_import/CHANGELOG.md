@@ -1,7 +1,7 @@
 # Changelog
 
-## 32.4.0
+## 32.4.1
 
-- Energie Projectmanager V2 embedded toegevoegd aan de bestaande add-on runtime.
-- PM-start is fail-safe: een PM-fout stopt de primaire Energie-app niet.
-- De bestaande USER/DEVELOPMENT/MAINTENANCE-controller blijft de canonieke modusbron.
+- Projectmanager V2 embedded startup hersteld voor de Home Assistant/NAS-mount.
+- Runtime-state staat onder Inbox/projectmanager_v2/RuntimeV2, een schrijfbare runtime-locatie.
+- Beide launchers gebruiken /app/mode_entrypoint.py.

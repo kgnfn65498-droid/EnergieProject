@@ -21,7 +21,7 @@ from release_validation_hold import ensure_release_hold_state
 from operating_mode_auto_release import automatic_release_hold_worker
 from projectmanager_v2_entrypoint import start_projectmanager_v2
 
-TARGET_RELEASE_VERSION = "32.4.0"
+TARGET_RELEASE_VERSION = "32.4.1"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 

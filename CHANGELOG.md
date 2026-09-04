@@ -1,3 +1,8 @@
+## 32.4.1 — Projectmanager V2 runtime startup hotfix
+- Embedded Projectmanager-runtime gebruikt de bewezen schrijfbare Inbox-runtime-root in plaats van de niet-schrijfbare systeemmap op de HA/NAS-mount.
+- Beide add-on launchers starten via mode_entrypoint.py zodat operating mode en Projectmanager V2 altijd dezelfde startupketen gebruiken.
+- Geen functionele wijziging aan de bestaande Energie-workflows buiten Projectmanager-startup en runtime-stateplaatsing.
+
 ## 32.4.0 — Energie Projectmanager V2 embedded
 - Projectmanager V2 draait als fail-safe achtergrondruntime in de bestaande SlimmeMeterPortal add-on; geen extra Docker-service.
 - Runtime-first status, handover, beslisqueue, health, evidence, opportunity radar en veilige Nomad/chat-commandqueue zijn toegevoegd.

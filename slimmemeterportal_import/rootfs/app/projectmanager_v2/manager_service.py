@@ -260,7 +260,7 @@ class ManagerService:
             '## Projectmanager V2 runtime-ingangen',
             '- Actuele status: `ACTUELE_STATUS.md`',
             '- Roadmap: `EnergieProject_Roadmap.md`',
-            '- Runtime truth en handover: `Data/03_Systeem/Projectmanager/RuntimeV2/`',
+            '- Runtime truth en handover: `Inbox/projectmanager_v2/RuntimeV2/`',
             '- Nomad gebruikt dezelfde Projectmanager-truth; geen parallelle projectwaarheid.',
         ])
         return [

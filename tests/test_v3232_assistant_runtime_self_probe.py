@@ -130,13 +130,13 @@ def test_main_wires_one_startup_probe_and_rejects_extra_assistant_payload_fields
 
 
 def test_release_identity_and_changelog_are_v3232():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.0"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.1"
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     addon_changelog = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.4.0"' in config
-    assert 'APP_VERSION = "32.4.0"' in main
-    assert changelog.startswith("## 32.4.0")
-    assert addon_changelog.startswith("# Changelog\n\n## 32.4.0")
+    assert 'version: "32.4.1"' in config
+    assert 'APP_VERSION = "32.4.1"' in main
+    assert changelog.startswith("## 32.4.1")
+    assert addon_changelog.startswith("# Changelog\n\n## 32.4.1")
 

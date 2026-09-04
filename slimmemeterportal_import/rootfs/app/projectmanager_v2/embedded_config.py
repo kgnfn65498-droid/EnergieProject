@@ -6,7 +6,7 @@ def build_embedded_config(project_root, manager_app_root, *, supervisor_token=''
     root=Path(project_root)
     return ManagerConfig(
         project_root=str(root),
-        system_root=str(root/'Data/03_Systeem/Projectmanager/RuntimeV2'),
+        system_root=str(root/'Inbox/projectmanager_v2/RuntimeV2'),
         input_root=str(root/'Data/01_Input'),
         recovery_root=str(root/'Backups'),
         reports_root=str(root/'Data/02_Output/Rapportages'),

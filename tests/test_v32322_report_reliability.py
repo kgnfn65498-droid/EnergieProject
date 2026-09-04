@@ -19,9 +19,9 @@ def load_main(name='v32322_main'):
 
 
 def test_release_identity_32322():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.0'
-    assert 'APP_VERSION = "32.4.0"' in MAIN.read_text(encoding='utf-8')
-    assert 'version: "32.4.0"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.1'
+    assert 'APP_VERSION = "32.4.1"' in MAIN.read_text(encoding='utf-8')
+    assert 'version: "32.4.1"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
 
 
 def test_offer_summary_carries_report_profile_and_contract_period_context():
