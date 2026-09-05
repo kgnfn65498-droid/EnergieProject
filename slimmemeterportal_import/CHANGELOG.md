@@ -1,8 +1,9 @@
 # Changelog
 
-## 32.4.3
+## 32.4.4
 
-- Projectmanager V2 embedded startup blijft via /app/mode_entrypoint.py en RuntimeV2 onder Inbox/projectmanager_v2/RuntimeV2.
-- Projectmanager V2 auditreparatie: self-healing state, autonome regie, diepe health/self-audit en runtime-first truth.
-- Single-writer control-plane: MCP schrijft uitsluitend CommandIngress; Peter-goedkeuringen lopen uitsluitend via lokale Home Assistant ApprovalIngress.
-- Protected side effects blijven fail-closed totdat afzonderlijke veiligheidsgates aantoonbaar groen zijn.
+- Projectmanager kan `nas_container_cr_create` terminalvrij uitvoeren via een private QNAP Docker TLS-koppeling.
+- Certificaatsetup en connectoractivatie lopen uitsluitend via de lokale Home Assistant-ingress-UI; privésleutels worden nooit teruggerenderd of op de QNAP-projectshare opgeslagen.
+- NAS Container CR maakt en verifieert de drie canonieke bestanden direct onder `Backups/NAS Container` en past keep-1 pas na GREEN toe.
+- De CR-workflow stopt/herstart geen productiecontainers en vereist bewijs `PRODUCTION_CONTAINERS_CHANGED=NO`.
+- Een eenmalige expliciete GUI-activatie herstart alleen `energie-filesystem-mcp`, zodat de bestaande externe MCP de nieuwe PM-intent uit de gedeelde App-code opnieuw laadt.

@@ -8,7 +8,7 @@ from pathlib import Path
 class ProtectedActionExecutor:
     """Local capability-bounded executor for already Peter-approved actions.
 
-    Only production_deploy is executable in 32.4.3. It can only publish an
+    Only production_deploy is executable in 32.4.4. It can only publish an
     exact, already fully verified release artifact to Inbox/incoming. No shell,
     arbitrary path, payment, purchase or direct production mutation is exposed.
     """

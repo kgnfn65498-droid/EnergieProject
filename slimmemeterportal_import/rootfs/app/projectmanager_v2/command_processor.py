@@ -3,7 +3,7 @@ from command_gateway import plan_command
 
 
 class CommandProcessor:
-    def __init__(self, commands, decisions, mode_store, task_store, *, audit=None, mode_bridge=None, approved_actions=None):
+    def __init__(self, commands, decisions, mode_store, task_store, *, audit=None, mode_bridge=None, approved_actions=None, nas_container_cr_service=None):
         self.commands = commands
         self.decisions = decisions
         self.mode = mode_store
@@ -11,6 +11,7 @@ class CommandProcessor:
         self.audit = audit
         self.mode_bridge = mode_bridge
         self.approved_actions = approved_actions
+        self.nas_container_cr_service = nas_container_cr_service
 
     def _request_mode(self, mode: str, *, reason: str, source: str):
         if self.mode_bridge is not None:
@@ -256,6 +257,16 @@ class CommandProcessor:
                 result = {'ok': True, 'executed': False, 'read_request': action}
             elif action == 'admin_update':
                 result = {'ok': True, 'executed': True, 'admin_note': item.get('text') or ''}
+            elif action == 'nas_container_cr_create':
+                if self.nas_container_cr_service is None:
+                    raise RuntimeError('NAS Container CR service is niet geconfigureerd; fail closed')
+                result = dict(self.nas_container_cr_service.create() or {})
+                if result.get('ok') is not True or result.get('status') != 'GREEN':
+                    raise RuntimeError('NAS Container CR service gaf geen GREEN resultaat')
+                if result.get('production_containers_changed') is not False:
+                    raise RuntimeError('NAS Container CR mist bewijs PRODUCTION_CONTAINERS_CHANGED=NO')
+                result['executed'] = True
+                result['action'] = 'nas_container_cr_create'
             else:
                 raise RuntimeError(f'unsupported safe action: {action}')
 

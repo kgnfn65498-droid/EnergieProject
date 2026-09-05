@@ -10,6 +10,7 @@ from handoff_queue import HandoffQueue
 from handoff_result_ingress import HandoffResultIngressConsumer
 from handover import build_handover
 from mode_bridge import ModeBridge
+from nas_container_cr_service import ConfiguredNasContainerCrService
 from persistence import atomic_write_json
 from protected_action_executor import ProtectedActionExecutor
 from roadmap_regie import RoadmapRegie
@@ -24,7 +25,7 @@ def _read_manager_version(app_root) -> str:
 
 
 class ProjectmanagerRuntime:
-    def __init__(self, config, *, base_service=None):
+    def __init__(self, config, *, base_service=None, nas_container_cr_service=None):
         self.config = config
         self.base = base_service or ConfiguredManagerService(config)
         root = Path(config.system_root)
@@ -53,6 +54,12 @@ class ProjectmanagerRuntime:
             )
 
         mode_bridge = ModeBridge(config.mode_command_path) if getattr(config, 'mode_command_path', '') else None
+        if nas_container_cr_service is None:
+            nas_container_cr_service = ConfiguredNasContainerCrService(
+                config.project_root,
+                private_root=getattr(config, 'nas_docker_tls_root', '/data/projectmanager_v2/docker_tls'),
+            )
+        self.nas_container_cr_service = nas_container_cr_service
         self.processor = CommandProcessor(
             self.commands,
             self.base.decisions,
@@ -61,6 +68,7 @@ class ProjectmanagerRuntime:
             audit=self.base.audit,
             mode_bridge=mode_bridge,
             approved_actions=self.approved_actions,
+            nas_container_cr_service=self.nas_container_cr_service,
         )
         ingress_root = getattr(config, 'command_ingress_root', '') or ''
         self.ingress = CommandIngressConsumer(

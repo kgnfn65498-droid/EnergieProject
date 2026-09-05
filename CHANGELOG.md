@@ -1,3 +1,14 @@
+## 32.4.4 — terminalvrije NAS Container Crash Recovery via Projectmanager
+
+- Voegt de parameterloze veilige Projectmanager-intent `nas_container_cr_create` toe.
+- Home Assistant bewaart QNAP Docker TLS-certificaten uitsluitend in private add-ondata en verbindt alleen via TLS-poort 2376.
+- Docker-toegang is begrensd tot inspect/export/probehandelingen voor Crash Recovery; geen generieke shell-, exec-, stop- of Docker-requestcapability.
+- De GUI biedt eenmalige QNAP-certificaatsetup zonder Terminal/sudo en een expliciete, hardcoded herstart van uitsluitend `energie-filesystem-mcp` om de bestaande MCP-commandgateway opnieuw te laden.
+- Een CR schrijft exact ZIP + `.zip.sha256` + ` VERIFY.txt` in `Backups/NAS Container`, valideert interne hashes, ZIP-restore, image-create/remove-probes en bewijst `PRODUCTION_CONTAINERS_CHANGED=NO`.
+- Keep-1 wordt pas toegepast nadat de nieuwe set zelfstandig GREEN is; onvolledige of verdachte oude sets worden niet blind verwijderd.
+- De bestaande externe Energie MCP krijgt geen Docker-certificaten of Docker-authority; na connectoractivatie gebruikt hij uitsluitend het reeds bestaande bounded CommandIngress-contract.
+- Productieplaatsing blijft geblokkeerd tot expliciet Peter-akkoord.
+
 ## 32.4.3 — Projectmanager full-audit closure
 
 - canonical roadmap reconciliation + dependency order

@@ -29,6 +29,7 @@ class ManagerConfig:
     approval_ingress_root: str = ''
     handoff_result_ingress_root: str = ''
     canonical_roadmap_path: str = ''
+    nas_docker_tls_root: str = '/data/projectmanager_v2/docker_tls'
 
     @classmethod
     def from_env(cls):
@@ -52,6 +53,7 @@ class ManagerConfig:
             approval_ingress_root=os.getenv('PM_APPROVAL_INGRESS_ROOT', ''),
             handoff_result_ingress_root=os.getenv('PM_HANDOFF_RESULT_INGRESS_ROOT', ''),
             canonical_roadmap_path=os.getenv('PM_CANONICAL_ROADMAP_PATH', ''),
+            nas_docker_tls_root=os.getenv('PM_NAS_DOCKER_TLS_ROOT', '/data/projectmanager_v2/docker_tls'),
         )
 
     def public_dict(self):

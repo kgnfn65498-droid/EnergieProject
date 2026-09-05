@@ -5,6 +5,7 @@ COMMANDS = {
     'start_development': {'action': 'mode_development', 'allowed_without_approval': True},
     'start_maintenance': {'action': 'mode_maintenance', 'allowed_without_approval': True},
     'admin_update': {'action': 'admin_update', 'allowed_without_approval': True},
+    'nas_container_cr_create': {'action': 'nas_container_cr_create', 'allowed_without_approval': True},
     'production_deploy': {'action': 'production_deploy', 'allowed_without_approval': False, 'decision_kind': 'PRODUCTION_DEPLOY'},
     'architecture_change': {'action': 'architecture_change', 'allowed_without_approval': False, 'decision_kind': 'ARCHITECTURE_CHANGE'},
 }
