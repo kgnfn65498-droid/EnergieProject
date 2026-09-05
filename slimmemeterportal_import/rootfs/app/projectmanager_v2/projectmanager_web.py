@@ -16,8 +16,36 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
-from docker_engine_tls_client import DockerEngineTlsClient
-from nas_docker_tls import DEFAULT_PRIVATE_ROOT, DockerTlsConfig
+DEFAULT_PRIVATE_ROOT = Path('/data/projectmanager_v2/docker_tls')
+
+
+def _real_docker_tls_config():
+    if __package__:
+        from .nas_docker_tls import DockerTlsConfig as RealDockerTlsConfig
+    else:
+        from nas_docker_tls import DockerTlsConfig as RealDockerTlsConfig
+    return RealDockerTlsConfig
+
+
+def _real_docker_client():
+    if __package__:
+        from .docker_engine_tls_client import DockerEngineTlsClient as RealDockerEngineTlsClient
+    else:
+        from docker_engine_tls_client import DockerEngineTlsClient as RealDockerEngineTlsClient
+    return RealDockerEngineTlsClient
+
+
+class DockerTlsConfig:
+    """Lazy compatibility facade; preserves test/API surface without startup import."""
+    @classmethod
+    def load(cls, *args, **kwargs):
+        return _real_docker_tls_config().load(*args, **kwargs)
+
+
+class DockerEngineTlsClient:
+    """Lazy compatibility facade; imports optional Docker client only when used."""
+    def __new__(cls, *args, **kwargs):
+        return _real_docker_client()(*args, **kwargs)
 
 _CSRF_TOKEN = secrets.token_urlsafe(32)
 MAX_POST_BYTES = 16384

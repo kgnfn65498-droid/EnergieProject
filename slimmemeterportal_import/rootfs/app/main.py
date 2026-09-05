@@ -19861,6 +19861,23 @@ def _classify_github_remote_baseline(contract, worktree: Path, release_source: P
             return False, "mismatch", "GitHub-baseline MANIFEST.sha256 wijkt af van verwacht contract."
         return True, "previous", "GitHub remote-baseline gecontroleerd."
 
+    if remote_version == "32.4.4":
+        recovery_config = worktree / "slimmemeterportal_import" / "config.yaml"
+        try:
+            recovery_config_text = recovery_config.read_text(encoding="utf-8")
+        except Exception as exc:
+            return False, "mismatch", f"GitHub recovery-config onleesbaar: {exc}"
+        if 'version: "32.4.4.1"' in recovery_config_text:
+            recovery_ok, recovery_message = _verify_release_manifest(worktree)
+            if not recovery_ok:
+                return False, "mismatch", (
+                    "GitHub recovery-baseline 32.4.4.1 is niet manifest-geldig: " + recovery_message
+                )
+            return True, "recovery_previous", (
+                "GitHub recovery-baseline 32.4.4.1 volledig manifest-gevalideerd; "
+                "publicatie naar contracttarget toegestaan."
+            )
+
     if remote_version == target_version:
         if remote_manifest == target_manifest:
             remote_manifest_ok, remote_manifest_message = _verify_release_manifest(worktree)
