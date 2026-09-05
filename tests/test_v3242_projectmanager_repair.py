@@ -5,11 +5,11 @@ APP = ROOT / 'slimmemeterportal_import/rootfs/app'
 PM = APP / 'projectmanager_v2'
 
 def test_v3242_release_identity_and_pm_entrypoints():
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.2'
-    assert 'version: "32.4.2"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text()
-    assert 'APP_VERSION = "32.4.2"' in (APP / 'main.py').read_text()
-    assert 'TARGET_RELEASE_VERSION = "32.4.2"' in (APP / 'mode_entrypoint.py').read_text()
-    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc2'
+    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.3'
+    assert 'version: "32.4.3"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text()
+    assert 'APP_VERSION = "32.4.3"' in (APP / 'main.py').read_text()
+    assert 'TARGET_RELEASE_VERSION = "32.4.3"' in (APP / 'mode_entrypoint.py').read_text()
+    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc3'
 
 def test_v3242_single_writer_and_local_approval_contract():
     mode = (APP / 'mode_entrypoint.py').read_text()

@@ -70,6 +70,10 @@ class CommandProcessor:
             'steps_total': item.get('steps_total'),
             'priority': item.get('priority'),
             'next_action': item.get('next_action'),
+            'artifact_path': item.get('artifact_path'),
+            'artifact_sha256': item.get('artifact_sha256'),
+            'release_version': item.get('release_version'),
+            'verification_report': item.get('verification_report'),
         }
         if target_mode:
             context['target_mode'] = target_mode
@@ -162,7 +166,7 @@ class CommandProcessor:
                 'next_action': next_action,
             }
 
-        if action in {'production_deploy', 'paid_commitment', 'purchase'}:
+        if action == 'production_deploy':
             if self.approved_actions is None:
                 raise RuntimeError('approved action store unavailable; fail closed')
             approved_action = self.approved_actions.add(

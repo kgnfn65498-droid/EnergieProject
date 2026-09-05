@@ -1,4 +1,12 @@
-## 32.4.2 — Projectmanager V2 volledige auditreparatie
+## 32.4.3 — Projectmanager full-audit closure
+
+- canonical roadmap reconciliation + dependency order
+- explicit handoff queue/result completion loop
+- local approved production-release executor with exact artifact verification
+- self-audit detects handoff/roadmap/executor liveness defects
+- atomic embedded PM failure marker
+
+## 32.4.3 — Projectmanager V2 volledige auditreparatie
 
 - Herstelt corrupte/missende RuntimeV2-state fail-safe met quarantine en neutrale USER-bootstrap.
 - Herstelt restartgedrag, diepe self-audit, runtime-first Knowledge Base/Roadmap en uitgebreide 24/7 healthdekking.

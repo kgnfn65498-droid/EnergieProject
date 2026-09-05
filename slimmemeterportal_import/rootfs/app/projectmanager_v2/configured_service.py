@@ -1,5 +1,9 @@
+import json
+from pathlib import Path
+
 from approved_action_store import ApprovedActionStore
 from command_store import CommandStore
+from handoff_queue import HandoffQueue
 from manager_service import ManagerService
 from runtime_sources import RuntimeCollector
 
@@ -17,8 +21,52 @@ class ConfiguredManagerService(ManagerService):
             )
         self._coordination_commands = CommandStore(self.root / 'commands' / 'queue.json')
         self._coordination_actions = ApprovedActionStore(self.root / 'approved_actions' / 'queue.json')
+        self.handoffs = HandoffQueue(self.root / 'handoffs' / 'queue.json')
+        self._canonical_roadmap_path = Path(getattr(config, 'canonical_roadmap_path', '') or '') if getattr(config, 'canonical_roadmap_path', '') else None
+
+    def _load_canonical_roadmap(self):
+        if self._canonical_roadmap_path is None or not self._canonical_roadmap_path.is_file():
+            return None
+        try:
+            value = json.loads(self._canonical_roadmap_path.read_text(encoding='utf-8'))
+        except (OSError, json.JSONDecodeError):
+            return None
+        return value if isinstance(value, dict) else None
+
+    def _reconcile_canonical_roadmap(self):
+        spec = self._load_canonical_roadmap()
+        if spec is None:
+            self.issues.open(
+                'roadmap:canonical_missing',
+                severity='RED',
+                title='Canonieke Projectmanager-roadmap ontbreekt of is ongeldig',
+                details={'path': str(self._canonical_roadmap_path or '')},
+            )
+            return {'ok': False, 'reason': 'canonical_roadmap_missing'}
+        result = self.roadmap.reconcile_canonical(spec, source_path=str(self._canonical_roadmap_path))
+        self.issues.resolve_fingerprint('roadmap:canonical_missing', resolution='canonical roadmap loaded and reconciled')
+        for item in result.get('deactivated', []):
+            task_id = item.get('task_id')
+            if not task_id:
+                continue
+            try:
+                self.tasks.pause(task_id, item.get('reason') or 'canonical roadmap reprioritized')
+            except KeyError:
+                pass
+            self.handoffs.cancel_for_task(task_id, reason=item.get('reason') or 'canonical roadmap reprioritized')
+            self.roadmap.reopen_for_task(task_id, reason=item.get('reason') or 'canonical roadmap reprioritized')
+            self.audit.write(
+                'roadmap.task.deactivated',
+                actor='projectmanager',
+                result='safe',
+                details=item,
+            )
+        return {'ok': True, **result}
 
     def _maybe_select_roadmap_task(self, health: dict, pending_decisions: list):
+        reconciliation = self._reconcile_canonical_roadmap()
+        if reconciliation.get('ok') is not True:
+            return None
         if self.tasks.active() is not None or pending_decisions:
             return None
         if health.get('status') == 'RED':
@@ -48,16 +96,26 @@ class ConfiguredManagerService(ManagerService):
             priority=int(item.get('priority', 5)),
         )
         task = self.tasks.progress(task['id'], next_action=next_action)
-        self.roadmap.mark_active(item['key'], task['id'])
+        active_item = self.roadmap.mark_active(item['key'], task['id'])
+        handoff = None
+        if item.get('executor') == 'handoff':
+            handoff = self.handoffs.ensure_for_task(task, active_item)
         self.audit.write(
             'roadmap.task.selected',
             actor='projectmanager',
             result='ok',
-            details={'roadmap_key': item['key'], 'task_id': task['id'], 'executor': item.get('executor')},
+            details={
+                'roadmap_key': item['key'],
+                'task_id': task['id'],
+                'executor': item.get('executor'),
+                'handoff_id': (handoff or {}).get('id'),
+            },
         )
         return {
             'key': item['key'],
             'task_id': task['id'],
             'executor': item.get('executor'),
+            'handoff_id': (handoff or {}).get('id'),
             'next_action': next_action,
+            'canonical': reconciliation.get('canonical', {}),
         }

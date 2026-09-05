@@ -87,11 +87,25 @@ class TaskStore:
         self._save(data)
         return dict(task)
 
+    def pause(self, task_id: str, reason: str):
+        data = self._load()
+        task = self._find(data, task_id)
+        if task.get('status') == 'DONE':
+            return dict(task)
+        task['status'] = 'PAUSED'
+        task.setdefault('changes', []).append(f'paused: {reason}')
+        task['updated_at'] = datetime.now(timezone.utc).isoformat()
+        self._save(data)
+        return dict(task)
+
     def block(self, task_id: str, reason: str):
         data = self._load()
         task = self._find(data, task_id)
+        if task.get('status') == 'DONE':
+            return dict(task)
         task['status'] = 'BLOCKED'
-        task.setdefault('blockers', []).append(reason)
+        if reason not in task.setdefault('blockers', []):
+            task['blockers'].append(reason)
         task['updated_at'] = datetime.now(timezone.utc).isoformat()
         self._save(data)
         return dict(task)
@@ -110,11 +124,46 @@ class TaskStore:
             raise ValueError(f"definition of done missing: {', '.join(result['missing'])}")
         data = self._load()
         task = self._find(data, task_id)
+        if task.get('status') == 'DONE':
+            return dict(task)
         task['status'] = 'DONE'
         task['completed_at'] = datetime.now(timezone.utc).isoformat()
         task['updated_at'] = task['completed_at']
         self._save(data)
         return dict(task)
+
+    def complete_handoff(self, task_id: str, *, summary: str, evidence_refs: list):
+        summary = str(summary or '').strip()
+        refs = [str(item).strip() for item in (evidence_refs or []) if str(item).strip()]
+        if not summary:
+            raise ValueError('handoff summary required')
+        if not refs:
+            raise ValueError('handoff completion requires evidence')
+        data = self._load()
+        task = self._find(data, task_id)
+        if task.get('status') == 'DONE':
+            return dict(task)
+        if not str(task.get('next_action') or '').startswith('handoff:'):
+            raise ValueError('task is not a handoff task')
+        if task.get('status') not in {'ACTIVE', 'BLOCKED'}:
+            raise ValueError(f"handoff task cannot complete from {task.get('status')}")
+        now = datetime.now(timezone.utc).isoformat()
+        task['status'] = 'DONE'
+        task['step'] = max(int(task.get('step') or 1), int(task.get('steps_total') or 1))
+        task['next_action'] = ''
+        task.setdefault('changes', []).append(f'handoff completed: {summary}')
+        for ref in refs:
+            if ref not in task.setdefault('evidence_refs', []):
+                task['evidence_refs'].append(ref)
+        task['blockers'] = []
+        task['completed_at'] = now
+        task['updated_at'] = now
+        self._save(data)
+        return dict(task)
+
+    def get(self, task_id: str):
+        data = self._load()
+        return dict(self._find(data, task_id))
 
     def active(self):
         tasks = self._load().get('tasks', [])

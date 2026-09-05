@@ -7,6 +7,7 @@ from secret_guard import contains_secret_text
 
 ALLOWED_FIELDS = {
     'intent', 'text', 'title', 'goal', 'steps_total', 'priority', 'next_action',
+    'artifact_path', 'artifact_sha256', 'release_version', 'verification_report',
 }
 MAX_COMMAND_BYTES = 65536
 VALID_SCHEMA = 'energie_pmv2_command_ingress_v1'

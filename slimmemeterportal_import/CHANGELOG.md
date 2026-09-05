@@ -1,6 +1,6 @@
 # Changelog
 
-## 32.4.2
+## 32.4.3
 
 - Projectmanager V2 embedded startup blijft via /app/mode_entrypoint.py en RuntimeV2 onder Inbox/projectmanager_v2/RuntimeV2.
 - Projectmanager V2 auditreparatie: self-healing state, autonome regie, diepe health/self-audit en runtime-first truth.

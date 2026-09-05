@@ -22,4 +22,6 @@ def build_embedded_config(project_root, manager_app_root, *, supervisor_token=''
         manager_app_root=str(Path(manager_app_root)),
         command_ingress_root=str(root / 'Data/03_Systeem/Projectmanager/CommandIngress'),
         approval_ingress_root=str(root / 'Inbox/projectmanager_v2/ApprovalIngress'),
+        handoff_result_ingress_root=str(root / 'Data/03_Systeem/Projectmanager/HandoffResultIngress'),
+        canonical_roadmap_path=str(root / 'Data/03_Systeem/Projectmanager/Roadmap/canonical_roadmap_v3.json'),
     )

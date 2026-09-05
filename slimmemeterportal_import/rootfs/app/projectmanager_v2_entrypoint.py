@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
 from pathlib import Path
@@ -43,11 +42,11 @@ def _notify_failure(config, detail):
     global _LAST_ALERT_AT
     current = time.time()
     try:
-        path = _failure_path(config)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps({'status': 'RED', 'detail': detail, 'at': current}, indent=2) + '\n',
-            encoding='utf-8',
+        _prepare_imports()
+        from persistence import atomic_write_json
+        atomic_write_json(
+            _failure_path(config),
+            {'status': 'RED', 'detail': str(detail), 'at': current},
         )
     except Exception:
         pass
@@ -59,6 +58,7 @@ def _notify_failure(config, detail):
     if not token:
         return False
     try:
+        import json
         data = json.dumps({
             'title': 'Energie Projectmanager V2 — storing',
             'message': detail,
@@ -91,8 +91,6 @@ def _worker(stop_event, project_root):
         config = None
         try:
             config = _load_config(project_root)
-            # Cross-process lock is acquired BEFORE bootstrap/runtime/service
-            # construction, so a second process cannot race state recovery.
             from service_lock import FileLock
             lock_path = Path(config.system_root) / 'locks' / 'projectmanager.lock'
             try:

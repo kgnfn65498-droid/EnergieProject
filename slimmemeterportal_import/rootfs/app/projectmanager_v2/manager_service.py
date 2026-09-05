@@ -87,6 +87,7 @@ class ManagerService:
         self.self_auditor = SelfAuditor(
             self.root,
             production_version_path=Path(config.project_root) / 'App' / 'VERSIE.txt',
+            canonical_roadmap_path=getattr(config, 'canonical_roadmap_path', '') or None,
         )
 
     def _ensure_layout(self):
@@ -94,7 +95,7 @@ class ManagerService:
             'state', 'status', 'heartbeat', 'handover', 'audit', 'audit/archive',
             'notifications/outbox', 'notifications/outbox/delivered', 'opportunities',
             'snapshots', 'snapshots/archive', 'self_audit', 'issues', 'market',
-            'decisions', 'locks', 'commands', 'roadmap', 'quarantine', 'logs/archive',
+            'decisions', 'locks', 'commands', 'roadmap', 'handoffs', 'approved_actions', 'quarantine', 'logs/archive',
         ):
             (self.root / name).mkdir(parents=True, exist_ok=True)
 

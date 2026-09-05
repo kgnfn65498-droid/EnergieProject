@@ -9,6 +9,7 @@ VALID_STATUSES = {
     'APPROVED_AWAITING_SAFETY_OR_EXECUTOR',
     'DONE',
     'CANCELLED',
+    'FAILED',
 }
 
 
@@ -26,12 +27,7 @@ def _valid_payload(data):
 
 
 class ApprovedActionStore:
-    """Persistent handoff for actions that Peter approved but PM may not execute.
-
-    The embedded Projectmanager records the approval once. A separate, explicit
-    executor may later consume the handoff after its own safety proof. Recording
-    the handoff never performs the protected side effect itself.
-    """
+    """Persistent handoff for Peter-approved protected actions."""
 
     def __init__(self, path):
         self.path = Path(path)
@@ -74,6 +70,31 @@ class ApprovedActionStore:
         data.setdefault('items', []).append(item)
         self._save(data)
         return dict(item)
+
+    def _finish(self, item_id, status, **fields):
+        if status not in VALID_STATUSES:
+            raise ValueError(f'invalid approved action status: {status}')
+        data = self._load()
+        for item in data.get('items', []):
+            if item.get('id') != item_id:
+                continue
+            if item.get('status') == status:
+                return dict(item)
+            item['status'] = status
+            item.update(redact(fields))
+            item['updated_at'] = datetime.now(timezone.utc).isoformat()
+            self._save(data)
+            return dict(item)
+        raise KeyError(item_id)
+
+    def complete(self, item_id, *, result):
+        return self._finish(item_id, 'DONE', result=result, protected_side_effect_executed=True)
+
+    def fail(self, item_id, *, error):
+        return self._finish(item_id, 'FAILED', error=str(error))
+
+    def cancel(self, item_id, *, reason):
+        return self._finish(item_id, 'CANCELLED', cancellation_reason=str(reason))
 
     def all(self):
         return [dict(item) for item in self._load().get('items', [])]

@@ -27,6 +27,8 @@ class ManagerConfig:
     manager_app_root: str = ''
     command_ingress_root: str = ''
     approval_ingress_root: str = ''
+    handoff_result_ingress_root: str = ''
+    canonical_roadmap_path: str = ''
 
     @classmethod
     def from_env(cls):
@@ -48,10 +50,11 @@ class ManagerConfig:
             manager_app_root=os.getenv('PM_APP_ROOT', os.getcwd()),
             command_ingress_root=os.getenv('PM_COMMAND_INGRESS_ROOT', ''),
             approval_ingress_root=os.getenv('PM_APPROVAL_INGRESS_ROOT', ''),
+            handoff_result_ingress_root=os.getenv('PM_HANDOFF_RESULT_INGRESS_ROOT', ''),
+            canonical_roadmap_path=os.getenv('PM_CANONICAL_ROADMAP_PATH', ''),
         )
 
     def public_dict(self):
-        # Secrets/tokens are intentionally absent.
         return {
             'project_root': self.project_root,
             'system_root': self.system_root,
@@ -68,4 +71,6 @@ class ManagerConfig:
             'manager_app_root': self.manager_app_root,
             'command_ingress_root': self.command_ingress_root,
             'approval_ingress_root': self.approval_ingress_root,
+            'handoff_result_ingress_root': self.handoff_result_ingress_root,
+            'canonical_roadmap_path': self.canonical_roadmap_path,
         }

@@ -8,7 +8,8 @@ class ProjectmanagerAPI:
     """Read-only presentation API for MCP/Nomad/parent summaries.
 
     RuntimeV2 has one writer: the embedded Projectmanager. External command
-    proposals use CommandIngress and Peter approvals use ApprovalIngress.
+    proposals use CommandIngress, handoff results use HandoffResultIngress and
+    Peter approvals use local Home Assistant ApprovalIngress.
     """
 
     def __init__(self, runtime_root):
@@ -57,13 +58,24 @@ class ProjectmanagerAPI:
         )
         return redact({'items': items})
 
+    def handoffs(self):
+        data = self._read_dict('handoffs/queue.json', default={'items': []}) or {'items': []}
+        items = [item for item in data.get('items', []) if isinstance(item, dict) and item.get('status') == 'OPEN']
+        return redact({'items': sorted(items, key=lambda x: (x.get('priority', 99), x.get('created_at', '')))})
+
     def submit_command(self, command: dict):
         raise RuntimeError('direct RuntimeV2 command writes disabled; use CommandIngress')
+
+    def submit_handoff_result(self, result: dict):
+        raise RuntimeError('direct RuntimeV2 handoff writes disabled; use HandoffResultIngress')
 
     def resolve_decision(self, decision_id: str, *, approved: bool, approved_by: str = 'Peter'):
         raise RuntimeError('direct RuntimeV2 decision writes disabled; use authenticated Home Assistant ApprovalIngress')
 
     def nomad_context(self):
+        # Keep the long-standing compact Nomad contract stable. New PM-specific
+        # surfaces (handoffs/canonical roadmap) are available through dedicated
+        # read-only API/MCP tools and are deliberately not injected here.
         status = self.status()
         return {
             'project_id': status.get('project_id', 'energie'),
@@ -87,4 +99,5 @@ class ProjectmanagerAPI:
             'active_task': task.get('title'),
             'blockers': task.get('blockers', []),
             'needs_human': status.get('needs_human', False),
+            'open_handoffs': len(status.get('handoffs', [])),
         }

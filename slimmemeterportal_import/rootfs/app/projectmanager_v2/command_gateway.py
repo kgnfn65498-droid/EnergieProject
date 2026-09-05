@@ -7,13 +7,21 @@ COMMANDS = {
     'admin_update': {'action': 'admin_update', 'allowed_without_approval': True},
     'production_deploy': {'action': 'production_deploy', 'allowed_without_approval': False, 'decision_kind': 'PRODUCTION_DEPLOY'},
     'architecture_change': {'action': 'architecture_change', 'allowed_without_approval': False, 'decision_kind': 'ARCHITECTURE_CHANGE'},
-    'paid_commitment': {'action': 'paid_commitment', 'allowed_without_approval': False, 'decision_kind': 'PAID_COMMITMENT'},
-    'purchase': {'action': 'purchase', 'allowed_without_approval': False, 'decision_kind': 'PURCHASE'},
 }
+
+UNSUPPORTED_PROTECTED_INTENTS = {'paid_commitment', 'purchase'}
 
 
 def plan_command(command: dict) -> dict:
     intent = (command or {}).get('intent')
+    if intent in UNSUPPORTED_PROTECTED_INTENTS:
+        return {
+            'intent': intent,
+            'action': 'blocked',
+            'allowed_without_approval': False,
+            'reason': 'protected_capability_not_installed_fail_closed',
+            'source': (command or {}).get('source'),
+        }
     base = COMMANDS.get(intent)
     if base is None:
         return {
