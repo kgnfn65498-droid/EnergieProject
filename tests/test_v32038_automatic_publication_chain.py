@@ -17,17 +17,17 @@ def _load_paths():
     return module
 
 def test_v32038_release_identity():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.7"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.8"
     config = CONFIG.read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
-    assert 'version: "32.4.7"' in config
-    assert 'APP_VERSION = "32.4.7"' in main
+    assert 'version: "32.4.8"' in config
+    assert 'APP_VERSION = "32.4.8"' in main
 
 def test_v32038_automatic_publication_contract_remains_fail_closed():
     config = CONFIG.read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
     installer = INSTALLER.read_text(encoding="utf-8")
-    assert "github_publication_enabled: false" in config
+    assert "github_publication_enabled: true" in config
     assert "automatic_month_close_enabled: false" in config
     assert "def _load_github_publication_contract" in main
     assert "def _prepare_validated_publication_source" in main

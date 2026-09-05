@@ -1,3 +1,11 @@
+## 32.4.8 — Projectmanager stabilisatie en publicatie-regressiegates
+
+- Zet `github_publication_enabled` standaard op `true` voor een verse installatie of reset; een expliciet opgeslagen `false` blijft door Home Assistant gerespecteerd.
+- Verhoogt Projectmanager naar `2.0.0-rc5` en synchroniseert de release-identiteit naar 32.4.8.
+- Voegt een volledige Home Assistant `mode_entrypoint` import-regressietest toe waarbij de optionele Docker/TLS-modules bewust ontbreken.
+- Houdt de afgewezen experimentele NAS-publisher inert: geen host-`python3`, geen QNAP `docker build` en geen activatie zonder expliciete private enable-marker.
+- Deze release is een stabilisatierelease; geen nieuwe PM-functionaliteit buiten bovengenoemde correcties en verificatiegates.
+
 ## 32.4.7 — GUI startup/mode hotfix
 
 - Herstelt Home Assistant GUI-start na 32.4.4: `projectmanager_v2.projectmanager_web` importeert NAS Docker TLS-modules correct in zowel package- als embedded PM-context.
