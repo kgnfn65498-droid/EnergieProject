@@ -76,7 +76,7 @@ def make_project(tmp_path: Path) -> Path:
     (root / 'Backups/NAS Container').mkdir(parents=True)
     (root / 'Infra/docker-compose.yml').write_text('services: {}\n')
     (root / 'Infra/Docker/Energie.env').write_text('SECRET=not-for-ui\n')
-    (root / 'App/VERSIE.txt').write_text('32.4.4\n')
+    (root / 'App/VERSIE.txt').write_text('32.4.7\n')
     return root
 
 

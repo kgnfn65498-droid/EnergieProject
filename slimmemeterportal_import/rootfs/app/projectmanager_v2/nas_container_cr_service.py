@@ -535,8 +535,12 @@ class ConfiguredNasContainerCrService:
         self.private_root = Path(private_root)
 
     def create(self) -> dict[str, Any]:
-        from docker_engine_tls_client import DockerEngineTlsClient
-        from nas_docker_tls import DockerTlsConfig
+        if __package__:
+            from .docker_engine_tls_client import DockerEngineTlsClient
+            from .nas_docker_tls import DockerTlsConfig
+        else:
+            from docker_engine_tls_client import DockerEngineTlsClient
+            from nas_docker_tls import DockerTlsConfig
 
         config = DockerTlsConfig.load(self.private_root, project_root=self.project_root)
         client = DockerEngineTlsClient(config)

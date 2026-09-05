@@ -1,3 +1,9 @@
+## 32.4.7 — GUI startup/mode hotfix
+
+- Herstelt Home Assistant GUI-start na 32.4.4: `projectmanager_v2.projectmanager_web` importeert NAS Docker TLS-modules correct in zowel package- als embedded PM-context.
+- Herstelt de bedrijfsmodusknoppen: AJAX POST gebruikt `application/x-www-form-urlencoded` in plaats van multipart `FormData`, zodat `requested_mode` niet leeg aankomt.
+- Geen wijziging aan de NAS Container CR-beveiligingsgrenzen of productie-deploy-gates.
+
 ## 32.4.4 — terminalvrije NAS Container Crash Recovery via Projectmanager
 
 - Voegt de parameterloze veilige Projectmanager-intent `nas_container_cr_create` toe.

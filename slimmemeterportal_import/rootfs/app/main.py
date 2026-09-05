@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.4"
+APP_VERSION = "32.4.7"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -92,6 +92,8 @@ NAS_INFRA_ROOT = NAS_LAYOUT_ROOT / "Infra"
 PROJECT_BACKUP_RETENTION = 3
 PROJECT_BACKUP_PREFIX = "EnergieProject_maandbackup"
 ENERGIE_MCP_URL = os.environ.get("ENERGIE_MCP_URL", "http://192.168.1.200:8000/mcp").rstrip("/")
+
+# Release publication owner: autonomous NAS publisher; HA publisher is disabled by default and remains diagnostic compatibility only.
 
 GITHUB_PUBLISH_DIR = Path("/config/github_publisher")
 GITHUB_PRIVATE_KEY = GITHUB_PUBLISH_DIR / "id_ed25519"
@@ -19860,23 +19862,6 @@ def _classify_github_remote_baseline(contract, worktree: Path, release_source: P
         if remote_manifest != expected_previous_manifest:
             return False, "mismatch", "GitHub-baseline MANIFEST.sha256 wijkt af van verwacht contract."
         return True, "previous", "GitHub remote-baseline gecontroleerd."
-
-    if remote_version == "32.4.4":
-        recovery_config = worktree / "slimmemeterportal_import" / "config.yaml"
-        try:
-            recovery_config_text = recovery_config.read_text(encoding="utf-8")
-        except Exception as exc:
-            return False, "mismatch", f"GitHub recovery-config onleesbaar: {exc}"
-        if 'version: "32.4.4.1"' in recovery_config_text:
-            recovery_ok, recovery_message = _verify_release_manifest(worktree)
-            if not recovery_ok:
-                return False, "mismatch", (
-                    "GitHub recovery-baseline 32.4.4.1 is niet manifest-geldig: " + recovery_message
-                )
-            return True, "recovery_previous", (
-                "GitHub recovery-baseline 32.4.4.1 volledig manifest-gevalideerd; "
-                "publicatie naar contracttarget toegestaan."
-            )
 
     if remote_version == target_version:
         if remote_manifest == target_manifest:
