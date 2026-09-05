@@ -6,7 +6,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
     if value is None:
         return default
-    return value.strip().lower() in {'1','true','yes','on'}
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
 @dataclass(frozen=True)
@@ -25,10 +25,12 @@ class ManagerConfig:
     mode_state_path: str = ''
     mode_command_path: str = ''
     manager_app_root: str = ''
+    command_ingress_root: str = ''
+    approval_ingress_root: str = ''
 
     @classmethod
     def from_env(cls):
-        project_root=os.getenv('PM_PROJECT_ROOT', '/project')
+        project_root = os.getenv('PM_PROJECT_ROOT', '/project')
         return cls(
             project_root=project_root,
             system_root=os.getenv('PM_SYSTEM_ROOT', '/system/Projectmanager/RuntimeV2'),
@@ -44,9 +46,12 @@ class ManagerConfig:
             mode_state_path=os.getenv('PM_MODE_STATE_PATH', f'{project_root}/Inbox/operating_mode/operating_mode_state.json'),
             mode_command_path=os.getenv('PM_MODE_COMMAND_PATH', ''),
             manager_app_root=os.getenv('PM_APP_ROOT', os.getcwd()),
+            command_ingress_root=os.getenv('PM_COMMAND_INGRESS_ROOT', ''),
+            approval_ingress_root=os.getenv('PM_APPROVAL_INGRESS_ROOT', ''),
         )
 
     def public_dict(self):
+        # Secrets/tokens are intentionally absent.
         return {
             'project_root': self.project_root,
             'system_root': self.system_root,
@@ -61,4 +66,6 @@ class ManagerConfig:
             'mode_state_path': self.mode_state_path,
             'mode_command_path': self.mode_command_path,
             'manager_app_root': self.manager_app_root,
+            'command_ingress_root': self.command_ingress_root,
+            'approval_ingress_root': self.approval_ingress_root,
         }

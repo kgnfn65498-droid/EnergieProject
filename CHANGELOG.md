@@ -1,3 +1,11 @@
+## 32.4.2 — Projectmanager V2 volledige auditreparatie
+
+- Herstelt corrupte/missende RuntimeV2-state fail-safe met quarantine en neutrale USER-bootstrap.
+- Herstelt restartgedrag, diepe self-audit, runtime-first Knowledge Base/Roadmap en uitgebreide 24/7 healthdekking.
+- Activeert autonome regie, evidence/research/retention en PM-self-failure waarschuwing.
+- Voegt een single-writer PM-control-plane toe: MCP schrijft uitsluitend CommandIngress; Peter-keuringen lopen uitsluitend via lokale Home Assistant ApprovalIngress.
+- Protected side effects blijven fail-closed totdat afzonderlijke veiligheidsgates aantoonbaar groen zijn.
+
 ## 32.4.1 — Projectmanager V2 runtime startup hotfix
 - Embedded Projectmanager-runtime gebruikt de bewezen schrijfbare Inbox-runtime-root in plaats van de niet-schrijfbare systeemmap op de HA/NAS-mount.
 - Beide add-on launchers starten via mode_entrypoint.py zodat operating mode en Projectmanager V2 altijd dezelfde startupketen gebruiken.

@@ -1,12 +1,14 @@
-import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
 from notification_router import notification_route
-from persistence import atomic_write_json
+from persistence import atomic_write_json, load_json
 from secret_guard import redact
+
+
+def _valid_notification(data):
+    return isinstance(data, dict) and bool(data.get('id')) and bool(data.get('severity'))
 
 
 class NotificationOutbox:
@@ -19,7 +21,7 @@ class NotificationOutbox:
         item = redact(dict(payload))
         item.setdefault('id', uuid4().hex)
         item.setdefault('created_at', datetime.now(timezone.utc).isoformat())
-        path = self.directory / f"{item['created_at'].replace(':','').replace('+','_')}_{item['id']}.json"
+        path = self.directory / f"{item['created_at'].replace(':', '').replace('+', '_')}_{item['id']}.json"
         atomic_write_json(path, item)
         return {'queued': True, 'path': str(path), 'payload': item}
 
@@ -28,16 +30,16 @@ class NotificationOutbox:
             return []
         result = []
         for path in sorted(self.directory.glob('*.json')):
-            try:
-                payload = json.loads(path.read_text(encoding='utf-8'))
-            except (OSError, json.JSONDecodeError):
-                continue
-            result.append((path, payload))
+            payload = load_json(path, default=None, recover_corrupt=True, validator=_valid_notification)
+            if isinstance(payload, dict):
+                result.append((path, payload))
         return result
 
     def mark_delivered(self, path, delivery_result: dict):
         source = Path(path)
-        payload = json.loads(source.read_text(encoding='utf-8'))
+        payload = load_json(source, default=None, recover_corrupt=False, validator=_valid_notification)
+        if not isinstance(payload, dict):
+            raise ValueError('notification payload invalid')
         payload['delivered_at'] = datetime.now(timezone.utc).isoformat()
         payload['delivery'] = redact(delivery_result)
         self.delivered_directory.mkdir(parents=True, exist_ok=True)

@@ -17,9 +17,13 @@ def normalize_content(text: str) -> str:
 
 
 def default_fetcher(url: str) -> str:
-    request = urllib.request.Request(url, headers={'User-Agent':'EnergieProjectManager/2.0'})
+    request = urllib.request.Request(url, headers={'User-Agent': 'EnergieProjectManager/2.0'})
     with urllib.request.urlopen(request, timeout=12) as response:
         return response.read(2_000_000).decode('utf-8', errors='replace')
+
+
+def _valid_state(data):
+    return isinstance(data, dict) and isinstance(data.get('sources', {}), dict)
 
 
 class SourceMonitor:
@@ -28,7 +32,12 @@ class SourceMonitor:
         self.fetcher = fetcher or default_fetcher
 
     def _load(self):
-        return load_json(self.state_path, default={'schema':1,'sources':{}})
+        return load_json(
+            self.state_path,
+            default={'schema': 1, 'sources': {}},
+            recover_corrupt=True,
+            validator=_valid_state,
+        )
 
     def check(self, source: dict) -> dict:
         source_id = source['id']
@@ -48,13 +57,20 @@ class SourceMonitor:
         data['sources'][source_id] = record
         atomic_write_json(self.state_path, data)
         if previous is None:
-            return {'source_id': source_id, 'state':'BASELINED','changed':False,'relevant':False,'sha256':digest,'evidence_ref':url}
+            return {
+                'source_id': source_id,
+                'state': 'BASELINED',
+                'changed': False,
+                'relevant': False,
+                'sha256': digest,
+                'evidence_ref': url,
+            }
         changed = previous.get('sha256') != digest
         keywords = [str(word).lower() for word in source.get('keywords') or []]
         relevant = changed and (not keywords or any(word in normalized for word in keywords))
         return {
             'source_id': source_id,
-            'state':'CHANGED' if changed else 'UNCHANGED',
+            'state': 'CHANGED' if changed else 'UNCHANGED',
             'changed': changed,
             'relevant': relevant,
             'sha256': digest,

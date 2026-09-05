@@ -1,23 +1,33 @@
+import json
 from pathlib import Path
 
-from command_store import CommandStore
-from decision_queue import DecisionQueue
-from persistence import load_json
 from secret_guard import redact
 
 
 class ProjectmanagerAPI:
+    """Read-only presentation API for MCP/Nomad/parent summaries.
+
+    RuntimeV2 has one writer: the embedded Projectmanager. External command
+    proposals use CommandIngress and Peter approvals use ApprovalIngress.
+    """
+
     def __init__(self, runtime_root):
         self.root = Path(runtime_root)
-        self.command_store = CommandStore(self.root / 'commands' / 'queue.json')
-        self.decision_queue = DecisionQueue(self.root / 'decisions' / 'queue.json')
+
+    def _read_dict(self, rel, default=None):
+        path = self.root / rel
+        try:
+            value = json.loads(path.read_text(encoding='utf-8'))
+            return value if isinstance(value, dict) else default
+        except (OSError, json.JSONDecodeError):
+            return default
 
     def _not_ready(self):
         return {
             'state': 'NOT_READY',
             'project_id': 'energie',
             'mode': None,
-            'health': {'status': 'ORANGE', 'attention_count': 1, 'reason': 'projectmanager_status_missing'},
+            'health': {'status': 'ORANGE', 'attention_count': 1, 'reason': 'projectmanager_status_missing_or_invalid'},
             'release': {},
             'active_task': None,
             'next_action': 'start or diagnose projectmanager service',
@@ -26,37 +36,32 @@ class ProjectmanagerAPI:
         }
 
     def status(self):
-        status = load_json(self.root / 'status' / 'current.json', default=None)
+        status = self._read_dict('status/current.json')
         if not isinstance(status, dict):
             return self._not_ready()
         return redact(status)
 
     def handover(self):
-        payload = load_json(self.root / 'handover' / 'current.json', default=None)
+        payload = self._read_dict('handover/current.json')
         return redact(payload) if isinstance(payload, dict) else {'state': 'NOT_READY'}
 
     def decisions(self):
-        return redact({'items': self.decision_queue.pending()})
+        status = self.status()
+        return redact({'items': status.get('decisions_needed', [])})
 
     def opportunities(self):
-        data = load_json(self.root / 'opportunities' / 'register.json', default={'items': []})
-        items = sorted(data.get('items', []), key=lambda x: (x.get('status') != 'PROMOTED', x.get('category',''), x.get('subject','')))
+        data = self._read_dict('opportunities/register.json', default={'items': []}) or {'items': []}
+        items = sorted(
+            [item for item in data.get('items', []) if isinstance(item, dict)],
+            key=lambda x: (x.get('status') != 'PROMOTED', x.get('category', ''), x.get('subject', '')),
+        )
         return redact({'items': items})
 
     def submit_command(self, command: dict):
-        allowed = {
-            'intent','source','text','title','goal','steps_total','priority','next_action',
-        }
-        payload = {key:value for key,value in (command or {}).items() if key in allowed}
-        payload.setdefault('source','chat')
-        return redact(self.command_store.enqueue(payload))
+        raise RuntimeError('direct RuntimeV2 command writes disabled; use CommandIngress')
 
     def resolve_decision(self, decision_id: str, *, approved: bool, approved_by: str = 'Peter'):
-        if not decision_id:
-            raise ValueError('decision_id is required')
-        if approved_by != 'Peter':
-            raise ValueError('only Peter may resolve protected Projectmanager decisions')
-        return redact(self.decision_queue.resolve(decision_id, approved=bool(approved), approved_by=approved_by))
+        raise RuntimeError('direct RuntimeV2 decision writes disabled; use authenticated Home Assistant ApprovalIngress')
 
     def nomad_context(self):
         status = self.status()

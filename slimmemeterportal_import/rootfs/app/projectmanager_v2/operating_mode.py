@@ -6,6 +6,10 @@ from persistence import atomic_write_json, load_json
 VALID_MODES = {'USER', 'DEVELOPMENT', 'MAINTENANCE'}
 
 
+def _valid_state(data):
+    return isinstance(data, dict) and data.get('mode') in VALID_MODES
+
+
 def transition(current: str, event: str) -> str:
     if current not in VALID_MODES:
         raise ValueError(f'invalid mode: {current}')
@@ -25,12 +29,17 @@ class ModeStore:
         self.path = Path(path)
 
     def get(self):
-        return load_json(self.path, default={
-            'schema': 1,
-            'mode': 'USER',
-            'reason': 'default',
-            'updated_at': None,
-        })
+        return load_json(
+            self.path,
+            default={
+                'schema': 1,
+                'mode': 'USER',
+                'reason': 'default',
+                'updated_at': None,
+            },
+            recover_corrupt=True,
+            validator=_valid_state,
+        )
 
     def set(self, mode: str, *, reason: str, source: str = 'projectmanager'):
         if mode not in VALID_MODES:

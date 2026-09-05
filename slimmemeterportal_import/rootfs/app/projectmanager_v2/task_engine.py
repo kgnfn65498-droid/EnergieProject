@@ -14,6 +14,13 @@ REQUIRED_DOD_GATES = (
     'release_ready',
     'no_blockers',
 )
+VALID_TASK_STATUSES = {'ACTIVE', 'PAUSED', 'BLOCKED', 'WAITING_APPROVAL', 'DONE'}
+
+
+def _valid_payload(data):
+    if not isinstance(data, dict) or not isinstance(data.get('tasks', []), list):
+        return False
+    return all(isinstance(task, dict) and task.get('status') in VALID_TASK_STATUSES for task in data.get('tasks', []))
 
 
 def definition_of_done(gates: dict) -> dict:
@@ -26,7 +33,12 @@ class TaskStore:
         self.path = Path(path)
 
     def _load(self):
-        return load_json(self.path, default={'schema': 1, 'tasks': []})
+        return load_json(
+            self.path,
+            default={'schema': 1, 'tasks': []},
+            recover_corrupt=True,
+            validator=_valid_payload,
+        )
 
     def _save(self, data):
         atomic_write_json(self.path, data)
@@ -56,7 +68,7 @@ class TaskStore:
                 existing['updated_at'] = now
         data.setdefault('tasks', []).append(task)
         self._save(data)
-        return task
+        return dict(task)
 
     def progress(self, task_id: str, *, step=None, steps_total=None, next_action=None, change=None, evidence_ref=None):
         data = self._load()
@@ -73,7 +85,7 @@ class TaskStore:
             task.setdefault('evidence_refs', []).append(evidence_ref)
         task['updated_at'] = datetime.now(timezone.utc).isoformat()
         self._save(data)
-        return task
+        return dict(task)
 
     def block(self, task_id: str, reason: str):
         data = self._load()
@@ -82,7 +94,7 @@ class TaskStore:
         task.setdefault('blockers', []).append(reason)
         task['updated_at'] = datetime.now(timezone.utc).isoformat()
         self._save(data)
-        return task
+        return dict(task)
 
     def mark_release_ready(self, task_id: str):
         data = self._load()
@@ -90,7 +102,7 @@ class TaskStore:
         task['status'] = 'WAITING_APPROVAL'
         task['updated_at'] = datetime.now(timezone.utc).isoformat()
         self._save(data)
-        return task
+        return dict(task)
 
     def complete(self, task_id: str, gates: dict):
         result = definition_of_done(gates)
@@ -102,14 +114,17 @@ class TaskStore:
         task['completed_at'] = datetime.now(timezone.utc).isoformat()
         task['updated_at'] = task['completed_at']
         self._save(data)
-        return task
+        return dict(task)
 
     def active(self):
         tasks = self._load().get('tasks', [])
         candidates = [task for task in tasks if task.get('status') in {'ACTIVE', 'BLOCKED', 'WAITING_APPROVAL'}]
         if not candidates:
             return None
-        return sorted(candidates, key=lambda t: (t.get('priority', 99), t.get('created_at', '')))[0]
+        return dict(sorted(candidates, key=lambda t: (t.get('priority', 99), t.get('created_at', '')))[0])
+
+    def all(self):
+        return [dict(task) for task in self._load().get('tasks', [])]
 
     @staticmethod
     def _find(data, task_id):

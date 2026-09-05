@@ -20,16 +20,27 @@ def classify_event(event: dict) -> str:
     return 'none'
 
 
-def upsert_managed_section(existing: str, section_id: str, content: str) -> str:
+def _block(section_id: str, content: str):
     safe_id = re.sub(r'[^A-Z0-9_\-]', '_', section_id.upper())
     begin = f'<!-- PMV2:{safe_id}:BEGIN -->'
     end = f'<!-- PMV2:{safe_id}:END -->'
-    block = f'{begin}\n{content.rstrip()}\n{end}'
+    return begin, end, f'{begin}\n{content.rstrip()}\n{end}'
+
+
+def upsert_managed_section(existing: str, section_id: str, content: str, *, placement='end') -> str:
+    begin, end, block = _block(section_id, content)
     pattern = re.compile(re.escape(begin) + r'.*?' + re.escape(end), flags=re.DOTALL)
-    if pattern.search(existing):
-        return pattern.sub(block, existing)
-    base = existing.rstrip()
-    return f'{base}\n\n{block}\n' if base else f'{block}\n'
+    without = pattern.sub('', existing or '').strip()
+    if placement == 'top':
+        lines = without.splitlines()
+        if lines and lines[0].startswith('# '):
+            head = lines[0].rstrip()
+            rest = '\n'.join(lines[1:]).strip()
+            return f'{head}\n\n{block}\n\n{rest}\n' if rest else f'{head}\n\n{block}\n'
+        return f'{block}\n\n{without}\n' if without else f'{block}\n'
+    if placement != 'end':
+        raise ValueError(f'unsupported managed-section placement: {placement}')
+    return f'{without}\n\n{block}\n' if without else f'{block}\n'
 
 
 def sync_plan(event: dict, *, kb_path: str, roadmap_path: str) -> list:

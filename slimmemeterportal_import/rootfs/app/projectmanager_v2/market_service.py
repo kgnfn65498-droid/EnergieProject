@@ -6,13 +6,17 @@ from persistence import atomic_write_json, load_json
 from source_catalog import OFFICIAL_SOURCES
 
 
+def _valid_schedule(data):
+    return isinstance(data, dict) and isinstance(data.get('next_due', {}), dict)
+
+
 class NullMarketService:
-    def run_due(self, *, now=None) -> list:
+    def run_due(self, *, now=None):
         return []
 
 
 class MarketService:
-    def __init__(self, runtime_root, *, sources=None, monitor=None, max_sources_per_cycle: int = 1):
+    def __init__(self, runtime_root, *, sources=None, monitor=None, max_sources_per_cycle=1):
         self.root = Path(runtime_root)
         self.sources = list(sources or OFFICIAL_SOURCES)
         self.schedule_path = self.root / 'market_schedule.json'
@@ -20,19 +24,24 @@ class MarketService:
         self.max_sources_per_cycle = max(1, int(max_sources_per_cycle))
 
     def _load_schedule(self):
-        return load_json(self.schedule_path, default={'schema':1,'next_due':{}})
+        return load_json(
+            self.schedule_path,
+            default={'schema': 1, 'next_due': {}},
+            recover_corrupt=True,
+            validator=_valid_schedule,
+        )
 
-    def run_due(self, *, now=None) -> list:
+    def run_due(self, *, now=None):
         now = now or datetime.now(timezone.utc)
         schedule = self._load_schedule()
         events = []
         checked = 0
-        for source in sorted(self.sources, key=lambda x: (x.get('priority',99), x['id'])):
-            due_raw = schedule.get('next_due', {}).get(source['id'])
+        for source in sorted(self.sources, key=lambda x: (x.get('priority', 99), x['id'])):
+            raw = schedule.get('next_due', {}).get(source['id'])
             due = None
-            if due_raw:
+            if raw:
                 try:
-                    due = datetime.fromisoformat(due_raw.replace('Z','+00:00'))
+                    due = datetime.fromisoformat(str(raw).replace('Z', '+00:00'))
                     if due.tzinfo is None:
                         due = due.replace(tzinfo=timezone.utc)
                 except (TypeError, ValueError):
@@ -44,17 +53,18 @@ class MarketService:
             checked += 1
             try:
                 result = self.monitor.check(source)
+                base = {
+                    'category': source.get('category'),
+                    'source_id': source['id'],
+                    'subject': source['id'],
+                    'evidence_ref': result.get('evidence_ref'),
+                    'sha256': result.get('sha256'),
+                    'priority': source.get('priority', 5),
+                }
                 if result.get('changed') and result.get('relevant'):
-                    events.append({
-                        'type': 'market_source_changed',
-                        'severity': 'ORANGE',
-                        'category': source.get('category'),
-                        'source_id': source['id'],
-                        'subject': source['id'],
-                        'evidence_ref': result.get('evidence_ref'),
-                        'sha256': result.get('sha256'),
-                        'priority': source.get('priority', 5),
-                    })
+                    events.append({'type': 'market_source_changed', 'severity': 'ORANGE', **base})
+                else:
+                    events.append({'type': 'market_source_checked', 'severity': 'GREEN', **base})
             except Exception as exc:
                 events.append({
                     'type': 'market_source_error',

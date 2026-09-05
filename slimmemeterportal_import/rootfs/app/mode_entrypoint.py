@@ -20,8 +20,9 @@ from operating_mode_crash_recovery import (
 from release_validation_hold import ensure_release_hold_state
 from operating_mode_auto_release import automatic_release_hold_worker
 from projectmanager_v2_entrypoint import start_projectmanager_v2
+from projectmanager_v2.projectmanager_web import install_projectmanager_web
 
-TARGET_RELEASE_VERSION = "32.4.1"
+TARGET_RELEASE_VERSION = "32.4.2"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 
@@ -36,6 +37,10 @@ def start_operating_mode_runtime() -> None:
     install_crash_recovery_mode_integration(app, root)
     operating_mode_tick(root, app_module=app)
     install_mode_web(app, root)
+    # The approval card is inside authenticated Home Assistant ingress and
+    # writes immutable ApprovalIngress envelopes only; it never mutates
+    # RuntimeV2 directly.
+    install_projectmanager_web(app, root)
     threading.Thread(
         target=automatic_release_hold_worker,
         args=(app.STOP, app, root, TARGET_RELEASE_VERSION),

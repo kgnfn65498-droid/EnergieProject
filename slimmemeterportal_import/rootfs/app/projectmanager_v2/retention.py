@@ -1,8 +1,14 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-OWNED_RETENTION_DIRS = {'audit', 'logs', 'snapshots', 'notifications'}
-PROTECTED_DIRS = {'state', 'handover', 'decisions', 'opportunities', 'status', 'heartbeat'}
+# Retention is intentionally narrow. Active state/audit/outbox files are never
+# candidates. Only immutable historical/delivered artifacts owned by PMV2 are.
+OWNED_ARCHIVE_DIRS = (
+    'snapshots/archive',
+    'notifications/outbox/delivered',
+    'logs/archive',
+    'audit/archive',
+)
 
 
 def retention_candidates(runtime_root, *, now=None, keep_days: int = 30) -> list[str]:
@@ -10,20 +16,21 @@ def retention_candidates(runtime_root, *, now=None, keep_days: int = 30) -> list
     now = now or datetime.now(timezone.utc)
     cutoff = now.timestamp() - max(0, int(keep_days)) * 86400
     candidates = []
-    for dirname in OWNED_RETENTION_DIRS:
-        directory = root / dirname
-        if not directory.is_dir():
+    for rel in OWNED_ARCHIVE_DIRS:
+        directory = (root / rel).resolve()
+        if not directory.is_dir() or root not in directory.parents:
             continue
         for path in directory.rglob('*'):
             if not path.is_file():
                 continue
             resolved = path.resolve()
-            if root not in resolved.parents:
+            if root not in resolved.parents or directory not in resolved.parents:
                 continue
-            relative_parts = resolved.relative_to(root).parts
-            if any(part in PROTECTED_DIRS for part in relative_parts):
+            try:
+                old = path.stat().st_mtime < cutoff
+            except OSError:
                 continue
-            if path.stat().st_mtime < cutoff:
+            if old:
                 candidates.append(str(path))
     return sorted(candidates)
 
@@ -36,4 +43,4 @@ def apply_retention(runtime_root, *, now=None, keep_days: int = 30, confirmed_ow
         path = Path(candidate)
         path.unlink()
         deleted.append(candidate)
-    return {'deleted': deleted, 'blocked': False}
+    return {'deleted': deleted, 'blocked': False, 'scope': list(OWNED_ARCHIVE_DIRS)}
