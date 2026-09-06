@@ -22,7 +22,11 @@ class AlertState:
         )
 
     def should_send(self, event: dict, *, now=None) -> bool:
-        if event.get('severity') != 'RED' and not event.get('peter_decision_needed'):
+        if (
+            event.get('severity') != 'RED'
+            and not event.get('peter_decision_needed')
+            and not event.get('proactive_direct')
+        ):
             return False
         fingerprint = event.get('fingerprint')
         if not fingerprint:

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from approval_ingress import ApprovalIngressConsumer
@@ -15,6 +16,7 @@ from nas_container_cr_service import ConfiguredNasContainerCrService
 from persistence import atomic_write_json
 from protected_action_executor import ProtectedActionExecutor
 from roadmap_regie import RoadmapRegie
+from state_reconciliation import StateReconciler
 
 
 def _read_manager_version(app_root) -> str:
@@ -40,6 +42,7 @@ class ProjectmanagerRuntime:
             self.base.tasks,
             self.base.document_sync,
             config.reports_root,
+            opportunity_register=getattr(self.base, 'opportunities', None),
         )
 
         recovered = self.commands.recover_interrupted()
@@ -105,11 +108,34 @@ class ProjectmanagerRuntime:
             self.base.decisions,
             audit=self.base.audit,
         )
+        self.release_validation_path = (
+            Path(config.project_root) / 'Inbox' / 'operating_mode' / 'release_validation_hold.json'
+        )
+        self.state_reconciler = StateReconciler(
+            self.base.tasks,
+            self.base.decisions,
+            self.commands,
+            self.handoffs,
+            getattr(self.base, 'issues', None),
+            audit=self.base.audit,
+        )
 
     def _open_issue(self, fingerprint, *, severity, title, details):
         issues = getattr(self.base, 'issues', None)
         if issues is not None:
             issues.open(fingerprint, severity=severity, title=title, details=details)
+
+    def _release_validation_snapshot(self):
+        path = self.release_validation_path
+        try:
+            data = json.loads(path.read_text(encoding='utf-8'))
+            if not isinstance(data, dict):
+                raise ValueError('release validation payload is not an object')
+            data = dict(data)
+            data['_source'] = str(path)
+            return data
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            return {'_source': str(path), 'error': f'{type(exc).__name__}: {exc}'}
 
     def run_once(self, *, now=None):
         handoff_results = self.handoff_results.consume(max_items=20)
@@ -162,6 +188,13 @@ class ProjectmanagerRuntime:
 
         processed = self.processor.process_all(max_items=50)
         protected_results = self.protected_executor.run_once(max_items=5)
+        runtime_snapshot = self.base.runtime_collector.collect()
+        release_validation = self._release_validation_snapshot()
+        reconciliation_result = self.state_reconciler.reconcile(
+            runtime=runtime_snapshot,
+            release_validation=release_validation,
+            now=now,
+        )
         status = dict(self.base.run_once(now=now))
         status['manager'] = {'version': _read_manager_version(getattr(self.config, 'manager_app_root', ''))}
         status['handoff_result_ingress_results'] = handoff_results[-20:]
@@ -176,6 +209,7 @@ class ProjectmanagerRuntime:
         status['handoffs'] = self.handoffs.open_items()
         status['canonical_roadmap'] = self.roadmap.canonical_metadata()
         status['conversation_intake'] = self.conversation_intake.summary()
+        status['state_reconciliation'] = reconciliation_result
         self._refresh_coordination(status)
         return status
 
@@ -214,4 +248,5 @@ class ProjectmanagerRuntime:
         handover['handoffs'] = status.get('handoffs', [])
         handover['canonical_roadmap'] = status.get('canonical_roadmap', {})
         handover['conversation_intake'] = status.get('conversation_intake', {})
+        handover['state_reconciliation'] = status.get('state_reconciliation', {})
         atomic_write_json(self.root / 'handover' / 'current.json', handover)

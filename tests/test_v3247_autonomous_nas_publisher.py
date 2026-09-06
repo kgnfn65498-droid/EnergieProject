@@ -4,10 +4,10 @@ PUB=ROOT/'tools/nas_github_publisher.sh'
 BOOT=ROOT/'tools/bootstrap_nas_github_publisher.sh'
 
 def test_release_identity_and_ha_default():
-    assert (ROOT/'VERSIE.txt').read_text().strip()=='32.4.9'
-    assert 'version: "32.4.9"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text()
+    assert (ROOT/'VERSIE.txt').read_text().strip()=='32.4.10'
+    assert 'version: "32.4.10"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text()
     assert 'github_publication_enabled: true' in (ROOT/'slimmemeterportal_import/config.yaml').read_text()
-    assert 'APP_VERSION = "32.4.9"' in (ROOT/'slimmemeterportal_import/rootfs/app/main.py').read_text()
+    assert 'APP_VERSION = "32.4.10"' in (ROOT/'slimmemeterportal_import/rootfs/app/main.py').read_text()
 
 def test_publisher_fail_closed_contract_and_no_force():
     s=PUB.read_text()

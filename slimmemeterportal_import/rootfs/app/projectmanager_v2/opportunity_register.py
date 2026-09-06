@@ -3,6 +3,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from persistence import atomic_write_json, load_json
+from proactive_policy import evaluate_signal
 
 PROMOTE_CATEGORIES_WITHOUT_SAVING = {'security', 'regulation', 'end_of_life', 'data_quality'}
 VALID_STATUSES = {'PROMOTED', 'WATCHING'}
@@ -37,7 +38,7 @@ class OpportunityRegister:
     def all(self):
         return [dict(item) for item in self._load().get('items', [])]
 
-    def upsert(self, fingerprint: str, *, category: str, subject: str, evidence: list, annual_saving_eur=None, payback_years=None, compatible=None, details=None):
+    def upsert(self, fingerprint: str, *, category: str, subject: str, evidence: list, annual_saving_eur=None, payback_years=None, compatible=None, assessment=None, details=None):
         data = self._load()
         now = datetime.now(timezone.utc).isoformat()
         item = next((x for x in data.get('items', []) if x.get('fingerprint') == fingerprint), None)
@@ -51,9 +52,27 @@ class OpportunityRegister:
             'annual_saving_eur': annual_saving_eur,
             'payback_years': payback_years,
             'compatible': compatible,
+            'assessment': dict(assessment) if isinstance(assessment, dict) else assessment,
             'details': details or {},
             'updated_at': now,
         })
+        item['proactive_evaluation'] = evaluate_signal(item)
         item['status'] = 'PROMOTED' if _promotable(item) else 'WATCHING'
         self._save(data)
         return dict(item)
+
+    def mark_notified(self, fingerprint: str, *, material_fingerprint: str, now=None):
+        material = str(material_fingerprint or '').strip()
+        if not material:
+            raise ValueError('material_fingerprint_required')
+        data = self._load()
+        for item in data.get('items', []):
+            if item.get('fingerprint') != fingerprint:
+                continue
+            stamp = (now or datetime.now(timezone.utc)).isoformat()
+            item['last_notified_material_fingerprint'] = material
+            item['last_notified_at'] = stamp
+            item['updated_at'] = stamp
+            self._save(data)
+            return dict(item)
+        raise KeyError(fingerprint)

@@ -21,6 +21,8 @@ LOGDIR="$INBOX/logs"
 INSTALLER_SOURCE="$PROJECT/tools/release_installer.sh"
 PIDFILE="$INBOX/.watcher.pid"
 WATCHER_LOCK="$INBOX/.watcher.lock"
+ATOMIC_SWAP_LOCK="$INBOX/.atomic_app_swap.lock"
+ATOMIC_SWAP_JOURNAL="$INBOX/atomic_app_swap_state.json"
 STATUSFILE="$INBOX/latest_release_status.txt"
 HEARTBEAT="$INBOX/.watcher.heartbeat"
 ZIP_HELPER_SOURCE="$PROJECT/tools/release_zip.py"
@@ -67,6 +69,17 @@ mode_allows(){
   [ -f "$MODE_GATE" ] || return 1
   command -v python3 >/dev/null 2>&1 || return 1
   python3 "$MODE_GATE" --root "$ROOT" --capability "$capability" >/dev/null 2>&1
+}
+
+atomic_swap_allows_release_ingress(){
+  [ ! -d "$ATOMIC_SWAP_LOCK" ] || return 1
+  [ -f "$ATOMIC_SWAP_JOURNAL" ] || return 0
+  STATE="$(sed -n 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$ATOMIC_SWAP_JOURNAL" 2>/dev/null | head -n 1)"
+  case "$STATE" in
+    ACCEPTED|ROLLED_BACK) return 0 ;;
+    PREPARED|OLD_RENAMED|NEW_ACTIVE|LIVE_ACCEPTANCE) return 1 ;;
+    *) return 1 ;;
+  esac
 }
 
 zip_integrity_ok(){
@@ -217,6 +230,7 @@ case "${1:-run}" in
     rmdir "$WATCHER_LOCK" 2>/dev/null || true
     echo "GESTOPT"; exit 0;;
   once)
+    atomic_swap_allows_release_ingress || { log "WACHT: atomic swap blokkeert release-ingress"; exit 1; }
     run_installer; exit $?;;
   run) ;;
   *) echo "Gebruik: $0 [run|once|status|stop]" >&2; exit 2;;
@@ -274,7 +288,7 @@ while :; do
     process_crash_recovery_cleanup || true
   fi
 
-  if mode_allows release_ingress; then
+  if mode_allows release_ingress && atomic_swap_allows_release_ingress; then
     set -- "$INCOMING"/*.zip
     if [ -e "$1" ]; then
       COUNT=$#

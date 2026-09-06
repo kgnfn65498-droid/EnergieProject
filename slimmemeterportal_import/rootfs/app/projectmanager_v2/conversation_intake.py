@@ -112,11 +112,12 @@ class ConversationIntakeBridge:
     roadmap-candidate and wishlist sections are derived projections only.
     """
 
-    def __init__(self, path, task_store, document_sync, reports_root):
+    def __init__(self, path, task_store, document_sync, reports_root, opportunity_register=None):
         self.path = Path(path)
         self.tasks = task_store
         self.documents = document_sync
         self.reports_root = Path(reports_root)
+        self.opportunities = opportunity_register
 
     def _load(self):
         return load_json(
@@ -195,12 +196,15 @@ class ConversationIntakeBridge:
             data['items'].append(item)
             self._save(data)
 
+        follow_up_result = self._sync_follow_up(item)
         route_results = self._route(item)
         data = self._load()
         stored = next(
             row for row in data['items'] if row.get('fingerprint') == fingerprint
         )
         stored['route_results'] = route_results
+        if follow_up_result is not None:
+            stored['follow_up_result'] = follow_up_result
         stored['status'] = (
             'ROUTED'
             if all(result.get('ok') is True for result in route_results.values())
@@ -217,6 +221,35 @@ class ConversationIntakeBridge:
             'route_results': dict(stored['route_results']),
             'status': stored['status'],
             'duplicate': duplicate,
+        }
+
+    def _sync_follow_up(self, item):
+        if self.opportunities is None:
+            return None
+        classification = item.get('classification')
+        if classification not in {'idea_opportunity', 'later_return'}:
+            return None
+        category = 'conversation_opportunity' if classification == 'idea_opportunity' else 'follow_up'
+        details = {
+            'intake_id': item['id'],
+            'source_channel': item.get('source_channel'),
+            'source_ref': item.get('source_ref'),
+        }
+        if classification == 'later_return':
+            details['follow_up_policy'] = 'open_until_reviewed'
+        opportunity = self.opportunities.upsert(
+            f"intake:{item['fingerprint']}",
+            category=category,
+            subject=item.get('text', '')[:160],
+            evidence=[f"{self.path}#{item['id']}"],
+            details=details,
+        )
+        return {
+            'ok': True,
+            'opportunity_id': opportunity.get('id'),
+            'opportunity_fingerprint': opportunity.get('fingerprint'),
+            'status': opportunity.get('status'),
+            'proactive_decision': (opportunity.get('proactive_evaluation') or {}).get('decision'),
         }
 
     def _route(self, item):

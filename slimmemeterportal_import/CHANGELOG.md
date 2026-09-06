@@ -1,8 +1,8 @@
 # Changelog
 
-## 32.4.9
+## 32.4.10
 
-- Conversation Intake Bridge voor ChatGPT, Nomad en spraak via de bestaande Projectmanager CommandIngress.
-- Zeven inhoudscategorieën met selectieve afgeleide routering naar Knowledge Base, roadmapkandidaten, wensenlijst of PAUSED taken.
-- Canonieke RuntimeV2-intake, brontraceerbaarheid, idempotentie, development-context en fail-safe malformed/secretcontrole.
-- Projectmanager 2.0.0-rc6; bestaande productie- en publicatiegates blijven ongewijzigd.
+- Evidence-based Projectmanager state-reconciliation met SUPERSEDED/REVIEW_REQUIRED zonder historische records te verwijderen.
+- Veilige hervatting/afronding van PAUSED handoffs op geldig immutable resultaat.
+- Proactieve scoring, hard-gates, material-fingerprint anti-spam en traceerbare Conversation Intake follow-up.
+- Projectmanager 2.0.0-rc7; bestaande productie-, architectuur- en publicatiegates blijven ongewijzigd.

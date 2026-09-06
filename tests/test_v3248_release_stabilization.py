@@ -13,11 +13,11 @@ CONFIG = ROOT / "slimmemeterportal_import" / "config.yaml"
 
 
 def test_v3248_release_identity_is_consistent():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.9"
-    assert 'version: "32.4.9"' in CONFIG.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.9"' in (APP / "main.py").read_text(encoding="utf-8")
-    assert 'TARGET_RELEASE_VERSION = "32.4.9"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
-    assert (APP / "projectmanager_v2" / "VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc6"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.10"
+    assert 'version: "32.4.10"' in CONFIG.read_text(encoding="utf-8")
+    assert 'APP_VERSION = "32.4.10"' in (APP / "main.py").read_text(encoding="utf-8")
+    assert 'TARGET_RELEASE_VERSION = "32.4.10"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
+    assert (APP / "projectmanager_v2" / "VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc7"
 
 
 def test_github_publication_is_enabled_by_default_on_reset_or_fresh_install():
@@ -40,7 +40,7 @@ print(mode_entrypoint.TARGET_RELEASE_VERSION)
 ''' % str(APP)
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "32.4.9"
+    assert result.stdout.strip() == "32.4.10"
 
 
 def test_abandoned_nas_publisher_stays_inert_by_default():

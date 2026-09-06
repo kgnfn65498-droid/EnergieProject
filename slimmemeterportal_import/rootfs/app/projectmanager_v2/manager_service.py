@@ -17,6 +17,7 @@ from market_service import MarketService, NullMarketService
 from notification_transport import NotificationOutbox, route_event
 from operating_mode import ModeStore
 from opportunity_register import OpportunityRegister
+from proactive_policy import evaluate_signal
 from persistence import atomic_write_json
 from research_queue import ResearchQueue
 from retention import retention_candidates, apply_retention
@@ -111,6 +112,7 @@ class ManagerService:
         self._record_evidence(checks)
         self._reconcile_issues(checks, market_events)
         research_events = self._reconcile_research(market_events, now=now)
+        proactive = self._reconcile_proactive(now=now)
         health = summarize_health(checks)
         watchdog_events = watchdog_evaluate([
             dict(item, type=item.get('name')) for item in checks if item.get('status') != 'GREEN'
@@ -136,6 +138,7 @@ class ManagerService:
             'open_issues': self.issues.open_items(),
             'market_events': market_events,
             'research_events': research_events,
+            'proactive': proactive,
             'research_handoffs_due': [
                 {'key': item.get('key'), 'query': item.get('query'), 'priority': item.get('priority')}
                 for item in handoff_research[:20]
@@ -295,6 +298,89 @@ class ManagerService:
             })
         return events
 
+    def _reconcile_proactive(self, *, now):
+        promoted = []
+        review_required = []
+        followups_open = []
+        watching_count = 0
+        pending_fingerprints = {
+            payload.get('fingerprint')
+            for _, payload in self.outbox.pending()
+            if payload.get('fingerprint')
+        }
+
+        for item in self.opportunities.all():
+            evaluation = evaluate_signal(item)
+            details = item.get('details') if isinstance(item.get('details'), dict) else {}
+            if details.get('follow_up_policy') == 'open_until_reviewed':
+                followups_open.append({
+                    'fingerprint': item.get('fingerprint'),
+                    'subject': item.get('subject'),
+                    'intake_id': details.get('intake_id'),
+                    'source_channel': details.get('source_channel'),
+                    'source_ref': details.get('source_ref'),
+                })
+
+            summary = {
+                'fingerprint': item.get('fingerprint'),
+                'category': item.get('category'),
+                'subject': item.get('subject'),
+                'total_score': evaluation.get('total_score'),
+                'hard_gate': evaluation.get('hard_gate'),
+                'reason': evaluation.get('reason'),
+                'material_fingerprint': evaluation.get('material_fingerprint'),
+            }
+
+            if evaluation.get('decision') == 'REVIEW_REQUIRED':
+                review_required.append(summary)
+                continue
+            if evaluation.get('decision') != 'PROMOTE':
+                watching_count += 1
+                continue
+
+            material = evaluation.get('material_fingerprint')
+            event_fingerprint = f"opportunity:{item.get('fingerprint')}:{material}"
+            notification_queued = False
+            already_delivered = item.get('last_notified_material_fingerprint') == material
+            already_pending = event_fingerprint in pending_fingerprints
+            if not already_delivered and not already_pending:
+                event = {
+                    'severity': 'ORANGE',
+                    'proactive_direct': True,
+                    'subject': 'Energie PM — proactief signaal',
+                    'detail': item.get('subject') or 'Waardevol Projectmanager-signaal',
+                    'fingerprint': event_fingerprint,
+                    'opportunity_fingerprint': item.get('fingerprint'),
+                    'material_fingerprint': material,
+                }
+                if self.alerts.should_send(event, now=now):
+                    result = route_event(self.outbox, event)
+                    if result.get('queued') is True:
+                        self.alerts.mark_sent(event, now=now)
+                        pending_fingerprints.add(event_fingerprint)
+                        notification_queued = True
+                        self.audit.write(
+                            'opportunity.notification.queued',
+                            actor='projectmanager',
+                            result='ok',
+                            details={
+                                'fingerprint': item.get('fingerprint'),
+                                'material_fingerprint': material,
+                                'reason': evaluation.get('reason'),
+                            },
+                        )
+            summary['notification_queued'] = notification_queued
+            summary['already_delivered'] = already_delivered
+            summary['already_pending'] = already_pending
+            promoted.append(summary)
+
+        return {
+            'promoted': promoted,
+            'watching_count': watching_count,
+            'review_required': review_required,
+            'followups_open': followups_open,
+        }
+
     def _maybe_select_roadmap_task(self, health: dict, pending_decisions: list):
         if self.tasks.active() is not None or pending_decisions:
             return None
@@ -408,6 +494,13 @@ class ManagerService:
             deliveries.append({'path': str(path), 'result': result})
             if result.get('ok') is True:
                 self.outbox.mark_delivered(path, result)
+                opportunity_fingerprint = payload.get('opportunity_fingerprint')
+                material_fingerprint = payload.get('material_fingerprint')
+                if opportunity_fingerprint and material_fingerprint:
+                    self.opportunities.mark_notified(
+                        opportunity_fingerprint,
+                        material_fingerprint=material_fingerprint,
+                    )
                 self.audit.write('notification.delivered', actor='projectmanager', result='ok', details={'transport': result.get('transport')})
             else:
                 self.audit.write('notification.delivery_failed', actor='projectmanager', result='deferred', details={'reason': result.get('reason')})

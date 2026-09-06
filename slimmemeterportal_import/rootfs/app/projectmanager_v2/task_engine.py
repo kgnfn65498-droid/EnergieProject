@@ -14,7 +14,7 @@ REQUIRED_DOD_GATES = (
     'release_ready',
     'no_blockers',
 )
-VALID_TASK_STATUSES = {'ACTIVE', 'PAUSED', 'BLOCKED', 'WAITING_APPROVAL', 'DONE'}
+VALID_TASK_STATUSES = {'ACTIVE', 'PAUSED', 'BLOCKED', 'WAITING_APPROVAL', 'DONE', 'SUPERSEDED'}
 
 
 def _valid_payload(data):
@@ -115,6 +115,57 @@ class TaskStore:
         task['status'] = 'PAUSED'
         task.setdefault('changes', []).append(f'paused: {reason}')
         task['updated_at'] = datetime.now(timezone.utc).isoformat()
+        self._save(data)
+        return dict(task)
+
+    def supersede(self, task_id: str, *, reason: str, evidence_refs: list, superseded_by=None, now=None):
+        reason = str(reason or '').strip()
+        refs = list(dict.fromkeys(str(item).strip() for item in (evidence_refs or []) if str(item).strip()))
+        if not reason:
+            raise ValueError('supersede_reason_required')
+        if not refs:
+            raise ValueError('supersede_evidence_required')
+        data = self._load()
+        task = self._find(data, task_id)
+        if task.get('status') == 'SUPERSEDED':
+            return dict(task)
+        if task.get('status') == 'DONE':
+            return dict(task)
+        stamp = (now or datetime.now(timezone.utc)).isoformat()
+        task['status'] = 'SUPERSEDED'
+        task['superseded_at'] = stamp
+        task['superseded_reason'] = reason
+        task['superseded_evidence_refs'] = refs
+        if superseded_by is not None and str(superseded_by).strip():
+            task['superseded_by'] = str(superseded_by).strip()
+        task.setdefault('changes', []).append(f'superseded: {reason}')
+        for ref in refs:
+            if ref not in task.setdefault('evidence_refs', []):
+                task['evidence_refs'].append(ref)
+        task['updated_at'] = stamp
+        self._save(data)
+        return dict(task)
+
+    def resume_handoff(self, task_id: str, *, reason: str, evidence_refs: list, now=None):
+        reason = str(reason or '').strip()
+        refs = list(dict.fromkeys(str(item).strip() for item in (evidence_refs or []) if str(item).strip()))
+        if not reason:
+            raise ValueError('handoff_resume_reason_required')
+        if not refs:
+            raise ValueError('handoff_resume_evidence_required')
+        data = self._load()
+        task = self._find(data, task_id)
+        if task.get('status') != 'PAUSED':
+            raise ValueError(f"handoff task cannot resume from {task.get('status')}")
+        if not str(task.get('next_action') or '').startswith('handoff:'):
+            raise ValueError('task is not a handoff task')
+        stamp = (now or datetime.now(timezone.utc)).isoformat()
+        task['status'] = 'ACTIVE'
+        task.setdefault('changes', []).append(f'handoff resumed: {reason}')
+        for ref in refs:
+            if ref not in task.setdefault('evidence_refs', []):
+                task['evidence_refs'].append(ref)
+        task['updated_at'] = stamp
         self._save(data)
         return dict(task)
 

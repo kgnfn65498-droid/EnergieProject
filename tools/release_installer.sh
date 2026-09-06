@@ -27,6 +27,7 @@ LOCK="$INBOX/.installer.lock"
 PROCESSING_STALE_SECONDS="${ENERGIE_PROCESSING_STALE_SECONDS:-600}"
 REQUIRED="README.md INSTALL.md CHANGELOG.md MANIFEST.sha256 SHA256SUMS.json repository.yaml VERSIE.txt"
 ZIP_HELPER="$PROJECT/tools/release_zip.py"
+ATOMIC_SWAP="$PROJECT/tools/atomic_app_swap.py"
 HA_PUBLICATION_REQUIRED="$INBOX/ha_publication_required.json"
 RELEASE_HOLD_STATE="$INBOX/operating_mode/release_validation_hold.json"
 PREVIOUS_RELEASE_HOLD_BACKUP=""
@@ -49,12 +50,12 @@ fi
 
 ZIP_WORK=""
 STAGE=""
-RESTORE_STAGE=""
-PREFLIGHT=""
 BACKUP=""
 BASE_COMMIT=""
 GIT_AVAILABLE=0
 WORKTREE_REPLACED=0
+ATOMIC_SWAP_RUNNER=""
+ATOMIC_SWAP_ACTIVE=0
 
 log(){ printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 WATCHER_PIDFILE="$INBOX/.watcher.pid"
@@ -62,9 +63,8 @@ schedule_watcher_refresh(){
   log "Watcher-refresh gepland; actieve watcher schakelt autonoom over op de nieuw geïnstalleerde release"
 }
 cleanup(){
-  [ -n "$PREFLIGHT" ] && rm -rf "$PREFLIGHT" 2>/dev/null || true
-  [ -n "$RESTORE_STAGE" ] && rm -rf "$RESTORE_STAGE" 2>/dev/null || true
   [ -n "$STAGE" ] && rm -rf "$STAGE" 2>/dev/null || true
+  [ -n "$ATOMIC_SWAP_RUNNER" ] && rm -f "$ATOMIC_SWAP_RUNNER" 2>/dev/null || true
   [ -n "$PREVIOUS_RELEASE_HOLD_BACKUP" ] && rm -f "$PREVIOUS_RELEASE_HOLD_BACKUP" 2>/dev/null || true
   rmdir "$LOCK" 2>/dev/null || true
 }
@@ -95,14 +95,6 @@ zip_extract(){
   else
     unzip -q "$ZIP_PATH" -d "$DEST"
   fi
-}
-
-copy_tree_no_metadata(){
-  SRC=$1
-  DST=$2
-  # Intentionally use plain recursive copy without metadata preservation. QNAP shares may
-  # reject ownership/timestamp preservation even though normal file writes work.
-  cp -R "$SRC"/. "$DST"/
 }
 
 cleanup_old_backups(){
@@ -246,37 +238,34 @@ EOF
   log "HA-publicatiecontract gereed voor v$NEW_VERSION; marker=$HA_PUBLICATION_REQUIRED"
 }
 
-restore_backup(){
-  [ "$WORKTREE_REPLACED" -eq 1 ] || return 0
-  [ -n "$BACKUP" ] && [ -f "$BACKUP" ] || { log "FOUT: rollback vereist maar backup ontbreekt"; return 1; }
-  log "Rollback: volledige vorige worktree herstellen uit $(basename "$BACKUP")"
-
-  # Extract on /tmp first. This keeps tar from trying to restore directory
-  # timestamps directly on the QNAP project share (known to return EPERM).
-  RESTORE_STAGE="$(mktemp -d /tmp/energie-restore.XXXXXX)" || return 1
-  tar -xzf "$BACKUP" -C "$RESTORE_STAGE" || return 1
-
-  find "$PROJECT" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} + || return 1
-  copy_tree_no_metadata "$RESTORE_STAGE" "$PROJECT" || return 1
-  rm -rf "$RESTORE_STAGE" || true
-  RESTORE_STAGE=""
-
-  if [ "$GIT_AVAILABLE" -eq 1 ] && [ -n "$BASE_COMMIT" ]; then
-    cd "$PROJECT"
-    git reset --hard "$BASE_COMMIT" >/dev/null 2>&1 || return 1
-    git config core.filemode false
+rollback_atomic_swap(){
+  REASON=$1
+  [ "$ATOMIC_SWAP_ACTIVE" -eq 1 ] || return 0
+  [ -n "$ATOMIC_SWAP_RUNNER" ] && [ -f "$ATOMIC_SWAP_RUNNER" ] || return 1
+  command -v python3 >/dev/null 2>&1 || return 1
+  if python3 "$ATOMIC_SWAP_RUNNER" rollback \
+      --root "$ROOT" \
+      --from-version "$CURRENT_VERSION" \
+      --to-version "$NEW_VERSION" \
+      --reason "$REASON"; then
+    ATOMIC_SWAP_ACTIVE=0
+    log "Atomic rollback voltooid: $NEW_VERSION -> $CURRENT_VERSION"
+    return 0
   fi
-  WORKTREE_REPLACED=0
-  log "Rollback: herstel uit backup voltooid"
+  return 1
 }
 
 fail(){
   MSG="$*"
-  if [ "$RELEASE_HOLD_ARMED" -eq 1 ]; then
-    restore_previous_release_validation_hold || log "FOUT: vorige release-hold kon niet worden hersteld"
+  ROLLBACK_OK=1
+  if [ "$ATOMIC_SWAP_ACTIVE" -eq 1 ]; then
+    if ! rollback_atomic_swap "$MSG"; then
+      ROLLBACK_OK=0
+      log "FOUT: atomic rollback kon niet veilig worden afgerond; release-hold blijft actief"
+    fi
   fi
-  if [ "$WORKTREE_REPLACED" -eq 1 ]; then
-    restore_backup || log "FOUT: automatische rollback kon niet volledig worden afgerond"
+  if [ "$RELEASE_HOLD_ARMED" -eq 1 ] && [ "$ROLLBACK_OK" -eq 1 ]; then
+    restore_previous_release_validation_hold || log "FOUT: vorige release-hold kon niet worden hersteld"
   fi
   log "FOUT: $MSG"
   [ -n "$ZIP_WORK" ] && [ -f "$ZIP_WORK" ] && mv "$ZIP_WORK" "$FAILED/" 2>/dev/null || true
@@ -332,10 +321,17 @@ zip_extract "$ZIP_WORK" "$STAGE" || fail "uitpakken naar staging mislukt"
 NEW_VERSION="$(tr -d '\r\n ' < "$STAGE/VERSIE.txt")"
 [ -n "$NEW_VERSION" ] || fail "VERSIE.txt is leeg"
 case "$NEW_VERSION" in *[!0-9.]*|'') fail "ongeldige versie in VERSIE.txt: $NEW_VERSION";; esac
+TARGET_PM_VERSION="$(tr -d '\r\n ' < "$STAGE/slimmemeterportal_import/rootfs/app/projectmanager_v2/VERSION.txt" 2>/dev/null || true)"
+[ -n "$TARGET_PM_VERSION" ] || fail "target Projectmanager VERSION.txt ontbreekt of is leeg"
+ARTIFACT_SHA256="$(sha256sum "$ZIP_WORK" 2>/dev/null | awk '{print $1}')"
+[ -n "$ARTIFACT_SHA256" ] || fail "release artifact SHA256 kon niet worden bepaald"
 
 log "FASE 3/8: huidige installatie controleren"
 cd "$PROJECT"
 CURRENT_VERSION="$(tr -d '\r\n ' < VERSIE.txt 2>/dev/null || true)"
+CURRENT_PM_VERSION="$(tr -d '\r\n ' < "$PROJECT/slimmemeterportal_import/rootfs/app/projectmanager_v2/VERSION.txt" 2>/dev/null || true)"
+[ -n "$CURRENT_VERSION" ] || fail "huidige App-versie ontbreekt"
+[ -n "$CURRENT_PM_VERSION" ] || fail "huidige Projectmanager-versie ontbreekt"
 CURRENT_MANIFEST_SHA256="$(sha256sum "$PROJECT/MANIFEST.sha256" 2>/dev/null | awk '{print $1}')"
 [ -n "$CURRENT_MANIFEST_SHA256" ] || fail "huidig MANIFEST.sha256 ontbreekt voor GitHub-publicatiecontract"
 TARGET_MANIFEST_SHA256="$(sha256sum "$STAGE/MANIFEST.sha256" 2>/dev/null | awk '{print $1}')"
@@ -352,16 +348,12 @@ else
   log "Git niet beschikbaar in deze QNAP-omgeving; veilige ZIP-installatiemodus actief"
 fi
 
-# QNAP preflight: prove create/copy/delete in the live project directory BEFORE
-# a validated backup is followed by any destructive worktree operation.
-PREFLIGHT="$PROJECT/.energie_release_preflight.$$"
-mkdir "$PREFLIGHT" || fail "preflight: testmap maken in project mislukt"
-printf 'qnap-preflight\n' > "$PREFLIGHT/source.txt" || fail "preflight: schrijven in project mislukt"
-cp "$PREFLIGHT/source.txt" "$PREFLIGHT/copy.txt" || fail "preflight: normaal kopiëren in project mislukt"
-[ "$(cat "$PREFLIGHT/copy.txt")" = "qnap-preflight" ] || fail "preflight: gekopieerde inhoud ongeldig"
-rm -rf "$PREFLIGHT" || fail "preflight: verwijderen in project mislukt"
-PREFLIGHT=""
-log "QNAP preflight schrijven/kopiëren/verwijderen = OK"
+# Atomic swap runner is copied to /tmp before App is renamed, so rollback never
+# depends on a possibly broken newly-active worktree.
+[ -f "$ATOMIC_SWAP" ] || fail "atomic swap helper ontbreekt: $ATOMIC_SWAP"
+command -v python3 >/dev/null 2>&1 || fail "python3 ontbreekt voor atomic swap executor"
+ATOMIC_SWAP_RUNNER="$(mktemp /tmp/energie-atomic-swap.XXXXXX.py)" || fail "atomic swap runner tempfile mislukt"
+cp "$ATOMIC_SWAP" "$ATOMIC_SWAP_RUNNER" || fail "atomic swap helper naar /tmp kopieren mislukt"
 
 log "FASE 4/8: volledige herstelbackup maken"
 STAMP="$(date '+%Y%m%d-%H%M%S')"
@@ -372,11 +364,21 @@ chgrp everyone "$BACKUP" 2>/dev/null || true
 chmod 660 "$BACKUP" || fail "pre-release backup groepsrechten instellen mislukt"
 log "Backup gevalideerd: $BACKUP"
 
-log "FASE 5/8: release-worktree vervangen"
-# WORKTREE_REPLACED becomes true BEFORE deletion, so any deletion failure triggers tar rollback.
-WORKTREE_REPLACED=1
-find "$PROJECT" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} + || fail "oude worktree leegmaken mislukt"
-copy_tree_no_metadata "$STAGE" "$PROJECT" || fail "nieuwe release kopiëren mislukt"
+write_release_validation_hold || fail "release validation hold activeren mislukt"
+log "FASE 5/8: atomic App prepare-and-swap"
+if python3 "$ATOMIC_SWAP_RUNNER" prepare-and-swap \
+    --root "$ROOT" \
+    --artifact "$ZIP_WORK" \
+    --expected-sha256 "$ARTIFACT_SHA256" \
+    --from-version "$CURRENT_VERSION" \
+    --from-pm-version "$CURRENT_PM_VERSION" \
+    --to-version "$NEW_VERSION" \
+    --to-pm-version "$TARGET_PM_VERSION" \
+    --installer-context; then
+  ATOMIC_SWAP_ACTIVE=1
+else
+  fail "atomic App prepare-and-swap mislukt"
+fi
 cd "$PROJECT"
 if [ "$GIT_AVAILABLE" -eq 1 ]; then git config core.filemode false; fi
 
@@ -397,7 +399,6 @@ else
   log "TESTSTATUS: vervangende controles ZIP/SHA256/verplichte bestanden/shellsyntax = OK"
 fi
 
-write_release_validation_hold || fail "release validation hold activeren mislukt"
 log "FASE 7/8: publicatie-afhandeling"
 if [ "$GIT_AVAILABLE" -eq 1 ]; then
   git add -A
@@ -443,5 +444,6 @@ cleanup_old_backups
 cleanup_processed_releases
 ZIP_WORK=""
 WORKTREE_REPLACED=0
+ATOMIC_SWAP_ACTIVE=0
 log "SUCCES: $CURRENT_VERSION -> $NEW_VERSION; $FINAL_DETAIL; ZIP canoniek gearchiveerd als EnergieProject_v${NEW_VERSION}.zip in processed."
 schedule_watcher_refresh

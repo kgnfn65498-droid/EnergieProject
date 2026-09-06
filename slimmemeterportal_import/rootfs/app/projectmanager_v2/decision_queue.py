@@ -12,7 +12,7 @@ PROTECTED_DECISION_KINDS = {
     'PURCHASE',
     'SAFETY_UNCERTAINTY',
 }
-VALID_STATUSES = {'PENDING', 'APPROVED', 'REJECTED'}
+VALID_STATUSES = {'PENDING', 'APPROVED', 'REJECTED', 'SUPERSEDED'}
 
 
 def _valid_payload(data):
@@ -76,6 +76,33 @@ class DecisionQueue:
         for item in self._load().get('items', []):
             if item.get('id') == item_id:
                 return dict(item)
+        raise KeyError(item_id)
+
+    def supersede(self, item_id: str, *, reason: str, evidence_refs: list, superseded_by=None, now=None):
+        reason = str(reason or '').strip()
+        refs = list(dict.fromkeys(str(item).strip() for item in (evidence_refs or []) if str(item).strip()))
+        if not reason:
+            raise ValueError('supersede_reason_required')
+        if not refs:
+            raise ValueError('supersede_evidence_required')
+        data = self._load()
+        for item in data.get('items', []):
+            if item.get('id') != item_id:
+                continue
+            if item.get('status') == 'SUPERSEDED':
+                return dict(item)
+            if item.get('status') != 'PENDING':
+                raise ValueError(f"only pending decisions may be superseded: {item.get('status')}")
+            stamp = (now or datetime.now(timezone.utc)).isoformat()
+            item['status'] = 'SUPERSEDED'
+            item['superseded_at'] = stamp
+            item['superseded_reason'] = reason
+            item['superseded_evidence_refs'] = refs
+            if superseded_by is not None and str(superseded_by).strip():
+                item['superseded_by'] = str(superseded_by).strip()
+            item['updated_at'] = stamp
+            self._save(data)
+            return dict(item)
         raise KeyError(item_id)
 
     def resolve(self, item_id: str, *, approved: bool, approved_by: str):

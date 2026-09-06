@@ -88,7 +88,17 @@ class HandoffResultIngressConsumer:
             handoff = self.handoffs.get(handoff_id)
             task_id = handoff['task_id']
             if outcome == 'DONE':
-                # Idempotent convergence: each state transition accepts an already-final state.
+                # Idempotent convergence: a valid result may finish its exact handoff task
+                # even when a later task temporarily paused it. Other active work is untouched.
+                task = self.tasks.get(task_id)
+                resumed_from_paused = False
+                if task.get('status') == 'PAUSED':
+                    self.tasks.resume_handoff(
+                        task_id,
+                        reason='valid immutable handoff result received',
+                        evidence_refs=[f'handoff_result_ingress:{ingress_id}'],
+                    )
+                    resumed_from_paused = True
                 self.tasks.complete_handoff(task_id, summary=summary, evidence_refs=evidence_refs)
                 self.roadmap.mark_done_for_task(task_id)
                 final_handoff = self.handoffs.complete(handoff_id, summary=summary, evidence_refs=evidence_refs)
@@ -99,6 +109,7 @@ class HandoffResultIngressConsumer:
                     'task_id': task_id,
                     'roadmap_key': final_handoff.get('roadmap_key'),
                     'outcome': 'DONE',
+                    'resumed_from_paused': resumed_from_paused,
                     'at': now,
                 }
 

@@ -1,5 +1,5 @@
-def notification_route(severity: str, peter_decision_needed: bool = False) -> str:
-    if peter_decision_needed or severity == 'RED':
+def notification_route(severity: str, peter_decision_needed: bool = False, proactive_direct: bool = False) -> str:
+    if peter_decision_needed or proactive_direct or severity == 'RED':
         return 'DIRECT'
     if severity == 'ORANGE':
         return 'NEXT_PROJECT_STATUS'

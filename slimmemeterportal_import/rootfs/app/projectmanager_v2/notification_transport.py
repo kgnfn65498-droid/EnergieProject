@@ -51,7 +51,11 @@ class NotificationOutbox:
 
 def route_event(outbox: NotificationOutbox, event: dict) -> dict:
     severity = event.get('severity', 'GREEN')
-    route = notification_route(severity, event.get('peter_decision_needed', False))
+    route = notification_route(
+        severity,
+        event.get('peter_decision_needed', False),
+        event.get('proactive_direct', False),
+    )
     if route == 'DIRECT':
         result = outbox.enqueue({
             'severity': severity,
@@ -60,6 +64,9 @@ def route_event(outbox: NotificationOutbox, event: dict) -> dict:
             'route': route,
             'decision_id': event.get('decision_id'),
             'fingerprint': event.get('fingerprint'),
+            'proactive_direct': event.get('proactive_direct', False),
+            'opportunity_fingerprint': event.get('opportunity_fingerprint'),
+            'material_fingerprint': event.get('material_fingerprint'),
         })
         result['route'] = route
         return result

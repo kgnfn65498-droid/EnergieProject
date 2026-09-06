@@ -1,3 +1,16 @@
+## 32.4.10 — Proactive PM + state reconciliation
+
+- Vervangt het destructieve QNAP App-replacementpad door een gejournalde atomic sibling-directory swap; de vorige App blijft rollbackbaar tot volledige live acceptatie.
+- Begrensde installercontext laat uitsluitend een actieve eigen installer-lock plus exact de eigen processing-ZIP toe; directe one-shot swaps blijven fail-closed bij iedere releaseconcurrentie.
+- Voegt evidence-based state-reconciliation toe voor taken, protected beslissingen, handoffs en issues zonder historie te wissen.
+- Introduceert `SUPERSEDED` alleen met machine-verifieerbare reden/evidence; ambigu state wordt `REVIEW_REQUIRED`.
+- Herstelt de PAUSED-handoff lifecycle zodat een geldig immutable handoff-resultaat exact zijn eigen taak kan hervatten en afronden zonder ander actief werk te verdringen.
+- Voegt transparante proactieve scoring toe met evidence, 0-2 factoren, 7/10-drempel, hard-gates en material-fingerprint anti-spam.
+- Verbindt Conversation Intake met idempotente follow-upregistratie voor ideeën/kansen en later-terugkomen zonder verzonnen deadlines.
+- Directe proactieve signalen blijven notificaties; protected actions vereisen ongewijzigd expliciete Peter-approval.
+- Verhoogt Projectmanager naar `2.0.0-rc7`; `github_publication_enabled` blijft standaard `true`.
+- Productie blijft tijdens candidatebouw onaangeraakt; restart/soak/live acceptance volgen pas na aparte productie-goedkeuring.
+
 ## 32.4.9 — Conversation Intake Bridge
 
 - Voegt een canonieke Conversation Intake-store toe onder RuntimeV2; deze blijft de enige projectwaarheid voor gespreksitems.
