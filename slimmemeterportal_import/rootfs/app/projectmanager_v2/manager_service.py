@@ -95,7 +95,7 @@ class ManagerService:
             'state', 'status', 'heartbeat', 'handover', 'audit', 'audit/archive',
             'notifications/outbox', 'notifications/outbox/delivered', 'opportunities',
             'snapshots', 'snapshots/archive', 'self_audit', 'issues', 'market',
-            'decisions', 'locks', 'commands', 'roadmap', 'handoffs', 'approved_actions', 'quarantine', 'logs/archive',
+            'decisions', 'locks', 'commands', 'roadmap', 'intake', 'handoffs', 'approved_actions', 'quarantine', 'logs/archive',
         ):
             (self.root / name).mkdir(parents=True, exist_ok=True)
 

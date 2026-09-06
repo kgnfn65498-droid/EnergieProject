@@ -9,7 +9,7 @@ from typing import Any
 KNOWN_RUNTIME_CHILD_DIRS = {
     'state', 'status', 'heartbeat', 'handover', 'audit', 'notifications',
     'opportunities', 'snapshots', 'self_audit', 'issues', 'market',
-    'decisions', 'locks', 'commands', 'roadmap', 'quarantine',
+    'decisions', 'locks', 'commands', 'roadmap', 'intake', 'quarantine',
 }
 
 

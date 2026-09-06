@@ -3,7 +3,7 @@ from command_gateway import plan_command
 
 
 class CommandProcessor:
-    def __init__(self, commands, decisions, mode_store, task_store, *, audit=None, mode_bridge=None, approved_actions=None, nas_container_cr_service=None):
+    def __init__(self, commands, decisions, mode_store, task_store, *, audit=None, mode_bridge=None, approved_actions=None, nas_container_cr_service=None, conversation_intake=None):
         self.commands = commands
         self.decisions = decisions
         self.mode = mode_store
@@ -12,6 +12,7 @@ class CommandProcessor:
         self.mode_bridge = mode_bridge
         self.approved_actions = approved_actions
         self.nas_container_cr_service = nas_container_cr_service
+        self.conversation_intake = conversation_intake
 
     def _request_mode(self, mode: str, *, reason: str, source: str):
         if self.mode_bridge is not None:
@@ -255,6 +256,11 @@ class CommandProcessor:
                 result = {'ok': True, 'executed': True, 'task_id': task['id'], 'requested_mode': 'MAINTENANCE', 'mode_request': mode_request}
             elif action in {'read_status', 'read_energy', 'read_roadmap'}:
                 result = {'ok': True, 'executed': False, 'read_request': action}
+            elif action == 'conversation_intake':
+                if self.conversation_intake is None:
+                    raise RuntimeError('conversation_intake_unavailable')
+                intake = self.conversation_intake.accept(item)
+                result = {'ok': True, 'executed': True, 'intake': intake}
             elif action == 'admin_update':
                 result = {'ok': True, 'executed': True, 'admin_note': item.get('text') or ''}
             elif action == 'nas_container_cr_create':

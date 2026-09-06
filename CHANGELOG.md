@@ -1,3 +1,14 @@
+## 32.4.9 — Conversation Intake Bridge
+
+- Voegt een canonieke Conversation Intake-store toe onder RuntimeV2; deze blijft de enige projectwaarheid voor gespreksitems.
+- Classificeert ChatGPT-, Nomad- en spraakinvoer als harde eis, wens, idee/kans, besluit, actiepunt, later-terugkomen of informatie/context.
+- Routeert selectief naar afgeleide Knowledge Base-, roadmapkandidaat- en wensenlijstsecties of naar een PAUSED taak, zonder de actieve ontwikkelingstaak te verdringen.
+- Herkent ontwikkelsignalen afzonderlijk van de inhoudscategorie en bewaart bronkanaal, bronreferentie, ingress-id en tijd voor traceerbaarheid.
+- Dedupeert hetzelfde bronevent idempotent en weigert malformed of secret-like intake fail-safe vóór canonieke mutatie.
+- Integreert via de bestaande CommandIngress -> CommandStore -> CommandProcessor-keten; de canonieke roadmap-JSON wordt niet ad-hoc gemuteerd.
+- Verhoogt Projectmanager naar `2.0.0-rc6`; `github_publication_enabled` blijft standaard `true`.
+- Geen wijziging aan productie-deploygates, energiebronnen, maandafsluiting of rapportrekenkern.
+
 ## 32.4.8 — Projectmanager stabilisatie en publicatie-regressiegates
 
 - Zet `github_publication_enabled` standaard op `true` voor een verse installatie of reset; een expliciet opgeslagen `false` blijft door Home Assistant gerespecteerd.

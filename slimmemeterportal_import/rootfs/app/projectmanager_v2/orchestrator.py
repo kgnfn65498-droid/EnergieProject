@@ -5,6 +5,7 @@ from approved_action_store import ApprovedActionStore
 from command_ingress import CommandIngressConsumer
 from command_processor import CommandProcessor
 from command_store import CommandStore
+from conversation_intake import ConversationIntakeBridge
 from configured_service import ConfiguredManagerService
 from handoff_queue import HandoffQueue
 from handoff_result_ingress import HandoffResultIngressConsumer
@@ -34,6 +35,12 @@ class ProjectmanagerRuntime:
         self.approved_actions = ApprovedActionStore(root / 'approved_actions' / 'queue.json')
         self.handoffs = getattr(self.base, 'handoffs', None) or HandoffQueue(root / 'handoffs' / 'queue.json')
         self.roadmap = getattr(self.base, 'roadmap', None) or RoadmapRegie(root / 'roadmap' / 'queue.json')
+        self.conversation_intake = ConversationIntakeBridge(
+            root / 'intake' / 'items.json',
+            self.base.tasks,
+            self.base.document_sync,
+            config.reports_root,
+        )
 
         recovered = self.commands.recover_interrupted()
         self.recovered_commands = recovered
@@ -69,6 +76,7 @@ class ProjectmanagerRuntime:
             mode_bridge=mode_bridge,
             approved_actions=self.approved_actions,
             nas_container_cr_service=self.nas_container_cr_service,
+            conversation_intake=self.conversation_intake,
         )
         ingress_root = getattr(config, 'command_ingress_root', '') or ''
         self.ingress = CommandIngressConsumer(
@@ -167,6 +175,7 @@ class ProjectmanagerRuntime:
         status['approved_actions'] = self.approved_actions.open_items()
         status['handoffs'] = self.handoffs.open_items()
         status['canonical_roadmap'] = self.roadmap.canonical_metadata()
+        status['conversation_intake'] = self.conversation_intake.summary()
         self._refresh_coordination(status)
         return status
 
@@ -183,6 +192,7 @@ class ProjectmanagerRuntime:
         status['approved_actions'] = self.approved_actions.open_items()
         status['handoffs'] = self.handoffs.open_items()
         status['canonical_roadmap'] = self.roadmap.canonical_metadata()
+        status['conversation_intake'] = self.conversation_intake.summary()
         issues = getattr(self.base, 'issues', None)
         status['open_issues'] = issues.open_items() if issues is not None else status.get('open_issues', [])
         atomic_write_json(self.root / 'status' / 'current.json', status)
@@ -203,4 +213,5 @@ class ProjectmanagerRuntime:
         handover['approved_actions'] = status.get('approved_actions', [])
         handover['handoffs'] = status.get('handoffs', [])
         handover['canonical_roadmap'] = status.get('canonical_roadmap', {})
+        handover['conversation_intake'] = status.get('conversation_intake', {})
         atomic_write_json(self.root / 'handover' / 'current.json', handover)

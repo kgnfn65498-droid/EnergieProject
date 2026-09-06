@@ -2,6 +2,7 @@ COMMANDS = {
     'status_query': {'action': 'read_status', 'allowed_without_approval': True},
     'energy_query': {'action': 'read_energy', 'allowed_without_approval': True},
     'roadmap_query': {'action': 'read_roadmap', 'allowed_without_approval': True},
+    'conversation_intake': {'action': 'conversation_intake', 'allowed_without_approval': True},
     'start_development': {'action': 'mode_development', 'allowed_without_approval': True},
     'start_maintenance': {'action': 'mode_maintenance', 'allowed_without_approval': True},
     'admin_update': {'action': 'admin_update', 'allowed_without_approval': True},

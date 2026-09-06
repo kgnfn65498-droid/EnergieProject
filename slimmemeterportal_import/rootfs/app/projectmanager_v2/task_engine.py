@@ -43,6 +43,26 @@ class TaskStore:
     def _save(self, data):
         atomic_write_json(self.path, data)
 
+    def capture(self, title, goal, *, mode='USER', priority=5, intake_fingerprint):
+        fingerprint = str(intake_fingerprint or '').strip()
+        if not fingerprint:
+            raise ValueError('intake_fingerprint_required')
+        data = self._load()
+        for task in data.setdefault('tasks', []):
+            if task.get('intake_fingerprint') == fingerprint:
+                return dict(task)
+        now = datetime.now(timezone.utc).isoformat()
+        task = {
+            'id': uuid4().hex, 'title': str(title), 'goal': str(goal),
+            'mode': str(mode), 'status': 'PAUSED', 'step': 1, 'steps_total': 1,
+            'priority': int(priority), 'next_action': '', 'blockers': [],
+            'changes': ['captured from conversation intake'], 'evidence_refs': [],
+            'intake_fingerprint': fingerprint, 'created_at': now, 'updated_at': now,
+        }
+        data['tasks'].append(task)
+        self._save(data)
+        return dict(task)
+
     def start(self, title: str, goal: str, *, mode: str, steps_total: int, priority: int = 2):
         data = self._load()
         now = datetime.now(timezone.utc).isoformat()

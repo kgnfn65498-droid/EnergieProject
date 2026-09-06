@@ -1,8 +1,8 @@
 # Changelog
 
-## 32.4.8
+## 32.4.9
 
-- Zet automatische Home Assistant → GitHub-publicatie standaard aan voor verse installaties en resets.
-- Verhoogt Projectmanager naar 2.0.0-rc5 en synchroniseert de release-identiteit.
-- Voegt regressiegates toe voor de volledige Home Assistant-startimport zonder optionele Docker/TLS-modules.
-- Houdt de experimentele NAS-publisher standaard uitgeschakeld en zonder QNAP host-python/docker-buildroute.
+- Conversation Intake Bridge voor ChatGPT, Nomad en spraak via de bestaande Projectmanager CommandIngress.
+- Zeven inhoudscategorieën met selectieve afgeleide routering naar Knowledge Base, roadmapkandidaten, wensenlijst of PAUSED taken.
+- Canonieke RuntimeV2-intake, brontraceerbaarheid, idempotentie, development-context en fail-safe malformed/secretcontrole.
+- Projectmanager 2.0.0-rc6; bestaande productie- en publicatiegates blijven ongewijzigd.
