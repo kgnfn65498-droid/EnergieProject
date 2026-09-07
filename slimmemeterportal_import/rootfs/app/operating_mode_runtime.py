@@ -378,12 +378,48 @@ def _release_chain_check(project_root: Path, observed: dict[str, Any]) -> dict[s
     return _validation_check(True, "release chain idle")
 
 
+def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]:
+    root = Path(project_root)
+    audit_path = root / "Inbox/projectmanager_v2/RuntimeV2/self_audit/current.json"
+    status_path = root / "Inbox/projectmanager_v2/RuntimeV2/status/current.json"
+    version_path = root / "App/VERSIE.txt"
+    if not audit_path.is_file():
+        return _validation_check(False, "projectmanager self-audit missing")
+    if not status_path.is_file() or not version_path.is_file():
+        return _validation_check(False, "projectmanager self-audit runtime provenance missing")
+    try:
+        payload = json.loads(audit_path.read_text(encoding="utf-8"))
+        status_payload = json.loads(status_path.read_text(encoding="utf-8"))
+        app_version = version_path.read_text(encoding="utf-8").strip()
+        audit_mtime = audit_path.stat().st_mtime
+        status_mtime = status_path.stat().st_mtime
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return _validation_check(False, "projectmanager self-audit invalid")
+    if not isinstance(payload, dict) or not isinstance(status_payload, dict):
+        return _validation_check(False, "projectmanager self-audit invalid")
+    status = str(payload.get("status") or "").strip().upper()
+    if status not in {"GREEN", "ORANGE", "RED"}:
+        return _validation_check(False, "projectmanager self-audit invalid status")
+    status_release = str(((status_payload.get("release") or {}).get("version")) or "").strip()
+    if not app_version or status_release != app_version:
+        return _validation_check(
+            False,
+            f"projectmanager self-audit release mismatch: status={status_release or 'missing'} app={app_version or 'missing'}",
+        )
+    if audit_mtime < status_mtime:
+        return _validation_check(False, "projectmanager self-audit stale versus current PM status")
+    return _validation_check(
+        status == "GREEN",
+        f"projectmanager self-audit {status} for release {app_version}",
+    )
+
+
 def validate_release_hold(
     app_module: Any,
     project_root: Path | str,
     expected_version: str,
 ) -> dict[str, Any]:
-    """Run exactly five compact release checks plus one measured reconcile."""
+    """Run compact release checks plus one measured reconcile, including current PM self-audit."""
     root = Path(project_root)
     hold = load_release_hold(root, expected_version)
     state = load_mode_state(root)
@@ -422,6 +458,7 @@ def validate_release_hold(
             if runtime_error
             else _release_chain_check(root, observed)
         ),
+        "projectmanager_self_audit": _projectmanager_self_audit_check(root),
     }
 
     reconciled = reconcile_measured_runtime(root, app_module)

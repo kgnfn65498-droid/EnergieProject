@@ -5,6 +5,7 @@ ROOT="${ENERGIE_ROOT:-/energy}"
 CONTRACT="$ROOT/Inbox/ha_publication_required.json"
 PROCESSED="$ROOT/Inbox/processed"
 STATE="$ROOT/Inbox/github_publisher_state.json"
+HISTORY="$ROOT/Inbox/github_publisher_history.jsonl"
 PRIVATE_ROOT="${ENERGIE_PUBLISHER_PRIVATE_ROOT:-/publisher-private}"
 KEY="$PRIVATE_ROOT/id_ed25519"
 KNOWN_HOSTS="$PRIVATE_ROOT/known_hosts"
@@ -14,7 +15,15 @@ VERSION=""
 MODE="${ENERGIE_PUBLISHER_MODE:-publish}"
 
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
-write_state() { STATUS="$1"; MESSAGE="$2"; VERSION_VALUE="${3:-}"; TMP_STATE="$STATE.tmp.$$"; NOW="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"; printf '{"schema_version":1,"status":"%s","version":"%s","message":"%s","updated_at":"%s"}\n' "$(json_escape "$STATUS")" "$(json_escape "$VERSION_VALUE")" "$(json_escape "$MESSAGE")" "$NOW" > "$TMP_STATE"; mv "$TMP_STATE" "$STATE"; }
+archive_previous_state() {
+  [ -s "$STATE" ] || return 0
+  PREVIOUS_STATE="$(tr -d '\r\n' < "$STATE")"
+  case "$PREVIOUS_STATE" in
+    \{*\}) printf '%s\n' "$PREVIOUS_STATE" >> "$HISTORY" ;;
+    *) return 0 ;;
+  esac
+}
+write_state() { STATUS="$1"; MESSAGE="$2"; VERSION_VALUE="${3:-}"; TMP_STATE="$STATE.tmp.$$"; NOW="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"; printf '{"schema_version":1,"status":"%s","version":"%s","message":"%s","updated_at":"%s"}\n' "$(json_escape "$STATUS")" "$(json_escape "$VERSION_VALUE")" "$(json_escape "$MESSAGE")" "$NOW" > "$TMP_STATE"; archive_previous_state; mv "$TMP_STATE" "$STATE"; }
 fail() { MSG="$1"; VERSION_VALUE="${2:-$VERSION}"; write_state "error" "$MSG" "$VERSION_VALUE" || true; printf '%s\n' "PUBLISHER_ERROR=$MSG" >&2; exit 1; }
 cleanup() { [ -n "$TMP_ROOT" ] && rm -rf "$TMP_ROOT" 2>/dev/null || true; rmdir "$LOCK" 2>/dev/null || true; }
 trap 'cleanup' EXIT INT TERM

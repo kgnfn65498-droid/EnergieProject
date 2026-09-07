@@ -9,7 +9,7 @@ from document_sync import ManagedDocumentSync
 from energy_health_collector import EnergyHealthCollector
 from evidence_store import EvidenceStore
 from handover import HandoverStore, build_handover
-from health_engine import summarize_health
+from health_engine import summarize_health, summarize_health_with_self_audit
 from home_assistant_notifier import HomeAssistantNotifier
 from issue_store import IssueStore
 from manager_config import ManagerConfig
@@ -209,8 +209,12 @@ class ManagerService:
         })
         self_audit = self.self_auditor.run(now=now)
         atomic_write_json(self.root / 'self_audit' / 'current.json', self_audit)
+        composite_health = summarize_health_with_self_audit(checks, self_audit)
+        status['health'] = composite_health
         status['self_audit'] = self_audit
         status['open_issues'] = self.issues.open_items()
+        heartbeat['health'] = composite_health['status']
+        atomic_write_json(self.root / 'heartbeat' / 'manager.json', heartbeat)
         atomic_write_json(self.root / 'status' / 'current.json', status)
         return status
 

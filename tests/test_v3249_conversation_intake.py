@@ -84,14 +84,14 @@ def _write_ingress(directory, ingress_id, command):
 
 
 def test_v3249_release_identity_and_pm_version():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.10'
-    assert 'version: "32.4.10"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.4.10"' in (APP / 'main.py').read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.4.10"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
-    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc7'
-    assert (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8').startswith('## 32.4.10')
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.11'
+    assert 'version: "32.4.11"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert 'APP_VERSION = "32.4.11"' in (APP / 'main.py').read_text(encoding='utf-8')
+    assert 'TARGET_RELEASE_VERSION = "32.4.11"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
+    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc8'
+    assert (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8').startswith('## 32.4.11')
     addon_change = (ROOT / 'slimmemeterportal_import/CHANGELOG.md').read_text(encoding='utf-8')
-    assert addon_change.startswith('# Changelog\n\n## 32.4.10')
+    assert addon_change.startswith('# Changelog\n\n## 32.4.11')
     assert addon_change.count('\n## ') == 1
 
 

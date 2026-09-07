@@ -52,7 +52,7 @@ class IntakeFollowupTests(unittest.TestCase):
             self.assertEqual(item['fingerprint'], f"intake:{result['fingerprint']}")
             self.assertEqual(item['category'], 'conversation_opportunity')
             self.assertEqual(item['proactive_evaluation']['decision'], 'WATCH')
-            self.assertEqual(item['proactive_evaluation']['reason'], 'assessment_missing')
+            self.assertEqual(item['proactive_evaluation']['reason'], 'not_actionable')
             self.assertEqual(item['details']['intake_id'], result['id'])
             self.assertEqual(item['details']['source_channel'], 'chatgpt')
             self.assertEqual(item['details']['source_ref'], 'chat:idea:32410:1')

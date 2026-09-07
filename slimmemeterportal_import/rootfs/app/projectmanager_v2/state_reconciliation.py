@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 FINAL_TASK_STATUSES = {'DONE', 'SUPERSEDED'}
 PURE_MODE_INTENTS = {'start_development', 'start_maintenance'}
+LEGACY_DEVELOPMENT_TASK_ID = '9baa6fc1ae384379a1192004762bf8fa'
 
 
 def _clean_refs(values):
@@ -135,9 +136,32 @@ class StateReconciler:
             'changed': True,
         }
 
-    def _evaluate_task(self, task):
+    def _evaluate_task(self, task, runtime=None, release_validation=None):
         if task.get('status') in FINAL_TASK_STATUSES:
             return None
+        if task.get('id') == LEGACY_DEVELOPMENT_TASK_ID:
+            mode = _runtime_mode(runtime)
+            release = (runtime or {}).get('release') or {}
+            release_version = str(release.get('version') or '').strip()
+            refs = _clean_refs([
+                release.get('source'),
+                ((runtime or {}).get('operating_mode') or {}).get('source'),
+                (release_validation or {}).get('_source') or (release_validation or {}).get('source'),
+            ])
+            if mode == 'DEVELOPMENT' and release_version and _release_validation_green(release_validation) and len(refs) == 3:
+                return {
+                    'disposition': 'SUPERSEDED',
+                    'reason': 'exact known legacy development-mode task is satisfied by authoritative DEVELOPMENT runtime and released validation',
+                    'evidence_refs': refs,
+                    'changed': True,
+                    'superseded_by': 'state_reconciliation:legacy_task_rule',
+                }
+            return {
+                'disposition': 'REVIEW_REQUIRED',
+                'reason': 'exact legacy task found but authoritative mode/release evidence is incomplete',
+                'evidence_refs': refs,
+                'changed': False,
+            }
         proof = task.get('reconciliation_proof')
         if isinstance(proof, dict) and proof.get('goal_satisfied') is True:
             refs = _clean_refs(proof.get('evidence_refs'))
@@ -157,7 +181,7 @@ class StateReconciler:
             'changed': False,
         }
 
-    def reconcile(self, *, runtime, release_validation=None, now=None):
+    def reconcile(self, *, runtime, release_validation=None, now=None, issue_repairs=None):
         now = now or datetime.now(timezone.utc)
         results = []
 
@@ -195,7 +219,7 @@ class StateReconciler:
             })
 
         for task in self.tasks.all():
-            evaluated = self._evaluate_task(task)
+            evaluated = self._evaluate_task(task, runtime=runtime, release_validation=release_validation)
             if evaluated is None:
                 continue
             changed = False
@@ -228,7 +252,23 @@ class StateReconciler:
                     'changed': False,
                 })
         if self.issues is not None:
+            repair_map = issue_repairs if isinstance(issue_repairs, dict) else {}
             for issue in self.issues.open_items():
+                repair = repair_map.get(issue.get('id'))
+                if isinstance(repair, dict):
+                    refs = _clean_refs(repair.get('evidence_refs'))
+                    reason = str(repair.get('reason') or '').strip()
+                    if refs and reason:
+                        self.issues.resolve(issue['id'], resolution=reason + ' | evidence=' + ';'.join(refs))
+                        results.append({
+                            'entity_type': 'issue',
+                            'id': issue.get('id'),
+                            'disposition': 'RESOLVED',
+                            'reason': reason,
+                            'evidence_refs': refs,
+                            'changed': True,
+                        })
+                        continue
                 results.append({
                     'entity_type': 'issue',
                     'id': issue.get('id'),
@@ -246,6 +286,7 @@ class StateReconciler:
                 'ACTIVE_KEEP': counts.get('ACTIVE_KEEP', 0),
                 'SUPERSEDED': counts.get('SUPERSEDED', 0),
                 'REVIEW_REQUIRED': counts.get('REVIEW_REQUIRED', 0),
+                'RESOLVED': counts.get('RESOLVED', 0),
             },
             'changed_count': sum(1 for item in results if item.get('changed')),
             'items': results,

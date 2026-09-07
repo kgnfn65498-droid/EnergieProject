@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from persistence import atomic_write_json, load_json
 from proactive_policy import evaluate_signal
+from proactive_assessment import derive_assessment
 
 PROMOTE_CATEGORIES_WITHOUT_SAVING = {'security', 'regulation', 'end_of_life', 'data_quality'}
 VALID_STATUSES = {'PROMOTED', 'WATCHING'}
@@ -45,19 +46,33 @@ class OpportunityRegister:
         if item is None:
             item = {'id': uuid4().hex, 'fingerprint': fingerprint, 'created_at': now, 'status': 'WATCHING'}
             data.setdefault('items', []).append(item)
+        normalized_evidence = list(dict.fromkeys(evidence or []))
+        resolved_assessment = (
+            dict(assessment)
+            if isinstance(assessment, dict)
+            else assessment
+            if assessment is not None
+            else derive_assessment(
+                category,
+                evidence=normalized_evidence,
+                annual_saving_eur=annual_saving_eur,
+                compatible=compatible,
+                details=details or {},
+            )
+        )
         item.update({
             'category': category,
             'subject': subject,
-            'evidence': list(dict.fromkeys(evidence or [])),
+            'evidence': normalized_evidence,
             'annual_saving_eur': annual_saving_eur,
             'payback_years': payback_years,
             'compatible': compatible,
-            'assessment': dict(assessment) if isinstance(assessment, dict) else assessment,
+            'assessment': resolved_assessment,
             'details': details or {},
             'updated_at': now,
         })
         item['proactive_evaluation'] = evaluate_signal(item)
-        item['status'] = 'PROMOTED' if _promotable(item) else 'WATCHING'
+        item['status'] = 'PROMOTED' if item['proactive_evaluation'].get('decision') == 'PROMOTE' else 'WATCHING'
         self._save(data)
         return dict(item)
 

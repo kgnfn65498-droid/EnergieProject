@@ -42,9 +42,24 @@ def _healthy_app():
     )
 
 
+def _write_green_pm_self_audit(root):
+    import os
+    version = root / "App/VERSIE.txt"
+    version.parent.mkdir(parents=True, exist_ok=True)
+    version.write_text("32.3.20\n", encoding="utf-8")
+    status = root / "Inbox/projectmanager_v2/RuntimeV2/status/current.json"
+    status.parent.mkdir(parents=True, exist_ok=True)
+    status.write_text('{"release":{"version":"32.3.20"},"updated_at":"2026-09-07T07:00:00+00:00"}', encoding="utf-8")
+    audit = root / "Inbox/projectmanager_v2/RuntimeV2/self_audit/current.json"
+    audit.parent.mkdir(parents=True, exist_ok=True)
+    audit.write_text('{"status":"GREEN","invalid":[],"warnings":[]}', encoding="utf-8")
+    os.utime(audit, (status.stat().st_mtime + 1.0, status.stat().st_mtime + 1.0))
+
+
 def test_automatic_release_uses_normal_validation_and_releases_only_when_green(tmp_path):
     save_mode_state(tmp_path, _development_state())
     activate_release_hold(tmp_path, "32.3.20", "release_install")
+    _write_green_pm_self_audit(tmp_path)
     app = _healthy_app()
 
     result = auto_release.automatic_release_hold_once(app, tmp_path, "32.3.20")
@@ -60,6 +75,7 @@ def test_automatic_release_uses_normal_validation_and_releases_only_when_green(t
 def test_automatic_release_keeps_hold_active_when_any_validation_check_is_blocked(tmp_path):
     save_mode_state(tmp_path, _development_state())
     activate_release_hold(tmp_path, "32.3.20", "release_install")
+    _write_green_pm_self_audit(tmp_path)
     app = _healthy_app()
     app.operating_runtime_probe = lambda: {
         "workflow_running": False,

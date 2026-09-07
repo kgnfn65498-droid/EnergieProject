@@ -10,6 +10,7 @@ from conversation_intake import ConversationIntakeBridge
 from configured_service import ConfiguredManagerService
 from handoff_queue import HandoffQueue
 from handoff_result_ingress import HandoffResultIngressConsumer
+from issue_repair_evidence import collect_issue_repair_evidence
 from handover import build_handover
 from mode_bridge import ModeBridge
 from nas_container_cr_service import ConfiguredNasContainerCrService
@@ -190,10 +191,16 @@ class ProjectmanagerRuntime:
         protected_results = self.protected_executor.run_once(max_items=5)
         runtime_snapshot = self.base.runtime_collector.collect()
         release_validation = self._release_validation_snapshot()
+        issues = getattr(self.base, 'issues', None)
+        issue_repairs = collect_issue_repair_evidence(
+            self.root,
+            issues.open_items() if issues is not None else [],
+        )
         reconciliation_result = self.state_reconciler.reconcile(
             runtime=runtime_snapshot,
             release_validation=release_validation,
             now=now,
+            issue_repairs=issue_repairs,
         )
         status = dict(self.base.run_once(now=now))
         status['manager'] = {'version': _read_manager_version(getattr(self.config, 'manager_app_root', ''))}

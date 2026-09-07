@@ -1,3 +1,12 @@
+## 32.4.11 — PMV2 closure release
+
+- Sluit PM-32411-001 t/m PM-32411-009 volgens het bestaande closure-plan; PM-32411-008 blijft live closure na aparte productie-goedkeuring.
+- Herstelt self-audit statuscompatibiliteit, samengestelde PM-health en de fail-closed release-hold op actuele PM self-audit.
+- Voegt evidence-based legacy task- en issueconvergentie toe zonder historie te wissen.
+- Verbindt echte opportunities met deterministische vijf-factor assessment en één canonieke WATCH/PROMOTED-status.
+- Behoudt vorige GitHub publisher-state append-only in historie vóór vervanging van actuele state.
+- Verhoogt Projectmanager naar `2.0.0-rc8`; productie blijft 32.4.10 / rc7 tot aparte goedkeuring op exacte artifact-SHA.
+
 ## 32.4.10 — Proactive PM + state reconciliation
 
 - Vervangt het destructieve QNAP App-replacementpad door een gejournalde atomic sibling-directory swap; de vorige App blijft rollbackbaar tot volledige live acceptatie.

@@ -62,3 +62,29 @@ def check_boolean(name: str, ok, *, failure_status='RED', reason_ok='ok', reason
     if ok is None:
         return {'name': name, 'status': 'ORANGE', 'reason': 'not_verified', 'details': details or {}}
     return {'name': name, 'status': failure_status, 'reason': reason_fail, 'details': details or {}}
+
+
+def self_audit_check(self_audit: dict) -> dict:
+    payload = self_audit if isinstance(self_audit, dict) else {}
+    status = str(payload.get('status') or '').strip().upper()
+    if status not in STATUS_ORDER:
+        status = 'RED'
+        reason = 'self_audit_missing_or_invalid'
+    else:
+        reason = 'self_audit_' + status.lower()
+    details = {
+        'invalid_count': len(payload.get('invalid', [])) if isinstance(payload.get('invalid', []), list) else 0,
+        'warning_count': len(payload.get('warnings', [])) if isinstance(payload.get('warnings', []), list) else 0,
+    }
+    return {
+        'name': 'projectmanager_self_audit',
+        'status': status,
+        'reason': reason,
+        'details': details,
+    }
+
+
+def summarize_health_with_self_audit(checks: list, self_audit: dict) -> dict:
+    combined = list(checks or [])
+    combined.append(self_audit_check(self_audit))
+    return summarize_health(combined)

@@ -76,6 +76,17 @@ def _arm_idle_hold(tmp_path, mode=Mode.USER):
     save_mode_state(tmp_path, state)
     activate_release_hold(tmp_path, "32.3.14", "release_install")
     (tmp_path / "Inbox/processing").mkdir(parents=True, exist_ok=True)
+    status = tmp_path / "Inbox/projectmanager_v2/RuntimeV2/status/current.json"
+    status.parent.mkdir(parents=True, exist_ok=True)
+    status.write_text('{"release":{"version":"32.3.14"},"updated_at":"2026-09-07T07:00:00+00:00"}', encoding="utf-8")
+    audit = tmp_path / "Inbox/projectmanager_v2/RuntimeV2/self_audit/current.json"
+    audit.parent.mkdir(parents=True, exist_ok=True)
+    audit.write_text('{"status":"GREEN","invalid":[],"warnings":[]}', encoding="utf-8")
+    version = tmp_path / "App/VERSIE.txt"
+    version.parent.mkdir(parents=True, exist_ok=True)
+    version.write_text("32.3.14\n", encoding="utf-8")
+    import os
+    os.utime(audit, (status.stat().st_mtime + 1.0, status.stat().st_mtime + 1.0))
     return state
 
 
@@ -161,7 +172,7 @@ def test_hold_idle_runtime_can_reconcile_ok_after_real_probe(tmp_path):
     assert state.observed_profile["workflow_running"] is False
 
 
-def test_release_validation_has_exactly_five_compact_checks(tmp_path):
+def test_release_validation_includes_pm_self_audit_gate(tmp_path):
     _arm_idle_hold(tmp_path)
     result = runtime.validate_release_hold(_fake_app(), tmp_path, "32.3.14")
     assert set(result["checks"]) == {
@@ -170,6 +181,7 @@ def test_release_validation_has_exactly_five_compact_checks(tmp_path):
         "state_io",
         "automatic_runtime_idle",
         "release_chain",
+        "projectmanager_self_audit",
     }
     assert all(check["ok"] for check in result["checks"].values())
     assert result["reconcile_status"] == "ok"
