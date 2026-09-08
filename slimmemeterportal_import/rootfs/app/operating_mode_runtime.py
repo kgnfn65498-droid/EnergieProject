@@ -439,6 +439,19 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
             for item in non_green
         )
 
+        def _current_live_acceptance_journal_is_valid() -> bool:
+            journal_path = root / 'Inbox/atomic_app_swap_state.json'
+            try:
+                journal = json.loads(journal_path.read_text(encoding='utf-8'))
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                return False
+            return bool(
+                isinstance(journal, dict)
+                and str(journal.get('state') or '').strip().upper() == 'LIVE_ACCEPTANCE'
+                and str(journal.get('to_version') or '').strip() == app_version
+                and bool(str(journal.get('from_version') or '').strip())
+            )
+
         allowed_stale_acceptance_red = False
         if len(non_green) == 1:
             only = non_green[0]
@@ -447,26 +460,37 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
                 and str(only.get('status') or '').strip().upper() == 'RED'
                 and str(only.get('reason') or '') == 'live_acceptance_blocks_release_ingress'
             )
-            if exact_stale_red:
-                journal_path = root / 'Inbox/atomic_app_swap_state.json'
-                try:
-                    journal = json.loads(journal_path.read_text(encoding='utf-8'))
-                except (OSError, UnicodeError, json.JSONDecodeError):
-                    journal = None
-                allowed_stale_acceptance_red = bool(
-                    isinstance(journal, dict)
-                    and str(journal.get('state') or '').strip().upper() == 'LIVE_ACCEPTANCE'
-                    and str(journal.get('to_version') or '').strip() == app_version
-                    and bool(str(journal.get('from_version') or '').strip())
-                )
+            allowed_stale_acceptance_red = bool(
+                exact_stale_red and _current_live_acceptance_journal_is_valid()
+            )
 
-        if health_status == 'RED' and not allowed_stale_acceptance_red:
+        # 32.4.16: a single next release may legitimately arrive while the
+        # current release is finishing LIVE_ACCEPTANCE.  Keep the watcher
+        # fail-closed until ACCEPTED, but allow the PM validation itself to
+        # finish when (and only when) the two non-green checks are exactly:
+        # one waiting incoming ZIP + the current release's atomic transition.
+        allowed_waiting_next_release_acceptance = False
+        if len(non_green) == 2 and _current_live_acceptance_journal_is_valid():
+            by_name = {str(item.get('name') or ''): item for item in non_green}
+            incoming_check = by_name.get('release_incoming')
+            atomic_check = by_name.get('release_atomic_state')
+            allowed_waiting_next_release_acceptance = bool(
+                isinstance(incoming_check, dict)
+                and str(incoming_check.get('status') or '').strip().upper() == 'ORANGE'
+                and str(incoming_check.get('reason') or '') == 'release_waiting_incoming'
+                and int((incoming_check.get('details') or {}).get('count') or 0) == 1
+                and isinstance(atomic_check, dict)
+                and str(atomic_check.get('status') or '').strip().upper() == 'RED'
+                and str(atomic_check.get('reason') or '') == 'live_acceptance_blocks_release_ingress'
+            )
+
+        if health_status == 'RED' and not (allowed_stale_acceptance_red or allowed_waiting_next_release_acceptance):
             names = ','.join(str(item.get('name') or 'unknown') for item in red_checks) or 'summary'
             return _validation_check(False, f"projectmanager health RED: {names}")
-        if red_checks and not allowed_stale_acceptance_red:
+        if red_checks and not (allowed_stale_acceptance_red or allowed_waiting_next_release_acceptance):
             names = ','.join(str(item.get('name') or 'unknown') for item in red_checks)
             return _validation_check(False, f"projectmanager health RED: {names}")
-        if non_green and not (allowed_orange_transition or allowed_stale_acceptance_red):
+        if non_green and not (allowed_orange_transition or allowed_stale_acceptance_red or allowed_waiting_next_release_acceptance):
             names = ','.join(str(item.get('name') or 'unknown') for item in non_green)
             return _validation_check(False, f"unexpected non-green projectmanager health: {names}")
     if not app_version or status_release != app_version:

@@ -1,9 +1,8 @@
 # Changelog
 
-## 32.4.15
+## 32.4.16 — automatische ingress/acceptance closure
 
-- Stale `LIVE_ACCEPTANCE` closure fail-closed gerepareerd voor de exacte eigen atomic RED-state.
-- Voice Mode/dictation/Nomad gekoppeld aan dezelfde Projectmanager-runtime en waarheid als typed input.
-- Protected Voice-acties gebruiken optie C met gebonden, single-use tweestapsconfirmatie via de canonieke approval- en commandketen.
-- Automatische `nieuwe chat`-snapshot en resume toegevoegd met atomische opslag en fallback naar de vorige geldige snapshot.
-- Projectmanager V2 2.0.0-rc12.
+- Sluit de combinatie van exact één wachtende `incoming`-ZIP en de huidige geldige `LIVE_ACCEPTANCE` automatisch af zonder handmatige hold of accept-commando's.
+- Houdt watcher-ingress fail-closed tot de atomic state canoniek `ACCEPTED` is; daarna kan de volgende ZIP via `processing` naar `processed` doorstromen.
+- Legt de releasefout, root cause en regressiepreventie vast in de Projectmanager Knowledge Base, roadmap en ontwikkelafspraken.
+- Projectmanager V2 2.0.0-rc13.

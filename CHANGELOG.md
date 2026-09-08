@@ -1,3 +1,12 @@
+## 32.4.16 — automatische ingress/acceptance closure
+
+- Repareert het live bewezen gat waarbij precies één volgende release-ZIP in `incoming` de huidige `LIVE_ACCEPTANCE` via gecombineerde PM-health (`release_incoming=ORANGE` + `release_atomic_state=RED`) blokkeerde.
+- Laat automatische acceptance uitsluitend deze exacte, gecontroleerde combinatie tolereren wanneer het atomic journal naar de huidige release wijst; meerdere ZIPs en iedere andere RED/ORANGE blijven fail-closed.
+- De watcher blijft tijdens `LIVE_ACCEPTANCE` blokkeren en pakt de volgende ZIP pas nadat de huidige release canoniek `ACCEPTED` is: geen overlap, hold-map of handmatige accept-route.
+- Legt de foutklasse, root cause, oplossing en verplichte twee-op-een-volgende-release regressietest vast in Knowledge Base en ontwikkelafspraken.
+- Verhoogt Projectmanager naar `2.0.0-rc13`.
+- Packaging-closure: release-artifacts worden uitsluitend uit een schone stagingboom opgebouwd; `.pytest_cache`, `__pycache__`, `.DS_Store`, `*.pyc` en `*.pyo` zijn verboden en de uiteindelijke ZIP moet vóór vrijgave door dezelfde `atomic_app_swap`-validatie als productie worden geaccepteerd.
+
 ## 32.4.15 — Voice Mode en definitieve 32.4 closure
 
 - Lost de stale `LIVE_ACCEPTANCE`-deadlock structureel op: uitsluitend de specifieke `release_atomic_state=RED` met reden `live_acceptance_blocks_release_ingress` mag tijdens final acceptance tijdelijk worden getolereerd, en alleen wanneer het atomic journal exact naar de huidige release wijst; alle andere RED/ORANGE-health blijft fail-closed.

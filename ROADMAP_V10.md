@@ -108,3 +108,11 @@
 - v32.0.0 — stap 3/3: Final Validation Gate.
 - Na succesvolle Home Assistant-validatie is de huidige roadmap afgerond.
 - Daarna alleen gerichte v32.x fixes of een expliciet nieuw roadmapbesluit.
+
+## v32.4.16 — closure releaseketen en ontwikkelproces
+- [x] Root cause live incoming-block vastgelegd: één wachtende opvolgende ZIP maakte de huidige LIVE_ACCEPTANCE acceptance zelf onmogelijk.
+- [x] Fail-closed acceptancecontract: exact één wachtende ZIP + huidige geldige LIVE_ACCEPTANCE mag zichzelf sluiten; andere niet-groene health blijft blokkeren.
+- [x] Normale keten blijft `incoming -> processing -> processed`; geen `release_hold_tmp` als productfunctionaliteit.
+- [x] Knowledge Base/ontwikkelafspraken bevatten root cause, structurele fix en verplichte regressiepreventie.
+- [x] Packaging-regressie vastgelegd: geen cache/junk in release-artifact en preflight met productie-equivalente atomic ZIP-validatie verplicht.
+- [ ] Live bewijs door gebruiker: 32.4.16 ZIP in incoming, automatische installatie, processed en daarna GUI actief melden.

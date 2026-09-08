@@ -570,6 +570,11 @@ class ManagerService:
             '- Runtime truth en handover: `Inbox/projectmanager_v2/RuntimeV2/`',
             '- Externe commandvoorstellen: `Data/03_Systeem/Projectmanager/CommandIngress/`; alleen de embedded PM schrijft RuntimeV2.',
             '- Nomad gebruikt dezelfde Projectmanager-truth; geen parallelle projectwaarheid.',
+            '## Ontwikkelproceslessen 32.4.16',
+            '- Releaseclosure is pas bewezen wanneer een opvolgende ZIP die tijdens `LIVE_ACCEPTANCE` wacht automatisch doorstroomt nadat de huidige release zichzelf naar `ACCEPTED` sluit.',
+            '- Een groene acceptance-unit/E2E voor de huidige release is onvoldoende bewijs voor de volgende ingress; regressietests moeten expliciet `incoming -> processing -> processed` over twee opeenvolgende releases bewijzen.',
+            "- `release_hold_tmp` en handmatige atomic accept-commando's zijn noodinterventies, geen onderdeel van de normale releaseflow.",
+            '- Bij ieder release-defect worden symptoom, root cause, structurele fix en regressietest in Knowledge Base/roadmap vastgelegd voordat closure groen wordt verklaard.',
         ])
         return [
             self.document_sync.update(kb_dir / 'ACTUELE_STATUS.md', 'PROJECTMANAGER_V2', status_content, placement='top'),
