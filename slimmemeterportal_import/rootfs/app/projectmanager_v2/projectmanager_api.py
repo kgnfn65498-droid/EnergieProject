@@ -83,6 +83,7 @@ class ProjectmanagerAPI:
             'health': status.get('health'),
             'release': status.get('release', {}),
             'active_task': status.get('active_task'),
+            'progress': status.get('progress'),
             'next_action': status.get('next_action'),
             'needs_human': status.get('needs_human', False),
             'decisions_needed': status.get('decisions_needed', []),

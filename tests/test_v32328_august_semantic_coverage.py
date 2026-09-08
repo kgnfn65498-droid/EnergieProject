@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 import csv
 import importlib.util
 import json
@@ -213,9 +214,9 @@ def test_historical_actuals_use_same_smp_start_p1_end_bridge(tmp_path: Path):
 
 
 def test_v32328_release_identity_is_consistent():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.11"
-    assert 'version: "32.4.11"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.11"' in MAIN.read_text(encoding="utf-8")
-    assert 'TARGET_RELEASE_VERSION = "32.4.11"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
-    assert (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").startswith("## 32.4.11")
-    assert (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8").startswith("# Changelog\n\n## 32.4.11")
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == CURRENT_RELEASE
+    assert f'version: "{CURRENT_RELEASE}"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in MAIN.read_text(encoding="utf-8")
+    assert f'TARGET_RELEASE_VERSION = "{CURRENT_RELEASE}"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
+    assert (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").startswith(f"## {CURRENT_RELEASE}")
+    assert (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8").startswith(f"# Changelog\n\n## {CURRENT_RELEASE}")

@@ -147,6 +147,16 @@ def test_real_paused_conversation_handoff_can_converge_without_displacing_later_
             'outcome': 'DONE',
             'summary': '32.4.9 conversation intake live accepted',
             'evidence_refs': ['RuntimeV2/intake/items.json', 'Knowledge_Base_Chat_Bronregister.md'],
+            'dod_gates': {
+                'code_ready': True,
+                'tests_green': True,
+                'functional_validation_green': True,
+                'kb_updated': True,
+                'roadmap_updated': True,
+                'handover_updated': True,
+                'release_ready': True,
+                'no_blockers': True,
+            },
         }),
         encoding='utf-8',
     )

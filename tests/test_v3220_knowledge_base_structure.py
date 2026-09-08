@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 import hashlib
 import importlib.util
 import json
@@ -104,7 +105,7 @@ def test_v3220_conflict_is_fail_closed(tmp_path: Path):
 @pytest.mark.skipif(not STRUCTURE.is_file(), reason="RED gate")
 def test_v3220_main_migrates_before_bootstrap_and_sidecar():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.11"' in source
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in source
     assert "from project_structure import HISTORICAL_BOOTSTRAP_STATUS_RELATIVE, migrate_project_structure" in source
     start = source.index("def startup_historical_energy_excel")
     end = source.index("threading.Thread(\n        target=startup_historical_energy_excel", start)
@@ -131,9 +132,9 @@ def test_v3220_active_writers_have_no_legacy_write_paths():
 
 
 def test_v3220_release_identity():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.11"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == CURRENT_RELEASE
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
-    assert 'version: "32.4.11"' in config
+    assert f'version: "{CURRENT_RELEASE}"' in config
 
 @pytest.mark.skipif(not STRUCTURE.is_file(), reason="RED gate")
 def test_v3221_existing_readonly_knowledge_base_is_rehomed_without_data_loss(tmp_path: Path, monkeypatch):

@@ -75,7 +75,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.11"
+APP_VERSION = "32.4.12"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -1659,6 +1659,8 @@ def create_report_handoff(
     transfer_path: str,
     transfer_zip: str | None,
     central_validation: dict[str, Any],
+    *,
+    month_input_validation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     month_key = f"{year:04d}_{month:02d}"
     destination = Path(transfer_path)
@@ -1674,8 +1676,14 @@ def create_report_handoff(
         "input_folder": month_input_path,
         "transfer_folder": transfer_path,
         "transfer_zip": transfer_zip,
+        "pre_report_validation_status": central_validation.get("status"),
+        "pre_report_validation": central_validation,
+        # Backwards-compatible alias. This field now always carries the
+        # pre-report validation, never month_input_validation provenance.
         "central_validation_status": central_validation.get("status"),
         "central_validation": central_validation,
+        "month_input_validation_status": (month_input_validation or {}).get("status"),
+        "month_input_validation": month_input_validation or {},
         "required_generators": REPORT_GENERATORS,
         "output_contract": {
             "folder": f"02_Output/{month_key}",
@@ -3833,8 +3841,12 @@ def audit_completed_month_workflow(
     def add(name: str, status: str, detail: Any = None) -> None:
         checks.append({"name": name, "status": status, "detail": detail})
 
+    validation_ok = (
+        audit_validation.get("status") in {"ok", "warning"}
+        and not (audit_validation.get("errors") or [])
+    )
     add("central_validation",
-        "ok" if audit_validation.get("status") == "ok" else "error",
+        "ok" if validation_ok else "error",
         audit_validation)
     add("report_runtime",
         "ok" if state.get("report_runtime_last_status") == "ok" else "error",
@@ -4025,7 +4037,10 @@ def run_report_generation_from_handoff(
             report_generation_last_error=local_result.get("error"),
         )
         if result["status"] == "completed":
-            audit_validation = handoff.get("central_validation") if historical_mode else None
+            audit_validation = (
+                handoff.get("pre_report_validation")
+                or handoff.get("central_validation")
+            ) if historical_mode else None
             result["audit"] = audit_completed_month_workflow(
                 month_key,
                 central_validation=audit_validation,
@@ -13714,6 +13729,7 @@ def create_transfer_package(
     *,
     replace_existing: bool = False,
     send_notification: bool = True,
+    report_validation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     options = Options.load()
     if not options.transfer_enabled:
@@ -13844,13 +13860,37 @@ def create_transfer_package(
     )
 
     year, month = parse_month_key(month_key)
+    effective_report_validation = report_validation if isinstance(report_validation, dict) else None
+    if effective_report_validation is None:
+        state_validation = load_state().get("last_pre_report_validation") or {}
+        if (
+            isinstance(state_validation, dict)
+            and state_validation.get("month") == month_key
+            and state_validation.get("status") in {"ok", "warning"}
+            and not (state_validation.get("errors") or [])
+        ):
+            effective_report_validation = state_validation
+        else:
+            effective_report_validation = {
+                "version": APP_VERSION,
+                "checked_at": datetime.now(TZ).isoformat(),
+                "month": month_key,
+                "source": "transfer_month_validation_fallback",
+                "status": "ok" if validation_acceptable else "error",
+                "errors": [] if validation_acceptable else [
+                    f"Maandvalidatie is {validation.get('status')}"
+                ],
+                "warnings": [],
+                "month_input_validation_status": validation.get("status"),
+            }
     report_handoff = create_report_handoff(
         year,
         month,
         str(source),
         str(destination),
         str(zip_destination) if zip_source.exists() else None,
-        validation,
+        effective_report_validation,
+        month_input_validation=validation,
     )
     transfer_manifest["report_handoff"] = report_handoff
 
@@ -14698,6 +14738,82 @@ def append_workflow_step(
     })
 
 
+AUTOMATIC_FAILURE_NOTIFICATION_COOLDOWN_HOURS = 24
+
+
+def automatic_failure_notification_decision(
+    month_key: str,
+    failed_step: str | None,
+    errors: list[str] | tuple[str, ...] | None,
+    *,
+    now: datetime | None = None,
+    cooldown_hours: int = AUTOMATIC_FAILURE_NOTIFICATION_COOLDOWN_HOURS,
+) -> dict[str, Any]:
+    """Deduplicate identical automatic month-close failures without hiding new errors."""
+    now = now or datetime.now(TZ)
+    normalized_errors = [str(item).strip() for item in (errors or []) if str(item).strip()]
+    payload = {
+        "month": str(month_key),
+        "failed_step": str(failed_step or "onbekende stap"),
+        "errors": normalized_errors,
+    }
+    fingerprint = hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    state = load_state()
+    previous_fingerprint = str(state.get("automatic_failure_notification_fingerprint") or "")
+    previous_at_raw = state.get("automatic_failure_notification_last_at")
+    previous_at = None
+    if previous_at_raw:
+        try:
+            previous_at = datetime.fromisoformat(str(previous_at_raw).replace("Z", "+00:00"))
+            if previous_at.tzinfo is None:
+                previous_at = previous_at.replace(tzinfo=TZ)
+        except (TypeError, ValueError):
+            previous_at = None
+    cooldown = timedelta(hours=max(1, int(cooldown_hours)))
+    same_failure = previous_fingerprint == fingerprint
+    within_cooldown = bool(
+        same_failure and previous_at is not None and (now - previous_at) < cooldown
+    )
+    suppressed_count = int(state.get("automatic_failure_notification_suppressed_count") or 0)
+    notify = not within_cooldown
+    if notify:
+        suppressed_count = 0
+        update_state(
+            automatic_failure_notification_fingerprint=fingerprint,
+            automatic_failure_notification_last_at=now.isoformat(),
+            automatic_failure_notification_month=month_key,
+            automatic_failure_notification_failed_step=failed_step,
+            automatic_failure_notification_suppressed_count=0,
+        )
+    else:
+        suppressed_count += 1
+        update_state(automatic_failure_notification_suppressed_count=suppressed_count)
+    return {
+        "notify": notify,
+        "fingerprint": fingerprint,
+        "same_failure": same_failure,
+        "within_cooldown": within_cooldown,
+        "suppressed_count": suppressed_count,
+        "cooldown_hours": max(1, int(cooldown_hours)),
+    }
+
+
+def reset_automatic_failure_notification_state(month_key: str | None = None) -> None:
+    state = load_state()
+    stored_month = state.get("automatic_failure_notification_month")
+    if month_key and stored_month and str(stored_month) != str(month_key):
+        return
+    update_state(
+        automatic_failure_notification_fingerprint=None,
+        automatic_failure_notification_last_at=None,
+        automatic_failure_notification_month=None,
+        automatic_failure_notification_failed_step=None,
+        automatic_failure_notification_suppressed_count=0,
+    )
+
+
 def run_full_month_workflow(
     month_key: str | None = None,
     *,
@@ -15083,7 +15199,12 @@ def run_full_month_workflow(
 
         transfer_result = execute_step(
             "Overdrachtspakket maken",
-            lambda: create_transfer_package(month_key, replace_existing=True, send_notification=False),
+            lambda: create_transfer_package(
+                month_key,
+                replace_existing=True,
+                send_notification=False,
+                report_validation=pre_report_validation,
+            ),
             required=True,
         )
 
@@ -15271,6 +15392,8 @@ def run_full_month_workflow(
     try:
         if options.workflow_notify_home_assistant:
             if status in {"completed", "completed_warning"}:
+                if trigger == "automatic":
+                    reset_automatic_failure_notification_state(month_key)
                 title = "Automatische energie-maandafsluiting gereed" if trigger == "automatic" else "Energie maandworkflow gereed"
                 notify_home_assistant(
                     title,
@@ -15285,14 +15408,41 @@ def run_full_month_workflow(
                     f"Maand {month_key} is gecontroleerd geannuleerd.",
                 )
             else:
-                notify_home_assistant(
-                    "Automatische energie-maandafsluiting mislukt" if trigger == "automatic" else "Energie maandworkflow mislukt",
-                    (
-                        f"Maand {month_key} stopte bij "
-                        f"{failed_step or 'onbekende stap'}. "
-                        f"Fout: {'; '.join(errors)}"
-                    ),
+                failure_message = (
+                    f"Maand {month_key} stopte bij "
+                    f"{failed_step or 'onbekende stap'}. "
+                    f"Fout: {'; '.join(errors)}"
                 )
+                if trigger == "automatic":
+                    decision = automatic_failure_notification_decision(
+                        month_key,
+                        failed_step,
+                        errors,
+                        cooldown_hours=max(
+                            AUTOMATIC_FAILURE_NOTIFICATION_COOLDOWN_HOURS,
+                            int(options.automatic_month_close_retry_hours),
+                        ),
+                    )
+                    if decision["notify"]:
+                        notify_home_assistant(
+                            "Automatische energie-maandafsluiting mislukt",
+                            failure_message,
+                        )
+                    else:
+                        append_workflow_log(
+                            month_key,
+                            "info",
+                            "Identieke automatische foutmelding onderdrukt binnen cooldown",
+                            failed_step=failed_step,
+                            fingerprint=decision["fingerprint"],
+                            suppressed_count=decision["suppressed_count"],
+                            cooldown_hours=decision["cooldown_hours"],
+                        )
+                else:
+                    notify_home_assistant(
+                        "Energie maandworkflow mislukt",
+                        failure_message,
+                    )
     except Exception as exc:
         warnings.append(f"Workflow-notificatie mislukt: {exc}")
         result["warnings"] = warnings

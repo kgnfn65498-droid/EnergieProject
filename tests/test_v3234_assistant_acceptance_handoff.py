@@ -1,3 +1,4 @@
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 import importlib.util
 from pathlib import Path
 import sys
@@ -31,12 +32,12 @@ def test_runtime_acceptance_uses_writable_inbox_log_handoff_not_projectmanager_s
 
 
 def test_release_identity_is_v3234_handoff_hotfix():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.11"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == CURRENT_RELEASE
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     addon = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.4.11"' in config
-    assert 'APP_VERSION = "32.4.11"' in main
-    assert changelog.startswith("## 32.4.11")
-    assert addon.startswith("# Changelog\n\n## 32.4.11")
+    assert f'version: "{CURRENT_RELEASE}"' in config
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in main
+    assert changelog.startswith(f"## {CURRENT_RELEASE}")
+    assert addon.startswith(f"# Changelog\n\n## {CURRENT_RELEASE}")

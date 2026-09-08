@@ -1,3 +1,4 @@
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -9,12 +10,12 @@ INSTALLER = ROOT / "tools/release_installer.sh"
 
 
 def test_v3210_release_identity_and_runtime_dependency():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.11"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == CURRENT_RELEASE
     config = CONFIG.read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
     docker = DOCKERFILE.read_text(encoding="utf-8")
-    assert 'version: "32.4.11"' in config
-    assert 'APP_VERSION = "32.4.11"' in main
+    assert f'version: "{CURRENT_RELEASE}"' in config
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in main
     assert 'xlsxwriter>=3.2,<4' in docker.lower()
     assert 'for name in ("reportlab", "pypdf")' in main
     assert 'for name in ("xlsxwriter",)' in main

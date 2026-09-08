@@ -18,6 +18,7 @@ class ConfiguredManagerService(ManagerService):
             self.runtime_collector = RuntimeCollector(
                 config.project_root,
                 mode_state_path=getattr(config, 'mode_state_path', '') or None,
+                running_release_version=getattr(config, 'running_release_version', '') or None,
             )
         self._coordination_commands = CommandStore(self.root / 'commands' / 'queue.json')
         self._coordination_actions = ApprovedActionStore(self.root / 'approved_actions' / 'queue.json')
@@ -71,7 +72,8 @@ class ConfiguredManagerService(ManagerService):
             return None
         if health.get('status') == 'RED':
             return None
-        if self.mode.get().get('mode') != 'USER':
+        current_mode = self.mode.get().get('mode')
+        if current_mode not in {'USER', 'DEVELOPMENT'}:
             return None
         if self._coordination_commands.by_status(
             'PENDING',
@@ -84,14 +86,31 @@ class ConfiguredManagerService(ManagerService):
         if self._coordination_actions.open_items():
             return None
 
-        item = self.roadmap.next_open(mode='USER')
+        item = self.roadmap.next_open(mode=current_mode)
         if not item:
-            return None
+            backlog = self.tasks.next_captured(mode=current_mode)
+            if not backlog:
+                return None
+            resumed = self.tasks.resume_captured(
+                backlog['id'], reason='autonomous safe conversation backlog selection'
+            )
+            self.audit.write(
+                'conversation_backlog.task.selected',
+                actor='projectmanager',
+                result='ok',
+                details={'task_id': resumed['id'], 'mode': current_mode},
+            )
+            return {
+                'task_id': resumed['id'],
+                'source': 'conversation_backlog',
+                'next_action': resumed.get('next_action', ''),
+                'canonical': reconciliation.get('canonical', {}),
+            }
         next_action = f"handoff:{item['key']} — {item['title']}"
         task = self.tasks.start(
             item['title'],
             item['title'],
-            mode='USER',
+            mode=current_mode,
             steps_total=1,
             priority=int(item.get('priority', 5)),
         )

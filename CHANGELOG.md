@@ -1,3 +1,14 @@
+## 32.4.12 — functionele closure en runtime truth
+
+- Scheidt NAS-release, werkelijk draaiende Home Assistant add-onversie, beschikbare update en rollback; release-chain health omvat watcher, incoming/processing, installer-lock, atomic state en publisher/GitHub-publicatie.
+- Verplaatst de definitieve Projectmanager self-audit naar de uiteindelijke coördinatietoestand en controleert manager-versie, commands, Conversation Intake, handoffs, canonieke roadmap, reconciliation, open issues, voortgang en finale status.
+- Maakt Conversation Intake meervoudig en uitvoerbaar voor ChatGPT, Nomad en spraak, inclusief canonieke roadmaprouting en heragendeerbare action-items.
+- Herstelt veilige autonome DEVELOPMENT-regie en voorkomt dat handoff/completion de acht verplichte Definition-of-Done-gates omzeilt.
+- Gebruikt één voortgangswaarheid voor status, handover en context: Stap X/Y, voltooid/resterend, volgende stap, verstreken tijd, ETA, blockers, kleur, percentage en planningstrend.
+- Repareert de maandafsluiting bij “Rapportgenerator koppelen” door pre-reportvalidatie en maandinputvalidatie gescheiden te houden en geldige warning-status zonder errors te accepteren.
+- Dedupeert identieke automatische maandafsluitingsfouten binnen 24 uur terwijl retry behouden blijft en gewijzigde fouten direct worden gemeld.
+- Verhoogt Projectmanager naar `2.0.0-rc9`. Productie-installatie blijft een aparte, expliciete stap na artifact-verificatie.
+
 ## 32.4.11 — PMV2 closure release
 
 - Sluit PM-32411-001 t/m PM-32411-009 volgens het bestaande closure-plan; PM-32411-008 blijft live closure na aparte productie-goedkeuring.

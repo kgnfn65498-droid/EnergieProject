@@ -1,3 +1,4 @@
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -6,11 +7,11 @@ PM = APP / 'projectmanager_v2'
 
 
 def test_v3243_release_identity_and_pm_version():
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.11'
-    assert 'version: "32.4.11"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text()
-    assert 'APP_VERSION = "32.4.11"' in (APP / 'main.py').read_text()
-    assert 'TARGET_RELEASE_VERSION = "32.4.11"' in (APP / 'mode_entrypoint.py').read_text()
-    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc8'
+    assert (ROOT / 'VERSIE.txt').read_text().strip() == CURRENT_RELEASE
+    assert f'version: "{CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text()
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in (APP / 'main.py').read_text()
+    assert f'TARGET_RELEASE_VERSION = "{CURRENT_RELEASE}"' in (APP / 'mode_entrypoint.py').read_text()
+    assert (PM / 'VERSION.txt').read_text().strip() == CURRENT_PM_VERSION
 
 
 def test_v3243_handoff_and_canonical_roadmap_wiring_present():

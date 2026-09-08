@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 import hashlib
 from pathlib import Path
 
@@ -45,7 +46,7 @@ def test_startup_bootstrap_is_idempotent_when_master_and_archive_are_already_val
 
 def test_v3211_main_starts_excel_bootstrap_independently_of_month_workflow():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.11"' in source
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in source
     assert "bootstrap_historical_energy_workbook" in source
     assert "def startup_historical_energy_excel" in source
     main_start = source.index("def main()")
@@ -63,6 +64,6 @@ def test_v3211_main_starts_excel_bootstrap_independently_of_month_workflow():
 def test_v3211_safety_contract_is_unchanged():
     source = MAIN.read_text(encoding="utf-8")
     config = CONFIG.read_text(encoding="utf-8")
-    assert 'version: "32.4.11"' in config
+    assert f'version: "{CURRENT_RELEASE}"' in config
     assert "automatic_month_close_enabled: false" in config
     assert "finalize_month(" not in (APP / "historical_energy_excel.py").read_text(encoding="utf-8")

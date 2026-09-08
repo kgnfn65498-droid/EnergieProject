@@ -4,6 +4,7 @@ from pathlib import Path
 
 from persistence import atomic_write_json, load_json
 from secret_guard import contains_secret_text
+from task_engine import definition_of_done
 
 VALID_SCHEMA = 'energie_pmv2_handoff_result_v1'
 MAX_RESULT_BYTES = 65536
@@ -73,6 +74,9 @@ class HandoffResultIngressConsumer:
             outcome = str(envelope.get('outcome') or '').strip().upper()
             summary = str(envelope.get('summary') or '').strip()
             evidence_refs = envelope.get('evidence_refs') or []
+            dod_gates = envelope.get('dod_gates') or {}
+            if not isinstance(dod_gates, dict):
+                raise ValueError('invalid_dod_gates')
             if not handoff_id:
                 raise ValueError('handoff_id_required')
             if outcome not in {'DONE', 'BLOCKED'}:
@@ -91,6 +95,10 @@ class HandoffResultIngressConsumer:
                 # Idempotent convergence: a valid result may finish its exact handoff task
                 # even when a later task temporarily paused it. Other active work is untouched.
                 task = self.tasks.get(task_id)
+                if task.get('mode') == 'DEVELOPMENT':
+                    dod = definition_of_done(dod_gates)
+                    if not dod['done']:
+                        raise ValueError(f"definition of done missing: {', '.join(dod['missing'])}")
                 resumed_from_paused = False
                 if task.get('status') == 'PAUSED':
                     self.tasks.resume_handoff(
@@ -99,7 +107,7 @@ class HandoffResultIngressConsumer:
                         evidence_refs=[f'handoff_result_ingress:{ingress_id}'],
                     )
                     resumed_from_paused = True
-                self.tasks.complete_handoff(task_id, summary=summary, evidence_refs=evidence_refs)
+                self.tasks.complete_handoff(task_id, summary=summary, evidence_refs=evidence_refs, gates=dod_gates)
                 self.roadmap.mark_done_for_task(task_id)
                 final_handoff = self.handoffs.complete(handoff_id, summary=summary, evidence_refs=evidence_refs)
                 return {

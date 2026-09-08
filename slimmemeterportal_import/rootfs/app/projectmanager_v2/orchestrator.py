@@ -12,10 +12,12 @@ from handoff_queue import HandoffQueue
 from handoff_result_ingress import HandoffResultIngressConsumer
 from issue_repair_evidence import collect_issue_repair_evidence
 from handover import build_handover
+from health_engine import summarize_health_with_self_audit
 from mode_bridge import ModeBridge
 from nas_container_cr_service import ConfiguredNasContainerCrService
-from persistence import atomic_write_json
+from persistence import atomic_write_json, load_json
 from protected_action_executor import ProtectedActionExecutor
+from progress_truth import build_task_progress
 from roadmap_regie import RoadmapRegie
 from state_reconciliation import StateReconciler
 
@@ -44,6 +46,7 @@ class ProjectmanagerRuntime:
             self.base.document_sync,
             config.reports_root,
             opportunity_register=getattr(self.base, 'opportunities', None),
+            roadmap_regie=self.roadmap,
         )
 
         recovered = self.commands.recover_interrupted()
@@ -218,7 +221,40 @@ class ProjectmanagerRuntime:
         status['conversation_intake'] = self.conversation_intake.summary()
         status['state_reconciliation'] = reconciliation_result
         self._refresh_coordination(status)
+        self._finalize_coordination_audit(status, now=now)
         return status
+
+    def _finalize_coordination_audit(self, status: dict, *, now=None):
+        checks = [
+            dict(item) for item in ((status.get('health') or {}).get('checks') or [])
+            if item.get('name') != 'projectmanager_self_audit'
+        ]
+        audit = self.base.self_auditor.run(now=now, require_coordination=True)
+        status['self_audit'] = audit
+        status['health'] = summarize_health_with_self_audit(checks, audit)
+        issues = getattr(self.base, 'issues', None)
+        status['open_issues'] = issues.open_items() if issues is not None else status.get('open_issues', [])
+        atomic_write_json(self.root / 'self_audit' / 'current.json', audit)
+
+        heartbeat_path = self.root / 'heartbeat' / 'manager.json'
+        heartbeat = load_json(heartbeat_path, default={}) or {}
+        heartbeat['health'] = status['health']['status']
+        heartbeat['mode'] = status.get('mode', 'USER')
+        if now is not None:
+            heartbeat['heartbeat_at'] = now.isoformat()
+        atomic_write_json(heartbeat_path, heartbeat)
+        self._refresh_coordination(status)
+
+        # Audit once more against the files just written. This second pass is
+        # the authoritative final state, not the preliminary ManagerService audit.
+        final_audit = self.base.self_auditor.run(now=now, require_coordination=True)
+        if final_audit != audit:
+            status['self_audit'] = final_audit
+            status['health'] = summarize_health_with_self_audit(checks, final_audit)
+            atomic_write_json(self.root / 'self_audit' / 'current.json', final_audit)
+            heartbeat['health'] = status['health']['status']
+            atomic_write_json(heartbeat_path, heartbeat)
+            self._refresh_coordination(status)
 
     def _refresh_coordination(self, status: dict):
         current_mode = self.base.mode.get()
@@ -226,6 +262,7 @@ class ProjectmanagerRuntime:
         decisions = self.base.decisions.pending()
         status['mode'] = current_mode.get('mode', status.get('mode', 'USER'))
         status['active_task'] = active
+        status['progress'] = build_task_progress(active)
         status['decisions_needed'] = decisions
         status['needs_human'] = bool(decisions)
         status['next_action'] = (active or {}).get('next_action')
@@ -247,6 +284,7 @@ class ProjectmanagerRuntime:
                 f"command:{item.get('intent')}:{item.get('status')}"
                 for item in status.get('command_results', [])
             ],
+            progress=status.get('progress'),
         )
         handover['manager'] = status.get('manager', {})
         handover['open_issues'] = status.get('open_issues', [])

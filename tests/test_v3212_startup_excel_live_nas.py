@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 import importlib.util
 from pathlib import Path
 
@@ -47,7 +48,7 @@ def test_wait_for_live_nas_retries_instead_of_returning_unmounted_fallback(tmp_p
 
 def test_startup_excel_uses_fresh_live_nas_root_and_writes_status_file():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.11"' in source
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in source
     start = source.index("def startup_historical_energy_excel")
     end = source.index("threading.Thread(\n        target=startup_historical_energy_excel", start)
     block = source[start:end]

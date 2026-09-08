@@ -1,3 +1,4 @@
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -12,9 +13,9 @@ def test_current_release_identity_is_synchronized():
     main = MAIN.read_text(encoding="utf-8")
     config = CONFIG.read_text(encoding="utf-8")
     versie = VERSIE.read_text(encoding="utf-8").strip()
-    assert versie == "32.4.11"
-    assert 'version: "32.4.11"' in config
-    assert 'APP_VERSION = "32.4.11"' in main
+    assert versie == CURRENT_RELEASE
+    assert f'version: "{CURRENT_RELEASE}"' in config
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in main
     assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in main
 
 
@@ -30,7 +31,7 @@ def test_v32035_smp_report_fallback_contract_is_preserved():
 
 def test_current_changelog_preserves_smp_report_fallback_history():
     changelog = CHANGELOG.read_text(encoding="utf-8")
-    assert changelog.startswith("## 32.4.11")
+    assert changelog.startswith(f"## {CURRENT_RELEASE}")
     assert "## v32.0.35 — Pagina 2 onbekende terugleververgoeding" in changelog
     assert "feed_in_compensation" in changelog
     assert "€0" in changelog
@@ -39,6 +40,6 @@ def test_current_changelog_preserves_smp_report_fallback_history():
 
 def test_current_addon_changelog_is_current_release_only():
     changelog = ADDON_CHANGELOG.read_text(encoding="utf-8")
-    assert "## 32.4.11" in changelog
+    assert f"## {CURRENT_RELEASE}" in changelog
     assert changelog.count("\n## ") == 1
     assert "\n## 32.0.33" not in changelog

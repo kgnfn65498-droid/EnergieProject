@@ -1,3 +1,4 @@
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 import importlib.util
 import sys
 from pathlib import Path
@@ -61,7 +62,7 @@ def test_report_payload_wires_confirmed_offer_into_page1_and_page2():
 
 
 def test_current_release_identity():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.11'
-    assert 'version: "32.4.11"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.4.11"' in MAIN.read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.4.11"' in (ROOT / 'slimmemeterportal_import/rootfs/app/mode_entrypoint.py').read_text(encoding='utf-8')
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == CURRENT_RELEASE
+    assert f'version: "{CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in MAIN.read_text(encoding='utf-8')
+    assert f'TARGET_RELEASE_VERSION = "{CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/rootfs/app/mode_entrypoint.py').read_text(encoding='utf-8')

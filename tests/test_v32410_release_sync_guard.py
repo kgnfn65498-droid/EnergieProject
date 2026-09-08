@@ -1,3 +1,4 @@
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,11 +12,11 @@ def test_previous_3249_conversation_intake_fixture_remains_historical():
 
 def test_previous_3249_test_still_checks_current_candidate_identity_separately():
     source = (ROOT / 'tests/test_v3249_conversation_intake.py').read_text(encoding='utf-8')
-    assert "== '32.4.11'" in source
-    assert "'version: \"32.4.11\"'" in source
-    assert "'APP_VERSION = \"32.4.11\"'" in source
-    assert "'TARGET_RELEASE_VERSION = \"32.4.11\"'" in source
-    assert "== '2.0.0-rc8'" in source
+    assert "== CURRENT_RELEASE" in source
+    assert "f'version: \"{CURRENT_RELEASE}\"'" in source
+    assert "f'APP_VERSION = \"{CURRENT_RELEASE}\"'" in source
+    assert "f'TARGET_RELEASE_VERSION = \"{CURRENT_RELEASE}\"'" in source
+    assert "== CURRENT_PM_VERSION" in source
 
 
 if __name__ == '__main__':

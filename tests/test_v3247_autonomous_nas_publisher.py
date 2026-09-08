@@ -1,13 +1,14 @@
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 PUB=ROOT/'tools/nas_github_publisher.sh'
 BOOT=ROOT/'tools/bootstrap_nas_github_publisher.sh'
 
 def test_release_identity_and_ha_default():
-    assert (ROOT/'VERSIE.txt').read_text().strip()=='32.4.11'
-    assert 'version: "32.4.11"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text()
+    assert (ROOT/'VERSIE.txt').read_text().strip()==CURRENT_RELEASE
+    assert f'version: "{CURRENT_RELEASE}"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text()
     assert 'github_publication_enabled: true' in (ROOT/'slimmemeterportal_import/config.yaml').read_text()
-    assert 'APP_VERSION = "32.4.11"' in (ROOT/'slimmemeterportal_import/rootfs/app/main.py').read_text()
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in (ROOT/'slimmemeterportal_import/rootfs/app/main.py').read_text()
 
 def test_publisher_fail_closed_contract_and_no_force():
     s=PUB.read_text()

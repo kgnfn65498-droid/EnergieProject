@@ -1,3 +1,4 @@
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 from pathlib import Path
 import importlib.util
 import tempfile
@@ -17,11 +18,11 @@ def _load_paths():
     return module
 
 def test_v32038_release_identity():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.11"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == CURRENT_RELEASE
     config = CONFIG.read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
-    assert 'version: "32.4.11"' in config
-    assert 'APP_VERSION = "32.4.11"' in main
+    assert f'version: "{CURRENT_RELEASE}"' in config
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in main
 
 def test_v32038_automatic_publication_contract_remains_fail_closed():
     config = CONFIG.read_text(encoding="utf-8")

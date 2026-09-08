@@ -41,6 +41,12 @@ _DEVELOPMENT = (
     r'\bimplementeer\w*\b',
     r'\bpas\b.*\baan\b',
 )
+_PROTECTED_ACTION = (
+    r'\barchitectuurwijziging\b',
+    r'\barchitecture change\b',
+    r'\bproductie\b.*\b(installeer|installatie|deploy|plaats)\w*\b',
+    r'\b(production|prod)\b.*\b(deploy|install)\w*\b',
+)
 _SOURCE_CHANNELS = {'chatgpt', 'nomad', 'speech'}
 _SOURCE_ALIASES = {'spraak': 'speech', 'voice': 'speech'}
 
@@ -57,16 +63,19 @@ def classify_intake(text, classification_hint=None):
         hint = str(classification_hint).strip()
         if hint not in CLASSIFICATIONS:
             raise ValueError('invalid_classification_hint')
-        classification = hint
+        classifications = [hint]
     else:
-        classification = 'informational_context'
-        for candidate, patterns in _PATTERNS:
-            if _matches(value, patterns):
-                classification = candidate
-                break
+        classifications = [
+            candidate for candidate, patterns in _PATTERNS
+            if _matches(value, patterns)
+        ]
+        if not classifications:
+            classifications = ['informational_context']
     return {
-        'classification': classification,
+        'classification': classifications[0],
+        'classifications': classifications,
         'development_context': _matches(value, _DEVELOPMENT),
+        'approval_required': _matches(value, _PROTECTED_ACTION),
     }
 
 
@@ -74,6 +83,15 @@ def route_for_classification(classification):
     if classification not in ROUTES:
         raise ValueError('invalid_classification')
     return list(ROUTES[classification])
+
+
+def route_for_classifications(classifications):
+    routes = []
+    for classification in classifications or []:
+        for route in route_for_classification(classification):
+            if route not in routes:
+                routes.append(route)
+    return routes
 
 
 def _valid_store(data):
@@ -112,12 +130,13 @@ class ConversationIntakeBridge:
     roadmap-candidate and wishlist sections are derived projections only.
     """
 
-    def __init__(self, path, task_store, document_sync, reports_root, opportunity_register=None):
+    def __init__(self, path, task_store, document_sync, reports_root, opportunity_register=None, roadmap_regie=None):
         self.path = Path(path)
         self.tasks = task_store
         self.documents = document_sync
         self.reports_root = Path(reports_root)
         self.opportunities = opportunity_register
+        self.roadmap = roadmap_regie
 
     def _load(self):
         return load_json(
@@ -186,8 +205,10 @@ class ConversationIntakeBridge:
                 'ingress_id': value['ingress_id'],
                 'occurred_at': value['occurred_at'] or now,
                 'classification': value['classification'],
+                'classifications': list(value['classifications']),
                 'development_context': value['development_context'],
-                'routes': route_for_classification(value['classification']),
+                'approval_required': value['approval_required'],
+                'routes': route_for_classifications(value['classifications']),
                 'route_results': {},
                 'status': 'ACCEPTED',
                 'created_at': now,
@@ -216,7 +237,9 @@ class ConversationIntakeBridge:
             'id': stored['id'],
             'fingerprint': stored['fingerprint'],
             'classification': stored['classification'],
+            'classifications': list(stored.get('classifications') or [stored['classification']]),
             'development_context': stored['development_context'],
+            'approval_required': stored.get('approval_required') is True,
             'routes': list(stored['routes']),
             'route_results': dict(stored['route_results']),
             'status': stored['status'],
@@ -226,31 +249,44 @@ class ConversationIntakeBridge:
     def _sync_follow_up(self, item):
         if self.opportunities is None:
             return None
-        classification = item.get('classification')
-        if classification not in {'idea_opportunity', 'later_return'}:
+        classifications = item.get('classifications') or [item.get('classification')]
+        relevant = [name for name in classifications if name in {'idea_opportunity', 'later_return'}]
+        if not relevant:
             return None
-        category = 'conversation_opportunity' if classification == 'idea_opportunity' else 'follow_up'
-        details = {
-            'intake_id': item['id'],
-            'source_channel': item.get('source_channel'),
-            'source_ref': item.get('source_ref'),
-        }
-        if classification == 'later_return':
-            details['follow_up_policy'] = 'open_until_reviewed'
-        opportunity = self.opportunities.upsert(
-            f"intake:{item['fingerprint']}",
-            category=category,
-            subject=item.get('text', '')[:160],
-            evidence=[f"{self.path}#{item['id']}"],
-            details=details,
-        )
-        return {
-            'ok': True,
-            'opportunity_id': opportunity.get('id'),
-            'opportunity_fingerprint': opportunity.get('fingerprint'),
-            'status': opportunity.get('status'),
-            'proactive_decision': (opportunity.get('proactive_evaluation') or {}).get('decision'),
-        }
+        results = []
+        for classification in relevant:
+            category = 'conversation_opportunity' if classification == 'idea_opportunity' else 'follow_up'
+            details = {
+                'intake_id': item['id'],
+                'source_channel': item.get('source_channel'),
+                'source_ref': item.get('source_ref'),
+                'classification': classification,
+            }
+            if classification == 'later_return':
+                details['follow_up_policy'] = 'open_until_reviewed'
+            opportunity_fingerprint = (
+                f"intake:{item['fingerprint']}"
+                if len(relevant) == 1
+                else f"intake:{item['fingerprint']}:{classification}"
+            )
+            opportunity = self.opportunities.upsert(
+                opportunity_fingerprint,
+                category=category,
+                subject=item.get('text', '')[:160],
+                evidence=[f"{self.path}#{item['id']}"],
+                details=details,
+            )
+            results.append({
+                'ok': True,
+                'classification': classification,
+                'opportunity_id': opportunity.get('id'),
+                'opportunity_fingerprint': opportunity.get('fingerprint'),
+                'status': opportunity.get('status'),
+                'proactive_decision': (opportunity.get('proactive_evaluation') or {}).get('decision'),
+            })
+        if len(results) == 1:
+            return dict(results[0])
+        return {'ok': all(row.get('ok') for row in results), 'items': results}
 
     def _route(self, item):
         results = {}
@@ -263,9 +299,25 @@ class ConversationIntakeBridge:
                         mode='DEVELOPMENT' if item.get('development_context') else 'USER',
                         priority=3,
                         intake_fingerprint=item['fingerprint'],
+                        approval_required=item.get('approval_required') is True,
                     )
                     results[route] = {'ok': True, 'task_id': task['id']}
-                elif route in {'knowledge_base', 'roadmap', 'wishlist'}:
+                elif route == 'roadmap':
+                    roadmap_item = None
+                    if self.roadmap is not None:
+                        roadmap_item = self.roadmap.capture_intake(
+                            item['text'],
+                            mode='DEVELOPMENT' if item.get('development_context') else 'USER',
+                            intake_fingerprint=item['fingerprint'],
+                            approval_required=item.get('approval_required') is True,
+                        )
+                    projection = self._sync_projection(route)
+                    results[route] = {
+                        'ok': True,
+                        **projection,
+                        'roadmap_key': (roadmap_item or {}).get('key'),
+                    }
+                elif route in {'knowledge_base', 'wishlist'}:
                     result = self._sync_projection(route)
                     results[route] = {'ok': True, **result}
                 else:
@@ -315,7 +367,7 @@ class ConversationIntakeBridge:
             )
             development = ' | development' if current.get('development_context') else ''
             lines.append(
-                f"- [{current.get('classification')}{development}] "
+                f"- [{'+'.join(current.get('classifications') or [current.get('classification')])}{development}] "
                 f"{current.get('source_channel')}:{ref} — {current.get('text')}"
             )
         return self.documents.update(path, section, '\n'.join(lines), placement='top')

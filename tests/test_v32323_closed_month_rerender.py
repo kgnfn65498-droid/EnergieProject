@@ -1,3 +1,4 @@
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 import hashlib
 import importlib.util
 import sys
@@ -87,6 +88,6 @@ def test_closed_month_rerender_uses_isolated_handoff_and_preserves_sources(monke
 
 def test_release_identity_32323():
     source = MAIN.read_text(encoding="utf-8")
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.11"
-    assert 'APP_VERSION = "32.4.11"' in source
-    assert 'version: "32.4.11"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == CURRENT_RELEASE
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in source
+    assert f'version: "{CURRENT_RELEASE}"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")

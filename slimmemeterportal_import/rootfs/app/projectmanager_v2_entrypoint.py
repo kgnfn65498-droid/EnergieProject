@@ -24,13 +24,14 @@ def _prepare_imports():
     return pm_dir
 
 
-def _load_config(project_root):
+def _load_config(project_root, running_release_version=''):
     pm_dir = _prepare_imports()
     from embedded_config import build_embedded_config
     return build_embedded_config(
         project_root,
         pm_dir,
         supervisor_token=os.environ.get('SUPERVISOR_TOKEN', ''),
+        running_release_version=running_release_version,
     )
 
 
@@ -86,11 +87,11 @@ def _mark_success(config):
         pass
 
 
-def _worker(stop_event, project_root):
+def _worker(stop_event, project_root, running_release_version=''):
     while not stop_event.is_set():
         config = None
         try:
-            config = _load_config(project_root)
+            config = _load_config(project_root, running_release_version)
             from service_lock import FileLock
             lock_path = Path(config.system_root) / 'locks' / 'projectmanager.lock'
             try:
@@ -128,13 +129,13 @@ def _worker(stop_event, project_root):
                 return
 
 
-def start_projectmanager_v2(stop_event, project_root):
+def start_projectmanager_v2(stop_event, project_root, running_release_version=''):
     global _THREAD
     if _THREAD is not None and _THREAD.is_alive():
         return _THREAD
     _THREAD = threading.Thread(
         target=_worker,
-        args=(stop_event, Path(project_root)),
+        args=(stop_event, Path(project_root), running_release_version),
         daemon=True,
         name='energie-projectmanager-v2',
     )

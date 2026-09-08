@@ -1,5 +1,5 @@
 {
-  "version": "32.4.11",
+  "version": "32.4.12",
   "files": [
     {
       "path": ".gitignore",
@@ -23,8 +23,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "size": 120289,
-      "sha256": "f50d94bcc5d2201a80f1acede90444299a7024655240653ca4133139f9e71437"
+      "size": 121743,
+      "sha256": "6209a1160c5778227624681c51217948ba06d25d9c899492cfe6a4af96a6ecf3"
     },
     {
       "path": "INSTALL.md",
@@ -64,7 +64,7 @@
     {
       "path": "VERSIE.txt",
       "size": 8,
-      "sha256": "5853bf877e7f6141586602d226693c575a7bc249f4261c6ae21cfbfe9d1c0cb0"
+      "sha256": "d5795d40e5711bc6a4ec46fac741cc32a259caf3ff460337ada94f34ebc518ec"
     },
     {
       "path": "docs/superpowers/plans/2026-08-17-energie-assistant-ha-conversation.md",
@@ -117,6 +117,11 @@
       "sha256": "a4d59332c9b13eede7ba960e8577e7e16e66e572477f99f87173410e86e55483"
     },
     {
+      "path": "docs/superpowers/plans/2026-09-08-32-4-12-closure.md",
+      "size": 1343,
+      "sha256": "7c794797f16b3d411d4fbd04e379abd5a146d04f24c52c4cc5bcd78315595e3a"
+    },
+    {
       "path": "docs/superpowers/specs/2026-08-17-nomad-native-ha-event-bridge-design.md",
       "size": 5136,
       "sha256": "242c46b8529893f647c52a2394ce3f418b21f8dd7466bd9d535509bbc3253481"
@@ -167,14 +172,19 @@
       "sha256": "ca4b82760538130959a0fbe25c21fc5d28cd46fb7a63b1209def6d19e2b40a62"
     },
     {
+      "path": "release_test_contract.py",
+      "size": 318,
+      "sha256": "874af162cb4f9a3fabe20220f6a1135b9e341cbfe7e5dbc08a34b3b226d6402a"
+    },
+    {
       "path": "repository.yaml",
       "size": 125,
       "sha256": "53bcc3c35f6757f418727b3f72063e676db73638359dfb2124174f2f17bd8be0"
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "size": 134,
-      "sha256": "c97c1b80bda8c95057f96b43530759226264dbf93a11ed128ac83d7cff8bca35"
+      "size": 392,
+      "sha256": "9033add42b1fc8a8c67e02aa5043c4224b33846fccf46e78dd5b79ad2fb6785f"
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -194,7 +204,7 @@
     {
       "path": "slimmemeterportal_import/config.yaml",
       "size": 6103,
-      "sha256": "e6e176457621b3d5de5d5ae18e5091273cdbcb9eb018fb2640f5551c9b901fb0"
+      "sha256": "cc0f443abc4709ff1d275c5173e6108201755cae4af17e7026395a6cc2c5eb1f"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -248,13 +258,13 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "size": 1036443,
-      "sha256": "020dee2b88901d71ba175561ca58bb46ca6410e8209a6c755cf4df986c31bea5"
+      "size": 1042953,
+      "sha256": "6085a0f9162910c6649f4567d2d076135068aefd59d08f33d3389f6cb3a32a2a"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
-      "size": 2303,
-      "sha256": "866c68eaf018cbf722ec5f54e3b8a697639f568a1a82339ded47ee661422474a"
+      "size": 2327,
+      "sha256": "0b05760960b18664fea15ca93482991f1e26a7d3ca6a29143c7e6062ff9cc585"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/operating_mode_auto_release.py",
@@ -294,7 +304,7 @@
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/VERSION.txt",
       "size": 10,
-      "sha256": "ef27e4be6e5323c9cc1076bb051b8298346bfd85e3a511a0f9f532b0a43c4e69"
+      "sha256": "2a9e975d06f96fb88c6825d61cc8e6c2427bf5432dd1c87e0caa3f5707630d15"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/acceptance.py",
@@ -353,13 +363,13 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/configured_service.py",
-      "size": 5146,
-      "sha256": "ee298ef887d98761c0e12444ce00e776a9c2c91735bcfe6203b01e99fb89f16a"
+      "size": 6057,
+      "sha256": "ef046cedd7e69f3123e9d848cd8b667d3d6d9d924c9bb4589b1dc56270402038"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/conversation_intake.py",
-      "size": 12740,
-      "sha256": "4aaca46c9a1065343829c1371fd06d4b58a394ab50c5c4602868ff304be99404"
+      "size": 15320,
+      "sha256": "40a4cbe570e6ab00a02d0f533ef8b989877b4c02d1c25474243f22887f0380e8"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/cr_evidence.py",
@@ -383,8 +393,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/embedded_config.py",
-      "size": 1369,
-      "sha256": "c67f8147e065171114c8cbd85aefc16138976744d4c8b096af2efa45ac9b8a36"
+      "size": 1465,
+      "sha256": "d16b19553298bf02b5d2a12a84529e40ce7cda8c1d72046cb38208c8d636dc91"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/embedded_runtime.py",
@@ -418,13 +428,13 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/handoff_result_ingress.py",
-      "size": 5614,
-      "sha256": "91bf0ab8f5dd5c75a13966acd5de12ef9faa9d0a5b8a356086cbc0a5d9535213"
+      "size": 6083,
+      "sha256": "deb6c9dc5502e00c713565690a3a38828b85c1cf4eda78f383a10f3db415a43c"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/handover.py",
-      "size": 1578,
-      "sha256": "593882f1ecd9303b564d78e4a13993bbcac9eba1e23f1c49b10225c93bfbae91"
+      "size": 1747,
+      "sha256": "254bea861d6cc876367e547c82063ed97456b9b496502e629abddf80267e7a20"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/health_engine.py",
@@ -453,8 +463,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/manager_config.py",
-      "size": 3426,
-      "sha256": "ff2a12aa65d164c3c615c4104369bb69695131a3029b449a63cd76c824c26aad"
+      "size": 3614,
+      "sha256": "77a2359de4122c46674fa97f8d1cf43b8f3e8b414b21d9d83620768b75743d0f"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/manager_core.py",
@@ -468,8 +478,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/manager_service.py",
-      "size": 26622,
-      "sha256": "9a5001dbc1b8562befdbab0409c14074e962a1de2449ce63ecd9f41c6ce629a3"
+      "size": 27592,
+      "sha256": "1b6281d43900be11fc9ee7bd0b3377a82e3ac700ccdf49886ffb50826af854ed"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/manager_state.py",
@@ -528,8 +538,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/orchestrator.py",
-      "size": 11999,
-      "sha256": "ca2e391c1302e3910c49aa9cc4691b6ae1b1579870fb10ab9d7d029cbe73478d"
+      "size": 14081,
+      "sha256": "85013fd42ab09341a6708efeb097ce214d13b738f7a14519409aab504e8e026d"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/persistence.py",
@@ -547,9 +557,14 @@
       "sha256": "d2b1965013f10939f2db9cb59367b2b278ad3875bcc65474662fc46d1c21c86f"
     },
     {
+      "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/progress_truth.py",
+      "size": 3921,
+      "sha256": "2e4c809b19a6b5e6a875060feeadc4248dc182faf7dee7660d3f926f2444cd80"
+    },
+    {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/projectmanager_api.py",
-      "size": 4295,
-      "sha256": "65df71e19c85b764fdb34e38a11b6b3da67fbf0bdadb7aa173e9f2b501d4985e"
+      "size": 4343,
+      "sha256": "11da57c9205ffd64534f688b9188810fc1673d22da06e02e00ae83bea32b5e80"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/projectmanager_web.py",
@@ -567,6 +582,11 @@
       "sha256": "57f7d55ff78ab4472058d2a944cdffb523d000a893f62be9225fc4a8992846e2"
     },
     {
+      "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/release_health.py",
+      "size": 4896,
+      "sha256": "9a6a5cd2b312f9ec9c6b56f8e210db662e37c8820d8005ae28e11fd16379cb7d"
+    },
+    {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/research_queue.py",
       "size": 3755,
       "sha256": "f782d940d86ebbfe5dc709bfa42c1d787c8504b6d41fd3aaeeda77571acfeb7a"
@@ -578,13 +598,13 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/roadmap_regie.py",
-      "size": 10384,
-      "sha256": "75bb3960647cebcc30784c561edc88eec606a47669d795a2d38db0862f6775b8"
+      "size": 11847,
+      "sha256": "316207fe25008ec81ab2c62c8a4a0fda33deb49043c91af03c67abf129fbef4e"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/runtime_sources.py",
-      "size": 1510,
-      "sha256": "b6ceeeb8c91e4176bd820ad318ca6e9692ace17f6c9af3ec5f82c8b99eb53070"
+      "size": 6633,
+      "sha256": "b3151f82b9e100f75b0cd1a3f16a128a4dbbb0d7f06123bae07fe160f4e1a2d1"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/runtime_truth.py",
@@ -598,8 +618,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/self_audit.py",
-      "size": 12033,
-      "sha256": "0b255bc9f6d10eb4f18c65c711cfc0dc478e5fb8f34d990344050257c7a5b2d0"
+      "size": 17189,
+      "sha256": "b0e0b86cd2d2926e8bc3a688b0598cd9e2ba2d50349181c11034962dbbe2b7d9"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/service_lock.py",
@@ -618,8 +638,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/task_engine.py",
-      "size": 10092,
-      "sha256": "59897c96e394b12c8ee9e5199851ad498a484709b88d14027da70da1dd549e82"
+      "size": 12206,
+      "sha256": "ba1d4f78b4a3263585ea1670cdc4be5c849b81177c294be719e4fec6ab33837a"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/tools_projectmanager.py",
@@ -638,8 +658,8 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2_entrypoint.py",
-      "size": 4352,
-      "sha256": "65ad702353bf53c505b4ed426b0d23ecfe0a8404f582da48adf4b294901ad7c7"
+      "size": 4543,
+      "sha256": "eb09226a97629ce811626bf2b9b74fca25856045a216f076f3529eb8f5bcd0e2"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/release_validation_hold.py",
@@ -958,38 +978,38 @@
     },
     {
       "path": "tests/test_static.py",
-      "size": 236797,
-      "sha256": "80bb5f6fe4d3ceb41b5af5ba00bdb5f5ae2e3ba42c0996b6d74b1b1d02292092"
+      "size": 238133,
+      "sha256": "612b35c029da3d20a036900694ea4b649bb2d6d67cd9df61eab6ae342be3ad53"
     },
     {
       "path": "tests/test_v32035_release_identity.py",
-      "size": 1725,
-      "sha256": "11bfdede9a4cd19a9b4b1b53e68470607a7b0304fd865b2f88d917f5d8dbb877"
+      "size": 1845,
+      "sha256": "02c0bf3b319fd661a9b450996b840dd2f374b1224168fb603050afa5507a1cc4"
     },
     {
       "path": "tests/test_v32037_safe_github_publication.py",
-      "size": 3102,
-      "sha256": "a83224ea92c1e3e26f6fa1c5e9a4162a5ebfcf4169b3a170e43594006a473004"
+      "size": 3194,
+      "sha256": "18017921927cc3be43a08dd3aac0391620369cf32716b35bb050e9f23847e99a"
     },
     {
       "path": "tests/test_v32038_automatic_publication_chain.py",
-      "size": 2574,
-      "sha256": "5796905c15dfeff349bb728191612f073c2c3f375bf23defe84158842756f2c2"
+      "size": 2672,
+      "sha256": "f7aa31abebb8511e430c98afb6a6747a7e32877a9b516cc22a2f59586d0aa762"
     },
     {
       "path": "tests/test_v3210_historical_energy_excel.py",
-      "size": 2661,
-      "sha256": "55b64bc5c2985cd31c12cc71af9c2ed956cfd8bb8624d2103b35790500def44b"
+      "size": 2759,
+      "sha256": "24aceb29b74125b288288e3958698ead87002074948bae2104e4771b611ea3e9"
     },
     {
       "path": "tests/test_v3211_startup_excel_bootstrap.py",
-      "size": 3024,
-      "sha256": "60a71aacaf4f39c600bce3ea5abf4f56ed9605af10828901afb9e631c4925b56"
+      "size": 3116,
+      "sha256": "54cb68fa3f1a6d735e2aa554b57d1f561168c43f0263b20dfc76ce8dae3add18"
     },
     {
       "path": "tests/test_v3212_startup_excel_live_nas.py",
-      "size": 2500,
-      "sha256": "45dc97dd3a80e855854bf81b82403f54549441d50b3e24351fa904c1e5ef5797"
+      "size": 2581,
+      "sha256": "8aa6d0016e600a52aa56ff0798c7d1d07814063e6a82e06441bfc29c601970fb"
     },
     {
       "path": "tests/test_v3213_smp_meter_reading_totals.py",
@@ -998,8 +1018,8 @@
     },
     {
       "path": "tests/test_v3220_knowledge_base_structure.py",
-      "size": 16266,
-      "sha256": "de7b2b844e00ca971cb754dc8ebe39729acddea99d96a5f6769bc2a5c4959ae9"
+      "size": 16364,
+      "sha256": "635c9e410d633a8eee431a6dc448b36cd162161cbb4de5bd63455ab74a1b6e2e"
     },
     {
       "path": "tests/test_v3230_conversation.py",
@@ -1038,8 +1058,8 @@
     },
     {
       "path": "tests/test_v32312_release_identity.py",
-      "size": 721,
-      "sha256": "2700f0892cdab7180ecc12384227fd2fe33023195062666fe14e95ce5c0807d9"
+      "size": 828,
+      "sha256": "35eff9a2a736ca6c2b0417deecc65de784c516a9f83de079d7fd521d51a53827"
     },
     {
       "path": "tests/test_v32313_mode_state_permissions.py",
@@ -1133,8 +1153,8 @@
     },
     {
       "path": "tests/test_v32319_release_identity.py",
-      "size": 971,
-      "sha256": "bcad472591773e6ae517d62319a140f5fba746a97ad10af8706933357d2b3c33"
+      "size": 1091,
+      "sha256": "3fdb90a07571ff6eaa71f17400f545f6466605e8e1ef07b8488c58cf3a694f02"
     },
     {
       "path": "tests/test_v3231_mcp_system_path_guard_hotfix.py",
@@ -1148,18 +1168,18 @@
     },
     {
       "path": "tests/test_v32321_finance_and_ui.py",
-      "size": 2863,
-      "sha256": "45e0d07d73ac9f5f3cc0c93712be57539dcbac322b6e87bb9660d77d4e6f8440"
+      "size": 2972,
+      "sha256": "6a7a972e535b8503d0e79e1b623bacf74ebbc95c9ddbb41def3b10edb24b2631"
     },
     {
       "path": "tests/test_v32322_report_reliability.py",
-      "size": 9680,
-      "sha256": "317f563c9254d06592a5c095e993d402ed37f6d6ce653fc3ff04472722e9348e"
+      "size": 9778,
+      "sha256": "3c74c6ec15242b117d5b506ad4067487c29c5f7eddb0045ed7aeb28c981bd6e6"
     },
     {
       "path": "tests/test_v32323_closed_month_rerender.py",
-      "size": 3919,
-      "sha256": "ebca39afbcc6dec6c1b010e34f616f0b8a8842b0055132020250aa24d444ef0a"
+      "size": 4017,
+      "sha256": "ca02eb2036dcf3dc8b36b3d00c19adc058e0c8e050b498673f0c314943bd3972"
     },
     {
       "path": "tests/test_v32324_historical_rerender_validation.py",
@@ -1183,8 +1203,8 @@
     },
     {
       "path": "tests/test_v32328_august_semantic_coverage.py",
-      "size": 8526,
-      "sha256": "c57ab30d26f4a0780f2b73c91d6da47f8961e14dfa500cbaad82a3cb0bb1ce34"
+      "size": 8657,
+      "sha256": "74b43b2d31ea04e1a4aaa22af0ef3932157ef04d760a9ec2cfea403897942008"
     },
     {
       "path": "tests/test_v32329_gui_reconciliation.py",
@@ -1193,8 +1213,8 @@
     },
     {
       "path": "tests/test_v3232_assistant_runtime_self_probe.py",
-      "size": 5819,
-      "sha256": "839c89a6356b72785405f0d68debaf62b372ef5a2c00a9d6f2361e805ceb93c7"
+      "size": 5939,
+      "sha256": "2ecd644009735803ec9be0c8cfe17afad8a125bc8f7538ed1eaeaa251c2b8e41"
     },
     {
       "path": "tests/test_v32330_report_repairs.py",
@@ -1218,13 +1238,13 @@
     },
     {
       "path": "tests/test_v32334_rebuild_success_return.py",
-      "size": 1245,
-      "sha256": "8fbab3dc4b151711a8119ff5339ead4ca4e14ff64a93fef7cfc227ee7e8e3d6f"
+      "size": 1354,
+      "sha256": "0b6bd8f81239c7e38031f654e8727ed057efab979528ef8403ccc4f27071b08a"
     },
     {
       "path": "tests/test_v32335_rebuild_ingress_return.py",
-      "size": 1075,
-      "sha256": "79890fea2f88ad56cf418ce35e0f09b3d48c59eaece6a802a02de80e54534e55"
+      "size": 1184,
+      "sha256": "6c56832f48b83ed52b718e4e03df446958b81c6558f91b6e5ec333d3ae986665"
     },
     {
       "path": "tests/test_v32336_rebuild_background_flow.py",
@@ -1248,13 +1268,13 @@
     },
     {
       "path": "tests/test_v3233_assistant_mount_timing_hotfix.py",
-      "size": 2106,
-      "sha256": "76cd4766e7c197963855eb21195f89c204b200afd998559ce357dd673022eb72"
+      "size": 2226,
+      "sha256": "291f4aa7c7cfef4cf3495d1ef2e4beed5ef7446e4c4a013f67b3690946d60a39"
     },
     {
       "path": "tests/test_v3234_assistant_acceptance_handoff.py",
-      "size": 1720,
-      "sha256": "6d52d8a04121f5f128889db8d95f754832cd815601554f11b1957b700ee48c3a"
+      "size": 1840,
+      "sha256": "ca0a92ad4a4302e54b60610d47d390c3ebdcdd8a74d116c2e7bc808a8c674fc3"
     },
     {
       "path": "tests/test_v3235_assistant_fast_context.py",
@@ -1298,8 +1318,8 @@
     },
     {
       "path": "tests/test_v3240_projectmanager.py",
-      "size": 687,
-      "sha256": "ced4863cea1e80e4f9f9eae5b44bb357595031ca4589af7bab030f709c9317be"
+      "size": 809,
+      "sha256": "7240771f91b11dbd5fdaaa91b0d649c019da4faa53ffbc545d2d3587c704206a"
     },
     {
       "path": "tests/test_v32410_atomic_app_swap.py",
@@ -1358,13 +1378,13 @@
     },
     {
       "path": "tests/test_v32410_real_state_contract.py",
-      "size": 6586,
-      "sha256": "cc423c625e43b6a5cc57c8c05c5d68be8404a9ee57d96727edac70048d9ba2ad"
+      "size": 6949,
+      "sha256": "54526eb373c25da6fbc263bc49460e8bdbf7dd20eaba20fefd2b1bc60a9eda6a"
     },
     {
       "path": "tests/test_v32410_release_identity.py",
-      "size": 1694,
-      "sha256": "6e3fbf9b45192b8df5fbe6b5c532b39355a990f7b7a413a6199bc1e592ee6226"
+      "size": 1832,
+      "sha256": "b77d8ec0967e529d9751b95e9ab8018560fc67eecda7b28a7d4af08dbb3ba0cc"
     },
     {
       "path": "tests/test_v32410_release_installer_atomic_swap.py",
@@ -1373,8 +1393,8 @@
     },
     {
       "path": "tests/test_v32410_release_sync_guard.py",
-      "size": 995,
-      "sha256": "768639ae49cf49b9e11f205a493f8ade881da21022e810a3b1b7bc72bf860c4e"
+      "size": 1111,
+      "sha256": "57ed87786f87b2edb91a9d1fc1b91477ca466d03c146c7e0908ec0939c0e3f3a"
     },
     {
       "path": "tests/test_v32410_state_lifecycle.py",
@@ -1412,19 +1432,54 @@
       "sha256": "0cafedd3e1c9f6e464ce39c5f25dda86b8aa3ad4e34215411ab75b56bfb613a4"
     },
     {
+      "path": "tests/test_v32412_development_regie_dod.py",
+      "size": 6315,
+      "sha256": "a8bf6cd39ff9117432594b45c2564c0def13c5053f8c9b158dce016700ed1041"
+    },
+    {
+      "path": "tests/test_v32412_final_self_audit.py",
+      "size": 6208,
+      "sha256": "79cd2d210638252f5696bd86f0d6aa7dd6f2f0910ed837b70e1558bb74955fe9"
+    },
+    {
+      "path": "tests/test_v32412_intake_regie.py",
+      "size": 5509,
+      "sha256": "d88e1e960ce3582d9bbc49d5f142f8a63dc83ae3377077ddb8478695db6da42d"
+    },
+    {
+      "path": "tests/test_v32412_month_close.py",
+      "size": 10230,
+      "sha256": "ff2c4cc84916e34955a74b565e953b584dd3b9caeb40f0292dfe5bd94d7abef4"
+    },
+    {
+      "path": "tests/test_v32412_progress_truth.py",
+      "size": 5461,
+      "sha256": "07175dc5597fb2100452741f8e03f1ff2ea936f102e482b0c1eb18efdcd88644"
+    },
+    {
+      "path": "tests/test_v32412_release_identity.py",
+      "size": 1119,
+      "sha256": "a19eb344fa9587f0d84b93b77547b999d24448651a1e8a39fa2034e78dea1d00"
+    },
+    {
+      "path": "tests/test_v32412_runtime_truth.py",
+      "size": 6123,
+      "sha256": "23cbd3489cbea9d2ee76824f5f407a6b5aacd04b0dc4661f1005949d32a4face"
+    },
+    {
       "path": "tests/test_v3241_projectmanager_runtime_startup.py",
       "size": 746,
       "sha256": "ab81caec82b454901bd3a7bfa9f81f6561856e1b821b24bfdb772dd630e24eb9"
     },
     {
       "path": "tests/test_v3242_projectmanager_repair.py",
-      "size": 1374,
-      "sha256": "a1370d1cd161cbd4f6d3cb5ee2ff20e27214e8eceb7920a158cdcc449a3e07fa"
+      "size": 1490,
+      "sha256": "9f01b65ddc5d590654fb65827fba353ad2308795dbc0259c59edc5748f7fa7fb"
     },
     {
       "path": "tests/test_v3243_projectmanager_closure_static.py",
-      "size": 2273,
-      "sha256": "22fce2fe8cb4e1477d884915db514625a0805a8345968c04e751bd812878e21d"
+      "size": 2389,
+      "sha256": "62ffe35bd2829dff6eeca5d739680f79372344c4305ccfa5e1fadd7b236e0fa9"
     },
     {
       "path": "tests/test_v3244_docker_engine_tls_client.py",
@@ -1458,8 +1513,8 @@
     },
     {
       "path": "tests/test_v3244_release_identity.py",
-      "size": 774,
-      "sha256": "1eb41258a49870763f55589b6e8e71261c2462e6ad0481aef17cb8179e76f52c"
+      "size": 912,
+      "sha256": "9658177d4a8384c7c8b6795a8ddb5fa6b7f2d579ac2ae308c4aaac403d5d13c1"
     },
     {
       "path": "tests/test_v3245_gui_startup_hotfix.py",
@@ -1473,18 +1528,18 @@
     },
     {
       "path": "tests/test_v3247_autonomous_nas_publisher.py",
-      "size": 1336,
-      "sha256": "444dc9eb39ecc22e53c5645e4d4eec9af04613631470ab423d9668b01cb9b962"
+      "size": 1434,
+      "sha256": "4b17523a5237559dc8ce58b9027328984842a9c48cc3ce58c009b8c71b0f71a6"
     },
     {
       "path": "tests/test_v3248_release_stabilization.py",
-      "size": 2094,
-      "sha256": "280bbb88119940e38f72d5fd3d2e93012ac5811af5425d707c825f93cfd879a5"
+      "size": 2216,
+      "sha256": "839df894aaad5e30a9f7bddd6cda6454b6b2f8661f7d96b3160fad30468fff21"
     },
     {
       "path": "tests/test_v3249_conversation_intake.py",
-      "size": 10245,
-      "sha256": "a7ccec1e689f02fc2ead5f000a1f50962fefce37fdc32503a56f0180f731e4c3"
+      "size": 10502,
+      "sha256": "e1f66ec68266d8decc8f71e18f6faa8e5eb38c79e23bbf1e20eb5a386f47a436"
     },
     {
       "path": "tools/atomic_app_swap.py",

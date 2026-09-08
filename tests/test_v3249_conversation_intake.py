@@ -1,3 +1,4 @@
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 import json
 import sys
 from pathlib import Path
@@ -84,14 +85,14 @@ def _write_ingress(directory, ingress_id, command):
 
 
 def test_v3249_release_identity_and_pm_version():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.11'
-    assert 'version: "32.4.11"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.4.11"' in (APP / 'main.py').read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.4.11"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
-    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc8'
-    assert (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8').startswith('## 32.4.11')
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == CURRENT_RELEASE
+    assert f'version: "{CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in (APP / 'main.py').read_text(encoding='utf-8')
+    assert f'TARGET_RELEASE_VERSION = "{CURRENT_RELEASE}"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
+    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == CURRENT_PM_VERSION
+    assert (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8').startswith(f'## {CURRENT_RELEASE}')
     addon_change = (ROOT / 'slimmemeterportal_import/CHANGELOG.md').read_text(encoding='utf-8')
-    assert addon_change.startswith('# Changelog\n\n## 32.4.11')
+    assert addon_change.startswith(f'# Changelog\n\n## {CURRENT_RELEASE}')
     assert addon_change.count('\n## ') == 1
 
 
@@ -114,7 +115,10 @@ def test_required_classifications(text, expected):
 
 def test_development_context_is_independent_and_routes_are_selective():
     value = classify_intake('Bouw en test deze koppeling')
-    assert value == {'classification': 'action_item', 'development_context': True}
+    assert value['classification'] == 'action_item'
+    assert value['development_context'] is True
+    assert value['classifications'] == ['action_item']
+    assert value['approval_required'] is False
     assert route_for_classification('hard_requirement') == ['knowledge_base', 'roadmap']
     assert route_for_classification('wish') == ['wishlist']
     assert route_for_classification('idea_opportunity') == ['wishlist']

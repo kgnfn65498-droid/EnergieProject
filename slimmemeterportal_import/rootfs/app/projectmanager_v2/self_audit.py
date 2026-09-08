@@ -41,13 +41,14 @@ def _canonical_hash(spec):
 class SelfAuditor:
     def __init__(self, runtime_root, *, max_age_seconds=900, production_version_path=None,
                  quarantine_warning_seconds=86400, canonical_roadmap_path=None,
-                 handoff_warning_seconds=172800):
+                 handoff_warning_seconds=172800, running_release_version=None):
         self.root = Path(runtime_root)
         self.max_age_seconds = int(max_age_seconds)
         self.production_version_path = Path(production_version_path) if production_version_path else None
         self.quarantine_warning_seconds = int(quarantine_warning_seconds)
         self.canonical_roadmap_path = Path(canonical_roadmap_path) if canonical_roadmap_path else None
         self.handoff_warning_seconds = int(handoff_warning_seconds)
+        self.running_release_version = str(running_release_version or '').strip() or None
 
     def _json(self, rel):
         path = self.root / rel
@@ -63,7 +64,7 @@ class SelfAuditor:
             return None
         return max(0.0, (now.astimezone(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds()) <= self.max_age_seconds
 
-    def run(self, *, now=None):
+    def run(self, *, now=None, require_coordination=False):
         now = now or datetime.now(timezone.utc)
         missing = [rel for rel in REQUIRED_RUNTIME_FILES if not (self.root / rel).is_file()]
         invalid = []
@@ -103,16 +104,38 @@ class SelfAuditor:
                 invalid.append({'path': 'status/current.json', 'reason': 'invalid_updated_at'})
             elif not fresh:
                 invalid.append({'path': 'status/current.json', 'reason': 'stale'})
-            release = (status.get('release') or {}).get('version')
+            release_info = status.get('release') or {}
+            release = release_info.get('version')
             if not release:
                 invalid.append({'path': 'status/current.json', 'reason': 'release_missing'})
-            elif self.production_version_path and self.production_version_path.is_file():
+            if self.running_release_version and release != self.running_release_version:
+                invalid.append({
+                    'path': 'status/current.json', 'reason': 'ha_runtime_release_mismatch',
+                    'status_release': release, 'running_release': self.running_release_version,
+                })
+            runtime_alias = release_info.get('ha_runtime_version')
+            if runtime_alias and release and runtime_alias != release:
+                invalid.append({'path': 'status/current.json', 'reason': 'ha_runtime_alias_mismatch'})
+            if self.running_release_version and release_info.get('active_verified') is not True:
+                invalid.append({'path': 'status/current.json', 'reason': 'ha_runtime_release_unverified'})
+            if self.production_version_path and self.production_version_path.is_file():
                 try:
-                    actual = self.production_version_path.read_text(encoding='utf-8').strip()
+                    actual_nas = self.production_version_path.read_text(encoding='utf-8').strip()
                 except OSError:
-                    actual = None
-                if actual and release != actual:
-                    invalid.append({'path': 'status/current.json', 'reason': 'release_mismatch', 'status_release': release, 'production_release': actual})
+                    actual_nas = None
+                reported_nas = release_info.get('nas_version')
+                if reported_nas:
+                    if actual_nas and reported_nas != actual_nas:
+                        invalid.append({
+                            'path': 'status/current.json', 'reason': 'nas_release_mismatch',
+                            'status_nas_release': reported_nas, 'nas_release': actual_nas,
+                        })
+                elif not self.running_release_version and actual_nas and release != actual_nas:
+                    # Backwards-compatible audit contract for older standalone payloads.
+                    invalid.append({
+                        'path': 'status/current.json', 'reason': 'release_mismatch',
+                        'status_release': release, 'production_release': actual_nas,
+                    })
 
         if heartbeat is not None:
             if heartbeat.get('mode') not in VALID_MODES:
@@ -138,6 +161,72 @@ class SelfAuditor:
             s_release = ((status or {}).get('release') or {}).get('version')
             if status and h_release != s_release:
                 invalid.append({'path': 'handover/current.json', 'reason': 'release_mismatch'})
+
+        if require_coordination and status is not None and handover is not None:
+            required_status_fields = (
+                'manager', 'conversation_intake', 'canonical_roadmap',
+                'state_reconciliation', 'open_issues', 'progress',
+            )
+            for field in required_status_fields:
+                if field not in status:
+                    invalid.append({'path': 'status/current.json', 'reason': f'final_field_missing:{field}'})
+
+            s_manager = status.get('manager') or {}
+            h_manager = handover.get('manager') or {}
+            if not s_manager.get('version'):
+                invalid.append({'path': 'status/current.json', 'reason': 'manager_version_missing'})
+            elif s_manager.get('version') != h_manager.get('version'):
+                invalid.append({'path': 'handover/current.json', 'reason': 'manager_version_mismatch'})
+
+            for field, reason in (
+                ('conversation_intake', 'conversation_intake_mismatch'),
+                ('canonical_roadmap', 'canonical_roadmap_mismatch'),
+                ('state_reconciliation', 'state_reconciliation_mismatch'),
+                ('progress', 'progress_mismatch'),
+            ):
+                if status.get(field) != handover.get(field):
+                    invalid.append({'path': 'handover/current.json', 'reason': reason})
+
+            status_issue_ids = sorted(
+                str(item.get('id')) for item in (status.get('open_issues') or [])
+                if isinstance(item, dict) and item.get('id')
+            )
+            handover_issue_ids = sorted(
+                str(item.get('id')) for item in (handover.get('open_issues') or [])
+                if isinstance(item, dict) and item.get('id')
+            )
+            if status_issue_ids != handover_issue_ids:
+                invalid.append({'path': 'handover/current.json', 'reason': 'open_issues_mismatch'})
+
+            s_task = status.get('active_task') or {}
+            h_task = handover.get('active_task') or {}
+            task_fields = ('id', 'status', 'step', 'steps_total')
+            if any(s_task.get(field) != h_task.get(field) for field in task_fields):
+                invalid.append({'path': 'handover/current.json', 'reason': 'active_task_mismatch'})
+
+            commands_data = self._json('commands/queue.json') or {'items': []}
+            pending_statuses = {
+                'PENDING', 'PROCESSING', 'WAITING_APPROVAL', 'APPROVED_READY',
+                'APPROVED_WAITING_EXECUTOR', 'INTERRUPTED',
+            }
+            pending_count = sum(
+                1 for item in commands_data.get('items', [])
+                if isinstance(item, dict) and item.get('status') in pending_statuses
+            )
+            if int(status.get('pending_commands') or 0) != pending_count:
+                invalid.append({'path': 'status/current.json', 'reason': 'pending_commands_mismatch'})
+
+            handoff_data = self._json('handoffs/queue.json') or {'items': []}
+            open_handoff_ids = sorted(
+                str(item.get('id')) for item in handoff_data.get('items', [])
+                if isinstance(item, dict) and item.get('status') == 'OPEN' and item.get('id')
+            )
+            status_handoff_ids = sorted(
+                str(item.get('id')) for item in (status.get('handoffs') or [])
+                if isinstance(item, dict) and item.get('id')
+            )
+            if open_handoff_ids != status_handoff_ids:
+                invalid.append({'path': 'status/current.json', 'reason': 'handoffs_mismatch'})
 
         mode_state = self._json('state/mode.json') if (self.root / 'state/mode.json').is_file() else None
         if mode_state is not None:

@@ -3,7 +3,7 @@ from pathlib import Path
 from manager_config import ManagerConfig
 
 
-def build_embedded_config(project_root, manager_app_root, *, supervisor_token=''):
+def build_embedded_config(project_root, manager_app_root, *, supervisor_token='', running_release_version=''):
     root = Path(project_root)
     return ManagerConfig(
         project_root=str(root),
@@ -25,4 +25,5 @@ def build_embedded_config(project_root, manager_app_root, *, supervisor_token=''
         handoff_result_ingress_root=str(root / 'Data/03_Systeem/Projectmanager/HandoffResultIngress'),
         canonical_roadmap_path=str(root / 'Data/03_Systeem/Projectmanager/Roadmap/canonical_roadmap_v3.json'),
         nas_docker_tls_root='/data/projectmanager_v2/docker_tls',
+        running_release_version=str(running_release_version or ''),
     )

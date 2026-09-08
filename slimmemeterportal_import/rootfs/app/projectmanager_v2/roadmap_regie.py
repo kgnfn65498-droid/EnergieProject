@@ -44,6 +44,36 @@ class RoadmapRegie:
         return [dict(item) for item in self._load().get('items', [])]
 
 
+    def capture_intake(self, title, *, mode, intake_fingerprint, approval_required=False, priority=3):
+        fingerprint = str(intake_fingerprint or '').strip()
+        if not fingerprint:
+            raise ValueError('intake_fingerprint_required')
+        data = self._load()
+        for item in data.get('items', []):
+            if item.get('intake_fingerprint') == fingerprint:
+                return dict(item)
+        now = datetime.now(timezone.utc).isoformat()
+        item = {
+            'key': 'intake-' + fingerprint[:16],
+            'title': str(title)[:240],
+            'priority': int(priority),
+            'mode': str(mode),
+            'executor': 'handoff',
+            'auto_select': not bool(approval_required),
+            'depends_on': [],
+            'acceptance': 'Conversation Intake item traceably completed with evidence.',
+            'status': 'OPEN',
+            'origin': 'conversation_intake',
+            'intake_fingerprint': fingerprint,
+            'approval_required': bool(approval_required),
+            'created_at': now,
+            'updated_at': now,
+            'canonical_order': 100000,
+        }
+        data.setdefault('items', []).append(item)
+        self._save(data)
+        return dict(item)
+
     def seed_defaults(self, *, now=None):
         now = now or datetime.now(timezone.utc)
         data = self._load()
@@ -128,6 +158,11 @@ class RoadmapRegie:
 
         for key, item in existing.items():
             if key in canonical_keys:
+                continue
+            if item.get('origin') == 'conversation_intake':
+                preserved = dict(item)
+                preserved['updated_at'] = now
+                new_items.append(preserved)
                 continue
             historical = dict(item)
             historical['status'] = 'SUPERSEDED'

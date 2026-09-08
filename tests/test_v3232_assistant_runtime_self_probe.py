@@ -1,3 +1,4 @@
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 import importlib.util
 from pathlib import Path
 import sys
@@ -130,13 +131,13 @@ def test_main_wires_one_startup_probe_and_rejects_extra_assistant_payload_fields
 
 
 def test_release_identity_and_changelog_are_v3232():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.11"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == CURRENT_RELEASE
     config = (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = MAIN.read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     addon_changelog = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
-    assert 'version: "32.4.11"' in config
-    assert 'APP_VERSION = "32.4.11"' in main
-    assert changelog.startswith("## 32.4.11")
-    assert addon_changelog.startswith("# Changelog\n\n## 32.4.11")
+    assert f'version: "{CURRENT_RELEASE}"' in config
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in main
+    assert changelog.startswith(f"## {CURRENT_RELEASE}")
+    assert addon_changelog.startswith(f"# Changelog\n\n## {CURRENT_RELEASE}")
 

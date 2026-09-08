@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 import builtins
 import subprocess
 import sys
@@ -13,11 +14,11 @@ CONFIG = ROOT / "slimmemeterportal_import" / "config.yaml"
 
 
 def test_v3248_release_identity_is_consistent():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.11"
-    assert 'version: "32.4.11"' in CONFIG.read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.11"' in (APP / "main.py").read_text(encoding="utf-8")
-    assert 'TARGET_RELEASE_VERSION = "32.4.11"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
-    assert (APP / "projectmanager_v2" / "VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc8"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == CURRENT_RELEASE
+    assert f'version: "{CURRENT_RELEASE}"' in CONFIG.read_text(encoding="utf-8")
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in (APP / "main.py").read_text(encoding="utf-8")
+    assert f'TARGET_RELEASE_VERSION = "{CURRENT_RELEASE}"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
+    assert (APP / "projectmanager_v2" / "VERSION.txt").read_text(encoding="utf-8").strip() == CURRENT_PM_VERSION
 
 
 def test_github_publication_is_enabled_by_default_on_reset_or_fresh_install():
@@ -40,7 +41,7 @@ print(mode_entrypoint.TARGET_RELEASE_VERSION)
 ''' % str(APP)
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "32.4.11"
+    assert result.stdout.strip() == CURRENT_RELEASE
 
 
 def test_abandoned_nas_publisher_stays_inert_by_default():

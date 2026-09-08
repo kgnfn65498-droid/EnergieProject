@@ -43,7 +43,7 @@ class TaskStore:
     def _save(self, data):
         atomic_write_json(self.path, data)
 
-    def capture(self, title, goal, *, mode='USER', priority=5, intake_fingerprint):
+    def capture(self, title, goal, *, mode='USER', priority=5, intake_fingerprint, approval_required=False):
         fingerprint = str(intake_fingerprint or '').strip()
         if not fingerprint:
             raise ValueError('intake_fingerprint_required')
@@ -57,9 +57,38 @@ class TaskStore:
             'mode': str(mode), 'status': 'PAUSED', 'step': 1, 'steps_total': 1,
             'priority': int(priority), 'next_action': '', 'blockers': [],
             'changes': ['captured from conversation intake'], 'evidence_refs': [],
-            'intake_fingerprint': fingerprint, 'created_at': now, 'updated_at': now,
+            'intake_fingerprint': fingerprint, 'approval_required': bool(approval_required), 'progress_history': [{'step': 1, 'at': now}], 'created_at': now, 'updated_at': now,
         }
         data['tasks'].append(task)
+        self._save(data)
+        return dict(task)
+
+
+    def next_captured(self, *, mode=None):
+        candidates = [
+            task for task in self._load().get('tasks', [])
+            if task.get('status') == 'PAUSED'
+            and task.get('intake_fingerprint')
+            and task.get('approval_required') is not True
+            and (mode is None or task.get('mode') == mode)
+        ]
+        if not candidates:
+            return None
+        return dict(sorted(candidates, key=lambda task: (task.get('priority', 99), task.get('created_at', '')))[0])
+
+    def resume_captured(self, task_id: str, *, reason: str):
+        data = self._load()
+        task = self._find(data, task_id)
+        if task.get('status') != 'PAUSED' or not task.get('intake_fingerprint'):
+            raise ValueError('captured_task_not_paused')
+        if task.get('approval_required') is True:
+            raise ValueError('captured_task_requires_approval')
+        if any(item.get('status') in {'ACTIVE', 'BLOCKED', 'WAITING_APPROVAL'} for item in data.get('tasks', []) if item.get('id') != task_id):
+            raise ValueError('another_task_is_active')
+        now = datetime.now(timezone.utc).isoformat()
+        task['status'] = 'ACTIVE'
+        task.setdefault('changes', []).append(f'resumed from conversation backlog: {reason}')
+        task['updated_at'] = now
         self._save(data)
         return dict(task)
 
@@ -79,6 +108,7 @@ class TaskStore:
             'blockers': [],
             'changes': [],
             'evidence_refs': [],
+            'progress_history': [{'step': 1, 'at': now}],
             'created_at': now,
             'updated_at': now,
         }
@@ -93,6 +123,7 @@ class TaskStore:
     def progress(self, task_id: str, *, step=None, steps_total=None, next_action=None, change=None, evidence_ref=None):
         data = self._load()
         task = self._find(data, task_id)
+        previous_step = int(task.get('step') or 1)
         if step is not None:
             task['step'] = int(step)
         if steps_total is not None:
@@ -103,7 +134,10 @@ class TaskStore:
             task.setdefault('changes', []).append(change)
         if evidence_ref:
             task.setdefault('evidence_refs', []).append(evidence_ref)
-        task['updated_at'] = datetime.now(timezone.utc).isoformat()
+        updated_at = datetime.now(timezone.utc).isoformat()
+        if int(task.get('step') or 1) != previous_step:
+            task.setdefault('progress_history', []).append({'step': int(task.get('step') or 1), 'at': updated_at})
+        task['updated_at'] = updated_at
         self._save(data)
         return dict(task)
 
@@ -203,7 +237,7 @@ class TaskStore:
         self._save(data)
         return dict(task)
 
-    def complete_handoff(self, task_id: str, *, summary: str, evidence_refs: list):
+    def complete_handoff(self, task_id: str, *, summary: str, evidence_refs: list, gates=None):
         summary = str(summary or '').strip()
         refs = [str(item).strip() for item in (evidence_refs or []) if str(item).strip()]
         if not summary:
@@ -214,6 +248,12 @@ class TaskStore:
         task = self._find(data, task_id)
         if task.get('status') == 'DONE':
             return dict(task)
+        if task.get('mode') == 'DEVELOPMENT':
+            dod_gates = dict(gates or {})
+            result = definition_of_done(dod_gates)
+            if not result['done']:
+                raise ValueError(f"definition of done missing: {', '.join(result['missing'])}")
+            task['dod_gates'] = dod_gates
         if not str(task.get('next_action') or '').startswith('handoff:'):
             raise ValueError('task is not a handoff task')
         if task.get('status') not in {'ACTIVE', 'BLOCKED'}:

@@ -1,3 +1,4 @@
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
 from pathlib import Path
 import importlib.util
 import tempfile
@@ -31,10 +32,10 @@ def test_v32037_publication_contract_is_fail_closed():
     main = MAIN.read_text(encoding="utf-8")
     installer = INSTALLER.read_text(encoding="utf-8")
     config = CONFIG.read_text(encoding="utf-8")
-    assert 'version: "32.4.11"' in config
+    assert f'version: "{CURRENT_RELEASE}"' in config
     assert "automatic_month_close_enabled: false" in config
     assert "github_publication_enabled: true" in config
-    assert 'APP_VERSION = "32.4.11"' in main
+    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in main
     assert 'HA_PUBLICATION_REQUIRED = NAS_RELEASE_ROOT / "ha_publication_required.json"' in main
     assert "def _load_github_publication_contract" in main
     assert "def _prepare_validated_publication_source" in main

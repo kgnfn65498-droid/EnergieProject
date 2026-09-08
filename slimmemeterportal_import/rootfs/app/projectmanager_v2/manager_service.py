@@ -18,9 +18,11 @@ from notification_transport import NotificationOutbox, route_event
 from operating_mode import ModeStore
 from opportunity_register import OpportunityRegister
 from proactive_policy import evaluate_signal
+from progress_truth import build_task_progress
 from persistence import atomic_write_json
 from research_queue import ResearchQueue
 from retention import retention_candidates, apply_retention
+from release_health import release_health_checks
 from roadmap_regie import RoadmapRegie
 from runtime_sources import RuntimeCollector
 from runtime_truth import evaluate_runtime_first
@@ -67,6 +69,7 @@ class ManagerService:
         self.runtime_collector = runtime_collector or RuntimeCollector(
             config.project_root,
             mode_state_path=getattr(config, 'mode_state_path', '') or None,
+            running_release_version=getattr(config, 'running_release_version', '') or None,
         )
         self.health_collector = health_collector or EnergyHealthCollector(
             config.project_root,
@@ -89,6 +92,7 @@ class ManagerService:
             self.root,
             production_version_path=Path(config.project_root) / 'App' / 'VERSIE.txt',
             canonical_roadmap_path=getattr(config, 'canonical_roadmap_path', '') or None,
+            running_release_version=getattr(config, 'running_release_version', '') or None,
         )
 
     def _ensure_layout(self):
@@ -108,6 +112,7 @@ class ManagerService:
         mode_state = self.mode.get()
 
         checks = self.health_collector.collect(now=now)
+        checks.extend(release_health_checks(runtime))
         market_events = self.market.run_due(now=now)
         self._record_evidence(checks)
         self._reconcile_issues(checks, market_events)
@@ -125,14 +130,17 @@ class ManagerService:
         retention_result = self._apply_safe_retention(now=now)
         handoff_research = self.research.due(now=now, executor='handoff')
 
+        progress = build_task_progress(active_task, now=now)
         status = {
             'schema': 'energie_projectmanager_status_v2',
             'updated_at': now.isoformat(),
             'project_id': 'energie',
             'mode': mode_state.get('mode', 'USER'),
             'health': health,
-            'release': {'version': release.get('version')},
+            'release': dict(release),
+            'release_chain': dict(runtime.get('release_chain') or {}),
             'active_task': active_task,
+            'progress': progress,
             'decisions_needed': pending_decisions,
             'needs_human': bool(pending_decisions),
             'open_issues': self.issues.open_items(),
@@ -167,6 +175,7 @@ class ManagerService:
             decisions=pending_decisions,
             evidence=evidence_summary,
             last_changes=[event.get('subject') for event in market_events if event.get('type') == 'market_source_changed'],
+            progress=progress,
         )
         handover_payload['open_issues'] = status['open_issues']
         handover_payload['research_handoffs_due'] = status['research_handoffs_due']
@@ -525,10 +534,14 @@ class ManagerService:
             f'- PMV2 runtime truth: **{release} | {mode} | {health}**',
             '- Deze runtime-sectie is leidend voor actuele status; oudere statusclaims verderop zijn historische audit/context tenzij expliciet opnieuw gevalideerd.',
         ]
+        progress = status.get('progress') or {}
         status_content = '\n'.join(truth_header + [
             f"- Actieve taak: {task.get('title') or 'geen'}",
-            f"- Stap: {task.get('step') or '-'} / {task.get('steps_total') or '-'}",
-            f"- Volgende actie: {task.get('next_action') or 'geen'}",
+            f"- {progress.get('step_label') or 'Stap -/-'}",
+            f"- Voltooid: {progress.get('completed_steps', '-')} | Resterend: {progress.get('remaining_steps', '-')} | Voortgang: {progress.get('progress_percent', '-')}%",
+            f"- Verstreken: {progress.get('elapsed_seconds', '-')} s | Geschat resterend: {progress.get('estimated_remaining_seconds', '-')} s",
+            f"- Planningstrend: {progress.get('planning_trend') or 'insufficient_data'}",
+            f"- Volgende actie: {progress.get('next_step') or task.get('next_action') or 'geen'}",
             f"- Open issues: {len(issues)}",
             f"- Peter nodig: {'ja' if decisions else 'nee'}",
         ])
