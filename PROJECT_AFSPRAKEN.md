@@ -28,3 +28,12 @@
 - Bij ieder defect worden symptoom, root cause, structurele fix en regressietest in de Projectmanager Knowledge Base vastgelegd.
 - Tests die alleen de huidige release accepteren zijn onvoldoende voor ingress-closure; de volgende release moet onderdeel zijn van de E2E.
 - Een release-ZIP wordt nooit rechtstreeks uit een door tests vervuilde werkboom gemaakt: eerst schone staging, expliciete uitsluiting van `.pytest_cache`, `__pycache__`, `.DS_Store`, `*.pyc` en `*.pyo`, daarna manifests, ZIP en tenslotte validatie met dezelfde atomic release-validator als productie.
+
+## Release- en leercontract vanaf 32.4.17
+
+- Een watchercontainer die `Up` is is geen bewijs van een gezonde watcher; heartbeat en voortgang moeten vers blijven.
+- Externe helpers in een kritieke watcher-hoofdlus mogen nooit onbeperkt kunnen blokkeren; zij zijn bounded en fail-closed.
+- Runtime-health is release-scoped: historische publisherfouten mogen een nieuwere bewezen release niet rood maken.
+- Een safety-hold mag zijn eigen validatie niet circulair blokkeren. Alleen de exact verwachte eigen transition-state mag tijdelijk als acceptance-context gelden.
+- Bij release-audits worden containerstatus, heartbeat, atomic state, hold, publisher/publication en volgende-ingress als één E2E-keten gecontroleerd.
+- Packaging gebeurt uitsluitend vanuit een schone stagingboom; cache/junk is een harde releasefout.

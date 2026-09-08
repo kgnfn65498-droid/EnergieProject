@@ -94,7 +94,7 @@ class RuntimeCollector:
             },
             'github_publication': {
                 'status': publisher.get('status'),
-                'version': publisher.get('version') or publication_contract.get('version'),
+                'version': publication_contract.get('version') or publisher.get('version'),
                 'contract_pending': bool(publication_contract),
                 'contract_version': publication_contract.get('version'),
                 'source': str(inbox / 'github_publisher_state.json'),

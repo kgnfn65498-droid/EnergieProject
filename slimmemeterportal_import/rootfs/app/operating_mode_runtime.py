@@ -484,13 +484,66 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
                 and str(atomic_check.get('reason') or '') == 'live_acceptance_blocks_release_ingress'
             )
 
-        if health_status == 'RED' and not (allowed_stale_acceptance_red or allowed_waiting_next_release_acceptance):
+        # 32.4.17: the release-validation hold itself is intentionally active
+        # until this function proves the release safe. Treating that own hold as
+        # a generic ORANGE signal creates a circular dependency: the hold can
+        # never validate because its active state makes PM health non-green.
+        # Allow only the exact current-release hold + atomic LIVE_ACCEPTANCE
+        # combination, optionally with exactly one next release waiting.
+        allowed_current_hold_acceptance = False
+        if _current_live_acceptance_journal_is_valid():
+            by_name = {str(item.get('name') or ''): item for item in non_green}
+            names = set(by_name)
+            allowed_name_sets = (
+                {'release_validation_hold', 'release_atomic_state'},
+                {'release_validation_hold', 'release_incoming', 'release_atomic_state'},
+            )
+            hold_check = by_name.get('release_validation_hold')
+            atomic_check = by_name.get('release_atomic_state')
+            incoming_check = by_name.get('release_incoming')
+            hold_expected = bool(
+                isinstance(hold_check, dict)
+                and str(hold_check.get('status') or '').strip().upper() == 'ORANGE'
+                and str(hold_check.get('reason') or '') == 'missing_active_or_unvalidated'
+                and (hold_check.get('details') or {}).get('active') is True
+                and str((hold_check.get('details') or {}).get('validation_status') or '').strip().lower()
+                    in {'required', 'blocked'}
+            )
+            atomic_expected = bool(
+                isinstance(atomic_check, dict)
+                and str(atomic_check.get('status') or '').strip().upper() == 'RED'
+                and str(atomic_check.get('reason') or '') == 'live_acceptance_blocks_release_ingress'
+            )
+            incoming_expected = (
+                incoming_check is None
+                or (
+                    isinstance(incoming_check, dict)
+                    and str(incoming_check.get('status') or '').strip().upper() == 'ORANGE'
+                    and str(incoming_check.get('reason') or '') == 'release_waiting_incoming'
+                    and int((incoming_check.get('details') or {}).get('count') or 0) == 1
+                )
+            )
+            allowed_current_hold_acceptance = bool(
+                names in allowed_name_sets and hold_expected and atomic_expected and incoming_expected
+            )
+
+        red_acceptance_exception = bool(
+            allowed_stale_acceptance_red
+            or allowed_waiting_next_release_acceptance
+            or allowed_current_hold_acceptance
+        )
+        non_green_acceptance_exception = bool(
+            red_acceptance_exception
+            or (health_status != 'RED' and allowed_orange_transition)
+        )
+
+        if health_status == 'RED' and not red_acceptance_exception:
             names = ','.join(str(item.get('name') or 'unknown') for item in red_checks) or 'summary'
             return _validation_check(False, f"projectmanager health RED: {names}")
-        if red_checks and not (allowed_stale_acceptance_red or allowed_waiting_next_release_acceptance):
+        if red_checks and not red_acceptance_exception:
             names = ','.join(str(item.get('name') or 'unknown') for item in red_checks)
             return _validation_check(False, f"projectmanager health RED: {names}")
-        if non_green and not (allowed_orange_transition or allowed_stale_acceptance_red or allowed_waiting_next_release_acceptance):
+        if non_green and not non_green_acceptance_exception:
             names = ','.join(str(item.get('name') or 'unknown') for item in non_green)
             return _validation_check(False, f"unexpected non-green projectmanager health: {names}")
     if not app_version or status_release != app_version:

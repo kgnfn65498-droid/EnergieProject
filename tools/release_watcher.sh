@@ -33,6 +33,8 @@ MODE_GATE="$PROJECT/tools/operating_mode_gate.py"
 MCP_GUARD_HOTFIX_HELPER="$PROJECT/tools/mcp_system_path_guard_hotfix.py"
 MCP_GUARD_HOTFIX_RESULT="$INBOX/logs/mcp_system_path_guard_hotfix_v3231.json"
 HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
+MODE_GATE_TIMEOUT="${ENERGIE_MODE_GATE_TIMEOUT_SECONDS:-5}"
+MAINTENANCE_HELPER_TIMEOUT="${ENERGIE_MAINTENANCE_HELPER_TIMEOUT_SECONDS:-20}"
 INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"
 STABLE_POLLS="${ENERGIE_ZIP_STABLE_POLLS:-3}"
 PROCESSED_RETENTION="${ENERGIE_PROCESSED_RETENTION:-3}"
@@ -64,11 +66,34 @@ write_status(){
   printf '%s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$STATUS" "$DETAIL" > "$TMP_STATUS"
   mv "$TMP_STATUS" "$STATUSFILE"
 }
+run_bounded(){
+  timeout_seconds=$1
+  shift
+  "$@" &
+  command_pid=$!
+  (
+    sleep "$timeout_seconds"
+    kill -TERM "$command_pid" 2>/dev/null || true
+  ) &
+  timer_pid=$!
+  rc=0
+  wait "$command_pid" || rc=$?
+  kill "$timer_pid" 2>/dev/null || true
+  wait "$timer_pid" 2>/dev/null || true
+  return "$rc"
+}
+
 mode_allows(){
   capability=$1
   [ -f "$MODE_GATE" ] || return 1
   command -v python3 >/dev/null 2>&1 || return 1
-  python3 "$MODE_GATE" --root "$ROOT" --capability "$capability" >/dev/null 2>&1
+  if run_bounded "$MODE_GATE_TIMEOUT" python3 "$MODE_GATE" --root "$ROOT" --capability "$capability" >/dev/null 2>&1; then
+    return 0
+  fi
+  rc=$?
+  [ "$rc" -eq 3 ] && return 1
+  log "WAARSCHUWING: operating-mode gate timeout/fout capability=$capability rc=$rc; fail-closed"
+  return 1
 }
 
 atomic_swap_allows_release_ingress(){
@@ -190,7 +215,7 @@ process_crash_recovery_cleanup(){
     return 1
   fi
 
-  if python3 "$CRASH_CLEANUP_HELPER" \
+  if run_bounded "$MAINTENANCE_HELPER_TIMEOUT" python3 "$CRASH_CLEANUP_HELPER" \
       --root "$ROOT" \
       --request "$CRASH_CLEANUP_REQUEST" \
       --result "$CRASH_CLEANUP_RESULT" >> "$LOGDIR/release_watcher.log" 2>&1; then

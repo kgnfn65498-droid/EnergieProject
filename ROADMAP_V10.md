@@ -116,3 +116,12 @@
 - [x] Knowledge Base/ontwikkelafspraken bevatten root cause, structurele fix en verplichte regressiepreventie.
 - [x] Packaging-regressie vastgelegd: geen cache/junk in release-artifact en preflight met productie-equivalente atomic ZIP-validatie verplicht.
 - [ ] Live bewijs door gebruiker: 32.4.16 ZIP in incoming, automatische installatie, processed en daarna GUI actief melden.
+
+## v32.4.17 — live closure defects uit 32.4.16
+
+- [x] Watcher-hoofdlus begrensd tegen hangende externe helper/gate.
+- [x] Historische publisher-state release-scoped gemaakt.
+- [x] Eigen release-validation-hold/PM-health deadlock doorbroken zonder algemene health-bypass.
+- [x] Knowledge Base/ontwikkelproceslessen bijgewerkt met root causes en regressiepreventie.
+- [ ] Live bewijs: 32.4.17 installeert normaal vanuit `incoming`, eindigt zelfstandig op `ACCEPTED`, hold wordt vrijgegeven, watcher-heartbeat blijft fresh en GitHub-publicatie is current.
+- [ ] Daarna opvolgende ingress zonder handmatige accept/hold-route bewijzen.

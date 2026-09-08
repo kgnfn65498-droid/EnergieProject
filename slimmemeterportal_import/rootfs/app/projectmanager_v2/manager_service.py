@@ -575,6 +575,12 @@ class ManagerService:
             '- Een groene acceptance-unit/E2E voor de huidige release is onvoldoende bewijs voor de volgende ingress; regressietests moeten expliciet `incoming -> processing -> processed` over twee opeenvolgende releases bewijzen.',
             "- `release_hold_tmp` en handmatige atomic accept-commando's zijn noodinterventies, geen onderdeel van de normale releaseflow.",
             '- Bij ieder release-defect worden symptoom, root cause, structurele fix en regressietest in Knowledge Base/roadmap vastgelegd voordat closure groen wordt verklaard.',
+            '## Ontwikkelproceslessen 32.4.17',
+            '- Een `Up` watchercontainer is geen healthbewijs; heartbeat en voortgang moeten vers zijn.',
+            '- Kritieke watcherhelpers zijn bounded en fail-closed zodat een externe call de release-ingress niet permanent kan bevriezen.',
+            '- Publisher/publication-health is release-scoped; historische errors van een oudere versie blokkeren de huidige release niet wanneer er geen current contract pending is.',
+            '- De eigen release-validation-hold mag zijn eigen veilige final acceptance niet circulair blokkeren; alleen de exact verwachte current hold + atomic transition is tijdelijk toegestaan.',
+            '- Live closure vereist dezelfde keten tegelijk groen: watcher heartbeat, hold, atomic ACCEPTED, publisher/publication, processed archive en volgende ingress.',
         ])
         return [
             self.document_sync.update(kb_dir / 'ACTUELE_STATUS.md', 'PROJECTMANAGER_V2', status_content, placement='top'),

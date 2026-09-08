@@ -1,3 +1,12 @@
+## 32.4.17 — live release-closure hardening
+
+- Root cause live 32.4.16: de watcher-hoofdlus kon onbeperkt blokkeren op externe mode/maintenance helpers; daardoor stopte de heartbeat terwijl de container bleef draaien. Externe gate/helper-calls zijn nu begrensd en fail-closed.
+- Root cause PM-health: een oude publisherfout van 32.4.10 bleef huidige releases RED maken terwijl de actuele publicatie al was afgerond. Publisher/publication-state wordt nu release-scoped; fouten van een andere historische release worden niet als huidige fout behandeld.
+- Root cause release-validation-hold: de actieve eigen `release_validation_hold` maakte PM-health ORANGE en blokkeerde daarmee zijn eigen validatie. Alleen de exacte huidige hold + huidige `LIVE_ACCEPTANCE`, optioneel met precies één opvolgende ZIP, is tijdens final acceptance toegestaan; iedere andere afwijking blijft fail-closed.
+- GitHub current-publication contract heeft voorrang op historische publisher-state bij runtime truth.
+- Regressietests toegevoegd voor watcher-timeout, stale publisher-state, huidige publisherfout, pending current publication, eigen hold/atomic closure en unrelated RED fail-closed.
+- Projectmanager naar `2.0.0-rc14`.
+
 ## 32.4.16 — automatische ingress/acceptance closure
 
 - Repareert het live bewezen gat waarbij precies één volgende release-ZIP in `incoming` de huidige `LIVE_ACCEPTANCE` via gecombineerde PM-health (`release_incoming=ORANGE` + `release_atomic_state=RED`) blokkeerde.

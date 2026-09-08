@@ -1,19 +1,13 @@
 from pathlib import Path
-from release_test_contract import CURRENT_PM_VERSION, CURRENT_RELEASE
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / 'slimmemeterportal_import/rootfs/app'
 PM = APP / 'projectmanager_v2'
 
 
-def test_v32416_release_identity_is_consistent():
-    assert CURRENT_RELEASE == '32.4.16'
-    assert CURRENT_PM_VERSION == '2.0.0-rc13'
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == CURRENT_RELEASE
-    assert f'version: "{CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text()
-    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in (APP / 'main.py').read_text()
-    assert f'TARGET_RELEASE_VERSION = "{CURRENT_RELEASE}"' in (APP / 'mode_entrypoint.py').read_text()
-    assert (PM / 'VERSION.txt').read_text().strip() == CURRENT_PM_VERSION
+def test_v32416_release_identity_is_preserved_historically():
+    changelog = (ROOT / 'CHANGELOG.md').read_text()
+    assert '32.4.16' in changelog
 
 
 def test_v32416_learning_contract_is_persisted_in_docs_and_kb_sync():

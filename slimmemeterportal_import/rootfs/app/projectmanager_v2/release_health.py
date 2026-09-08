@@ -73,11 +73,20 @@ def release_health_checks(runtime: dict) -> list:
         {'installer_lock': lock, 'atomic_swap': atomic},
     ))
 
+    release = (runtime or {}).get('release') or {}
+    current_release = str(release.get('version') or release.get('nas_version') or '').strip()
+
     publisher = chain.get('publisher') or {}
     publisher_status = str(publisher.get('status') or '').strip().lower()
+    publisher_version = str(publisher.get('version') or '').strip()
     publisher_bad = publisher_status in {'error', 'failed', 'blocked'}
     publisher_good = publisher_status in {'published', 'success', 'ok'}
-    if publisher_bad:
+    publisher_is_stale_previous = bool(
+        current_release and publisher_version and publisher_version != current_release
+    )
+    if publisher_is_stale_previous:
+        publisher_health, publisher_reason = 'GREEN', 'stale_previous_publisher_state_ignored'
+    elif publisher_bad:
         publisher_health, publisher_reason = 'RED', 'publisher_error'
     elif publisher_good:
         publisher_health, publisher_reason = 'GREEN', 'publisher_status_available'
@@ -87,20 +96,28 @@ def release_health_checks(runtime: dict) -> list:
 
     publication = chain.get('github_publication') or {}
     publication_status = str(publication.get('status') or '').strip().lower()
+    publication_version = str(publication.get('version') or '').strip()
     publication_bad = publication_status in {'error', 'failed', 'blocked'}
     publication_good = publication_status in {'published', 'success', 'ok'}
     publication_pending = publication.get('contract_pending') is True and not publication_good
-    if publication_bad:
-        publication_health, publication_reason = 'RED', 'github_publication_error'
-    elif publication_pending:
+    publication_is_stale_previous = bool(
+        current_release
+        and publication_version
+        and publication_version != current_release
+        and not publication_pending
+    )
+    if publication_pending:
         publication_health, publication_reason = 'ORANGE', 'github_publication_pending'
+    elif publication_is_stale_previous:
+        publication_health, publication_reason = 'GREEN', 'stale_previous_publication_state_ignored'
+    elif publication_bad:
+        publication_health, publication_reason = 'RED', 'github_publication_error'
     elif publication_good:
         publication_health, publication_reason = 'GREEN', 'github_publication_settled'
     else:
         publication_health, publication_reason = 'ORANGE', 'github_publication_status_missing_or_unknown'
     checks.append(_check('release_github_publication', publication_health, publication_reason, publication))
 
-    release = (runtime or {}).get('release') or {}
     rollback_known = 'rollback_version' in release or 'rollback_versions' in release
     rollback_versions = list(release.get('rollback_versions') or [])
     rollback_version = release.get('rollback_version') or (rollback_versions[0] if rollback_versions else None)
