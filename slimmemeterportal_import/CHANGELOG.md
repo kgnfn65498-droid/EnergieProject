@@ -1,8 +1,9 @@
 # Changelog
 
-## 32.4.14
+## 32.4.15
 
-- Projectmanager protected-action intentieherkenning voor architectuur, Home Assistant en productie aangescherpt.
-- Finale release-acceptance fail-closed gemaakt op echte PM-health; alleen de verwachte LIVE_ACCEPTANCE-overgang is tijdelijk toegestaan.
-- Live auto-acceptance blijft na tijdelijke opstartblokkades via een daemon opnieuw proberen, zodat incoming niet permanent blokkeert na de eerste begrensde retryreeks.
-- Projectmanager V2 2.0.0-rc11.
+- Stale `LIVE_ACCEPTANCE` closure fail-closed gerepareerd voor de exacte eigen atomic RED-state.
+- Voice Mode/dictation/Nomad gekoppeld aan dezelfde Projectmanager-runtime en waarheid als typed input.
+- Protected Voice-acties gebruiken optie C met gebonden, single-use tweestapsconfirmatie via de canonieke approval- en commandketen.
+- Automatische `nieuwe chat`-snapshot en resume toegevoegd met atomische opslag en fallback naar de vorige geldige snapshot.
+- Projectmanager V2 2.0.0-rc12.

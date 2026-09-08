@@ -7,8 +7,10 @@ import sys
 import threading
 import time
 import urllib.request
+from uuid import uuid4
 
 _THREAD = None
+_RUNTIME = None
 _ALERT_COOLDOWN_SECONDS = 21600
 _LAST_ALERT_AT = 0.0
 
@@ -87,7 +89,40 @@ def _mark_success(config):
         pass
 
 
+def respond_projectmanager_conversation(
+    query,
+    *,
+    source_channel='chatgpt',
+    session_id=None,
+    turn_id=None,
+    transcript_id='',
+    transcript_confidence=None,
+    force=False,
+):
+    runtime = _RUNTIME
+    if runtime is None:
+        return None
+    text = str(query or '').strip()
+    if not text:
+        raise ValueError('query is required')
+    if not force and not runtime.handles_conversation(text):
+        return None
+    result = runtime.handle_conversation(
+        text=text,
+        source_channel=str(source_channel or 'chatgpt'),
+        turn_id=str(turn_id or uuid4().hex),
+        session_id=str(session_id or 'default'),
+        transcript_id=str(transcript_id or ''),
+        transcript_confidence=transcript_confidence,
+    )
+    response = dict(result or {})
+    response['session_id'] = str(session_id or 'default')
+    response['source_channel'] = str(source_channel or 'chatgpt')
+    return response
+
+
 def _worker(stop_event, project_root, running_release_version=''):
+    global _RUNTIME
     while not stop_event.is_set():
         config = None
         try:
@@ -105,6 +140,7 @@ def _worker(stop_event, project_root, running_release_version=''):
                 from orchestrator import ProjectmanagerRuntime
                 from embedded_runtime import run_embedded
                 runtime = ProjectmanagerRuntime(config)
+                _RUNTIME = runtime
                 logging.info('Energie Projectmanager V2 embedded gestart; interval=%ss', config.interval_seconds)
                 run_embedded(
                     stop_event,
@@ -115,6 +151,8 @@ def _worker(stop_event, project_root, running_release_version=''):
                 )
                 return
             finally:
+                if _RUNTIME is locals().get('runtime'):
+                    _RUNTIME = None
                 lock.release()
         except BaseException as exc:
             if stop_event.is_set():

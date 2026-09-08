@@ -48,6 +48,7 @@ from assistant_analysis_cache import AssistantAnalysisCache
 from assistant_response import build_assistant_response_payload, render_assistant_response
 from assistant_event_bridge import HomeAssistantNomadBridge
 from ha_nomad_automation import ensure_nomad_automation
+from projectmanager_v2_entrypoint import respond_projectmanager_conversation
 from assistant_runtime_probe import (
     MAX_REQUEST_BYTES as MAX_ASSISTANT_REQUEST_BYTES,
     resolve_runtime_acceptance_path,
@@ -75,7 +76,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.14"
+APP_VERSION = "32.4.15"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -13122,7 +13123,25 @@ def _nomad_bridge_settings() -> dict[str, Any]:
     }
 
 
-def _assistant_response_for_bridge(query: str, session_id: str | None = None) -> dict[str, Any]:
+def _assistant_response_for_bridge(
+    query: str,
+    session_id: str | None = None,
+    *,
+    turn_id: str | None = None,
+    transcript_id: str = '',
+    transcript_confidence: float | None = None,
+) -> dict[str, Any]:
+    pm_result = respond_projectmanager_conversation(
+        query,
+        source_channel='nomad',
+        session_id=session_id,
+        turn_id=turn_id,
+        transcript_id=transcript_id,
+        transcript_confidence=transcript_confidence,
+        force=False,
+    )
+    if pm_result is not None:
+        return pm_result
     return build_assistant_response_payload(ASSISTANT_ENGINE, APP_VERSION, query, session_id=session_id)
 
 
@@ -20740,9 +20759,16 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("query is required")
                 if session_id is not None and not isinstance(session_id, str):
                     raise ValueError("session_id must be a string")
-                result = build_assistant_response_payload(
-                    ASSISTANT_ENGINE, APP_VERSION, query, session_id=session_id
+                result = respond_projectmanager_conversation(
+                    query,
+                    source_channel='chatgpt',
+                    session_id=session_id,
+                    force=False,
                 )
+                if result is None:
+                    result = build_assistant_response_payload(
+                        ASSISTANT_ENGINE, APP_VERSION, query, session_id=session_id
+                    )
                 body = json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8")
                 self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
             except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
@@ -20750,6 +20776,61 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_body(HTTPStatus.BAD_REQUEST, body, "application/json; charset=utf-8")
             except Exception as exc:
                 LOGGER.exception("Assistant response failed")
+                body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, body, "application/json; charset=utf-8")
+            return
+        if path.endswith("/api/projectmanager/conversation") or path == "/api/projectmanager/conversation":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            if length > MAX_ASSISTANT_REQUEST_BYTES:
+                body = json.dumps({"status": "error", "error": "projectmanager request exceeds 32 KiB"}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, body, "application/json; charset=utf-8")
+                return
+            raw = self.rfile.read(length)
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+                if not isinstance(payload, dict):
+                    raise ValueError("JSON body must be an object")
+                allowed = {"query", "text", "source_channel", "session_id", "turn_id", "transcript_id", "transcript_confidence"}
+                unsupported = sorted(set(payload) - allowed)
+                if unsupported:
+                    raise ValueError("unsupported projectmanager payload fields: " + ", ".join(unsupported))
+                query = payload.get("query") if payload.get("query") is not None else payload.get("text")
+                source_channel = str(payload.get("source_channel") or "chatgpt").strip().lower()
+                if source_channel not in {"chatgpt", "typed", "dictation", "voice", "nomad", "speech"}:
+                    raise ValueError("invalid source_channel")
+                session_id = payload.get("session_id")
+                turn_id = payload.get("turn_id")
+                transcript_id = payload.get("transcript_id") or ""
+                transcript_confidence = payload.get("transcript_confidence")
+                if not isinstance(query, str) or not query.strip():
+                    raise ValueError("query is required")
+                for field_name, value in (("session_id", session_id), ("turn_id", turn_id), ("transcript_id", transcript_id)):
+                    if value is not None and not isinstance(value, str):
+                        raise ValueError(f"{field_name} must be a string")
+                if transcript_confidence not in (None, ""):
+                    transcript_confidence = float(transcript_confidence)
+                    if not 0.0 <= transcript_confidence <= 1.0:
+                        raise ValueError("transcript_confidence must be between 0 and 1")
+                result = respond_projectmanager_conversation(
+                    query,
+                    source_channel=source_channel,
+                    session_id=session_id,
+                    turn_id=turn_id,
+                    transcript_id=transcript_id,
+                    transcript_confidence=transcript_confidence,
+                    force=True,
+                )
+                if result is None:
+                    body = json.dumps({"status": "unavailable", "error": "projectmanager runtime not ready"}, ensure_ascii=False).encode("utf-8")
+                    self.send_body(HTTPStatus.SERVICE_UNAVAILABLE, body, "application/json; charset=utf-8")
+                else:
+                    body = json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8")
+                    self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+            except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError) as exc:
+                body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.BAD_REQUEST, body, "application/json; charset=utf-8")
+            except Exception as exc:
+                LOGGER.exception("Projectmanager conversation failed")
                 body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
                 self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, body, "application/json; charset=utf-8")
             return

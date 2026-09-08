@@ -427,20 +427,46 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
             item for item in health_checks
             if isinstance(item, dict) and str(item.get("status") or "").strip().upper() == "RED"
         ]
-        if health_status == "RED" or red_checks:
-            names = ','.join(str(item.get('name') or 'unknown') for item in red_checks) or 'summary'
-            return _validation_check(False, f"projectmanager health RED: {names}")
         non_green = [
             item for item in health_checks
             if isinstance(item, dict) and str(item.get("status") or "").strip().upper() != "GREEN"
         ]
-        allowed_transition = all(
+
+        allowed_orange_transition = bool(non_green) and all(
             str(item.get('name') or '') == 'release_atomic_state'
             and str(item.get('status') or '').strip().upper() == 'ORANGE'
             and str(item.get('reason') or '') == 'installer_or_atomic_transition_active'
             for item in non_green
         )
-        if non_green and not allowed_transition:
+
+        allowed_stale_acceptance_red = False
+        if len(non_green) == 1:
+            only = non_green[0]
+            exact_stale_red = (
+                str(only.get('name') or '') == 'release_atomic_state'
+                and str(only.get('status') or '').strip().upper() == 'RED'
+                and str(only.get('reason') or '') == 'live_acceptance_blocks_release_ingress'
+            )
+            if exact_stale_red:
+                journal_path = root / 'Inbox/atomic_app_swap_state.json'
+                try:
+                    journal = json.loads(journal_path.read_text(encoding='utf-8'))
+                except (OSError, UnicodeError, json.JSONDecodeError):
+                    journal = None
+                allowed_stale_acceptance_red = bool(
+                    isinstance(journal, dict)
+                    and str(journal.get('state') or '').strip().upper() == 'LIVE_ACCEPTANCE'
+                    and str(journal.get('to_version') or '').strip() == app_version
+                    and bool(str(journal.get('from_version') or '').strip())
+                )
+
+        if health_status == 'RED' and not allowed_stale_acceptance_red:
+            names = ','.join(str(item.get('name') or 'unknown') for item in red_checks) or 'summary'
+            return _validation_check(False, f"projectmanager health RED: {names}")
+        if red_checks and not allowed_stale_acceptance_red:
+            names = ','.join(str(item.get('name') or 'unknown') for item in red_checks)
+            return _validation_check(False, f"projectmanager health RED: {names}")
+        if non_green and not (allowed_orange_transition or allowed_stale_acceptance_red):
             names = ','.join(str(item.get('name') or 'unknown') for item in non_green)
             return _validation_check(False, f"unexpected non-green projectmanager health: {names}")
     if not app_version or status_release != app_version:

@@ -57,6 +57,7 @@ _DEVELOPMENT = (
 )
 _ARCHITECTURE_CONTEXT = (
     r'\barchitectuur\w*\b',
+    r'\bsysteemarchitectuur\w*\b',
     r'\barchitecture\b',
     r'\bopzet\b',
     r'\bsysteemstructuur\b',
@@ -69,7 +70,11 @@ _ARCHITECTURE_ACTION = (
     r'\bverander\w*\b',
     r'\bherstructureer\w*\b',
     r'\bherontwerp\w*\b',
-    r'\bbouw\b.*\bom\b',
+    r'\bbouw\b',
+    r'\bmaak\b.*\bgeschikt\b',
+    r'\bvoeg\b.*\btoe\b',
+    r'\bintegreer\w*\b',
+    r'\bkoppel\w*\b',
 )
 _PRODUCTION_CONTEXT = (
     r'\bproductie\b', r'\bproductieplaatsing\b', r'\bproduction\b', r'\bprod\b',
@@ -77,24 +82,64 @@ _PRODUCTION_CONTEXT = (
 )
 _PRODUCTION_ACTION = (
     r'\binstalleer\w*\b', r'\binstallatie\w*\b', r'\bdeploy\w*\b',
-    r'\bplaats\w*\b', r'\buitrol\w*\b', r'\bactiveer\w*\b', r'\bpubliceer\w*\b',
+    r'\bplaats\w*\b', r'\buitrol\w*\b', r'\brol\b.*\buit\b',
+    r'\bactiveer\w*\b', r'\bactief\b', r'\bpubliceer\w*\b',
+    r'\bzet\b', r'\bvoer\b.*\bdoor\b', r'\bbreng\b.*\blive\b',
 )
-_LIVE_ACTION = (r'\bzet\b.*\blive\b', r'\bgo[ -]?live\b')
-_SOURCE_CHANNELS = {'chatgpt', 'nomad', 'speech'}
-_SOURCE_ALIASES = {'spraak': 'speech', 'voice': 'speech'}
+_LIVE_ACTION = (r'\bzet\b.*\blive\b', r'\bbreng\b.*\blive\b', r'\bgo[ -]?live\b')
+_SOURCE_CHANNELS = {'chatgpt', 'typed', 'dictation', 'voice', 'nomad', 'speech'}
+_SOURCE_ALIASES = {'spraak': 'speech', 'typed/chatgpt': 'chatgpt'}
+_SPEECH_CHANNELS = {'dictation', 'voice', 'nomad', 'speech'}
+_RECENT_TRANSCRIPT_DEDUPE_SECONDS = 8
+_TRANSCRIPT_UNCERTAIN_BELOW = 0.70
 
 
 def _matches(text, patterns):
     return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
 
 
-def _protected_action(text):
-    architecture_change = _matches(text, _ARCHITECTURE_CONTEXT) and _matches(text, _ARCHITECTURE_ACTION)
+def protected_action_kind(text):
+    value = str(text or '')
+    architecture_change = _matches(value, _ARCHITECTURE_CONTEXT) and _matches(value, _ARCHITECTURE_ACTION)
     if architecture_change:
-        return True
-    if _matches(text, _LIVE_ACTION):
-        return True
-    return _matches(text, _PRODUCTION_CONTEXT) and _matches(text, _PRODUCTION_ACTION)
+        return 'architecture_change'
+    if _matches(value, _LIVE_ACTION):
+        return 'production_deploy'
+    if _matches(value, _PRODUCTION_CONTEXT) and _matches(value, _PRODUCTION_ACTION):
+        return 'production_deploy'
+    return None
+
+
+def _protected_action(text):
+    return protected_action_kind(text) is not None
+
+
+def is_new_chat_intent(text):
+    value = _normalize(text)
+    if not value:
+        return False
+    patterns = (
+        r'\bnieuwe chat\b',
+        r'\bverse chat\b',
+        r'\bga verder\b.*\bchat\b',
+        r'\bzet over\b.*\bchat\b',
+        r'\bbereid\b.*\bchat\b.*\bvoor\b',
+        r'\bvolgende build\b.*\bchat\b',
+    )
+    return _matches(value, patterns)
+
+
+def _parse_timestamp(value):
+    text = str(value or '').strip()
+    if not text:
+        return None
+    try:
+        stamp = datetime.fromisoformat(text.replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return stamp.astimezone(timezone.utc)
 
 
 def classify_intake(text, classification_hint=None):
@@ -214,13 +259,32 @@ class ConversationIntakeBridge:
             raise ValueError('source_ref_or_ingress_id_required')
 
         occurred_at = str(command.get('occurred_at') or '').strip()
+        transcript_id = str(command.get('transcript_id') or '').strip()
+        confidence_raw = command.get('transcript_confidence')
+        transcript_confidence = None
+        if confidence_raw not in (None, ''):
+            try:
+                transcript_confidence = float(confidence_raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError('invalid_transcript_confidence') from exc
+            if not 0.0 <= transcript_confidence <= 1.0:
+                raise ValueError('invalid_transcript_confidence')
+        transcript_uncertain = bool(
+            source_channel in _SPEECH_CHANNELS
+            and transcript_confidence is not None
+            and transcript_confidence < _TRANSCRIPT_UNCERTAIN_BELOW
+        )
         classified = classify_intake(text, command.get('classification_hint'))
         return {
             'text': text,
             'source_channel': source_channel,
+            'canonical_source_channel': 'speech' if source_channel in _SPEECH_CHANNELS else source_channel,
             'source_ref': source_ref,
             'ingress_id': ingress_id,
             'occurred_at': occurred_at,
+            'transcript_id': transcript_id,
+            'transcript_confidence': transcript_confidence,
+            'transcript_uncertain': transcript_uncertain,
             **classified,
         }
 
@@ -234,6 +298,23 @@ class ConversationIntakeBridge:
             (row for row in data['items'] if row.get('fingerprint') == fingerprint),
             None,
         )
+        duplicate_reason = 'event_id' if item is not None else None
+        if item is None and value['source_channel'] in _SPEECH_CHANNELS:
+            current_at = _parse_timestamp(value.get('occurred_at')) or datetime.now(timezone.utc)
+            normalized = _normalize(value['text'])
+            for row in reversed(data['items']):
+                if row.get('source_channel') not in _SPEECH_CHANNELS:
+                    continue
+                if _normalize(row.get('text')) != normalized:
+                    continue
+                previous_at = _parse_timestamp(row.get('occurred_at') or row.get('created_at'))
+                if previous_at is None:
+                    continue
+                if abs((current_at - previous_at).total_seconds()) <= _RECENT_TRANSCRIPT_DEDUPE_SECONDS:
+                    item = row
+                    fingerprint = str(row.get('fingerprint') or fingerprint)
+                    duplicate_reason = 'recent_exact_transcript'
+                    break
         duplicate = item is not None
 
         if item is None:
@@ -243,9 +324,13 @@ class ConversationIntakeBridge:
                 'fingerprint': fingerprint,
                 'text': value['text'],
                 'source_channel': value['source_channel'],
+                'canonical_source_channel': value['canonical_source_channel'],
                 'source_ref': value['source_ref'],
                 'ingress_id': value['ingress_id'],
                 'occurred_at': value['occurred_at'] or now,
+                'transcript_id': value['transcript_id'],
+                'transcript_confidence': value['transcript_confidence'],
+                'transcript_uncertain': value['transcript_uncertain'],
                 'classification': value['classification'],
                 'classifications': list(value['classifications']),
                 'development_context': value['development_context'],
@@ -286,6 +371,10 @@ class ConversationIntakeBridge:
             'route_results': dict(stored['route_results']),
             'status': stored['status'],
             'duplicate': duplicate,
+            'duplicate_reason': duplicate_reason,
+            'source_channel': stored.get('source_channel'),
+            'canonical_source_channel': stored.get('canonical_source_channel', stored.get('source_channel')),
+            'transcript_uncertain': stored.get('transcript_uncertain') is True,
         }
 
     def _sync_follow_up(self, item):
@@ -300,7 +389,7 @@ class ConversationIntakeBridge:
             category = 'conversation_opportunity' if classification == 'idea_opportunity' else 'follow_up'
             details = {
                 'intake_id': item['id'],
-                'source_channel': item.get('source_channel'),
+                'source_channel': item.get('canonical_source_channel', item.get('source_channel')),
                 'source_ref': item.get('source_ref'),
                 'classification': classification,
             }
@@ -431,7 +520,7 @@ class ConversationIntakeBridge:
                 {
                     'id': item.get('id'),
                     'classification': item.get('classification'),
-                    'source_channel': item.get('source_channel'),
+                    'source_channel': item.get('canonical_source_channel', item.get('source_channel')),
                     'source_ref': item.get('source_ref'),
                     'status': item.get('status'),
                 }

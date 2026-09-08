@@ -1,4 +1,5 @@
 import json
+import threading
 from pathlib import Path
 
 from approval_ingress import ApprovalIngressConsumer
@@ -7,11 +8,14 @@ from command_ingress import CommandIngressConsumer
 from command_processor import CommandProcessor
 from command_store import CommandStore
 from conversation_intake import ConversationIntakeBridge
+from conversation_approval import ConversationApprovalCoordinator
+from conversation_runtime import ProjectmanagerConversationRuntime
 from configured_service import ConfiguredManagerService
 from handoff_queue import HandoffQueue
 from handoff_result_ingress import HandoffResultIngressConsumer
 from issue_repair_evidence import collect_issue_repair_evidence
 from handover import build_handover
+from handover_snapshot import HandoverSnapshotService
 from health_engine import summarize_health_with_self_audit
 from mode_bridge import ModeBridge
 from nas_container_cr_service import ConfiguredNasContainerCrService
@@ -123,6 +127,27 @@ class ProjectmanagerRuntime:
             getattr(self.base, 'issues', None),
             audit=self.base.audit,
         )
+        self._operation_lock = threading.RLock()
+        self.conversation_approval = ConversationApprovalCoordinator(
+            root / 'decisions' / 'conversation_challenges.json',
+            self.base.decisions,
+            commands=self.commands,
+            audit=self.base.audit,
+        )
+        self.handover_snapshots = HandoverSnapshotService(
+            root,
+            project_root=config.project_root,
+            issues=getattr(self.base, 'issues', None),
+            audit=self.base.audit,
+        )
+        self.conversation = ProjectmanagerConversationRuntime(
+            root,
+            intake=self.conversation_intake,
+            approval=self.conversation_approval,
+            handover=self.handover_snapshots,
+            audit=self.base.audit,
+            reports_root=config.reports_root,
+        )
 
     def _open_issue(self, fingerprint, *, severity, title, details):
         issues = getattr(self.base, 'issues', None)
@@ -141,7 +166,18 @@ class ProjectmanagerRuntime:
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             return {'_source': str(path), 'error': f'{type(exc).__name__}: {exc}'}
 
+    def handles_conversation(self, text: str) -> bool:
+        return self.conversation.handles(text)
+
+    def handle_conversation(self, **kwargs):
+        with self._operation_lock:
+            return self.conversation.handle(**kwargs)
+
     def run_once(self, *, now=None):
+        with self._operation_lock:
+            return self._run_once(now=now)
+
+    def _run_once(self, *, now=None):
         handoff_results = self.handoff_results.consume(max_items=20)
         for result in handoff_results:
             self.base.audit.write(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 import logging
 import os
 import time
@@ -82,7 +83,25 @@ def handle_request_event(
     now: float | None = None,
 ) -> dict[str, Any]:
     request = validate_request_event(data)
-    payload = respond(request["query"], session_id=request["session_id"])
+    try:
+        parameters = inspect.signature(respond).parameters
+        accepts_kwargs = any(item.kind == inspect.Parameter.VAR_KEYWORD for item in parameters.values())
+    except (TypeError, ValueError):
+        parameters = {}
+        accepts_kwargs = False
+    supports_turn = accepts_kwargs or "turn_id" in parameters
+    supports_transcript = accepts_kwargs or "transcript_id" in parameters
+    if supports_turn and supports_transcript:
+        payload = respond(
+            request["query"],
+            session_id=request["session_id"],
+            turn_id=request["request_id"],
+            transcript_id=request["request_id"],
+        )
+    elif supports_turn:
+        payload = respond(request["query"], session_id=request["session_id"], turn_id=request["request_id"])
+    else:
+        payload = respond(request["query"], session_id=request["session_id"])
     speech = str(payload.get("speech") or "").strip()
     greeted = bool(greeting_enabled and greeting_tracker.should_greet(request["session_id"], now=now))
     if greeted:

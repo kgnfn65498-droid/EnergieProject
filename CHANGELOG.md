@@ -1,3 +1,12 @@
+## 32.4.15 — Voice Mode en definitieve 32.4 closure
+
+- Lost de stale `LIVE_ACCEPTANCE`-deadlock structureel op: uitsluitend de specifieke `release_atomic_state=RED` met reden `live_acceptance_blocks_release_ingress` mag tijdens final acceptance tijdelijk worden getolereerd, en alleen wanneer het atomic journal exact naar de huidige release wijst; alle andere RED/ORANGE-health blijft fail-closed.
+- Breidt Conversation Intake uit naar volwaardige bronmetadata voor typed/chatgpt, dictation, Voice Mode, Nomad en speech, met transcript-id, confidence, onzekerheidsmarkering en veilige dedupe van identieke events/transcripten.
+- Verbindt Voice Mode met dezelfde Projectmanager-runtime, status-/progresswaarheid, roadmap/task/Knowledge Base-intake en protected commandketen als typed input; Nomad request-id wordt als turn/transcript-id doorgegeven.
+- Implementeert optie C voor protected Voice-acties: exacte challenge op actie/target/versie, korte TTL, single-use/replay-safe en een tweede expliciete gesproken of getypte bevestiging via dezelfde canonieke DecisionQueue en command-gate.
+- Voegt automatische `nieuwe chat`-overdracht toe: typed en Voice gebruiken dezelfde canonieke snapshotservice, schrijven atomair een compacte ready-snapshot, behouden de vorige geldige snapshot bij fouten en hervatten altijd vanaf de laatste geldige snapshot.
+- Verhoogt Projectmanager naar `2.0.0-rc12`. ngrok en Claude Cowork worden niet gewijzigd in deze release.
+
 ## 32.4.14 — definitieve Projectmanager 32.4 closure
 
 - Beschermt architectuurwijzigingen semantisch: natuurlijke formuleringen voor wijzigingen aan architectuur, opzet of systeemstructuur vereisen expliciete approval; alleen analyseren/onderzoeken blijft autonoom toegestaan.
