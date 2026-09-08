@@ -1,9 +1,8 @@
 # Changelog
 
-## 32.4.13
+## 32.4.14
 
-- Projectmanager regie- en releaseketenclosure na de grondige 32.4.12-audit.
-- Groene live-validatie finaliseert atomic `LIVE_ACCEPTANCE` veilig naar `ACCEPTED`; fouten blijven fail-closed en rollbackbaar.
-- Protected Conversation Intake, transactionele handoffs, fail-closed release-health en self-audit-escalatie aangescherpt.
-- Volledige gedeelde Projectmanager-voortgang wordt in de Home Assistant-GUI getoond.
-- Projectmanager V2 2.0.0-rc10.
+- Projectmanager protected-action intentieherkenning voor architectuur, Home Assistant en productie aangescherpt.
+- Finale release-acceptance fail-closed gemaakt op echte PM-health; alleen de verwachte LIVE_ACCEPTANCE-overgang is tijdelijk toegestaan.
+- Live auto-acceptance blijft na tijdelijke opstartblokkades via een daemon opnieuw proberen, zodat incoming niet permanent blokkeert na de eerste begrensde retryreeks.
+- Projectmanager V2 2.0.0-rc11.

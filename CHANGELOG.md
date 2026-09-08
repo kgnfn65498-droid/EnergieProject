@@ -1,3 +1,13 @@
+## 32.4.14 — definitieve Projectmanager 32.4 closure
+
+- Beschermt architectuurwijzigingen semantisch: natuurlijke formuleringen voor wijzigingen aan architectuur, opzet of systeemstructuur vereisen expliciete approval; alleen analyseren/onderzoeken blijft autonoom toegestaan.
+- Beschermt Home Assistant/productieplaatsing onafhankelijk van woordvolgorde, inclusief installeren, deployen, plaatsen, activeren, publiceren en live zetten op Home Assistant/HA/Green/productie.
+- Laat protected Conversation Intake wel traceerbaar opslaan, maar nooit autonoom uit de DEVELOPMENT-backlog selecteren zonder approval.
+- Verhardt de automatische `LIVE_ACCEPTANCE` → `ACCEPTED`-gate: iedere echte RED PM-health blokkeert; alleen de verwachte `release_atomic_state` ORANGE overgang mag tijdens finale acceptance tijdelijk niet-groen zijn.
+- Herstelt de live `incoming`-keten: de automatische acceptance draait als blijvende daemon rond de begrensde worker, zodat een tijdelijke PM-opstartblokkade na de eerste retryreeks niet meer permanent `LIVE_ACCEPTANCE` laat staan; bij add-on stop stopt de daemon schoon.
+- Blokkeert acceptance ook bij onverwachte ORANGE/unknown health, zodat watcher-, publisher-, lock-, processing-, rollback-, runtime- of self-auditproblemen niet stil kunnen worden geaccepteerd.
+- Verhoogt Projectmanager naar `2.0.0-rc11`. Deze release bevat geen nieuwe Claude Cowork- of ngrok-functionaliteit; zij sluit uitsluitend de 32.4 PM/release-regie af.
+
 ## 32.4.13 — Projectmanager regie- en releaseketenclosure
 
 - Finaliseert de atomic App-swap automatisch van `LIVE_ACCEPTANCE` naar `ACCEPTED` uitsluitend nadat de bestaande live release-validatie inclusief actuele PM self-audit groen is; bij finalisatiefout wordt de release-hold opnieuw fail-closed geactiveerd.

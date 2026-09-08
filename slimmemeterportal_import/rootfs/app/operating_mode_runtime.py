@@ -402,7 +402,47 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
     status = str(payload.get("status") or "").strip().upper()
     if status not in {"GREEN", "ORANGE", "RED"}:
         return _validation_check(False, "projectmanager self-audit invalid status")
+
     status_release = str(((status_payload.get("release") or {}).get("version")) or "").strip()
+
+    def _numeric_release(value: str) -> tuple[int, ...]:
+        try:
+            return tuple(int(part) for part in str(value).strip().split('.'))
+        except (TypeError, ValueError):
+            return ()
+
+    # 32.4.14 introduces the stronger PM-health gate. Historical release-hold
+    # fixtures remain valid for their original contract, while 32.4.14+ is
+    # fail-closed unless the only non-green signal is the expected atomic
+    # LIVE_ACCEPTANCE transition.
+    if _numeric_release(app_version) >= (32, 4, 14):
+        health = status_payload.get("health")
+        if not isinstance(health, dict):
+            return _validation_check(False, "projectmanager health missing or invalid")
+        health_status = str(health.get("status") or "").strip().upper()
+        health_checks = health.get("checks")
+        if health_status not in {"GREEN", "ORANGE", "RED"} or not isinstance(health_checks, list):
+            return _validation_check(False, "projectmanager health missing or invalid")
+        red_checks = [
+            item for item in health_checks
+            if isinstance(item, dict) and str(item.get("status") or "").strip().upper() == "RED"
+        ]
+        if health_status == "RED" or red_checks:
+            names = ','.join(str(item.get('name') or 'unknown') for item in red_checks) or 'summary'
+            return _validation_check(False, f"projectmanager health RED: {names}")
+        non_green = [
+            item for item in health_checks
+            if isinstance(item, dict) and str(item.get("status") or "").strip().upper() != "GREEN"
+        ]
+        allowed_transition = all(
+            str(item.get('name') or '') == 'release_atomic_state'
+            and str(item.get('status') or '').strip().upper() == 'ORANGE'
+            and str(item.get('reason') or '') == 'installer_or_atomic_transition_active'
+            for item in non_green
+        )
+        if non_green and not allowed_transition:
+            names = ','.join(str(item.get('name') or 'unknown') for item in non_green)
+            return _validation_check(False, f"unexpected non-green projectmanager health: {names}")
     if not app_version or status_release != app_version:
         return _validation_check(
             False,

@@ -49,3 +49,34 @@ def automatic_release_hold_worker(
         if last.get("status") in {"released", "already_released"}:
             return last
     return last
+
+
+def automatic_release_hold_daemon(
+    stop_event: Any,
+    app_module: Any,
+    project_root: Path | str,
+    expected_version: str,
+    *,
+    retry_delays: Iterable[float] = DEFAULT_AUTO_RELEASE_RETRY_DELAYS,
+    cycle_delay: float = 15.0,
+) -> dict[str, Any]:
+    """Keep running bounded validation cycles until release, stop, or shutdown.
+
+    Each cycle preserves the historic bounded retry contract. The daemon is the
+    live lifecycle wrapper that prevents a transient startup block from becoming
+    a permanent LIVE_ACCEPTANCE deadlock.
+    """
+    root = Path(project_root)
+    last: dict[str, Any] = {"status": "not_attempted"}
+    while True:
+        last = automatic_release_hold_worker(
+            stop_event,
+            app_module,
+            root,
+            str(expected_version),
+            retry_delays=retry_delays,
+        )
+        if last.get("status") in {"released", "already_released", "stopped"}:
+            return last
+        if stop_event.wait(max(0.0, float(cycle_delay))):
+            return {"status": "stopped", "last": last}

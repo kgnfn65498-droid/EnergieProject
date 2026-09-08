@@ -44,21 +44,42 @@ _DEVELOPMENT = (
     r'\btest\b',
     r'\bimplementeer\w*\b',
     r'\bpas\b.*\baan\b',
+    r'\bwijzig\w*\b',
+    r'\bverander\w*\b',
+    r'\bherstructureer\w*\b',
+    r'\bherontwerp\w*\b',
     r'\binstalleer\w*\b',
     r'\bdeploy\w*\b',
     r'\bplaats\w*\b',
+    r'\bactiveer\w*\b',
+    r'\bpubliceer\w*\b',
+    r'\bzet\b.*\blive\b',
+)
+_ARCHITECTURE_CONTEXT = (
+    r'\barchitectuur\w*\b',
+    r'\barchitecture\b',
+    r'\bopzet\b',
+    r'\bsysteemstructuur\b',
+    r'\bsysteemopzet\b',
+    r'\bsysteem\b',
 )
 _ARCHITECTURE_ACTION = (
-    r'\barchitectuurwijziging\b',
-    r'\barchitecture change\b',
+    r'\bpas\b.*\baan\b',
+    r'\bwijzig\w*\b',
+    r'\bverander\w*\b',
+    r'\bherstructureer\w*\b',
+    r'\bherontwerp\w*\b',
+    r'\bbouw\b.*\bom\b',
 )
 _PRODUCTION_CONTEXT = (
     r'\bproductie\b', r'\bproductieplaatsing\b', r'\bproduction\b', r'\bprod\b',
+    r'\bhome[ -]?assistant\b', r'\bHA\b', r'\bhome[ -]?assistant[ -]?green\b', r'\bgreen\b',
 )
 _PRODUCTION_ACTION = (
     r'\binstalleer\w*\b', r'\binstallatie\w*\b', r'\bdeploy\w*\b',
-    r'\bplaats\w*\b', r'\buitrol\w*\b',
+    r'\bplaats\w*\b', r'\buitrol\w*\b', r'\bactiveer\w*\b', r'\bpubliceer\w*\b',
 )
+_LIVE_ACTION = (r'\bzet\b.*\blive\b', r'\bgo[ -]?live\b')
 _SOURCE_CHANNELS = {'chatgpt', 'nomad', 'speech'}
 _SOURCE_ALIASES = {'spraak': 'speech', 'voice': 'speech'}
 
@@ -68,7 +89,10 @@ def _matches(text, patterns):
 
 
 def _protected_action(text):
-    if _matches(text, _ARCHITECTURE_ACTION):
+    architecture_change = _matches(text, _ARCHITECTURE_CONTEXT) and _matches(text, _ARCHITECTURE_ACTION)
+    if architecture_change:
+        return True
+    if _matches(text, _LIVE_ACTION):
         return True
     return _matches(text, _PRODUCTION_CONTEXT) and _matches(text, _PRODUCTION_ACTION)
 

@@ -18,11 +18,11 @@ from operating_mode_crash_recovery import (
     recover_crash_recovery_mode_session,
 )
 from release_validation_hold import ensure_release_hold_state
-from operating_mode_auto_release import automatic_release_hold_worker
+from operating_mode_auto_release import automatic_release_hold_daemon as automatic_release_hold_worker
 from projectmanager_v2_entrypoint import start_projectmanager_v2
 from projectmanager_v2.projectmanager_web import install_projectmanager_web
 
-TARGET_RELEASE_VERSION = "32.4.13"
+TARGET_RELEASE_VERSION = "32.4.14"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 
@@ -41,6 +41,7 @@ def start_operating_mode_runtime() -> None:
     # writes immutable ApprovalIngress envelopes only; it never mutates
     # RuntimeV2 directly.
     install_projectmanager_web(app, root)
+    start_projectmanager_v2(app.STOP, root, TARGET_RELEASE_VERSION)
     threading.Thread(
         target=automatic_release_hold_worker,
         args=(app.STOP, app, root, TARGET_RELEASE_VERSION),
@@ -59,7 +60,6 @@ def start_operating_mode_runtime() -> None:
         daemon=True,
         name="operating-mode-reconcile",
     ).start()
-    start_projectmanager_v2(app.STOP, root, TARGET_RELEASE_VERSION)
 
 
 def main() -> None:
