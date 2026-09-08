@@ -77,6 +77,39 @@ def _read_pending(project_root) -> list[dict[str, Any]]:
     ]
 
 
+def _read_status(project_root) -> dict[str, Any]:
+    path = _runtime_root(project_root) / 'status' / 'current.json'
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def render_projectmanager_progress(project_root) -> str:
+    status = _read_status(project_root)
+    progress = status.get('progress') if isinstance(status.get('progress'), dict) else {}
+    task = status.get('active_task') if isinstance(status.get('active_task'), dict) else {}
+    if not progress and not task:
+        return ''
+
+    def esc(value):
+        return html.escape(str(value if value not in (None, '') else '-'))
+
+    blockers = progress.get('blockers') if isinstance(progress.get('blockers'), list) else []
+    blockers_text = ', '.join(str(item) for item in blockers if str(item).strip()) or 'geen'
+    color = str(progress.get('status_color') or (status.get('health') or {}).get('status') or 'NOG_TE_CONTROLEREN').upper()
+    border = {'GREEN': '#2e7d32', 'ORANGE': '#d18b00', 'RED': '#b3261e'}.get(color, '#6b7280')
+    return f'''<section id="pmv2-progress" style="margin:16px 0;padding:14px;border:2px solid {border};border-radius:10px">
+<h3>Projectmanager — voortgang</h3>
+<p><strong>{esc(task.get('title') or 'geen actieve taak')}</strong> — {esc(progress.get('step_label') or 'Stap -/-')} — {esc(progress.get('progress_percent'))}%</p>
+<p>Voltooid: {esc(progress.get('completed_steps'))} | Resterend: {esc(progress.get('remaining_steps'))} | Status: {esc(color)}</p>
+<p>Volgende stap: {esc(progress.get('next_step') or task.get('next_action') or 'geen')}</p>
+<p>Verstreken: {esc(progress.get('elapsed_seconds'))} s | Geschat resterend: {esc(progress.get('estimated_remaining_seconds'))} s</p>
+<p>Planningstrend: {esc(progress.get('planning_trend') or 'insufficient_data')} | Blockers: {esc(blockers_text)}</p>
+</section>'''
+
+
 def _is_within(path: Path, root: Path) -> bool:
     try:
         path.resolve().relative_to(root.resolve())
@@ -378,7 +411,8 @@ def install_projectmanager_web(
         def wrapped_html_page(*args, **kwargs):
             page = raw_html_page(*args, **kwargs)
             card = (
-                render_projectmanager_decisions(root)
+                render_projectmanager_progress(root)
+                + render_projectmanager_decisions(root)
                 + render_nas_container_cr_setup(root, private_root=tls_private_root)
             )
             return inject_decision_card(page, card)

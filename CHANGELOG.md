@@ -1,3 +1,14 @@
+## 32.4.13 — Projectmanager regie- en releaseketenclosure
+
+- Finaliseert de atomic App-swap automatisch van `LIVE_ACCEPTANCE` naar `ACCEPTED` uitsluitend nadat de bestaande live release-validatie inclusief actuele PM self-audit groen is; bij finalisatiefout wordt de release-hold opnieuw fail-closed geactiveerd.
+- Maakt Conversation Intake-beveiliging voor productieplaatsing en architectuurwijzigingen onafhankelijk van woordvolgorde en voorkomt autonome selectie van protected actions zonder expliciete goedkeuring.
+- Maakt handoff-resultaatverwerking transactioneel over task-, roadmap- en handoff-state: prevalidatie vóór mutatie en volledige state-rollback bij een late schrijffout.
+- Verhardt release-health: meerdere ZIPs in incoming, onbekende atomic state en stale/blockerende `LIVE_ACCEPTANCE` worden rood; ontbrekende/onbekende publisher-, publication- en alignment-state kan niet meer groen worden.
+- Routeert een definitieve RED Projectmanager self-audit opnieuw via issue- en directe notificatiepolicy en ververst daarna status/handover zodat de finale coördinatietoestand consistent blijft.
+- Telt alle Conversation Intake-classificaties in de PM-samenvatting, niet alleen de primaire classificatie.
+- Toont de gedeelde PM-voortgangswaarheid ook in de Home Assistant-GUI: Stap X/Y, voltooid/resterend, volgende stap, verstreken tijd, ETA, blockers, kleur, percentage en planningstrend.
+- Verhoogt Projectmanager naar `2.0.0-rc10`.
+
 ## 32.4.12 — functionele closure en runtime truth
 
 - Scheidt NAS-release, werkelijk draaiende Home Assistant add-onversie, beschikbare update en rollback; release-chain health omvat watcher, incoming/processing, installer-lock, atomic state en publisher/GitHub-publicatie.

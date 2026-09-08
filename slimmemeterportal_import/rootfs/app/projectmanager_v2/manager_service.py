@@ -9,7 +9,7 @@ from document_sync import ManagedDocumentSync
 from energy_health_collector import EnergyHealthCollector
 from evidence_store import EvidenceStore
 from handover import HandoverStore, build_handover
-from health_engine import summarize_health, summarize_health_with_self_audit
+from health_engine import self_audit_check, summarize_health, summarize_health_with_self_audit
 from home_assistant_notifier import HomeAssistantNotifier
 from issue_store import IssueStore
 from manager_config import ManagerConfig
@@ -218,14 +218,24 @@ class ManagerService:
         })
         self_audit = self.self_auditor.run(now=now)
         atomic_write_json(self.root / 'self_audit' / 'current.json', self_audit)
+        self._reconcile_self_audit_outcome(self_audit, now=now)
         composite_health = summarize_health_with_self_audit(checks, self_audit)
         status['health'] = composite_health
         status['self_audit'] = self_audit
         status['open_issues'] = self.issues.open_items()
         heartbeat['health'] = composite_health['status']
+        heartbeat['pending_notifications'] = len(self.outbox.pending())
         atomic_write_json(self.root / 'heartbeat' / 'manager.json', heartbeat)
         atomic_write_json(self.root / 'status' / 'current.json', status)
+        if self.outbox.pending():
+            self._dispatch_outbox()
         return status
+
+    def _reconcile_self_audit_outcome(self, self_audit: dict, *, now):
+        check = self_audit_check(self_audit)
+        self._reconcile_issues([check], [])
+        self._queue_new_direct_events([check], [], now=now)
+        return check
 
     def _reconcile_mode(self, runtime: dict):
         runtime_mode = (runtime.get('operating_mode') or {}).get('effective_mode')

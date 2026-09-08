@@ -256,6 +256,22 @@ class ProjectmanagerRuntime:
             atomic_write_json(heartbeat_path, heartbeat)
             self._refresh_coordination(status)
 
+        # Route the authoritative final audit through the same issue/alert policy
+        # as ordinary RED health checks, then refresh both status and handover so
+        # the newly-opened/resolved audit issue cannot create coordination drift.
+        authoritative_audit = status.get('self_audit') or final_audit
+        reconcile_audit = getattr(self.base, '_reconcile_self_audit_outcome', None)
+        if callable(reconcile_audit):
+            reconcile_audit(authoritative_audit, now=now)
+            self._refresh_coordination(status)
+            routed_audit = self.base.self_auditor.run(now=now, require_coordination=True)
+            status['self_audit'] = routed_audit
+            status['health'] = summarize_health_with_self_audit(checks, routed_audit)
+            atomic_write_json(self.root / 'self_audit' / 'current.json', routed_audit)
+            heartbeat['health'] = status['health']['status']
+            atomic_write_json(heartbeat_path, heartbeat)
+            self._refresh_coordination(status)
+
     def _refresh_coordination(self, status: dict):
         current_mode = self.base.mode.get()
         active = self.base.tasks.active()

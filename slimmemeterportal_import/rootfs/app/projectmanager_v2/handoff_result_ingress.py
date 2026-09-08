@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from persistence import atomic_write_json, load_json
+from persistence import atomic_write_json, atomic_write_text, load_json
 from secret_guard import contains_secret_text
 from task_engine import definition_of_done
 
@@ -35,6 +35,30 @@ class HandoffResultIngressConsumer:
 
     def _save_receipts(self, data):
         atomic_write_json(self.receipt_path, data)
+
+    def _transaction_snapshot(self):
+        snapshots = {}
+        for store in (self.handoffs, self.tasks, self.roadmap):
+            store_path = getattr(store, 'path', None)
+            if store_path is None:
+                continue
+            path = Path(store_path)
+            snapshots[path] = path.read_text(encoding='utf-8') if path.exists() else None
+        return snapshots
+
+    @staticmethod
+    def _restore_transaction(snapshots):
+        failures = []
+        for path, content in snapshots.items():
+            try:
+                if content is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    atomic_write_text(path, content)
+            except Exception as exc:
+                failures.append(f'{path}:{type(exc).__name__}:{exc}')
+        if failures:
+            raise RuntimeError('handoff_transaction_restore_failed:' + '|'.join(failures))
 
     def consume(self, *, max_items=20):
         if self.directory is None or not self.directory.is_dir():
@@ -92,6 +116,8 @@ class HandoffResultIngressConsumer:
             handoff = self.handoffs.get(handoff_id)
             task_id = handoff['task_id']
             if outcome == 'DONE':
+                if handoff.get('status') not in {'OPEN', 'DONE'}:
+                    raise ValueError(f"handoff_not_open:{handoff.get('status')}")
                 # Idempotent convergence: a valid result may finish its exact handoff task
                 # even when a later task temporarily paused it. Other active work is untouched.
                 task = self.tasks.get(task_id)
@@ -99,17 +125,22 @@ class HandoffResultIngressConsumer:
                     dod = definition_of_done(dod_gates)
                     if not dod['done']:
                         raise ValueError(f"definition of done missing: {', '.join(dod['missing'])}")
-                resumed_from_paused = False
-                if task.get('status') == 'PAUSED':
-                    self.tasks.resume_handoff(
-                        task_id,
-                        reason='valid immutable handoff result received',
-                        evidence_refs=[f'handoff_result_ingress:{ingress_id}'],
-                    )
-                    resumed_from_paused = True
-                self.tasks.complete_handoff(task_id, summary=summary, evidence_refs=evidence_refs, gates=dod_gates)
-                self.roadmap.mark_done_for_task(task_id)
-                final_handoff = self.handoffs.complete(handoff_id, summary=summary, evidence_refs=evidence_refs)
+                snapshots = self._transaction_snapshot()
+                try:
+                    resumed_from_paused = False
+                    if task.get('status') == 'PAUSED':
+                        self.tasks.resume_handoff(
+                            task_id,
+                            reason='valid immutable handoff result received',
+                            evidence_refs=[f'handoff_result_ingress:{ingress_id}'],
+                        )
+                        resumed_from_paused = True
+                    self.tasks.complete_handoff(task_id, summary=summary, evidence_refs=evidence_refs, gates=dod_gates)
+                    self.roadmap.mark_done_for_task(task_id)
+                    final_handoff = self.handoffs.complete(handoff_id, summary=summary, evidence_refs=evidence_refs)
+                except Exception:
+                    self._restore_transaction(snapshots)
+                    raise
                 return {
                     'status': 'APPLIED',
                     'ingress_id': ingress_id,
@@ -120,9 +151,15 @@ class HandoffResultIngressConsumer:
                     'resumed_from_paused': resumed_from_paused,
                     'at': now,
                 }
-
-            self.tasks.block(task_id, summary)
-            final_handoff = self.handoffs.block(handoff_id, summary=summary)
+            if handoff.get('status') not in {'OPEN', 'BLOCKED'}:
+                raise ValueError(f"handoff_not_open:{handoff.get('status')}")
+            snapshots = self._transaction_snapshot()
+            try:
+                self.tasks.block(task_id, summary)
+                final_handoff = self.handoffs.block(handoff_id, summary=summary)
+            except Exception:
+                self._restore_transaction(snapshots)
+                raise
             return {
                 'status': 'APPLIED',
                 'ingress_id': ingress_id,

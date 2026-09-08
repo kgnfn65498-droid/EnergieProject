@@ -29,7 +29,11 @@ ROUTES = {
 _PATTERNS = (
     ('hard_requirement', (r'\bharde eis\b', r'\bmoet\b', r'\bvereist\b', r'\bmag niet\b')),
     ('decision', (r'\bbesloten\b', r'\bbesluit\b', r'\bwe kiezen\b', r'\bafgesproken\b')),
-    ('action_item', (r'\bbouw\b', r'\bontwikkel\w*\b', r'\bmaak\b', r'\btest\b', r'\bimplementeer\w*\b', r'\bpas\b.*\baan\b')),
+    ('action_item', (
+        r'\bbouw\b', r'\bontwikkel\w*\b', r'\bmaak\b', r'\btest\b',
+        r'\bimplementeer\w*\b', r'\bpas\b.*\baan\b', r'\binstalleer\w*\b',
+        r'\bdeploy\w*\b', r'\bplaats\w*\b',
+    )),
     ('wish', (r'\bik wil\b', r'\bwens\b', r'\bik zou graag\b')),
     ('idea_opportunity', (r'\bidee\b', r'\bkans\b', r'\bmisschien\b', r'\bkunnen we\b')),
     ('later_return', (r'\bkom .*later.* terug\b', r'\blater op terug\b', r'\bvoor later\b', r'\bvolgende keer\b')),
@@ -40,12 +44,20 @@ _DEVELOPMENT = (
     r'\btest\b',
     r'\bimplementeer\w*\b',
     r'\bpas\b.*\baan\b',
+    r'\binstalleer\w*\b',
+    r'\bdeploy\w*\b',
+    r'\bplaats\w*\b',
 )
-_PROTECTED_ACTION = (
+_ARCHITECTURE_ACTION = (
     r'\barchitectuurwijziging\b',
     r'\barchitecture change\b',
-    r'\bproductie\b.*\b(installeer|installatie|deploy|plaats)\w*\b',
-    r'\b(production|prod)\b.*\b(deploy|install)\w*\b',
+)
+_PRODUCTION_CONTEXT = (
+    r'\bproductie\b', r'\bproductieplaatsing\b', r'\bproduction\b', r'\bprod\b',
+)
+_PRODUCTION_ACTION = (
+    r'\binstalleer\w*\b', r'\binstallatie\w*\b', r'\bdeploy\w*\b',
+    r'\bplaats\w*\b', r'\buitrol\w*\b',
 )
 _SOURCE_CHANNELS = {'chatgpt', 'nomad', 'speech'}
 _SOURCE_ALIASES = {'spraak': 'speech', 'voice': 'speech'}
@@ -53,6 +65,12 @@ _SOURCE_ALIASES = {'spraak': 'speech', 'voice': 'speech'}
 
 def _matches(text, patterns):
     return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
+
+
+def _protected_action(text):
+    if _matches(text, _ARCHITECTURE_ACTION):
+        return True
+    return _matches(text, _PRODUCTION_CONTEXT) and _matches(text, _PRODUCTION_ACTION)
 
 
 def classify_intake(text, classification_hint=None):
@@ -75,7 +93,7 @@ def classify_intake(text, classification_hint=None):
         'classification': classifications[0],
         'classifications': classifications,
         'development_context': _matches(value, _DEVELOPMENT),
-        'approval_required': _matches(value, _PROTECTED_ACTION),
+        'approval_required': _protected_action(value),
     }
 
 
@@ -376,9 +394,10 @@ class ConversationIntakeBridge:
         items = self._load()['items']
         counts = {name: 0 for name in CLASSIFICATIONS}
         for item in items:
-            classification = item.get('classification')
-            if classification in counts:
-                counts[classification] += 1
+            classifications = item.get('classifications') or [item.get('classification')]
+            for classification in dict.fromkeys(classifications):
+                if classification in counts:
+                    counts[classification] += 1
         return {
             'schema': 1,
             'canonical_path': str(self.path),

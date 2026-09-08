@@ -1,8 +1,9 @@
 # Changelog
 
-## 32.4.12
+## 32.4.13
 
-- Functionele closure release met runtime truth, definitieve PM self-audit en veilige DEVELOPMENT-regie.
-- Conversation Intake bewaart meerdere afspraken en routeert canoniek naar roadmap/taken.
-- Maandafsluiting “Rapportgenerator koppelen” hersteld; identieke automatische foutmeldingen krijgen cooldown zonder retry te verliezen.
-- Projectmanager V2 2.0.0-rc9.
+- Projectmanager regie- en releaseketenclosure na de grondige 32.4.12-audit.
+- Groene live-validatie finaliseert atomic `LIVE_ACCEPTANCE` veilig naar `ACCEPTED`; fouten blijven fail-closed en rollbackbaar.
+- Protected Conversation Intake, transactionele handoffs, fail-closed release-health en self-audit-escalatie aangescherpt.
+- Volledige gedeelde Projectmanager-voortgang wordt in de Home Assistant-GUI getoond.
+- Projectmanager V2 2.0.0-rc10.

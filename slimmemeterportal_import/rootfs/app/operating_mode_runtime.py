@@ -8,6 +8,7 @@ from pathlib import Path
 import threading
 from typing import Any
 
+from atomic_release_acceptance import finalize_validated_atomic_release
 from operating_modes import (
     ModeState,
     command_path,
@@ -19,6 +20,7 @@ from operating_modes import (
 )
 from release_validation_hold import (
     ReleaseHoldState,
+    activate_release_hold,
     load_release_hold,
     record_hold_validation,
     release_hold,
@@ -502,16 +504,36 @@ def attempt_release_hold(
         return {"status": "blocked", "validation": validation}
 
     released = release_hold(root, expected_version, issued_by=issued_by)
+    try:
+        atomic_acceptance = finalize_validated_atomic_release(root, expected_version)
+    except Exception as exc:
+        # Keep the release fail-closed if the final atomic acceptance cannot be
+        # proven. The watcher still blocks on LIVE_ACCEPTANCE, and the app hold
+        # is re-activated so automatic functionality cannot silently resume.
+        activate_release_hold(root, expected_version, 'atomic_acceptance_failed_after_validation')
+        details = {
+            'version': expected_version,
+            'error': f'{type(exc).__name__}: {exc}',
+            'validation': validation,
+        }
+        _audit_hold_event(app_module, 'atomic_acceptance_blocked', 'blocked', details)
+        return {'status': 'blocked_atomic_acceptance', 'validation': validation, 'error': details['error']}
     _audit_hold_event(
         app_module,
         "released",
         "ok",
-        {"version": expected_version, "issued_by": issued_by, "emergency": False},
+        {
+            "version": expected_version,
+            "issued_by": issued_by,
+            "emergency": False,
+            "atomic_acceptance": atomic_acceptance,
+        },
     )
     return {
         "status": "released",
         "validation": validation,
         "hold": asdict(released),
+        "atomic_acceptance": atomic_acceptance,
     }
 
 

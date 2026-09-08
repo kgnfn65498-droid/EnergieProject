@@ -54,8 +54,11 @@ class RuntimeCollector:
         heartbeat_path = inbox / '.watcher.heartbeat'
         heartbeat_age = self._file_age(heartbeat_path, now)
         watcher_active = heartbeat_age is not None and heartbeat_age <= self.watcher_stale_seconds
-        atomic = self._read_json(inbox / 'atomic_app_swap_state.json') or {}
-        publisher = self._read_json(inbox / 'github_publisher_state.json') or {}
+        atomic_path = inbox / 'atomic_app_swap_state.json'
+        publisher_path = inbox / 'github_publisher_state.json'
+        installer_lock_path = inbox / '.installer.lock'
+        atomic = self._read_json(atomic_path) or {}
+        publisher = self._read_json(publisher_path) or {}
         publication_contract = self._read_json(inbox / 'ha_publication_required.json') or {}
         return {
             'watcher': {
@@ -69,20 +72,25 @@ class RuntimeCollector:
                 inbox / 'processing', now=now, stale_after=self.processing_stale_seconds,
             ),
             'installer_lock': {
-                'active': (inbox / '.installer.lock').exists(),
-                'path': str(inbox / '.installer.lock'),
+                'active': installer_lock_path.exists(),
+                'path': str(installer_lock_path),
+                'age_seconds': self._file_age(installer_lock_path, now),
             },
             'atomic_swap': {
                 'state': atomic.get('state'),
                 'raw': atomic,
-                'source': str(inbox / 'atomic_app_swap_state.json'),
+                'source': str(atomic_path),
+                'exists': atomic_path.is_file(),
+                'age_seconds': self._file_age(atomic_path, now),
             },
             'publisher': {
                 'status': publisher.get('status'),
                 'version': publisher.get('version'),
                 'message': publisher.get('message'),
                 'updated_at': publisher.get('updated_at'),
-                'source': str(inbox / 'github_publisher_state.json'),
+                'source': str(publisher_path),
+                'exists': publisher_path.is_file(),
+                'age_seconds': self._file_age(publisher_path, now),
             },
             'github_publication': {
                 'status': publisher.get('status'),
