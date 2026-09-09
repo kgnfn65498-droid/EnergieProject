@@ -80,7 +80,7 @@ MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.25"
+APP_VERSION = "32.4.26"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.

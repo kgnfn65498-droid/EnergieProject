@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Reversible project housekeeping for EnergieProject 32.4.25.
+"""Reversible project housekeeping for EnergieProject 32.4.25+.
 
 The module deliberately implements no delete operation.  Proven-obsolete items
 are hard-renamed into a CLEARUP quarantine on the same filesystem.  The old
@@ -276,25 +276,44 @@ def _reference_is_informational(relative: str) -> bool:
     return path.name in {"project_clearup.py", "project_hygiene.py"}
 
 
-def _active_references(
-    root: Path, candidate_rel: str, candidate_paths: set[str], active_files: list[Path]
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    needles = {candidate_rel, Path(candidate_rel).name}
-    blocking: list[dict[str, Any]] = []
-    informational: list[dict[str, Any]] = []
+def _build_active_dependency_index(
+    root: Path, candidate_paths: set[str], active_files: list[Path]
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
+    """Inventory active text and symlink dependencies exactly once per plan.
+
+    32.4.25 re-read every active text file and re-walked every active symlink
+    surface once *per cleanup candidate*.  On the real EnergieProject tree that
+    made a safe audit practically unbounded.  This index preserves the same
+    fail-closed matching semantics while moving all filesystem I/O to one pass.
+    """
+    candidates = sorted(candidate_paths)
+    blocking: dict[str, list[dict[str, Any]]] = {candidate: [] for candidate in candidates}
+    informational: dict[str, list[dict[str, Any]]] = {candidate: [] for candidate in candidates}
+
+    # Read each eligible active text file once, then match all candidate needles
+    # against the in-memory text.  Basename matching is intentionally preserved
+    # because 32.4.25 treated both full relative paths and basenames as evidence.
     for path in active_files:
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        matched = [needle for needle in needles if needle and needle in text]
-        if matched:
-            ref = {"path": _rel(path, root), "matches": sorted(matched)}
-            (informational if _reference_is_informational(ref["path"]) else blocking).append(ref)
+        relative = _rel(path, root)
+        is_informational = _reference_is_informational(relative)
+        for candidate in candidates:
+            needles = {candidate, Path(candidate).name}
+            matched = sorted(needle for needle in needles if needle and needle in text)
+            if not matched:
+                continue
+            ref = {"path": relative, "matches": matched}
+            target = informational[candidate] if is_informational else blocking[candidate]
+            target.append(ref)
 
-    # Symlinks from any active surface are always a hard dependency even if no
-    # text file names the candidate.
-    target = (root / candidate_rel).resolve(strict=False)
+    # Walk each active surface once for symlinks.  A symlink is always a hard
+    # dependency, exactly as in 32.4.25.  Deduplication protects overlapping
+    # active roots without weakening matching.
+    resolved_targets = {candidate: (root / candidate).resolve(strict=False) for candidate in candidates}
+    seen_symlinks: set[str] = set()
     for active_root_rel in ACTIVE_SCAN_ROOTS:
         active_root = root / active_root_rel
         if not active_root.exists() or active_root.is_file():
@@ -307,16 +326,29 @@ def _active_references(
             if not path.is_symlink():
                 continue
             relative = _rel(path, root)
+            if relative in seen_symlinks:
+                continue
+            seen_symlinks.add(relative)
             if relative.startswith("CLEARUP/") or _candidate_ancestor(relative, candidate_paths):
                 continue
             try:
                 resolved = path.resolve(strict=False)
             except OSError:
                 continue
-            if resolved == target or target in resolved.parents:
-                blocking.append({"path": relative, "matches": ["symlink_dependency"]})
+            for candidate, target in resolved_targets.items():
+                if resolved == target or target in resolved.parents:
+                    blocking[candidate].append({"path": relative, "matches": ["symlink_dependency"]})
+
     return blocking, informational
 
+
+def _active_references(
+    candidate_rel: str,
+    dependency_index: tuple[dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return copied dependency evidence for one candidate from the shared index."""
+    blocking, informational = dependency_index
+    return list(blocking.get(candidate_rel, [])), list(informational.get(candidate_rel, []))
 
 def _atomic_rollback_reference(root: Path) -> str | None:
     path = root / "Inbox/atomic_app_swap_state.json"
@@ -338,13 +370,14 @@ def build_clearup_plan(project_root: Path, *, current_version: str, keep_rollbac
     raw_items = _collect_candidates(root, keep_rollbacks=keep_rollbacks)
     candidate_paths = {item["source_path"] for item in raw_items}
     active_files = list(_iter_active_text_files(root, candidate_paths))
+    dependency_index = _build_active_dependency_index(root, candidate_paths, active_files)
     atomic_rollback = _atomic_rollback_reference(root)
 
     items: list[dict[str, Any]] = []
     for base in raw_items:
         relative = base["source_path"]
         source = root / relative
-        refs, informational_refs = _active_references(root, relative, candidate_paths, active_files)
+        refs, informational_refs = _active_references(relative, dependency_index)
         if atomic_rollback == relative:
             refs.append({"path": "Inbox/atomic_app_swap_state.json", "matches": ["current_atomic_rollback"]})
         disposition = "REVIEW" if refs else "CLEARUP"

@@ -1,3 +1,11 @@
+## 32.4.26 — geïndexeerde CLEARUP dependency-audit
+
+- Live 32.4.25 liet zien dat de veilige CLEARUP-audit op de echte NAS praktisch te traag werd doordat elk actief tekstbestand en iedere actieve symlinkboom opnieuw per cleanup-kandidaat werd gelezen/doorgelopen.
+- Dependency-detectie bouwt nu per CLEARUP-plan één gedeelde index: elk actief tekstbestand wordt maximaal één keer van disk gelezen en iedere actieve symlinkboom één keer geïnventariseerd.
+- De fail-closed semantiek blijft ongewijzigd: actieve runtime/config/state-referenties, symlinks en de actuele atomic rollback blijven `REVIEW`; informatieve Markdown/housekeepingreferenties blijven niet-blokkerend.
+- Tree-SHA256 van iedere kandidaat, same-filesystem harde rename, oud-pad-afwezig-check, manifest en herstelroute blijven volledig behouden. Er is nog steeds geen delete-capability.
+- Geen wijziging aan maandclosure/core3, Verbruikshistorie, PM-beleid of ngrok-architectuur in deze maintenance-release.
+
 ## 32.4.25 — Verbruikshistorie-correctheid + reversibele projecthygiëne
 
 - Historische Excel-bootstrap controleert nu de inhoudelijke nieuwste maand; een technisch geldige juli-master wordt voor een volledig afgesloten augustus niet langer als `skipped_existing` geaccepteerd. Een geldige augustus-archive kan de stale master atomair herstellen, met gehashte RepairBackup en idempotente herhaalrun.

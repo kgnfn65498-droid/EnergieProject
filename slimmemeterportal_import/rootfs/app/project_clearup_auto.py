@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""One-shot, explicitly approved 32.4.25 CLEARUP execution gate.
+"""One-shot, explicitly approved 32.4.25+ CLEARUP execution gate.
 
 No cleanup is attempted until the release itself is ACCEPTED, its validation
 hold is released, the persisted user-approved scope is present, and a recent
