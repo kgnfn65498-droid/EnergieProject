@@ -16,7 +16,7 @@ def test_current_release_identity_is_synchronized():
     assert versie == CURRENT_RELEASE
     assert f'version: "{CURRENT_RELEASE}"' in config
     assert f'APP_VERSION = "{CURRENT_RELEASE}"' in main
-    assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in main
+    assert 'PRODUCTION_CORE_REVISION = "9.4-core2"' in main
 
 
 def test_v32035_smp_report_fallback_contract_is_preserved():

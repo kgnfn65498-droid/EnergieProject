@@ -182,6 +182,7 @@ def test_release_validation_includes_pm_self_audit_gate(tmp_path):
         "automatic_runtime_idle",
         "release_chain",
         "projectmanager_self_audit",
+        "production_certificate",
     }
     assert all(check["ok"] for check in result["checks"].values())
     assert result["reconcile_status"] == "ok"

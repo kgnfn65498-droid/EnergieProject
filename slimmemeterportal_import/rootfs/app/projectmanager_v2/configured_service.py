@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from approved_action_store import ApprovedActionStore
+from canonical_roadmap_migration import migrate_canonical_roadmap
 from command_store import CommandStore
 from handoff_queue import HandoffQueue
 from manager_service import ManagerService
@@ -27,6 +28,9 @@ class ConfiguredManagerService(ManagerService):
 
     def _load_canonical_roadmap(self):
         if self._canonical_roadmap_path is None or not self._canonical_roadmap_path.is_file():
+            return None
+        migration = migrate_canonical_roadmap(self._canonical_roadmap_path)
+        if migration.get('status') in {'invalid', 'unsupported'}:
             return None
         try:
             value = json.loads(self._canonical_roadmap_path.read_text(encoding='utf-8'))

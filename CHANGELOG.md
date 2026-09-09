@@ -1,3 +1,14 @@
+## 32.4.23 — audit-closure maandveiligheid, certificering en beveiligde PM-ingress
+
+- Live root cause uit de 32.4.22-audit is structureel gesloten: maandclosure-truth is nu tri-state `CLOSED_VALID / OPEN / UNKNOWN`; `UNKNOWN` is voor automatische muterende workflows altijd fail-closed.
+- `CLOSED_VALID` gebruikt één canonieke deep-verified predicate: `status=CLOSED`, `validation.status=ok`, `verification.status=valid`, `deep_verified=true` en geen `hash_failures`. Dynamische RecoveryManager/MCP-maandstatus wordt niet meer onbeperkt generiek gecachet.
+- CLOSED/UNKNOWN-safety zit onafhankelijk op scheduler, preflight en executor; een verkeerde schedulerbeslissing kan daardoor niet meer rechtstreeks een afgesloten maandworkflow starten.
+- Startup readiness vereist nu succesvolle recovery, betrouwbare closure-truth en self-test voordat automatische maandafsluiting wordt vrijgegeven.
+- Productiekernrevision verhoogd naar `9.4-core2`. Release-hold is productiecertificaatbewust; veilige core-mismatch laat release-acceptance alleen als pending recertification doorgaan terwijl de automatische kern zelf gecertificeerd moet zijn voordat hij actief wordt.
+- PMV2 naar `2.0.0-rc20`: canonieke roadmapvalidatie detecteert dependency-cycles en verplichte pre-32.5 gates; migratie voegt `voice-live-acceptance` en `new-chat-handover-live` toe en legt ngrok vast als behouden maar minimaal/beveiligd.
+- Dedicated externe PM-route `/api/projectmanager/external/conversation` toegevoegd voor toekomstige ngrok-publicatie. Deze is deny-by-default, bindt caller identity server-side aan edge-secret/principal/client en accepteert geen payload-`source_channel` als identiteit. De volledige poort 8099 mag niet via ngrok worden gepubliceerd.
+- Atomic swap, release-watcher en GitHub publisher zijn inhoudelijk niet gewijzigd.
+
 ## 32.4.22 — CLOSED-maand startup-idempotency
 
 - Live bevinding na 32.4.21: de releaseketen sloot autonoom GREEN, maar direct na de app-restart verscheen opnieuw een automatische maandafsluiting voor augustus 2026 terwijl RecoveryManager die maand al sinds 2 september als `CLOSED` bewaart.

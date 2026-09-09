@@ -5,6 +5,7 @@ from pathlib import Path
 
 from decision_queue import VALID_STATUSES as DECISION_QUEUE_VALID_STATUSES
 from task_engine import VALID_TASK_STATUSES
+from roadmap_regie import RoadmapRegie
 
 VALID_MODES = {'USER', 'DEVELOPMENT', 'MAINTENANCE'}
 VALID_HEALTH = {'GREEN', 'ORANGE', 'RED'}
@@ -36,6 +37,14 @@ def _parse_iso(value):
 def _canonical_hash(spec):
     raw = json.dumps(spec, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
     return hashlib.sha256(raw).hexdigest()
+
+
+def _canonical_semantic_validation(spec):
+    try:
+        RoadmapRegie._validate_spec(spec)
+    except ValueError as exc:
+        return {'ok': False, 'reason': str(exc)}
+    return {'ok': True, 'reason': 'canonical roadmap semantics valid'}
 
 
 class SelfAuditor:
@@ -284,13 +293,21 @@ class SelfAuditor:
                 canonical = None
             if not isinstance(canonical, dict):
                 invalid.append({'path': 'roadmap/queue.json', 'reason': 'canonical_roadmap_missing_or_invalid'})
-            elif roadmap is None:
-                invalid.append({'path': 'roadmap/queue.json', 'reason': 'runtime_roadmap_missing_or_invalid'})
             else:
-                meta = roadmap.get('canonical') or {}
-                expected_hash = _canonical_hash(canonical)
-                if meta.get('sha256') != expected_hash or meta.get('version') != canonical.get('version'):
-                    invalid.append({'path': 'roadmap/queue.json', 'reason': 'canonical_roadmap_drift'})
+                semantic = _canonical_semantic_validation(canonical)
+                if semantic.get('ok') is not True:
+                    invalid.append({
+                        'path': 'roadmap/queue.json',
+                        'reason': 'canonical_roadmap_semantic_invalid',
+                        'detail': semantic.get('reason'),
+                    })
+                elif roadmap is None:
+                    invalid.append({'path': 'roadmap/queue.json', 'reason': 'runtime_roadmap_missing_or_invalid'})
+                else:
+                    meta = roadmap.get('canonical') or {}
+                    expected_hash = _canonical_hash(canonical)
+                    if meta.get('sha256') != expected_hash or meta.get('version') != canonical.get('version'):
+                        invalid.append({'path': 'roadmap/queue.json', 'reason': 'canonical_roadmap_drift'})
 
         quarantine = self.root / 'quarantine'
         if quarantine.is_dir():

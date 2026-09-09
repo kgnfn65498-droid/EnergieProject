@@ -81,3 +81,14 @@
 - Na app-start blijft alleen automatische maandafsluiting fail-closed geblokkeerd totdat startup recovery/reconciliation is teruggekeerd; andere workflows worden hierdoor niet onnodig geblokkeerd.
 - Een exception in startup recovery opent de automatische maandafsluitingsgate niet.
 - Restart-idempotency wordt expliciet getest met `CLOSED + geen lokale marker` voordat een release wordt verpakt.
+
+## Audit- en securitycontract vanaf 32.4.23
+
+- Automatische muterende workflows mogen onbekende bronwaarheid nooit als OPEN behandelen: `UNKNOWN` is altijd fail-closed. Alleen aantoonbaar `OPEN` mag automatisch starten; `CLOSED_VALID` vereist deep-verified RecoveryManager-bewijs.
+- Dynamische maandclosure-status mag niet als onbeperkte generieke MCP-cachewaarheid worden hergebruikt. Scheduler, preflight en executor controleren de closure-grens onafhankelijk.
+- Elke inhoudelijke wijziging aan scheduler/preflight/executor/certificeringskern verhoogt `PRODUCTION_CORE_REVISION`; voor 32.4.23 is dat `9.4-core2`. Release-acceptance en automatische productiekern hebben expliciete certificeringsgates.
+- ngrok blijft behouden voor externe PM-communicatie, maar nooit als tunnel naar de volledige Home Assistant/NAS-webserver of volledige poort 8099. Alleen expliciet toegestane dedicated PM-route(s) mogen extern worden gepubliceerd.
+- Externe caller-identiteit komt uitsluitend uit server-side geverifieerde edge-authenticatie (principal + client/channel); `source_channel`, `session_id` of een naam uit de requestpayload is geen identiteitsbewijs. Beschermde productie-/architectuuracties blijven daarnaast hun expliciete tweede bevestiging vereisen.
+- `voice-live-acceptance` en `new-chat-handover-live` zijn verplichte live gates vóór 32.5/Cowork. Een unit-/stringtest zonder echte gebruikersroute is daarvoor geen acceptancebewijs.
+- Security- en certificeringstests moeten gedrag bewijzen; broncode-stringpresence alleen mag geen safety-acceptance groen maken.
+

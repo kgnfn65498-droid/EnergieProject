@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from month_closure_truth import closure_status_is_deep_verified
 from cr_evidence import evaluate_cr_closure
 from health_engine import evaluate_quarter_hour_heartbeat
 
@@ -141,14 +142,7 @@ class EnergyHealthCollector:
         year, month = month_key.split('_')
         closure_path = self.recovery_root / 'Status' / f'MonthClosure_{year}_{month}.json'
         closure = _read_json(closure_path)
-        closure_ok = (
-            isinstance(closure, dict)
-            and closure.get('status') == 'CLOSED'
-            and (closure.get('validation') or {}).get('status') == 'ok'
-            and (closure.get('verification') or {}).get('status') == 'valid'
-            and (closure.get('verification') or {}).get('deep_verified') is True
-            and not (closure.get('verification') or {}).get('hash_failures')
-        )
+        closure_ok = closure_status_is_deep_verified(closure)
         checks.append(_check(
             'previous_month_closure',
             'GREEN' if closure_ok else ('ORANGE' if closure is None else 'RED'),

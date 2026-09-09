@@ -588,6 +588,49 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
     )
 
 
+def _production_certificate_check(app_module: Any, expected_version: str | None = None) -> dict[str, Any]:
+    """Validate production certificate without deadlocking a safe core-version upgrade.
+
+    A clean old-core certificate may be carried as *pending recertification* for
+    release acceptance because the automatic scheduler has its own current-core
+    readiness gate. Corrupt or otherwise invalid certificate state stays blocked.
+    """
+    validate = getattr(app_module, "validate_production_certificate", None)
+    if not callable(validate):
+        def _version_tuple(value: Any) -> tuple[int, ...]:
+            try:
+                return tuple(int(part) for part in str(value or '').split('.'))
+            except (TypeError, ValueError):
+                return ()
+        legacy_version = expected_version or getattr(app_module, "APP_VERSION", "")
+        if _version_tuple(legacy_version) and _version_tuple(legacy_version) < (32, 4, 23):
+            return _validation_check(True, "legacy release predates production-certificate hold gate")
+        return _validation_check(False, "production certificate validator unavailable")
+    try:
+        certificate = validate()
+    except Exception as exc:
+        return _validation_check(False, f"production certificate validation failed: {type(exc).__name__}")
+    if not isinstance(certificate, dict):
+        return _validation_check(False, "production certificate validation returned invalid payload")
+    if certificate.get("valid") is True:
+        return _validation_check(True, "current production certificate valid")
+
+    checks = certificate.get("checks") if isinstance(certificate.get("checks"), dict) else {}
+    failed = sorted(name for name, ok in checks.items() if ok is not True)
+    safe_core_mismatch = bool(
+        certificate.get("integrity") == "ok"
+        and failed == ["core_revision_current"]
+        and checks.get("integrity_ok") is True
+    )
+    if safe_core_mismatch:
+        return _validation_check(
+            True,
+            "pending recertification: prior certificate integrity is valid; automatic core remains gated",
+        )
+    detail = str(certificate.get("reason") or "production certificate invalid")
+    return _validation_check(False, detail)
+
+
 def validate_release_hold(
     app_module: Any,
     project_root: Path | str,
@@ -633,6 +676,7 @@ def validate_release_hold(
             else _release_chain_check(root, observed)
         ),
         "projectmanager_self_audit": _projectmanager_self_audit_check(root),
+        "production_certificate": _production_certificate_check(app_module, expected_version),
     }
 
     reconciled = reconcile_measured_runtime(root, app_module)

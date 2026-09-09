@@ -49,6 +49,8 @@ from assistant_response import build_assistant_response_payload, render_assistan
 from assistant_event_bridge import HomeAssistantNomadBridge
 from ha_nomad_automation import ensure_nomad_automation
 from projectmanager_v2_entrypoint import respond_projectmanager_conversation
+from projectmanager_external_ingress import authenticate_external_pm_request, parse_external_pm_payload
+from month_closure_truth import CLOSED_VALID, OPEN as MONTH_OPEN, UNKNOWN as MONTH_UNKNOWN, classify_month_closure
 from assistant_runtime_probe import (
     MAX_REQUEST_BYTES as MAX_ASSISTANT_REQUEST_BYTES,
     resolve_runtime_acceptance_path,
@@ -76,11 +78,11 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.22"
+APP_VERSION = "32.4.23"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
-PRODUCTION_CORE_REVISION = "9.4-core1"
+PRODUCTION_CORE_REVISION = "9.4-core2"
 
 # v32.0.37: de HA netwerkopslag is hernoembaar. Resolveer de actuele projectshare
 # dynamisch; Project Energie is primair, Energie_NAS blijft uitsluitend compatibiliteitsfallback.
@@ -5830,10 +5832,16 @@ _EPEX_MCP_CACHE: dict[str, str | None] = {}
 _MCP_TOOL_CACHE: dict[str, Any] = {}
 
 
-def _mcp_call_project_tool(name: str, arguments: dict[str, Any], timeout: float = 8.0) -> Any:
+def _mcp_call_project_tool(
+    name: str,
+    arguments: dict[str, Any],
+    timeout: float = 8.0,
+    *,
+    use_cache: bool = True,
+) -> Any:
     """Roep één read-only Energie-MCP tool aan en normaliseer structured/text JSON."""
     cache_key = json.dumps({"name": name, "arguments": arguments}, sort_keys=True, ensure_ascii=False)
-    if cache_key in _MCP_TOOL_CACHE:
+    if use_cache and cache_key in _MCP_TOOL_CACHE:
         return _MCP_TOOL_CACHE[cache_key]
 
     request_id = int(time.time() * 1000) % 2147483647
@@ -5873,7 +5881,8 @@ def _mcp_call_project_tool(name: str, arguments: dict[str, Any], timeout: float 
         result = envelope.get("result") or {}
         structured = result.get("structuredContent")
         if structured is not None:
-            _MCP_TOOL_CACHE[cache_key] = structured
+            if use_cache:
+                _MCP_TOOL_CACHE[cache_key] = structured
             return structured
 
         for block in result.get("content") or []:
@@ -5886,12 +5895,14 @@ def _mcp_call_project_tool(name: str, arguments: dict[str, Any], timeout: float 
                 decoded = json.loads(text)
             except json.JSONDecodeError:
                 decoded = text
-            _MCP_TOOL_CACHE[cache_key] = decoded
+            if use_cache:
+                _MCP_TOOL_CACHE[cache_key] = decoded
             return decoded
     except Exception as exc:
         LOGGER.info("Energie MCP tool %s mislukt: %s", name, exc)
 
-    _MCP_TOOL_CACHE[cache_key] = None
+    if use_cache:
+        _MCP_TOOL_CACHE[cache_key] = None
     return None
 
 
@@ -16636,32 +16647,48 @@ def workflow_visualization(state: dict[str, Any], log_lines: list[dict[str, Any]
 
 
 def recovery_month_closure_proof(month_key: str) -> dict[str, Any]:
-    """Return read-only RecoveryManager proof that a month is already CLOSED."""
+    """Return fresh tri-state RecoveryManager truth for one month."""
     try:
         year, month = parse_month_key(month_key)
     except Exception as exc:
-        return {"closed": False, "evidence": None, "error": str(exc)}
+        return {"truth": MONTH_UNKNOWN, "closed": False, "evidence": None, "error": str(exc)}
     try:
         result = _mcp_call_project_tool(
             "month_closure_status",
             {"year": year, "month": month},
             timeout=8.0,
+            use_cache=False,
         )
     except Exception as exc:
-        return {"closed": False, "evidence": None, "error": f"{type(exc).__name__}: {exc}"}
-    if not isinstance(result, dict):
-        return {"closed": False, "evidence": None, "error": "ongeldig RecoveryManager-antwoord"}
-    status_payload = result.get("status") if isinstance(result.get("status"), dict) else {}
-    status_text = str(status_payload.get("status") or result.get("closure_status") or "").upper()
-    closed = bool(result.get("closed")) or status_text == "CLOSED"
+        return {"truth": MONTH_UNKNOWN, "closed": False, "evidence": None, "error": f"{type(exc).__name__}: {exc}"}
+    classified = classify_month_closure(result)
+    truth = str(classified.get("truth") or MONTH_UNKNOWN)
+    if truth == MONTH_UNKNOWN and result is None:
+        error = "RecoveryManager month_closure_status niet beschikbaar"
+    else:
+        error = None if truth != MONTH_UNKNOWN else str(classified.get("reason") or "onbekende closure-status")
     return {
-        "closed": closed,
-        "evidence": (
-            f"RecoveryManager MonthClosure_{month_key}=CLOSED"
-            if closed else None
+        "truth": truth,
+        "closed": truth == CLOSED_VALID,
+        "evidence": (f"RecoveryManager MonthClosure_{month_key}=CLOSED_VALID" if truth == CLOSED_VALID else None),
+        "raw_status": (
+            str(((result or {}).get("status") or {}).get("status") or "").upper() or None
+            if isinstance((result or {}).get("status"), dict) else None
         ),
-        "raw_status": status_text or None,
+        "error": error,
     }
+
+def startup_recovery_ready(
+    recovery_result: dict[str, Any],
+    closure_proof: dict[str, Any],
+    self_test_result: dict[str, Any],
+) -> bool:
+    """Release the startup scheduler gate only after semantically safe startup proof."""
+    recovery_ok = str((recovery_result or {}).get("status") or "").strip().lower() == "ok"
+    closure_truth = str((closure_proof or {}).get("truth") or MONTH_UNKNOWN).strip().upper()
+    closure_known = closure_truth in {CLOSED_VALID, MONTH_OPEN}
+    self_test_ok = str((self_test_result or {}).get("status") or "").strip().lower() in {"ok", "warning"}
+    return bool(recovery_ok and closure_known and self_test_ok)
 
 
 def finalize_proven_retry_state(
@@ -17679,6 +17706,24 @@ def automatic_month_close_preflight(options: Options, month_key: str) -> dict[st
     def add(name: str, status: str, detail: str = "") -> None:
         checks.append({"name": name, "status": status, "detail": detail})
         if status == "error": errors.append(f"{name}: {detail}")
+    closure_proof = recovery_month_closure_proof(month_key)
+    closure_truth = str(closure_proof.get("truth") or (CLOSED_VALID if closure_proof.get("closed") else MONTH_OPEN))
+    if closure_truth != MONTH_OPEN:
+        blocked_status = "blocked_closed_valid" if closure_truth == CLOSED_VALID else "blocked_unknown_closure"
+        detail = str(closure_proof.get("evidence") or closure_proof.get("error") or closure_truth)
+        add("month_closure_truth", "error", detail)
+        result = {
+            "version": APP_VERSION,
+            "checked_at": datetime.now(TZ).isoformat(),
+            "month": month_key,
+            "status": blocked_status,
+            "checks": checks,
+            "errors": errors,
+            "closure_truth": closure_truth,
+        }
+        update_state(automatic_month_close_last_preflight=result)
+        return result
+    add("month_closure_truth", "ok", "RecoveryManager bevestigt dat de maand niet CLOSED is.")
     add("config", "ok", "Configuratie geldig.")
     try:
         OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
@@ -17765,6 +17810,29 @@ def execute_automatic_month_close(
     record_as_real_automatic: bool = True,
 ) -> dict[str, Any]:
     """Gedeelde productie-executor voor scheduler en acceptatietest."""
+    closure_proof = recovery_month_closure_proof(month_key)
+    closure_truth = str(closure_proof.get("truth") or (CLOSED_VALID if closure_proof.get("closed") else MONTH_OPEN))
+    if closure_truth != MONTH_OPEN:
+        status = "blocked_closed_valid" if closure_truth == CLOSED_VALID else "blocked_unknown_closure"
+        try:
+            append_audit_event(
+                "automatic_month_close",
+                action=status,
+                status="blocked",
+                month=month_key,
+                details={"closure_truth": closure_truth, "evidence": closure_proof.get("evidence"), "error": closure_proof.get("error")},
+            )
+        except Exception:
+            LOGGER.exception("Audit logging month-closure safety block failed")
+        return {
+            "month": month_key,
+            "status": status,
+            "preflight": None,
+            "workflow": None,
+            "finalization": None,
+            "retry_at": None,
+            "closure_truth": closure_truth,
+        }
     attempt_at = datetime.now(TZ)
     if record_as_real_automatic:
         write_automatic_retry_state(
@@ -18127,10 +18195,9 @@ def automatic_month_close_due(options: Options, now: datetime) -> str | None:
         # v8.6: duurzame idempotency-marker is leidend, ook na Home Assistant restart.
         return None
     closure_proof = recovery_month_closure_proof(month_key)
-    if closure_proof.get("closed"):
-        # 32.4.22: RecoveryManager is de canonieke maandafsluitingswaarheid.
-        # Een ontbrekende lokale HA-marker mag een reeds CLOSED maand nooit
-        # opnieuw door de automatische scheduler laten starten.
+    closure_truth = str(closure_proof.get("truth") or (CLOSED_VALID if closure_proof.get("closed") else MONTH_OPEN))
+    if closure_truth != MONTH_OPEN:
+        # 32.4.23: UNKNOWN is fail-closed; CLOSED_VALID is deep-verified canonical truth.
         return None
     if state.get("automatic_month_close_last_month") == month_key and state.get("automatic_month_close_last_status") in {"completed", "completed_warning"}:
         return None
@@ -20746,6 +20813,58 @@ class Handler(BaseHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        if path.endswith("/api/projectmanager/external/conversation") or path == "/api/projectmanager/external/conversation":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            if length <= 0:
+                body = json.dumps({"status": "error", "error": "request body is required"}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.BAD_REQUEST, body, "application/json; charset=utf-8")
+                return
+            if length > MAX_ASSISTANT_REQUEST_BYTES:
+                body = json.dumps({"status": "error", "error": "external projectmanager request exceeds 32 KiB"}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, body, "application/json; charset=utf-8")
+                return
+            raw = self.rfile.read(length)
+            try:
+                authenticated = authenticate_external_pm_request(self.headers, os.environ)
+                payload = json.loads(raw.decode("utf-8"))
+                request = parse_external_pm_payload(payload, authenticated)
+                result = respond_projectmanager_conversation(
+                    request["query"],
+                    source_channel=request["source_channel"],
+                    session_id=request.get("session_id"),
+                    turn_id=request.get("turn_id"),
+                    transcript_id=request.get("transcript_id") or "",
+                    transcript_confidence=request.get("transcript_confidence"),
+                    force=True,
+                )
+                if result is None:
+                    body = json.dumps({"status": "unavailable", "error": "projectmanager runtime not ready"}, ensure_ascii=False).encode("utf-8")
+                    self.send_body(HTTPStatus.SERVICE_UNAVAILABLE, body, "application/json; charset=utf-8")
+                    return
+                append_audit_event(
+                    "external_pm_ingress",
+                    action="conversation",
+                    status="ok",
+                    details={
+                        "principal": request["principal"],
+                        "client": request["client"],
+                        "source_channel": request["source_channel"],
+                    },
+                )
+                body = json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8")
+                self.send_body(HTTPStatus.OK, body, "application/json; charset=utf-8")
+            except PermissionError as exc:
+                LOGGER.warning("External Projectmanager ingress geweigerd: %s", exc)
+                body = json.dumps({"status": "forbidden", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.FORBIDDEN, body, "application/json; charset=utf-8")
+            except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError) as exc:
+                body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.BAD_REQUEST, body, "application/json; charset=utf-8")
+            except Exception as exc:
+                LOGGER.exception("External Projectmanager conversation failed")
+                body = json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False).encode("utf-8")
+                self.send_body(HTTPStatus.INTERNAL_SERVER_ERROR, body, "application/json; charset=utf-8")
+            return
         if path.endswith("/api/assistant/respond") or path == "/api/assistant/respond":
             length = int(self.headers.get("Content-Length", "0") or 0)
             if length > MAX_ASSISTANT_REQUEST_BYTES:
@@ -21746,9 +21865,32 @@ def main() -> None:
         try:
             time.sleep(1)
             recovery_result = run_recovery_controller(trigger="startup")
-            STARTUP_RECOVERY_READY.set()
             LOGGER.info("Recovery startupcontrole: %s; herstelacties=%s", recovery_result.get("status"), recovery_result.get("repair_count"))
+            year, month = previous_month(datetime.now(TZ).date())
+            startup_month = f"{year:04d}_{month:02d}"
+            startup_closure_proof = recovery_month_closure_proof(startup_month)
             result = run_self_test()
+            if startup_recovery_ready(recovery_result, startup_closure_proof, result):
+                STARTUP_RECOVERY_READY.set()
+                update_state(
+                    startup_recovery_gate="ready",
+                    startup_recovery_gate_month=startup_month,
+                    startup_recovery_gate_truth=startup_closure_proof.get("truth"),
+                )
+            else:
+                update_state(
+                    startup_recovery_gate="blocked",
+                    startup_recovery_gate_month=startup_month,
+                    startup_recovery_gate_truth=startup_closure_proof.get("truth"),
+                    startup_recovery_gate_recovery_status=recovery_result.get("status"),
+                    startup_recovery_gate_self_test_status=result.get("status"),
+                )
+                LOGGER.warning(
+                    "Automatische scheduler startup-gate blijft fail-closed: recovery=%s closure=%s selftest=%s",
+                    recovery_result.get("status"),
+                    startup_closure_proof.get("truth"),
+                    result.get("status"),
+                )
             LOGGER.info(
                 "Automatische zelftest afgerond: %s; installatie_gereed=%s",
                 result.get("status"),

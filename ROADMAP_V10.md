@@ -169,3 +169,16 @@
 - [x] Startup recovery-gate toegevoegd: automatische maandafsluiting wordt pas geëvalueerd nadat recovery/reconciliation is teruggekeerd; bij exception blijft de gate dicht.
 - [x] Handmatige workflow, imports, sampling en release-closure blijven ongewijzigd.
 - [ ] Live bewijs: restart/update met augustus `CLOSED` veroorzaakt geen nieuwe automatische augustus-maandafsluiting.
+
+## v32.4.23 — audit-closure vóór ngrok en 32.5
+
+- [x] Maandclosure-truth gehard naar `CLOSED_VALID / OPEN / UNKNOWN`; UNKNOWN is fail-closed voor automatische mutaties.
+- [x] Eén deep-verified CLOSED-predicate en verse dynamische RecoveryManager-status; scheduler, preflight en executor hebben onafhankelijke safety-gates.
+- [x] Startup readiness en productiecertificering gekoppeld aan productiekern `9.4-core2`; release-hold is certificaatbewust.
+- [x] Canonieke roadmap-validator detecteert dependency-cycles en semantische verplichte gates.
+- [x] ngrok-besluit vastgelegd: behouden als externe PM-poort, alleen via dedicated authenticated route; volledige 8099 exposure verboden.
+- [x] `voice-live-acceptance` staat als verplichte gate vóór 32.5/Cowork.
+- [x] `new-chat-handover-live` staat als verplichte gate vóór 32.5/Cowork.
+- [ ] Live acceptance na installatie: CLOSED augustus blijft onaangeroerd bij restart, core2-certificering is actueel en release sluit autonoom.
+- [ ] Daarna ngrok edge-policy/OAuth/JWT/rate-limit configureren en echte Voice/ChatGPT/Nomad E2E accepteren; pas daarna 32.5/Cowork.
+

@@ -2313,7 +2313,7 @@ def test_v930_retry_debug_marks_legacy_state_historical():
 
 def test_v940_core_certificate_model_present():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
+    assert 'PRODUCTION_CORE_REVISION = "9.4-core2"' in source
     assert '"production_core_revision": PRODUCTION_CORE_REVISION' in source
     assert '"core_revision_current"' in source
     assert 'certificate_core_revision == PRODUCTION_CORE_REVISION' in source
@@ -2350,7 +2350,7 @@ def test_v940_scheduler_acceptance_tracks_core_revision():
 
 def test_v95_keeps_certified_core_and_test_package():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
+    assert 'PRODUCTION_CORE_REVISION = "9.4-core2"' in source
     assert "def build_test_package" in source
     assert 'download-test-package' in source
     block = source[source.index("def build_test_package"):source.index("def html_page")]
@@ -2378,7 +2378,7 @@ def test_v960_diagnostic_package_present():
 
 def test_v960_core_revision_unchanged():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
+    assert 'PRODUCTION_CORE_REVISION = "9.4-core2"' in source
 
 def test_v970_diagnostic_package_has_machine_readable_verdict():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
@@ -2417,7 +2417,7 @@ def test_v101_chat_transfer_and_recovery_guide_present():
 
 def test_v101_does_not_change_certified_production_core():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
+    assert 'PRODUCTION_CORE_REVISION = "9.4-core2"' in source
 
 
 def test_v103_nas_master_layout_present():
@@ -2446,7 +2446,7 @@ def test_v102_diagnostic_package_contains_migration_status():
 def test_v102_core_remains_unchanged():
     source = MAIN.read_text(encoding="utf-8")
     assert f'APP_VERSION = "{CURRENT_RELEASE}"' in source
-    assert 'PRODUCTION_CORE_REVISION = "9.4-core1"' in source
+    assert 'PRODUCTION_CORE_REVISION = "9.4-core2"' in source
 
 
 def test_v103_release_inbox_paths_and_installer():

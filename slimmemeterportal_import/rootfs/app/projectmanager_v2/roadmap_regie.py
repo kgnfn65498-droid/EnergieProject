@@ -110,10 +110,53 @@ class RoadmapRegie:
                 raise ValueError(f"invalid executor for {item['key']}")
             if item.get('status', 'OPEN') not in {'OPEN', 'DONE'}:
                 raise ValueError(f"canonical status must be OPEN/DONE: {item['key']}")
+        dependencies = {}
         for item in spec['items']:
-            for dependency in item.get('depends_on', []):
+            deps = list(item.get('depends_on', []))
+            dependencies[item['key']] = deps
+            for dependency in deps:
                 if dependency not in seen:
                     raise ValueError(f"unknown dependency {dependency} for {item['key']}")
+
+        visiting = set()
+        visited = set()
+
+        def visit(key, trail):
+            if key in visiting:
+                cycle = ' -> '.join(trail + [key])
+                raise ValueError(f'dependency cycle: {cycle}')
+            if key in visited:
+                return
+            visiting.add(key)
+            for dependency in dependencies.get(key, []):
+                visit(dependency, trail + [key])
+            visiting.remove(key)
+            visited.add(key)
+
+        for key in dependencies:
+            visit(key, [])
+
+        required = spec.get('required_gates_before_32_5', [])
+        if required:
+            if not isinstance(required, list) or not all(isinstance(key, str) and key for key in required):
+                raise ValueError('required_gates_before_32_5 must be a non-empty string list')
+            missing = [key for key in required if key not in seen]
+            if missing:
+                raise ValueError('missing required pre-32.5 gate: ' + ','.join(missing))
+            if 'cowork-pilot' not in seen:
+                raise ValueError('cowork-pilot missing while pre-32.5 gates are declared')
+
+            ancestors = set()
+            stack = list(dependencies.get('cowork-pilot', []))
+            while stack:
+                key = stack.pop()
+                if key in ancestors:
+                    continue
+                ancestors.add(key)
+                stack.extend(dependencies.get(key, []))
+            not_gating = [key for key in required if key not in ancestors]
+            if not_gating:
+                raise ValueError('required pre-32.5 gate is not a cowork dependency: ' + ','.join(not_gating))
 
     def reconcile_canonical(self, spec: dict, *, source_path: str = '') -> dict:
         self._validate_spec(spec)
