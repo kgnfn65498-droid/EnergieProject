@@ -54,3 +54,10 @@
 - Een parseerbare stale heartbeat-payload blijft fail-closed RED, ook als bestandsmetadata vers is.
 - Shell-gates bewaren de echte child-returncode voordat conditionele shellcontrol-flow die waarde kan overschrijven; capability-denial en technische fout worden verschillend behandeld.
 - Release-closure wordt pas groen verklaard nadat live is bewezen dat `LIVE_ACCEPTANCE -> ACCEPTED` zonder handmatig accept-commando gebeurt en een opvolgende ingress wordt vrijgegeven.
+## Release-health contract vanaf 32.4.20
+- Liveness tussen verschillende hosts mag niet uitsluitend op absolute wall-clock timestamps worden gebaseerd; QNAP en Home Assistant kunnen klokskew hebben.
+- Wanneer heartbeat-epoch stale of future lijkt, moet de collector een begrensde pulsverandering waarnemen. Een veranderende payload is clock-onafhankelijk bewijs dat de watcher leeft.
+- Geen puls binnen het probevenster blijft fail-closed RED; clock-skew mag nooit worden omzeild door een algemene GREEN-exceptie.
+- Release-closure mag pas doorgaan nadat watcher-liveness, publication, hold-state en atomic transition ieder via hun eigen broncontract zijn bewezen.
+- Verschillende namespace-paden (`/share/...` in Home Assistant versus QNAP-lokaal) zijn geen split-brain wanneer zij dezelfde fysieke NAS-share representeren; filesystem-identiteit moet op bronmountniveau worden beoordeeld.
+

@@ -1,3 +1,12 @@
+## 32.4.20 — clock-skew-onafhankelijke watcher-liveness en definitieve release-closure
+
+- Live root cause 32.4.19: QNAP-watcher en Home Assistant/Projectmanager gebruiken dezelfde NAS-share maar hun wall clocks liepen circa 16–17 minuten uiteen. Absolute heartbeat-epoch en file-mtime werden daardoor door PM ten onrechte als ~1015s stale gezien terwijl de watcher iedere paar seconden pulseerde.
+- Watcher-health gebruikt absolute tijd alleen als snelle controle wanneer de klokken voldoende overeenkomen. Bij stale/future epoch wordt actief een heartbeat-puls over een begrensd venster geobserveerd; verandering bewijst liveness zonder één van beide hostklokken te vertrouwen.
+- Geen puls binnen het probevenster blijft fail-closed RED. Ongeldige/ontbrekende heartbeat blijft eveneens fail-closed/fallback volgens bestaand contract.
+- Release-validation blijft alleen de exact verwachte eigen hold + huidige `LIVE_ACCEPTANCE` tolereren; de watcher moet aantoonbaar levend zijn voordat automatische closure mag doorgaan.
+- Regressies dekken positieve en negatieve clock skew, levende versus bevroren heartbeat, en de volledige acceptance-gate met bewezen watcher-puls.
+- Projectmanager naar `2.0.0-rc17`.
+
 ## 32.4.19 — watcher heartbeat truth en gate return-code closure
 
 - Projectmanager bepaalt watcher-liveness nu primair uit de Unix-epoch inhoud van `.watcher.heartbeat`; NAS/SMB-bestands-mtime is alleen legacy fallback.

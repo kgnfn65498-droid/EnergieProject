@@ -142,4 +142,12 @@
 - [x] Root cause: verse PM-cycli lazen watcher-liveness via stale mount-mtime terwijl heartbeat-payload vers was.
 - [x] Heartbeat-payload wordt canonieke liveness-truth; mtime alleen fallback.
 - [x] `mode_allows` bewaart echte returncodes; rc=3 denial wordt niet als timeout/fout gelogd.
-- [ ] Live bewijs: 32.4.19 sluit autonoom naar `ACCEPTED`, hold wordt inactive en opvolgende release-ingress opent zonder handmatige bootstrap.
+- [x] Live audit uitgevoerd: 32.4.19 bleef geblokkeerd door cross-host clock skew; root cause doorgeschoven en structureel gerepareerd in 32.4.20.
+
+## v32.4.20 — clock-skew closure / Incoming definitief
+- [x] Live root cause bewezen: QNAP-watcher en HA/PM hadden circa 16–17 minuten wall-clock skew; PM markeerde een daadwerkelijk pulserende watcher daardoor RED.
+- [x] Clock-onafhankelijke heartbeat pulse-probe toegevoegd; stale/future absolute epoch wordt niet blind vertrouwd.
+- [x] Geen heartbeatverandering binnen begrensd probevenster blijft fail-closed RED.
+- [x] TDD voor positieve/negatieve skew, levende/dode watcher en release-acceptance met bewezen puls.
+- [ ] Live bewijs: 32.4.20 sluit autonoom `LIVE_ACCEPTANCE -> ACCEPTED`, hold wordt inactive en volgende ingress wordt vrijgegeven zonder bootstrap.
+

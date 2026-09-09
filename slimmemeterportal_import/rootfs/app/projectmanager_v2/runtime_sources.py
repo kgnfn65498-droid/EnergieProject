@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -7,12 +8,15 @@ from pathlib import Path
 class RuntimeCollector:
     def __init__(self, project_root, *, mode_state_path=None, running_release_version=None,
                  watcher_stale_seconds=60, processing_stale_seconds=600,
-                 github_publication_state_path=None):
+                 github_publication_state_path=None, watcher_probe_seconds=20.0,
+                 watcher_sleep_fn=None):
         self.project_root = Path(project_root)
         self.mode_state_path = Path(mode_state_path) if mode_state_path else None
         self.running_release_version = str(running_release_version or '').strip() or None
         self.watcher_stale_seconds = int(watcher_stale_seconds)
         self.processing_stale_seconds = int(processing_stale_seconds)
+        self.watcher_probe_seconds = max(0.0, float(watcher_probe_seconds))
+        self.watcher_sleep_fn = watcher_sleep_fn or time.sleep
         configured_publication_state = (
             github_publication_state_path
             or os.environ.get('ENERGIE_GITHUB_PUBLICATION_STATE')
@@ -58,6 +62,70 @@ class RuntimeCollector:
             return age, 'file_mtime_fallback' if age is not None else 'missing'
 
     @staticmethod
+    def _read_heartbeat_epoch(path):
+        try:
+            return float(Path(path).read_text(encoding='utf-8').strip())
+        except (OSError, UnicodeError, ValueError, OverflowError):
+            return None
+
+    def _watcher_liveness(self, path, now):
+        """Clock-independent watcher liveness for NAS/HA cross-host mounts.
+
+        QNAP and Home Assistant may have different wall clocks.  Absolute epoch
+        comparison is therefore only a fast path when the clocks agree closely.
+        When the payload looks stale or future-dated, actively observe one watcher
+        pulse.  A changed heartbeat proves liveness without trusting either host's
+        wall clock; no change remains fail-closed.
+        """
+        heartbeat_path = Path(path)
+        first = self._read_heartbeat_epoch(heartbeat_path)
+        if first is None:
+            age = self._file_age(heartbeat_path, now)
+            active = age is not None and age <= self.watcher_stale_seconds
+            return {
+                'active': active,
+                'heartbeat_age_seconds': round(age, 1) if age is not None else None,
+                'heartbeat_source': 'file_mtime_fallback' if age is not None else 'missing',
+                'heartbeat_clock_skew_detected': False,
+                'heartbeat_probe_seconds': 0.0,
+            }
+
+        raw_age = now.timestamp() - first
+        if -30.0 <= raw_age <= self.watcher_stale_seconds:
+            return {
+                'active': True,
+                'heartbeat_age_seconds': round(max(0.0, raw_age), 1),
+                'heartbeat_source': 'content_epoch',
+                'heartbeat_clock_skew_detected': False,
+                'heartbeat_probe_seconds': 0.0,
+            }
+
+        if self.watcher_probe_seconds > 0:
+            self.watcher_sleep_fn(self.watcher_probe_seconds)
+        second = self._read_heartbeat_epoch(heartbeat_path)
+        changed = second is not None and second != first
+        if changed:
+            return {
+                'active': True,
+                'heartbeat_age_seconds': 0.0,
+                'heartbeat_source': 'content_pulse_probe',
+                'heartbeat_clock_skew_detected': True,
+                'heartbeat_probe_seconds': self.watcher_probe_seconds,
+                'reported_clock_delta_seconds': round(raw_age, 1),
+            }
+
+        source = 'content_epoch' if raw_age > self.watcher_stale_seconds else 'content_epoch_future'
+        return {
+            'active': False,
+            'heartbeat_age_seconds': round(max(0.0, raw_age), 1) if raw_age >= 0 else None,
+            'heartbeat_source': source,
+            'heartbeat_clock_skew_detected': abs(raw_age) > self.watcher_stale_seconds,
+            'heartbeat_probe_seconds': self.watcher_probe_seconds,
+            'heartbeat_probe_result': 'no_pulse',
+            'reported_clock_delta_seconds': round(raw_age, 1),
+        }
+
+    @staticmethod
     def _zip_snapshot(directory, *, now, stale_after=None):
         root = Path(directory)
         files = []
@@ -82,8 +150,7 @@ class RuntimeCollector:
     def _release_chain(self, *, now):
         inbox = self.project_root / 'Inbox'
         heartbeat_path = inbox / '.watcher.heartbeat'
-        heartbeat_age, heartbeat_source = self._heartbeat_age(heartbeat_path, now)
-        watcher_active = heartbeat_age is not None and heartbeat_age <= self.watcher_stale_seconds
+        watcher_liveness = self._watcher_liveness(heartbeat_path, now)
         atomic_path = inbox / 'atomic_app_swap_state.json'
         legacy_publisher_path = inbox / 'github_publisher_state.json'
         shared_publication_path = inbox / 'github_publication_state.json'
@@ -122,10 +189,8 @@ class RuntimeCollector:
         legacy_publisher = self._read_json(legacy_publisher_path) or {}
         return {
             'watcher': {
-                'active': watcher_active,
+                **watcher_liveness,
                 'heartbeat_path': str(heartbeat_path),
-                'heartbeat_age_seconds': round(heartbeat_age, 1) if heartbeat_age is not None else None,
-                'heartbeat_source': heartbeat_source,
                 'stale_after_seconds': self.watcher_stale_seconds,
             },
             'incoming': self._zip_snapshot(inbox / 'incoming', now=now),

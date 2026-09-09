@@ -593,6 +593,11 @@ class ManagerService:
             '- Een verse Projectmanager-status bewijst niet automatisch dat iedere opgenomen metric vers is; liveness-signalen moeten hun eigen broncontract hebben.',
             '- Shell-returncodes worden direct na de child-call vastgelegd; een `if`-compound command mag de echte exitcode niet overschrijven voordat logging/beslissing plaatsvindt.',
             '- Live closure blijft vereist: pas autonoom ACCEPTED plus vrije opvolgende ingress maakt het Incoming-probleem groen.',
+            '## Ontwikkelproceslessen 32.4.20',
+            '- Cross-host liveness mag niet op één absolute wall clock vertrouwen; live bewijs toonde circa 16–17 minuten skew tussen QNAP en Home Assistant.',
+            '- Bij twijfel over timestamp-freshness wordt een begrensde heartbeat-pulsverandering gebruikt als clock-onafhankelijk bewijs; geen verandering blijft fail-closed.',
+            '- Namespace-paden van dezelfde NAS-share mogen niet als split-brain worden bestempeld zonder mount-identiteit te bewijzen.',
+            '- Een releasefix is pas compleet wanneer de live foutbron zelf in de regressie is nagebootst, inclusief infrastructuurverschillen zoals clock skew.',
         ])
         return [
             self.document_sync.update(kb_dir / 'ACTUELE_STATUS.md', 'PROJECTMANAGER_V2', status_content, placement='top'),
