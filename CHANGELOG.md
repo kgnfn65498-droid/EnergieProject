@@ -1,3 +1,11 @@
+## 32.4.22 — CLOSED-maand startup-idempotency
+
+- Live bevinding na 32.4.21: de releaseketen sloot autonoom GREEN, maar direct na de app-restart verscheen opnieuw een automatische maandafsluiting voor augustus 2026 terwijl RecoveryManager die maand al sinds 2 september als `CLOSED` bewaart.
+- `automatic_month_close_due()` raadpleegt nu ook de canonieke RecoveryManager-maandstatus; een bewezen `CLOSED` maand wordt nooit opnieuw aan de automatische scheduler aangeboden, ook niet wanneer lokale HA completion-state ontbreekt.
+- Automatische maandafsluiting is bij app-start fail-closed totdat de startup RecoveryManager-reconciliation is teruggekeerd; import/sampling en handmatige workflows blijven buiten deze gate.
+- TDD dekt `CLOSED + ontbrekende lokale marker + restart = geen automatische maandafsluiting`, een open maand die wel due blijft, en scheduler-gating vóór/na startup recovery.
+- Projectmanager naar `2.0.0-rc19`.
+
 ## 32.4.21 — self-audit provenance closure
 
 - Live root cause: 32.4.20 maakte watcher-liveness terecht GREEN, maar de hold bleef geblokkeerd doordat `self_audit/current.json` op file-mtime met `status/current.json` werd vergeleken. De PM schrijft binnen dezelfde cyclus eerst de audit en daarna opnieuw status; daardoor was de audit per ontwerp net ouder.

@@ -72,3 +72,12 @@
 
 - Release-artifact mag geen regressietest bevatten die de meegeleverde productiecode zelf niet haalt; dit wordt vóór packaging expliciet op de fresh extract gecontroleerd.
 - Watcher-heartbeatupdates behouden inode-identiteit voor NAS/SMB-observers en publiceren tevens `Inbox/watcher_heartbeat.v2`; readers prefereren v2 wanneer aanwezig.
+
+
+## Automatische maandafsluiting idempotency vanaf 32.4.22
+
+- De canonieke RecoveryManager-status `MonthClosure_<YYYY_MM>=CLOSED` heeft voor automatische maandafsluiting voorrang op ontbrekende of verloren lokale Home Assistant completion-state.
+- Een automatische scheduler mag een bewezen CLOSED maand nooit opnieuw starten.
+- Na app-start blijft alleen automatische maandafsluiting fail-closed geblokkeerd totdat startup recovery/reconciliation is teruggekeerd; andere workflows worden hierdoor niet onnodig geblokkeerd.
+- Een exception in startup recovery opent de automatische maandafsluitingsgate niet.
+- Restart-idempotency wordt expliciet getest met `CLOSED + geen lokale marker` voordat een release wordt verpakt.

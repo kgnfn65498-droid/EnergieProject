@@ -76,7 +76,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.21"
+APP_VERSION = "32.4.22"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -177,6 +177,7 @@ CONFIG_ROOT = Path("/data")
 
 LOGGER = logging.getLogger("slimmemeterportal_import")
 STOP = threading.Event()
+STARTUP_RECOVERY_READY = threading.Event()
 RUN_LOCK = threading.Lock()
 WORKFLOW_LOCK = threading.Lock()
 HISTORICAL_REPORT_REBUILD_LOCK = threading.Lock()
@@ -18125,6 +18126,12 @@ def automatic_month_close_due(options: Options, now: datetime) -> str | None:
     if automatic_month_is_completed(month_key):
         # v8.6: duurzame idempotency-marker is leidend, ook na Home Assistant restart.
         return None
+    closure_proof = recovery_month_closure_proof(month_key)
+    if closure_proof.get("closed"):
+        # 32.4.22: RecoveryManager is de canonieke maandafsluitingswaarheid.
+        # Een ontbrekende lokale HA-marker mag een reeds CLOSED maand nooit
+        # opnieuw door de automatische scheduler laten starten.
+        return None
     if state.get("automatic_month_close_last_month") == month_key and state.get("automatic_month_close_last_status") in {"completed", "completed_warning"}:
         return None
 
@@ -18195,7 +18202,9 @@ def scheduler() -> None:
                 year, month = resolve_month("", options)
                 threading.Thread(target=run_import, args=(year, month), daemon=True).start()
 
-            close_month = automatic_month_close_due(options, datetime.now(TZ))
+            close_month = None
+            if STARTUP_RECOVERY_READY.is_set():
+                close_month = automatic_month_close_due(options, datetime.now(TZ))
             if close_month and not WORKFLOW_LOCK.locked():
                 execute_automatic_month_close(options, close_month, trigger="automatic")
 
@@ -21737,6 +21746,7 @@ def main() -> None:
         try:
             time.sleep(1)
             recovery_result = run_recovery_controller(trigger="startup")
+            STARTUP_RECOVERY_READY.set()
             LOGGER.info("Recovery startupcontrole: %s; herstelacties=%s", recovery_result.get("status"), recovery_result.get("repair_count"))
             result = run_self_test()
             LOGGER.info(

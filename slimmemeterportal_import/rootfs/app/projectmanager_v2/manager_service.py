@@ -603,6 +603,10 @@ class ManagerService:
             '- Koppel self-audit expliciet aan de status-generatie (`status_updated_at`) die daadwerkelijk is geaudit; mismatch blijft fail-closed.',
             '- Een GREEN self-audit kan toch onbruikbaar zijn voor release-closure als niet bewezen is bij welke statusgeneratie hij hoort.',
             '- Regressietests in een release moeten de meegeleverde productiecode zelf halen; ontbrekende SMB-heartbeat v2/inode-implementatie wordt niet door testverwijdering gemaskeerd.',
+            '## Ontwikkelproceslessen 32.4.22',
+            '- Een lokale scheduler-marker is geen volwaardige waarheid wanneer RecoveryManager al canoniek `CLOSED` bewijst; CLOSED voorkomt iedere automatische rerun.',
+            '- Startupvolgorde is onderdeel van idempotency: automatische maandafsluiting blijft fail-closed tot RecoveryManager-reconciliation is teruggekeerd.',
+            '- Een app-restart mag een reeds afgesloten maand niet opnieuw uitvoeren doordat lokale runtime-state ontbreekt of later wordt gereconcilieerd.',
         ])
         return [
             self.document_sync.update(kb_dir / 'ACTUELE_STATUS.md', 'PROJECTMANAGER_V2', status_content, placement='top'),

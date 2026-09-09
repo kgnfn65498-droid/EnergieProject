@@ -159,4 +159,13 @@
 - [x] Onmogelijke mtime-invariant verwijderd voor 32.4.21+: audit is door PM-finalisatie per ontwerp eerder geschreven dan de laatste statusrewrite.
 - [x] Expliciete status-generatieprovenance toegevoegd en fail-closed getest.
 - [x] Zes reeds aanwezige 32.4.20 SMB-heartbeattests die de artifactcode niet haalde gecorrigeerd door de ontbrekende stabiele-inode/v2-implementatie toe te voegen; tests niet verwijderd.
-- [ ] Live bewijs: 32.4.21 sluit autonoom `LIVE_ACCEPTANCE -> ACCEPTED`, hold inactive en volgende ingress vrij zonder bootstrap.
+- [x] Live bewijs 2026-09-09: 32.4.21 sloot autonoom `LIVE_ACCEPTANCE -> ACCEPTED`; hold werd door `projectmanager_auto` inactive en alle release-health werd GREEN zonder bootstrap.
+
+
+## v32.4.22 — CLOSED-maand startup-idempotency
+
+- [x] Root cause: na app-restart kon de automatische scheduler vóór startup recovery een maand evalueren; `automatic_month_close_due()` kende alleen lokale HA completion/state en niet de canonieke RecoveryManager `CLOSED`-status.
+- [x] RecoveryManager `CLOSED` blokkeert een automatische rerun ook wanneer lokale completion-state ontbreekt.
+- [x] Startup recovery-gate toegevoegd: automatische maandafsluiting wordt pas geëvalueerd nadat recovery/reconciliation is teruggekeerd; bij exception blijft de gate dicht.
+- [x] Handmatige workflow, imports, sampling en release-closure blijven ongewijzigd.
+- [ ] Live bewijs: restart/update met augustus `CLOSED` veroorzaakt geen nieuwe automatische augustus-maandafsluiting.

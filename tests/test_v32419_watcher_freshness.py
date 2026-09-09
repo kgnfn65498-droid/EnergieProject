@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / 'slimmemeterportal_import/rootfs/app'
 PM = APP / 'projectmanager_v2'
+sys.path.insert(0, str(APP))
 sys.path.insert(0, str(PM))
 
 from runtime_sources import RuntimeCollector

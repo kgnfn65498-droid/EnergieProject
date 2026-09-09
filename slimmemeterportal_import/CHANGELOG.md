@@ -1,8 +1,9 @@
 # Changelog
 
-## 32.4.21 — self-audit provenance closure
+## 32.4.22 — CLOSED-maand startup-idempotency
 
-- Vervangt onbetrouwbare audit/status mtime-volgorde door expliciete `status_updated_at` provenance.
-- Release-hold kan daardoor niet meer circulair blijven hangen op een self-audit die in dezelfde PM-cyclus net vóór status is geschreven.
-- Watcher/SMB-heartbeatcontracten uit 32.4.20 zijn nu daadwerkelijk geïmplementeerd: stabiele inode en canonieke `watcher_heartbeat.v2`.
-- Projectmanager V2 2.0.0-rc18.
+- RecoveryManager `MonthClosure_<YYYY_MM>=CLOSED` is nu een harde idempotency-bron voor automatische maandafsluiting.
+- Een ontbrekende lokale completion-marker kan een reeds CLOSED maand daardoor niet opnieuw starten.
+- Automatische maandafsluiting wacht bij app-start totdat startup recovery/reconciliation is teruggekeerd; bij recovery-exception blijft deze fail-closed geblokkeerd.
+- Handmatige workflows, reguliere import/sampling en de groene 32.4.21 releaseketen zijn niet gewijzigd.
+- Projectmanager V2 2.0.0-rc19.
