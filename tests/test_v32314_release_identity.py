@@ -28,4 +28,4 @@ def test_v32314_historical_release_does_not_freeze_successor_core_revision():
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "## 32.3.14 — Release Validation Hold" in changelog
     main = (APP_ROOT / "main.py").read_text(encoding="utf-8")
-    assert 'PRODUCTION_CORE_REVISION = "9.4-core2"' in main
+    assert 'PRODUCTION_CORE_REVISION = "9.4-core3"' in main

@@ -1,10 +1,9 @@
 # Changelog
 
-## 32.4.23 — audit-closure maandveiligheid en PM-ingress
+## 32.4.24 — legacy closure en non-mutating core-certificering
 
-- Tri-state RecoveryManager-truth `CLOSED_VALID / OPEN / UNKNOWN`; UNKNOWN blokkeert automatische maandafsluiting fail-closed.
-- Deep-verified CLOSED-predicate gedeeld tussen scheduler en Projectmanager-health; dynamische closure-status wordt vers opgevraagd.
-- Onafhankelijke scheduler-, preflight- en executor-guards plus sterkere startup readiness.
-- Productiekern `9.4-core2` en productiecertificaatbewuste release-hold.
-- Projectmanager V2 `2.0.0-rc20`: semantische roadmap/cycle-validatie, Voice/new-chat gates vóór 32.5 en beperkte authenticated externe PM-ingress voor ngrok.
-- Geen publieke exposure van de volledige 8099-webserver; atomic/watcher/publisher blijven ongewijzigd.
+- Recovery `OPEN` wordt gecombineerd met legacy/lifecycle-status; conflict met `CLOSED` of ontbrekende lifecycle-truth wordt `UNKNOWN` en blokkeert muterende maandflows fail-closed.
+- Productiekern `9.4-core3` krijgt een autonome non-mutating core-safety acceptance zonder maandworkflow of maandmutatie.
+- Certificaatbeheer verwerpt stale/tampered non-mutating bewijs en certificeert alleen volledig GREEN safety-evidence.
+- Roadmap-migratie behandelt directory-permission-denial zonder startup-crash en gebruikt de goedgekeurde roadmap-spec read-only in runtime.
+- Projectmanager V2 `2.0.0-rc21`; releaseketen en ngrok-ingressarchitectuur zijn verder ongewijzigd.

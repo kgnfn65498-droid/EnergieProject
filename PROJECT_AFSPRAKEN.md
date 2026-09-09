@@ -92,3 +92,11 @@
 - `voice-live-acceptance` en `new-chat-handover-live` zijn verplichte live gates vóór 32.5/Cowork. Een unit-/stringtest zonder echte gebruikersroute is daarvoor geen acceptancebewijs.
 - Security- en certificeringstests moeten gedrag bewijzen; broncode-stringpresence alleen mag geen safety-acceptance groen maken.
 
+
+
+## Maintenance-lessen vanaf 32.4.24
+
+- Legacy lifecycle-status en nieuwe RecoveryManager-status zijn beide closure-evidence; conflict of ontbrekende secundaire truth bij een vermeend OPEN resultaat is `UNKNOWN` en dus fail-closed.
+- Certificering van een nieuwe productiekern mag nooit vereisen dat een reeds afgesloten echte maand opnieuw wordt verwerkt; daarvoor is de non-mutating core-safety acceptance de standaardroute.
+- Systeemroadmap-migraties mogen niet aannemen dat de Home Assistant-add-on nieuwe tempbestanden kan maken in `Data/03_Systeem`; permission-denial moet runtime-safe blijven en persistence-required expliciet maken.
+- Voor 32.4.24 is de productiekern `9.4-core3`.

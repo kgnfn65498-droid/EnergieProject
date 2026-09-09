@@ -182,3 +182,12 @@
 - [ ] Live acceptance na installatie: CLOSED augustus blijft onaangeroerd bij restart, core2-certificering is actueel en release sluit autonoom.
 - [ ] Daarna ngrok edge-policy/OAuth/JWT/rate-limit configureren en echte Voice/ChatGPT/Nomad E2E accepteren; pas daarna 32.5/Cowork.
 
+
+
+## v32.4.24 — maintenance-closure na live 32.4.23
+
+- [x] Legacy CLOSED/lifecycle-conflict kan niet meer als OPEN door de schedulergrens.
+- [x] Onbereikbare secundaire closure-truth bij Recovery-OPEN faalt gesloten.
+- [x] Productiekern `9.4-core3` kan non-mutating worden gecertificeerd zonder een echte maand opnieuw te verwerken.
+- [x] Roadmap-migratie veroorzaakt geen startup-crash bij read-only directory-permissies.
+- [ ] Live acceptance na installatie: core3-certificaat geldig, augustus blijft CLOSED, juli blijft geblokkeerd, release-hold/atomic GREEN.

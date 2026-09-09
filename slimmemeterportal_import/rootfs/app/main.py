@@ -78,11 +78,11 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.23"
+APP_VERSION = "32.4.24"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
-PRODUCTION_CORE_REVISION = "9.4-core2"
+PRODUCTION_CORE_REVISION = "9.4-core3"
 
 # v32.0.37: de HA netwerkopslag is hernoembaar. Resolveer de actuele projectshare
 # dynamisch; Project Energie is primair, Energie_NAS blijft uitsluitend compatibiliteitsfallback.
@@ -16663,6 +16663,35 @@ def recovery_month_closure_proof(month_key: str) -> dict[str, Any]:
         return {"truth": MONTH_UNKNOWN, "closed": False, "evidence": None, "error": f"{type(exc).__name__}: {exc}"}
     classified = classify_month_closure(result)
     truth = str(classified.get("truth") or MONTH_UNKNOWN)
+    lifecycle = None
+    if truth == MONTH_OPEN:
+        try:
+            lifecycle = _mcp_call_project_tool(
+                "workflow_month_status",
+                {"year": year, "month": month},
+                timeout=8.0,
+                use_cache=False,
+            )
+        except Exception as exc:
+            lifecycle = {"error": f"{type(exc).__name__}: {exc}"}
+        lifecycle_stage = (
+            str((lifecycle or {}).get("stage") or "").strip().upper()
+            if isinstance(lifecycle, dict) else ""
+        )
+        if not isinstance(lifecycle, dict):
+            truth = MONTH_UNKNOWN
+            classified = {
+                "truth": MONTH_UNKNOWN,
+                "closed": False,
+                "reason": "legacy_lifecycle_truth_unavailable",
+            }
+        elif lifecycle_stage == "CLOSED":
+            truth = MONTH_UNKNOWN
+            classified = {
+                "truth": MONTH_UNKNOWN,
+                "closed": False,
+                "reason": "legacy_lifecycle_closed_conflicts_with_recovery_open",
+            }
     if truth == MONTH_UNKNOWN and result is None:
         error = "RecoveryManager month_closure_status niet beschikbaar"
     else:
@@ -16674,6 +16703,10 @@ def recovery_month_closure_proof(month_key: str) -> dict[str, Any]:
         "raw_status": (
             str(((result or {}).get("status") or {}).get("status") or "").upper() or None
             if isinstance((result or {}).get("status"), dict) else None
+        ),
+        "lifecycle_stage": (
+            str((lifecycle or {}).get("stage") or "").strip().upper() or None
+            if isinstance(lifecycle, dict) else None
         ),
         "error": error,
     }
@@ -17305,13 +17338,17 @@ def validate_production_certificate(
     stored_hash = str(certificate.get("integrity_sha256") or "")
     calculated_hash = production_certificate_payload_hash(certificate)
     certificate_core_revision = str(certificate.get("production_core_revision") or "")
+    non_mutating = str(certificate.get("test_type") or "") == "non_mutating_core_safety"
     checks = {
         "status_accepted": str(certificate.get("status") or "") == "accepted",
         "core_revision_current": certificate_core_revision == PRODUCTION_CORE_REVISION,
         "scheduler_unchanged": certificate.get("scheduler_state_unchanged") is True,
-        "preflight_ok": str(certificate.get("preflight_status") or "") == "ok",
-        "workflow_ok": str(certificate.get("workflow_status") or "") in {"completed", "completed_warning"},
-        "finalization_ok": str(certificate.get("finalization_status") or "") == "ok",
+        "preflight_ok": (
+            str(certificate.get("core_safety_status") or "") == "completed"
+            and certificate.get("month_mutation") is False
+        ) if non_mutating else str(certificate.get("preflight_status") or "") == "ok",
+        "workflow_ok": True if non_mutating else str(certificate.get("workflow_status") or "") in {"completed", "completed_warning"},
+        "finalization_ok": True if non_mutating else str(certificate.get("finalization_status") or "") == "ok",
         "integrity_ok": bool(stored_hash) and stored_hash == calculated_hash,
     }
     valid = all(checks.values())
@@ -17366,6 +17403,117 @@ def read_production_certificate_history(limit: int = 10) -> list[dict[str, Any]]
         if isinstance(item, dict):
             rows.append(item)
     return rows[-max(1, min(limit, 100)):][::-1]
+
+
+def run_non_mutating_core_acceptance() -> dict[str, Any]:
+    """Certificeer alleen de safety-logica van de actieve productiekern; raak geen maandworkflow aan."""
+    tested_at = datetime.now(TZ).isoformat()
+    self_test = run_self_test()
+    checks: list[dict[str, Any]] = []
+
+    def add(name: str, ok: bool, detail: Any = "") -> None:
+        checks.append({"name": name, "status": "ok" if ok else "error", "detail": detail})
+
+    unknown = classify_month_closure(None)
+    open_truth = classify_month_closure({"closed": False, "status": None})
+    closed_truth = classify_month_closure({
+        "closed": True,
+        "status": {
+            "status": "CLOSED",
+            "validation": {"status": "ok"},
+            "verification": {"status": "valid", "deep_verified": True, "hash_failures": []},
+        },
+    })
+    add("unknown_fail_closed", unknown.get("truth") == MONTH_UNKNOWN, unknown)
+    add("open_classification", open_truth.get("truth") == MONTH_OPEN, open_truth)
+    add("closed_deep_verified", closed_truth.get("truth") == CLOSED_VALID, closed_truth)
+    add(
+        "startup_unknown_blocked",
+        startup_recovery_ready({"status": "ok"}, {"truth": MONTH_UNKNOWN}, {"status": "ok"}) is False,
+    )
+    add(
+        "startup_closed_known",
+        startup_recovery_ready({"status": "ok"}, {"truth": CLOSED_VALID}, {"status": "ok"}) is True,
+    )
+    add("self_test", str((self_test or {}).get("status") or "").lower() in {"ok", "warning"}, self_test.get("status"))
+
+    status = "completed" if all(row["status"] == "ok" for row in checks) else "error"
+    result = {
+        "version": APP_VERSION,
+        "production_core_revision": PRODUCTION_CORE_REVISION,
+        "tested_at": tested_at,
+        "status": status,
+        "test_type": "non_mutating_core_safety",
+        "month": None,
+        "month_mutation": False,
+        "scheduler_state_changed": False,
+        "checks": checks,
+        "self_test": self_test,
+        "error": None if status == "completed" else "Niet alle non-mutating core safety-checks zijn geslaagd.",
+    }
+    update_state(production_core_acceptance_last_result=result)
+    append_audit_event(
+        "production_core_acceptance",
+        action="completed",
+        status="ok" if status == "completed" else "error",
+        details={"production_core_revision": PRODUCTION_CORE_REVISION, "month_mutation": False},
+    )
+    return result
+
+
+def write_non_mutating_core_acceptance(test_result: dict[str, Any]) -> dict[str, Any]:
+    """Schrijf een certificaat uit uitsluitend geslaagde non-mutating core-safety evidence."""
+    valid = bool(
+        str(test_result.get("production_core_revision") or "") == PRODUCTION_CORE_REVISION
+        and str(test_result.get("status") or "") == "completed"
+        and test_result.get("test_type") == "non_mutating_core_safety"
+        and test_result.get("month_mutation") is False
+        and test_result.get("scheduler_state_changed") is False
+        and all(str(row.get("status") or "") == "ok" for row in (test_result.get("checks") or []))
+    )
+    certificate = {
+        "schema": 4,
+        "certificate_id": f"{APP_VERSION}-{datetime.now(TZ).strftime('%Y%m%dT%H%M%S%z')}",
+        "version": APP_VERSION,
+        "production_core_revision": PRODUCTION_CORE_REVISION,
+        "status": "accepted" if valid else "rejected",
+        "accepted_at": datetime.now(TZ).isoformat() if valid else None,
+        "month": None,
+        "test_type": "non_mutating_core_safety",
+        "tested_at": test_result.get("tested_at"),
+        "core_safety_status": test_result.get("status"),
+        "month_mutation": False,
+        "scheduler_state_unchanged": test_result.get("scheduler_state_changed") is False,
+        "issued_by": "automatic_non_mutating_core_acceptance",
+        "evidence": {
+            "test_version": test_result.get("version"),
+            "production_core_revision": test_result.get("production_core_revision"),
+            "check_count": len(test_result.get("checks") or []),
+            "month_mutation": False,
+        },
+    }
+    certificate["integrity_sha256"] = production_certificate_payload_hash(certificate)
+    PRODUCTION_CERTIFICATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temp = PRODUCTION_CERTIFICATE_PATH.with_suffix(".tmp")
+    temp.write_text(json.dumps(certificate, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp.replace(PRODUCTION_CERTIFICATE_PATH)
+    append_production_certificate_history(certificate)
+    append_audit_event(
+        "production_certificate",
+        action="issued" if valid else "rejected",
+        status="ok" if valid else "rejected",
+        details={
+            "certificate_id": certificate.get("certificate_id"),
+            "production_core_revision": PRODUCTION_CORE_REVISION,
+            "test_type": certificate.get("test_type"),
+            "issued_by": certificate.get("issued_by"),
+        },
+    )
+    update_state(production_acceptance=certificate)
+    validation = validate_production_certificate(certificate)
+    if valid and not validation.get("valid"):
+        raise RuntimeError("Non-mutating productiecertificaat faalde directe validatie: " + str(validation.get("reason") or "onbekend"))
+    return certificate
 
 
 def write_production_acceptance(test_result: dict[str, Any]) -> dict[str, Any]:
@@ -17449,7 +17597,26 @@ def manage_production_certificate(*, allow_repair: bool = True) -> dict[str, Any
             repaired = True
             action = "generated_from_compatible_core_test"
         else:
-            action = "test_required"
+            core_candidate = load_state().get("production_core_acceptance_last_result") or {}
+            core_candidate_valid = bool(
+                isinstance(core_candidate, dict)
+                and str(core_candidate.get("production_core_revision") or "") == PRODUCTION_CORE_REVISION
+                and str(core_candidate.get("status") or "") == "completed"
+                and core_candidate.get("test_type") == "non_mutating_core_safety"
+                and core_candidate.get("month_mutation") is False
+                and core_candidate.get("scheduler_state_changed") is False
+                and bool(core_candidate.get("checks"))
+                and all(str(row.get("status") or "") == "ok" for row in (core_candidate.get("checks") or []))
+            )
+            if not core_candidate_valid:
+                core_candidate = run_non_mutating_core_acceptance()
+                core_candidate_valid = str(core_candidate.get("status") or "") == "completed"
+            if core_candidate_valid:
+                write_non_mutating_core_acceptance(core_candidate)
+                repaired = True
+                action = "generated_from_non_mutating_core_acceptance"
+            else:
+                action = "test_required"
     after = validate_production_certificate()
     result = {
         "version": APP_VERSION,

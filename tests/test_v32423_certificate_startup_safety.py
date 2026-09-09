@@ -26,7 +26,7 @@ def load_main(name='main_v32423_cert_startup'):
 
 def test_core_revision_is_raised_for_scheduler_safety_change():
     m = load_main('main_v32423_core_rev')
-    assert m.PRODUCTION_CORE_REVISION == '9.4-core2'
+    assert m.PRODUCTION_CORE_REVISION == '9.4-core3'
 
 
 def test_startup_gate_requires_ok_recovery_known_closure_and_non_error_selftest():

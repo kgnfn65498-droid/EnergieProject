@@ -108,6 +108,7 @@ def test_month_closure_status_is_dynamic_and_never_reuses_stale_open_cache(monke
     m._MCP_TOOL_CACHE.clear()
     payloads = [
         {'month': '2026_08', 'closed': False, 'status_file': None, 'status': None},
+        {'month': '2026_08', 'stage': 'NOT_INITIALIZED', 'exists': False},
         closed_payload(),
     ]
     calls = []
@@ -121,7 +122,7 @@ def test_month_closure_status_is_dynamic_and_never_reuses_stale_open_cache(monke
 
     assert first['truth'] == 'OPEN'
     assert second['truth'] == 'CLOSED_VALID'
-    assert len(calls) == 2
+    assert len(calls) == 3
 
 
 def test_preflight_blocks_closed_valid_before_mutating_workflow(monkeypatch, tmp_path):

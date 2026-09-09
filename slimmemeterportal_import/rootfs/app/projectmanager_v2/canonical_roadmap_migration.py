@@ -117,5 +117,15 @@ def migrate_canonical_roadmap(path: Path | str) -> dict:
         'new_chat_handover_live_required_before_32_5': True,
     })
     migrated['safety'] = safety
-    atomic_write_json(target, migrated)
-    return {'status': 'migrated', 'path': str(target), 'release': TARGET_RELEASE}
+    try:
+        atomic_write_json(target, migrated)
+    except PermissionError as exc:
+        return {
+            'status': 'migrated_read_only',
+            'path': str(target),
+            'release': TARGET_RELEASE,
+            'persistence_required': True,
+            'reason': f'{type(exc).__name__}: {exc}',
+            'spec': migrated,
+        }
+    return {'status': 'migrated', 'path': str(target), 'release': TARGET_RELEASE, 'spec': migrated}

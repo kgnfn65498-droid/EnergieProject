@@ -142,3 +142,18 @@
 - Negatieve acceptatietest: een system-write met `Data/03_Systeem/...` als argument moet vóór enige write een `ValueError` geven; `Projectmanager/...` blijft het geldige relatieve formaat.
 - Onbekende inhoud, extra entries of afwijkende MCP-broncode moeten de hotfix fail-closed blokkeren.
 
+
+## 32.4.24 live acceptance
+
+Na installatie van 32.4.24 hoeft **geen** echte maand-productietest te worden gestart. De nieuwe productiekern `9.4-core3` certificeert zichzelf uitsluitend via de non-mutating core-safety acceptance.
+
+Verwacht na startup:
+- Home Assistant runtime en NAS beide `32.4.24`;
+- Projectmanager `2.0.0-rc21`;
+- productiecertificaat geldig voor `9.4-core3`, testtype `non_mutating_core_safety`;
+- augustus 2026 blijft `CLOSED_VALID` en wordt niet opnieuw uitgevoerd;
+- legacy juli 2026 mag bij conflict tussen RecoveryManager en lifecycle nooit als `OPEN` worden behandeld;
+- release-hold sluit GREEN en atomic state gaat naar `ACCEPTED`;
+- bij ontbrekende/conflicterende closure-truth blijft automatische maandmutatie fail-closed.
+
+Als core3-certificering niet automatisch GREEN wordt: **niet** op `Test automatische maandafsluiting nu` drukken; eerst diagnose/status controleren.

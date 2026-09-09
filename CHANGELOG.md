@@ -1,3 +1,11 @@
+## 32.4.24 — legacy closure + non-mutating core-certificering + roadmap permission closure
+
+- Legacy lifecycle-truth wordt nu naast RecoveryManager gecontroleerd. `Recovery OPEN` + legacy/lifecycle `CLOSED` wordt `UNKNOWN`, nooit `OPEN`; ook een onbereikbare lifecycle-bron bij Recovery-OPEN faalt gesloten.
+- Productiekern verhoogd naar `9.4-core3`. Certificering kan nu autonoom via een non-mutating core-safety acceptance die géén maandworkflow, maanddata of schedulerboekhouding uitvoert/wijzigt.
+- Non-mutating certificaatbewijs wordt alleen geaccepteerd wanneer alle safety-checks GREEN zijn; stale/tampered bewijs met een rode check wordt verworpen en opnieuw getest.
+- Canonieke roadmap-migratie crasht niet meer wanneer de add-on geen nieuw `.tmp`-bestand in de systeemmap mag maken; de goedgekeurde migratiespec wordt dan veilig in-memory gebruikt en persistence-required expliciet gemarkeerd.
+- PMV2 naar `2.0.0-rc21`. Atomic swap, release-watcher, GitHub publisher en externe PM/ngrok-scope blijven inhoudelijk ongewijzigd.
+
 ## 32.4.23 — audit-closure maandveiligheid, certificering en beveiligde PM-ingress
 
 - Live root cause uit de 32.4.22-audit is structureel gesloten: maandclosure-truth is nu tri-state `CLOSED_VALID / OPEN / UNKNOWN`; `UNKNOWN` is voor automatische muterende workflows altijd fail-closed.

@@ -32,6 +32,8 @@ class ConfiguredManagerService(ManagerService):
         migration = migrate_canonical_roadmap(self._canonical_roadmap_path)
         if migration.get('status') in {'invalid', 'unsupported'}:
             return None
+        if migration.get('status') == 'migrated_read_only' and isinstance(migration.get('spec'), dict):
+            return migration['spec']
         try:
             value = json.loads(self._canonical_roadmap_path.read_text(encoding='utf-8'))
         except (OSError, json.JSONDecodeError):
