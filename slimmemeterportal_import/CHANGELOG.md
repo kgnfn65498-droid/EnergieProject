@@ -1,8 +1,8 @@
 # Changelog
 
-## 32.4.17 — live closure hardening
+## 32.4.18 — transactionele release-closure en restart recovery
 
-- Bounded watcher helpers voorkomen een permanent stale heartbeat.
-- Release-scoped publisher/publication health voorkomt dat historische errors huidige releases blokkeren.
-- Eigen release-validation hold kan de eigen veilige atomic acceptance niet langer circulair blokkeren.
-- Projectmanager V2 2.0.0-rc14.
+- Atomic acceptance en release-hold vormen nu één idempotent herstelbare closure-state-machine.
+- Canonieke Home Assistant GitHub-publicatiestatus wordt gedeeld met Projectmanager runtime truth.
+- Watcher bounded execution escaleert van SIGTERM naar SIGKILL.
+- Projectmanager V2 2.0.0-rc15.

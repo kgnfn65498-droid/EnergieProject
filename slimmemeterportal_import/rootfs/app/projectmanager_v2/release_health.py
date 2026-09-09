@@ -99,7 +99,10 @@ def release_health_checks(runtime: dict) -> list:
     publication_version = str(publication.get('version') or '').strip()
     publication_bad = publication_status in {'error', 'failed', 'blocked'}
     publication_good = publication_status in {'published', 'success', 'ok'}
-    publication_pending = publication.get('contract_pending') is True and not publication_good
+    # An open contract is authoritative proof that the current publication
+    # transaction is not settled yet. A stale or even current saved success
+    # may not bypass an uncleared publication_required marker.
+    publication_pending = publication.get('contract_pending') is True
     publication_is_stale_previous = bool(
         current_release
         and publication_version

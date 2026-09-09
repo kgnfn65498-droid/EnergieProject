@@ -581,6 +581,13 @@ class ManagerService:
             '- Publisher/publication-health is release-scoped; historische errors van een oudere versie blokkeren de huidige release niet wanneer er geen current contract pending is.',
             '- De eigen release-validation-hold mag zijn eigen veilige final acceptance niet circulair blokkeren; alleen de exact verwachte current hold + atomic transition is tijdelijk toegestaan.',
             '- Live closure vereist dezelfde keten tegelijk groen: watcher heartbeat, hold, atomic ACCEPTED, publisher/publication, processed archive en volgende ingress.',
+            '## Ontwikkelproceslessen 32.4.18',
+            '- Hold en atomic journal zijn één transactie: normale closure schrijft eerst atomic ACCEPTED en geeft daarna pas de hold vrij.',
+            '- Restart recovery moet zowel inactive+LIVE_ACCEPTANCE als active+ACCEPTED veilig en idempotent reconciliëren; onbekende combinaties blijven fail-closed.',
+            '- De canonieke publicatiestatus is version-scoped en komt van de werkelijk actieve Home Assistant publisher; legacy NAS-state is uitsluitend fallback/historie.',
+            '- Heartbeat-kritieke subprocessen hebben een harde timeout met SIGTERM en daarna SIGKILL.',
+            '- Releaseclosure wordt over twee opeenvolgende releases plus restartvensters bewezen voordat het Incoming-probleem structureel groen heet.',
+            '- Algemene energie-operatiehealth en release-acceptance zijn gescheiden: een stale kwartiersnapshot blijft PM-RED maar mag de software-release niet deadlocken; release-chain problemen blijven wel fail-closed.',
         ])
         return [
             self.document_sync.update(kb_dir / 'ACTUELE_STATUS.md', 'PROJECTMANAGER_V2', status_content, placement='top'),

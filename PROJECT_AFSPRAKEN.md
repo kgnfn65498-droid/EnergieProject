@@ -37,3 +37,13 @@
 - Een safety-hold mag zijn eigen validatie niet circulair blokkeren. Alleen de exact verwachte eigen transition-state mag tijdelijk als acceptance-context gelden.
 - Bij release-audits worden containerstatus, heartbeat, atomic state, hold, publisher/publication en volgende-ingress als één E2E-keten gecontroleerd.
 - Packaging gebeurt uitsluitend vanuit een schone stagingboom; cache/junk is een harde releasefout.
+## Release- en leercontract vanaf 32.4.18
+
+- Release-hold en atomic journal worden als één herstelbare state-machine behandeld; alle relevante combinaties moeten na restart idempotent convergeren.
+- Normale veilige closurevolgorde: validatie groen -> atomic `ACCEPTED` -> release-hold vrijgeven.
+- `inactive hold + LIVE_ACCEPTANCE` mag alleen automatisch herstellen wanneer de persisted hold een normale eerdere validatie (`validation_status=ok`, `reconcile_status=ok`, geen emergency) bewijst en een verse validatie opnieuw groen is.
+- GitHub-publicatie heeft één canonieke actuele statusbron per release. Historische statusbestanden mogen niet als actuele waarheid concurreren.
+- Heartbeat-kritieke subprocessen hebben een harde bovengrens: TERM, korte grace, daarna KILL; fail-closed blijft verplicht.
+- Voor closure zijn **twee opeenvolgende releases** plus restart/crash-vensters een verplichte regressie; alleen een losse current-release acceptance is onvoldoende.
+- Release-acceptance mag niet gekoppeld zijn aan algemene energie-operatiehealth. Sensor-/kwartierdata-RED blijft zichtbaar en actionable, maar alleen release-chain health en de expliciete release-validatiechecks mogen de release-hold blokkeren.
+

@@ -35,6 +35,7 @@ MCP_GUARD_HOTFIX_RESULT="$INBOX/logs/mcp_system_path_guard_hotfix_v3231.json"
 HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
 MODE_GATE_TIMEOUT="${ENERGIE_MODE_GATE_TIMEOUT_SECONDS:-5}"
 MAINTENANCE_HELPER_TIMEOUT="${ENERGIE_MAINTENANCE_HELPER_TIMEOUT_SECONDS:-20}"
+BOUNDED_TERM_GRACE_SECONDS="${ENERGIE_BOUNDED_TERM_GRACE_SECONDS:-1}"
 INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"
 STABLE_POLLS="${ENERGIE_ZIP_STABLE_POLLS:-3}"
 PROCESSED_RETENTION="${ENERGIE_PROCESSED_RETENTION:-3}"
@@ -73,7 +74,11 @@ run_bounded(){
   command_pid=$!
   (
     sleep "$timeout_seconds"
-    kill -TERM "$command_pid" 2>/dev/null || true
+    if kill -0 "$command_pid" 2>/dev/null; then
+      kill -TERM "$command_pid" 2>/dev/null || true
+      sleep "$BOUNDED_TERM_GRACE_SECONDS"
+      kill -KILL "$command_pid" 2>/dev/null || true
+    fi
   ) &
   timer_pid=$!
   rc=0

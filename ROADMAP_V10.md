@@ -125,3 +125,14 @@
 - [x] Knowledge Base/ontwikkelproceslessen bijgewerkt met root causes en regressiepreventie.
 - [ ] Live bewijs: 32.4.17 installeert normaal vanuit `incoming`, eindigt zelfstandig op `ACCEPTED`, hold wordt vrijgegeven, watcher-heartbeat blijft fresh en GitHub-publicatie is current.
 - [ ] Daarna opvolgende ingress zonder handmatige accept/hold-route bewijzen.
+## v32.4.18 — structurele Incoming/Acceptance closure
+
+- [x] Root cause `inactive hold + LIVE_ACCEPTANCE` vastgelegd en restart-safe recovery ontworpen.
+- [x] Transactievolgorde omgedraaid: eerst atomic `ACCEPTED`, daarna hold release; `active+ACCEPTED` is herstelbaar.
+- [x] Canonieke version-scoped GitHub-publicatiestatus uit Home Assistant publisher; legacy NAS-state alleen fallback.
+- [x] Watcher hard bounded met SIGTERM -> grace -> SIGKILL.
+- [x] TDD-regressies voor beide restartvensters, fail-closed ongeldige state, publisher truth en harde watcher-timeout.
+- [x] Live-audit: operationele `current_quarter_hour_snapshot` RED ontkoppeld van release-acceptance; release-specifieke RED/ORANGE blijft fail-closed.
+- [ ] Live bewijs: 32.4.18 installeert uit `incoming`, publiceert, sluit autonoom naar `ACCEPTED`, hold eindigt inactive en watcher-heartbeat blijft fresh.
+- [ ] Daarna opvolgende release/incoming zonder handmatig accept-commando bewijzen.
+

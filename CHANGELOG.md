@@ -1,3 +1,14 @@
+## 32.4.18 — transactionele release-closure en restart recovery
+
+- Root cause 32.4.17: release-hold werd vóór atomic `LIVE_ACCEPTANCE -> ACCEPTED` vrijgegeven. Een restart in dat venster liet `hold=inactive + LIVE_ACCEPTANCE` achter; de auto-release stopte vervolgens onterecht als `already_released`.
+- Closure is nu idempotent en restart-safe: normale volgorde is eerst atomic `ACCEPTED`, daarna hold vrijgeven. Zowel `inactive+LIVE_ACCEPTANCE` als `active+ACCEPTED` worden gecontroleerd gereconcilieerd; ongeldige of onbewezen combinaties blijven fail-closed.
+- De **canonieke publicatiestatus** komt van de actieve Home Assistant publisher en wordt atomair zowel lokaal als gedeeld in `Inbox/github_publication_state.json` opgeslagen. Projectmanager gebruikt deze version-scoped waarheid en alleen nog een legacy NAS-status als fallback.
+- De historische NAS publisher blijft disabled compatibility tooling; de Home Assistant add-on is expliciet de publicatie-eigenaar.
+- Watcher-timeouts zijn hard begrensd: na SIGTERM volgt een korte grace en daarna SIGKILL, zodat een TERM-negerende child de heartbeat-hoofdlus niet permanent kan blokkeren.
+- Regressiecontract omvat restart op beide transactieranden en **twee opeenvolgende releases**; een release is pas closure-groen als release A autonoom `ACCEPTED` wordt en release B daarna zonder handmatige acceptatie kan doorstromen.
+- Live-auditcorrectie: algemene operationele energiehealth (zoals een tijdelijk stale `current_quarter_hour_snapshot`) blijft zichtbaar als RED in Projectmanager, maar blokkeert release-acceptance niet meer. Release-acceptance gebruikt uitsluitend release-chain health plus de aparte version/runtime/state-I/O/self-audit-gates; `release_watcher`, publisher/publication, locks, processing en onverwachte release-state blijven fail-closed.
+- Projectmanager naar `2.0.0-rc15`.
+
 ## 32.4.17 — live release-closure hardening
 
 - Root cause live 32.4.16: de watcher-hoofdlus kon onbeperkt blokkeren op externe mode/maintenance helpers; daardoor stopte de heartbeat terwijl de container bleef draaien. Externe gate/helper-calls zijn nu begrensd en fail-closed.

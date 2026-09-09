@@ -76,7 +76,7 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.17"
+APP_VERSION = "32.4.18"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -94,13 +94,15 @@ PROJECT_BACKUP_RETENTION = 3
 PROJECT_BACKUP_PREFIX = "EnergieProject_maandbackup"
 ENERGIE_MCP_URL = os.environ.get("ENERGIE_MCP_URL", "http://192.168.1.200:8000/mcp").rstrip("/")
 
-# Release publication owner: autonomous NAS publisher; HA publisher is disabled by default and remains diagnostic compatibility only.
+# Release publication owner: the Home Assistant add-on publisher is canonical.
+# The historical NAS publisher remains disabled compatibility tooling only.
 
 GITHUB_PUBLISH_DIR = Path("/config/github_publisher")
 GITHUB_PRIVATE_KEY = GITHUB_PUBLISH_DIR / "id_ed25519"
 GITHUB_PUBLIC_KEY = GITHUB_PUBLISH_DIR / "id_ed25519.pub"
 GITHUB_KNOWN_HOSTS = GITHUB_PUBLISH_DIR / "known_hosts"
 GITHUB_PUBLISH_STATE = Path("/config/output/github_publication_state.json")
+GITHUB_CANONICAL_PUBLISH_STATE = NAS_RELEASE_ROOT / "github_publication_state.json"
 GITHUB_WORKTREE = GITHUB_PUBLISH_DIR / "worktree"
 GITHUB_RELEASE_STAGE = GITHUB_PUBLISH_DIR / "release_stage"
 NAS_RELEASE_INBOX = NAS_RELEASE_ROOT / "incoming"
@@ -20120,11 +20122,7 @@ def publish_github_release(options=None):
         except Exception as exc:
             result["published"] = False
             result["message"] = f"Target staat al op GitHub maar contract kon niet veilig worden opgeruimd: {exc}"
-        try:
-            GITHUB_PUBLISH_STATE.parent.mkdir(parents=True, exist_ok=True)
-            GITHUB_PUBLISH_STATE.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        except Exception:
-            pass
+        _write_github_publish_state(result)
         return result
 
     try:
@@ -20179,22 +20177,22 @@ def publish_github_release(options=None):
             result["published"] = False
             result["publication_contract_removed"] = False
             result["message"] = f"Publicatie geslaagd maar contract kon niet veilig worden opgeruimd: {exc}"
-    try:
-        GITHUB_PUBLISH_STATE.parent.mkdir(parents=True, exist_ok=True)
-        GITHUB_PUBLISH_STATE.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    except Exception:
-        pass
+    _write_github_publish_state(result)
     return result
 
 def _write_github_publish_state(payload):
-    try:
-        GITHUB_PUBLISH_STATE.parent.mkdir(parents=True, exist_ok=True)
-        GITHUB_PUBLISH_STATE.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-    except Exception:
-        LOGGER.exception("GitHub-publisherstatus kon niet worden opgeslagen.")
+    data = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    failures = []
+    for path in (GITHUB_PUBLISH_STATE, GITHUB_CANONICAL_PUBLISH_STATE):
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(path.name + f".tmp.{os.getpid()}")
+            tmp.write_text(data, encoding="utf-8")
+            os.replace(tmp, path)
+        except Exception as exc:
+            failures.append(f"{path}:{type(exc).__name__}:{exc}")
+    if failures:
+        LOGGER.error("GitHub-publisherstatus niet volledig canoniek opgeslagen: %s", "; ".join(failures))
 
 
 def _github_publication_loop(stop_event):

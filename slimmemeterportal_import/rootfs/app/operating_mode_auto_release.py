@@ -15,9 +15,9 @@ def automatic_release_hold_once(
     expected_version: str,
 ) -> dict[str, Any]:
     root = Path(project_root)
-    hold = load_release_hold(root, str(expected_version))
-    if not hold.active:
-        return {"status": "already_released", "validation": None}
+    # Closure is a two-state transaction (release hold + atomic journal).
+    # Never stop merely because the hold is inactive: after a restart the
+    # atomic journal may still require LIVE_ACCEPTANCE -> ACCEPTED recovery.
     return attempt_release_hold(
         app_module,
         root,

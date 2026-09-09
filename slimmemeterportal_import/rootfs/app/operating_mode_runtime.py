@@ -432,11 +432,28 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
             if isinstance(item, dict) and str(item.get("status") or "").strip().upper() != "GREEN"
         ]
 
-        allowed_orange_transition = bool(non_green) and all(
+        # Release acceptance is not a declaration that every operational energy
+        # signal is healthy.  Gating on the complete PM-health summary creates a
+        # deadlock when an unrelated datapoint (for example a temporarily stale
+        # quarter-hour snapshot) is RED while the software release itself is
+        # valid.  Keep those operational REDs visible in PM health, but make the
+        # release-hold gate fail-closed on release-chain checks only.  Version,
+        # runtime-idle, state-I/O and self-audit provenance are validated by the
+        # other dedicated hold checks in this same transaction.
+        release_non_green = [
+            item for item in non_green
+            if str(item.get('name') or '').startswith('release_')
+        ]
+        release_red_checks = [
+            item for item in release_non_green
+            if str(item.get('status') or '').strip().upper() == 'RED'
+        ]
+
+        allowed_orange_transition = bool(release_non_green) and all(
             str(item.get('name') or '') == 'release_atomic_state'
             and str(item.get('status') or '').strip().upper() == 'ORANGE'
             and str(item.get('reason') or '') == 'installer_or_atomic_transition_active'
-            for item in non_green
+            for item in release_non_green
         )
 
         def _current_live_acceptance_journal_is_valid() -> bool:
@@ -453,8 +470,8 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
             )
 
         allowed_stale_acceptance_red = False
-        if len(non_green) == 1:
-            only = non_green[0]
+        if len(release_non_green) == 1:
+            only = release_non_green[0]
             exact_stale_red = (
                 str(only.get('name') or '') == 'release_atomic_state'
                 and str(only.get('status') or '').strip().upper() == 'RED'
@@ -470,8 +487,8 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
         # finish when (and only when) the two non-green checks are exactly:
         # one waiting incoming ZIP + the current release's atomic transition.
         allowed_waiting_next_release_acceptance = False
-        if len(non_green) == 2 and _current_live_acceptance_journal_is_valid():
-            by_name = {str(item.get('name') or ''): item for item in non_green}
+        if len(release_non_green) == 2 and _current_live_acceptance_journal_is_valid():
+            by_name = {str(item.get('name') or ''): item for item in release_non_green}
             incoming_check = by_name.get('release_incoming')
             atomic_check = by_name.get('release_atomic_state')
             allowed_waiting_next_release_acceptance = bool(
@@ -492,7 +509,7 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
         # combination, optionally with exactly one next release waiting.
         allowed_current_hold_acceptance = False
         if _current_live_acceptance_journal_is_valid():
-            by_name = {str(item.get('name') or ''): item for item in non_green}
+            by_name = {str(item.get('name') or ''): item for item in release_non_green}
             names = set(by_name)
             allowed_name_sets = (
                 {'release_validation_hold', 'release_atomic_state'},
@@ -534,17 +551,16 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
         )
         non_green_acceptance_exception = bool(
             red_acceptance_exception
-            or (health_status != 'RED' and allowed_orange_transition)
+            or (not release_red_checks and allowed_orange_transition)
         )
 
-        if health_status == 'RED' and not red_acceptance_exception:
-            names = ','.join(str(item.get('name') or 'unknown') for item in red_checks) or 'summary'
+        if health_status == 'RED' and not red_checks:
+            return _validation_check(False, "projectmanager health RED: summary")
+        if release_red_checks and not red_acceptance_exception:
+            names = ','.join(str(item.get('name') or 'unknown') for item in release_red_checks)
             return _validation_check(False, f"projectmanager health RED: {names}")
-        if red_checks and not red_acceptance_exception:
-            names = ','.join(str(item.get('name') or 'unknown') for item in red_checks)
-            return _validation_check(False, f"projectmanager health RED: {names}")
-        if non_green and not non_green_acceptance_exception:
-            names = ','.join(str(item.get('name') or 'unknown') for item in non_green)
+        if release_non_green and not non_green_acceptance_exception:
+            names = ','.join(str(item.get('name') or 'unknown') for item in release_non_green)
             return _validation_check(False, f"unexpected non-green projectmanager health: {names}")
     if not app_version or status_release != app_version:
         return _validation_check(
@@ -629,6 +645,15 @@ def _audit_hold_event(app_module: Any, action: str, status: str, details: dict[s
         pass
 
 
+def _atomic_release_journal(project_root: Path | str) -> dict[str, Any] | None:
+    path = Path(project_root) / "Inbox/atomic_app_swap_state.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
 def attempt_release_hold(
     app_module: Any,
     project_root: Path | str,
@@ -636,37 +661,132 @@ def attempt_release_hold(
     *,
     issued_by: str,
 ) -> dict[str, Any]:
-    root = Path(project_root)
-    hold = load_release_hold(root, expected_version)
-    if not hold.active:
-        return {"status": "already_released", "validation": None}
+    """Close a validated release as an idempotent two-state transaction.
 
-    validation = validate_release_hold(app_module, root, expected_version)
+    Safe order for a normal closure is atomic ACCEPTED first, then hold release.
+    If the process restarts between either state write, this function reconciles
+    the remaining half.  Inactive+LIVE_ACCEPTANCE is accepted only when the
+    persisted hold proves a prior non-emergency validation and a fresh validation
+    still passes.  Every ambiguous combination stays fail-closed.
+    """
+    root = Path(project_root)
+    expected = str(expected_version)
+    hold = load_release_hold(root, expected)
+    journal = _atomic_release_journal(root)
+    atomic_state = str((journal or {}).get("state") or "").strip().upper()
+    atomic_target = str((journal or {}).get("to_version") or "").strip()
+
+    # Recovery for the historic 32.4.17 failure window: the hold was persisted
+    # inactive before atomic ACCEPTED.  Do not trust an arbitrary inactive hold;
+    # require validated, reconciled, non-emergency provenance and revalidate now.
+    if not hold.active:
+        if atomic_state == "ACCEPTED" and atomic_target == expected:
+            return {"status": "already_released", "validation": None, "hold": asdict(hold)}
+        if atomic_state == "LIVE_ACCEPTANCE" and atomic_target == expected:
+            provenance_ok = bool(
+                hold.validation_status == "ok"
+                and hold.reconcile_status == "ok"
+                and hold.emergency_release is False
+            )
+            if not provenance_ok:
+                details = {
+                    "version": expected,
+                    "atomic_state": atomic_state,
+                    "validation_status": hold.validation_status,
+                    "reconcile_status": hold.reconcile_status,
+                    "emergency_release": hold.emergency_release,
+                }
+                _audit_hold_event(app_module, "atomic_recovery_blocked", "blocked", details)
+                return {"status": "blocked_atomic_recovery", "validation": None, "details": details}
+            # Re-arm before fresh validation so a temporarily blocked PM/runtime
+            # can never leave automatic functionality unguarded while atomic is live.
+            activate_release_hold(root, expected, "startup_recovery:inactive_hold_live_acceptance")
+            validation = validate_release_hold(app_module, root, expected)
+            if validation["status"] != "ok":
+                _audit_hold_event(app_module, "atomic_recovery_validation_blocked", "blocked", validation)
+                return {"status": "blocked_atomic_recovery", "validation": validation}
+            try:
+                atomic_acceptance = finalize_validated_atomic_release(root, expected)
+            except Exception as exc:
+                details = {
+                    "version": expected,
+                    "error": f"{type(exc).__name__}: {exc}",
+                    "validation": validation,
+                }
+                _audit_hold_event(app_module, "atomic_recovery_failed", "blocked", details)
+                return {"status": "blocked_atomic_acceptance", "validation": validation, "error": details["error"]}
+            try:
+                released = release_hold(root, expected, issued_by=issued_by)
+            except Exception as exc:
+                details = {
+                    "version": expected,
+                    "error": f"{type(exc).__name__}: {exc}",
+                    "validation": validation,
+                    "atomic_acceptance": atomic_acceptance,
+                }
+                _audit_hold_event(app_module, "hold_release_after_recovery_blocked", "blocked", details)
+                return {"status": "blocked_hold_release", "validation": validation, "error": details["error"]}
+            _audit_hold_event(app_module, "released", "ok", {
+                "version": expected,
+                "issued_by": issued_by,
+                "emergency": False,
+                "recovered_inactive_hold": True,
+                "atomic_acceptance": atomic_acceptance,
+            })
+            return {
+                "status": "released",
+                "validation": validation,
+                "hold": asdict(released),
+                "atomic_acceptance": atomic_acceptance,
+                "recovered_inactive_hold": True,
+            }
+        # No current atomic transition remains: historical non-atomic installs
+        # may legitimately have an already released hold.  Any current mismatched
+        # transition is ambiguous and remains blocked.
+        if journal is None:
+            return {"status": "already_released", "validation": None, "hold": asdict(hold)}
+        details = {"version": expected, "atomic_state": atomic_state, "atomic_target": atomic_target}
+        _audit_hold_event(app_module, "atomic_recovery_blocked", "blocked", details)
+        return {"status": "blocked_atomic_recovery", "validation": None, "details": details}
+
+    validation = validate_release_hold(app_module, root, expected)
     if validation["status"] != "ok":
         _audit_hold_event(app_module, "release_blocked", "blocked", validation)
         return {"status": "blocked", "validation": validation}
 
-    released = release_hold(root, expected_version, issued_by=issued_by)
+    # Commit the atomic release first.  If we restart here, the active validated
+    # hold remains fail-closed and the next daemon pass safely releases it.
     try:
-        atomic_acceptance = finalize_validated_atomic_release(root, expected_version)
+        atomic_acceptance = finalize_validated_atomic_release(root, expected)
     except Exception as exc:
-        # Keep the release fail-closed if the final atomic acceptance cannot be
-        # proven. The watcher still blocks on LIVE_ACCEPTANCE, and the app hold
-        # is re-activated so automatic functionality cannot silently resume.
-        activate_release_hold(root, expected_version, 'atomic_acceptance_failed_after_validation')
         details = {
-            'version': expected_version,
-            'error': f'{type(exc).__name__}: {exc}',
-            'validation': validation,
+            "version": expected,
+            "error": f"{type(exc).__name__}: {exc}",
+            "validation": validation,
         }
-        _audit_hold_event(app_module, 'atomic_acceptance_blocked', 'blocked', details)
-        return {'status': 'blocked_atomic_acceptance', 'validation': validation, 'error': details['error']}
+        _audit_hold_event(app_module, "atomic_acceptance_blocked", "blocked", details)
+        return {"status": "blocked_atomic_acceptance", "validation": validation, "error": details["error"]}
+
+    try:
+        released = release_hold(root, expected, issued_by=issued_by)
+    except Exception as exc:
+        # Atomic ACCEPTED is already durable. Keep the hold active; retry will
+        # observe already_accepted and finish this remaining safe half.
+        details = {
+            "version": expected,
+            "error": f"{type(exc).__name__}: {exc}",
+            "validation": validation,
+            "atomic_acceptance": atomic_acceptance,
+        }
+        _audit_hold_event(app_module, "hold_release_after_acceptance_blocked", "blocked", details)
+        return {"status": "blocked_hold_release", "validation": validation, "error": details["error"]}
+
     _audit_hold_event(
         app_module,
         "released",
         "ok",
         {
-            "version": expected_version,
+            "version": expected,
             "issued_by": issued_by,
             "emergency": False,
             "atomic_acceptance": atomic_acceptance,

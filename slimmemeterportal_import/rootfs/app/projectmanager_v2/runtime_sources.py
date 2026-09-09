@@ -1,16 +1,25 @@
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
 
 class RuntimeCollector:
     def __init__(self, project_root, *, mode_state_path=None, running_release_version=None,
-                 watcher_stale_seconds=60, processing_stale_seconds=600):
+                 watcher_stale_seconds=60, processing_stale_seconds=600,
+                 github_publication_state_path=None):
         self.project_root = Path(project_root)
         self.mode_state_path = Path(mode_state_path) if mode_state_path else None
         self.running_release_version = str(running_release_version or '').strip() or None
         self.watcher_stale_seconds = int(watcher_stale_seconds)
         self.processing_stale_seconds = int(processing_stale_seconds)
+        configured_publication_state = (
+            github_publication_state_path
+            or os.environ.get('ENERGIE_GITHUB_PUBLICATION_STATE')
+        )
+        self.github_publication_state_path = (
+            Path(configured_publication_state) if configured_publication_state else None
+        )
 
     @staticmethod
     def _read_json(path):
@@ -55,11 +64,41 @@ class RuntimeCollector:
         heartbeat_age = self._file_age(heartbeat_path, now)
         watcher_active = heartbeat_age is not None and heartbeat_age <= self.watcher_stale_seconds
         atomic_path = inbox / 'atomic_app_swap_state.json'
-        publisher_path = inbox / 'github_publisher_state.json'
+        legacy_publisher_path = inbox / 'github_publisher_state.json'
+        shared_publication_path = inbox / 'github_publication_state.json'
         installer_lock_path = inbox / '.installer.lock'
         atomic = self._read_json(atomic_path) or {}
-        publisher = self._read_json(publisher_path) or {}
         publication_contract = self._read_json(inbox / 'ha_publication_required.json') or {}
+
+        # 32.4.18 canonical publication truth: prefer the shared state written by
+        # the active HA publisher, then the HA-local state, and only then the
+        # historical NAS publisher state. The selected payload is normalized so
+        # Projectmanager health consumes one version-scoped contract.
+        publication_path = shared_publication_path
+        publication = self._read_json(shared_publication_path)
+        if publication is None and self.github_publication_state_path is not None:
+            publication_path = self.github_publication_state_path
+            publication = self._read_json(publication_path)
+        if publication is None:
+            publication_path = legacy_publisher_path
+            publication = self._read_json(legacy_publisher_path)
+        publication = publication or {}
+        remote_head = str(publication.get('remote_head') or '').strip()
+        local_head = str(publication.get('local_head') or '').strip()
+        exact_target_proof = publication.get('already_published') is True
+        pushed_target_proof = bool(remote_head and local_head and remote_head == local_head)
+        publication_proven = bool(
+            publication.get('published') is True
+            and publication.get('publication_contract_removed') is True
+            and (exact_target_proof or pushed_target_proof)
+        )
+        if publication_proven:
+            publication_status = 'published'
+        elif publication.get('published') is not None and publication:
+            publication_status = 'error'
+        else:
+            publication_status = publication.get('status')
+        legacy_publisher = self._read_json(legacy_publisher_path) or {}
         return {
             'watcher': {
                 'active': watcher_active,
@@ -84,20 +123,32 @@ class RuntimeCollector:
                 'age_seconds': self._file_age(atomic_path, now),
             },
             'publisher': {
-                'status': publisher.get('status'),
-                'version': publisher.get('version'),
-                'message': publisher.get('message'),
-                'updated_at': publisher.get('updated_at'),
-                'source': str(publisher_path),
-                'exists': publisher_path.is_file(),
-                'age_seconds': self._file_age(publisher_path, now),
+                'status': publication_status,
+                'version': publication.get('version'),
+                'message': publication.get('message'),
+                'updated_at': publication.get('updated_at'),
+                'source': str(publication_path),
+                'exists': publication_path.is_file(),
+                'age_seconds': self._file_age(publication_path, now),
+                'owner': 'home_assistant' if publication_path != legacy_publisher_path else 'legacy_nas',
             },
             'github_publication': {
-                'status': publisher.get('status'),
-                'version': publication_contract.get('version') or publisher.get('version'),
+                'status': publication_status,
+                'version': publication.get('version'),
                 'contract_pending': bool(publication_contract),
                 'contract_version': publication_contract.get('version'),
-                'source': str(inbox / 'github_publisher_state.json'),
+                'source': str(publication_path),
+                'published': publication.get('published'),
+                'remote_head': publication.get('remote_head'),
+                'local_head': publication.get('local_head'),
+                'publication_contract_removed': publication.get('publication_contract_removed'),
+            },
+            'legacy_publisher': {
+                'status': legacy_publisher.get('status'),
+                'version': legacy_publisher.get('version'),
+                'message': legacy_publisher.get('message'),
+                'source': str(legacy_publisher_path),
+                'exists': legacy_publisher_path.is_file(),
             },
         }
 
