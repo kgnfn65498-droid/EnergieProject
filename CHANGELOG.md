@@ -1,3 +1,12 @@
+## 32.4.19 — watcher heartbeat truth en gate return-code closure
+
+- Projectmanager bepaalt watcher-liveness nu primair uit de Unix-epoch inhoud van `.watcher.heartbeat`; NAS/SMB-bestands-mtime is alleen legacy fallback.
+- Een verse heartbeat-inhoud blijft daardoor GREEN wanneer mount-metadata tijdelijk stale is; een stale heartbeat-inhoud blijft RED ook wanneer de file-mtime vers lijkt.
+- `release_watcher.sh` bewaart de echte exitcode van `operating_mode_gate.py`: capability-denial `rc=3` is normale fail-closed denial en wordt niet meer als timeout/fout `rc=0` gelogd.
+- Echte nonzero gate-errors behouden hun werkelijke returncode in de watcherlog.
+- Live root cause 32.4.18: Projectmanager-cycli waren vers en GREEN self-audit, maar release-health las stale heartbeat-metadata en blokkeerde daardoor ten onrechte de eigen LIVE_ACCEPTANCE closure.
+- Projectmanager naar `2.0.0-rc16`.
+
 ## 32.4.18 — transactionele release-closure en restart recovery
 
 - Root cause 32.4.17: release-hold werd vóór atomic `LIVE_ACCEPTANCE -> ACCEPTED` vrijgegeven. Een restart in dat venster liet `hold=inactive + LIVE_ACCEPTANCE` achter; de auto-release stopte vervolgens onterecht als `already_released`.

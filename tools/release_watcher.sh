@@ -92,10 +92,9 @@ mode_allows(){
   capability=$1
   [ -f "$MODE_GATE" ] || return 1
   command -v python3 >/dev/null 2>&1 || return 1
-  if run_bounded "$MODE_GATE_TIMEOUT" python3 "$MODE_GATE" --root "$ROOT" --capability "$capability" >/dev/null 2>&1; then
-    return 0
-  fi
-  rc=$?
+  rc=0
+  run_bounded "$MODE_GATE_TIMEOUT" python3 "$MODE_GATE" --root "$ROOT" --capability "$capability" >/dev/null 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] && return 0
   [ "$rc" -eq 3 ] && return 1
   log "WAARSCHUWING: operating-mode gate timeout/fout capability=$capability rc=$rc; fail-closed"
   return 1

@@ -588,6 +588,11 @@ class ManagerService:
             '- Heartbeat-kritieke subprocessen hebben een harde timeout met SIGTERM en daarna SIGKILL.',
             '- Releaseclosure wordt over twee opeenvolgende releases plus restartvensters bewezen voordat het Incoming-probleem structureel groen heet.',
             '- Algemene energie-operatiehealth en release-acceptance zijn gescheiden: een stale kwartiersnapshot blijft PM-RED maar mag de software-release niet deadlocken; release-chain problemen blijven wel fail-closed.',
+            '## Ontwikkelproceslessen 32.4.19',
+            '- Watcher-liveness gebruikt de expliciete heartbeat-payload als canonieke truth; NAS/SMB-mtime is alleen fallback omdat mount-metadata en inhoud aantoonbaar uiteen kunnen lopen.',
+            '- Een verse Projectmanager-status bewijst niet automatisch dat iedere opgenomen metric vers is; liveness-signalen moeten hun eigen broncontract hebben.',
+            '- Shell-returncodes worden direct na de child-call vastgelegd; een `if`-compound command mag de echte exitcode niet overschrijven voordat logging/beslissing plaatsvindt.',
+            '- Live closure blijft vereist: pas autonoom ACCEPTED plus vrije opvolgende ingress maakt het Incoming-probleem groen.',
         ])
         return [
             self.document_sync.update(kb_dir / 'ACTUELE_STATUS.md', 'PROJECTMANAGER_V2', status_content, placement='top'),

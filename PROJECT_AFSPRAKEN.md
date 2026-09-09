@@ -47,3 +47,10 @@
 - Voor closure zijn **twee opeenvolgende releases** plus restart/crash-vensters een verplichte regressie; alleen een losse current-release acceptance is onvoldoende.
 - Release-acceptance mag niet gekoppeld zijn aan algemene energie-operatiehealth. Sensor-/kwartierdata-RED blijft zichtbaar en actionable, maar alleen release-chain health en de expliciete release-validatiechecks mogen de release-hold blokkeren.
 
+
+
+## Release-health contract vanaf 32.4.19
+- Een heartbeat-bestand met expliciete Unix-epoch payload gebruikt die payload als canonieke liveness-truth; NAS/SMB-mtime mag geen verse watcher tot RED degraderen.
+- Een parseerbare stale heartbeat-payload blijft fail-closed RED, ook als bestandsmetadata vers is.
+- Shell-gates bewaren de echte child-returncode voordat conditionele shellcontrol-flow die waarde kan overschrijven; capability-denial en technische fout worden verschillend behandeld.
+- Release-closure wordt pas groen verklaard nadat live is bewezen dat `LIVE_ACCEPTANCE -> ACCEPTED` zonder handmatig accept-commando gebeurt en een opvolgende ingress wordt vrijgegeven.

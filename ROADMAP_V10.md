@@ -136,3 +136,10 @@
 - [ ] Live bewijs: 32.4.18 installeert uit `incoming`, publiceert, sluit autonoom naar `ACCEPTED`, hold eindigt inactive en watcher-heartbeat blijft fresh.
 - [ ] Daarna opvolgende release/incoming zonder handmatig accept-commando bewijzen.
 
+
+
+## v32.4.19 — watcher heartbeat truth / Incoming closure
+- [x] Root cause: verse PM-cycli lazen watcher-liveness via stale mount-mtime terwijl heartbeat-payload vers was.
+- [x] Heartbeat-payload wordt canonieke liveness-truth; mtime alleen fallback.
+- [x] `mode_allows` bewaart echte returncodes; rc=3 denial wordt niet als timeout/fout gelogd.
+- [ ] Live bewijs: 32.4.19 sluit autonoom naar `ACCEPTED`, hold wordt inactive en opvolgende release-ingress opent zonder handmatige bootstrap.

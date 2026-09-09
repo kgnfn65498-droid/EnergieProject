@@ -1,19 +1,15 @@
 from pathlib import Path
-from release_test_contract import CURRENT_PM_VERSION, CURRENT_RELEASE
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / 'slimmemeterportal_import/rootfs/app'
 PM = APP / 'projectmanager_v2'
 
 
-def test_v32418_release_identity_is_consistent():
-    assert CURRENT_RELEASE == '32.4.18'
-    assert CURRENT_PM_VERSION == '2.0.0-rc15'
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == CURRENT_RELEASE
-    assert f'version: "{CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text()
-    assert f'APP_VERSION = "{CURRENT_RELEASE}"' in (APP / 'main.py').read_text()
-    assert f'TARGET_RELEASE_VERSION = "{CURRENT_RELEASE}"' in (APP / 'mode_entrypoint.py').read_text()
-    assert (PM / 'VERSION.txt').read_text().strip() == CURRENT_PM_VERSION
+def test_v32418_release_identity_is_preserved_historically():
+    changelog = (ROOT / 'CHANGELOG.md').read_text()
+    section = changelog.split('## 32.4.18', 1)[1].split('\n## ', 1)[0]
+    assert '2.0.0-rc15' in section
+    assert 'transactionele release-closure' in section.lower()
 
 
 def test_v32418_release_closure_lessons_are_persisted():

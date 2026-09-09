@@ -37,6 +37,27 @@ class RuntimeCollector:
             return None
 
     @staticmethod
+    def _heartbeat_age(path, now):
+        """Return watcher heartbeat age from its payload, not NAS/SMB metadata.
+
+        The watcher writes the current Unix epoch into the heartbeat file.  File
+        metadata can be cached independently across the NAS/Home Assistant mount,
+        so mtime is only a legacy fallback when the payload is unavailable or
+        invalid.
+        """
+        heartbeat_path = Path(path)
+        try:
+            raw = heartbeat_path.read_text(encoding='utf-8').strip()
+            epoch = float(raw)
+            age = now.timestamp() - epoch
+            if age < -30.0:
+                return None, 'content_epoch_future'
+            return max(0.0, age), 'content_epoch'
+        except (OSError, UnicodeError, ValueError, OverflowError):
+            age = RuntimeCollector._file_age(heartbeat_path, now)
+            return age, 'file_mtime_fallback' if age is not None else 'missing'
+
+    @staticmethod
     def _zip_snapshot(directory, *, now, stale_after=None):
         root = Path(directory)
         files = []
@@ -61,7 +82,7 @@ class RuntimeCollector:
     def _release_chain(self, *, now):
         inbox = self.project_root / 'Inbox'
         heartbeat_path = inbox / '.watcher.heartbeat'
-        heartbeat_age = self._file_age(heartbeat_path, now)
+        heartbeat_age, heartbeat_source = self._heartbeat_age(heartbeat_path, now)
         watcher_active = heartbeat_age is not None and heartbeat_age <= self.watcher_stale_seconds
         atomic_path = inbox / 'atomic_app_swap_state.json'
         legacy_publisher_path = inbox / 'github_publisher_state.json'
@@ -104,6 +125,7 @@ class RuntimeCollector:
                 'active': watcher_active,
                 'heartbeat_path': str(heartbeat_path),
                 'heartbeat_age_seconds': round(heartbeat_age, 1) if heartbeat_age is not None else None,
+                'heartbeat_source': heartbeat_source,
                 'stale_after_seconds': self.watcher_stale_seconds,
             },
             'incoming': self._zip_snapshot(inbox / 'incoming', now=now),
