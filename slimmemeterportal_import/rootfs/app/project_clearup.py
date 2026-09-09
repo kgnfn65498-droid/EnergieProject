@@ -446,14 +446,35 @@ def apply_clearup_plan(
     root = Path(project_root).resolve()
     if confirmation != plan.get("confirmation_required"):
         raise ValueError(f"Bevestiging ongeldig. Verwacht exact: {plan.get('confirmation_required')}")
-    fresh = build_clearup_plan(
-        root,
-        current_version=str(plan.get("current_version") or ""),
-        keep_rollbacks=int(plan.get("keep_rollbacks") or 3),
-    )
-    if fresh["plan_id"] != plan.get("plan_id"):
+    # Revalidate candidate membership and active dependencies immediately before
+    # moving, but do not re-hash every candidate tree here.  The original plan
+    # already carries a full content hash; each CLEARUP item is hashed once more
+    # directly before its hard rename below.  This keeps the dependency audit
+    # fresh/fail-closed without multiplying multi-GB NAS reads.
+    raw_items = _collect_candidates(root, keep_rollbacks=int(plan.get("keep_rollbacks") or 3))
+    candidate_paths = {item["source_path"] for item in raw_items}
+    planned_paths = {str(item.get("source_path") or "") for item in (plan.get("items") or [])}
+    if candidate_paths != planned_paths:
         raise RuntimeError("CLEARUP-plan is gewijzigd; nieuwe dependency-audit vereist.")
+    active_files = list(_iter_active_text_files(root, candidate_paths))
+    dependency_index = _build_active_dependency_index(root, candidate_paths, active_files)
+    atomic_rollback = _atomic_rollback_reference(root)
+    planned_by_path = {str(item["source_path"]): item for item in (plan.get("items") or [])}
+    for base in raw_items:
+        relative = base["source_path"]
+        refs, informational_refs = _active_references(relative, dependency_index)
+        if atomic_rollback == relative:
+            refs.append({"path": "Inbox/atomic_app_swap_state.json", "matches": ["current_atomic_rollback"]})
+        disposition = "REVIEW" if refs else "CLEARUP"
+        previous = planned_by_path[relative]
+        if (
+            disposition != previous.get("disposition")
+            or refs != list(previous.get("active_references") or [])
+            or informational_refs != list(previous.get("informational_references") or [])
+        ):
+            raise RuntimeError(f"CLEARUP dependency-audit gewijzigd; nieuwe plancontrole vereist: {relative}")
 
+    fresh = plan
     run_id = _safe_run_id(run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ"))
     run_root = root / "CLEARUP" / run_id
     original_root = run_root / "original"
@@ -479,6 +500,10 @@ def apply_clearup_plan(
             before_hash = tree_sha256(source)
             if before_hash != item["tree_sha256"]:
                 raise RuntimeError(f"CLEARUP-bron gewijzigd na plan: {item['source_path']}")
+            # A rename on the same filesystem preserves the inode.  Capture
+            # lstat identity before moving so destination integrity can be
+            # verified without reading the entire tree a third/fourth time.
+            before_stat = source.lstat()
             destination = original_root / item["source_path"]
             if destination.exists() or destination.is_symlink():
                 raise FileExistsError(destination)
@@ -489,13 +514,16 @@ def apply_clearup_plan(
                 raise RuntimeError(f"Oud pad bestaat nog na harde CLEARUP-move: {item['source_path']}")
             if not destination.exists() and not destination.is_symlink():
                 raise RuntimeError(f"CLEARUP-bestemming ontbreekt na move: {item['source_path']}")
-            after_hash = tree_sha256(destination)
-            if after_hash != before_hash:
-                raise RuntimeError(f"CLEARUP tree-hash wijkt af na move: {item['source_path']}")
+            after_stat = destination.lstat()
+            if (after_stat.st_dev, after_stat.st_ino, after_stat.st_size) != (
+                before_stat.st_dev, before_stat.st_ino, before_stat.st_size
+            ):
+                raise RuntimeError(f"CLEARUP rename-identiteit wijkt af na move: {item['source_path']}")
             manifest_items.append({
                 **item,
                 "quarantine_path": _rel(destination, root),
-                "tree_sha256": after_hash,
+                "tree_sha256": before_hash,
+                "rename_identity_verified": True,
                 "old_path_absent": True,
                 "restore_status": "AVAILABLE",
                 "moved_at": datetime.now(timezone.utc).isoformat(),

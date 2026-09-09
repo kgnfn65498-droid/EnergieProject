@@ -1,7 +1,7 @@
 # Changelog
 
-## 32.4.26 — indexed CLEARUP dependency audit
+## 32.4.27 — CLEARUP hash-I/O closure
 
-- CLEARUP leest actieve tekstbestanden en inventariseert symlinks voortaan één keer per plan in plaats van opnieuw per kandidaat.
-- Fail-closed dependencyregels, kandidaat-tree-hashes, harde same-filesystem move en herstelmanifest blijven inhoudelijk gelijk.
-- Deze release repareert uitsluitend de live performancegrens van 32.4.25; productiekern blijft `9.4-core3` en PM blijft `2.0.0-rc22`.
+- Verwijdert de dubbele volledige plan-hashpass uit de CLEARUP-applyfase, maar herhaalt vlak vóór de move wel de volledige dependency/symlink-audit.
+- Elke CLEARUP-kandidaat wordt nog één keer direct vóór de harde rename volledig gehasht; dezelfde-filesystem rename wordt daarna via device/inode/size en old-path-absent geverifieerd.
+- Geen wijziging aan protected/REVIEW/no-delete/restore-regels; core blijft `9.4-core3`, PM blijft `2.0.0-rc22`.

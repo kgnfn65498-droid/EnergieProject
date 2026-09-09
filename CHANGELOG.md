@@ -1,3 +1,11 @@
+## 32.4.27 — CLEARUP hash-I/O closure
+
+- Live 32.4.26 bleef na ACCEPTED te lang zonder CLEARUP-run doordat grote kandidaatbomen ondanks de gedeelde dependency-index nog herhaald volledig werden gehasht tijdens plan, verse plancontrole en post-rename verificatie.
+- De dependency/reference-audit blijft vlak vóór de move volledig vers en fail-closed, maar dezelfde kandidaatboom wordt niet meer opnieuw als onderdeel van een tweede volledig plan gehasht.
+- Elke te verplaatsen kandidaat krijgt nog steeds een volledige SHA-256 controle direct vóór de harde same-filesystem rename. Na rename wordt integriteit bewezen met ongewijzigde device/inode/size-identiteit plus de verplichte negative-path-check; de vastgelegde tree-SHA blijft die van de geverifieerde bron.
+- Protected paths, actuele atomic rollback, actieve referenties, symlinks, REVIEW-regels, restore-preflight en no-delete blijven ongewijzigd.
+- Scope blijft uitsluitend CLEARUP-performance; productiekern `9.4-core3`, PM `2.0.0-rc22` en ngrok-infrastructuur zijn inhoudelijk niet gewijzigd.
+
 ## 32.4.26 — geïndexeerde CLEARUP dependency-audit
 
 - Live 32.4.25 liet zien dat de veilige CLEARUP-audit op de echte NAS praktisch te traag werd doordat elk actief tekstbestand en iedere actieve symlinkboom opnieuw per cleanup-kandidaat werd gelezen/doorgelopen.
