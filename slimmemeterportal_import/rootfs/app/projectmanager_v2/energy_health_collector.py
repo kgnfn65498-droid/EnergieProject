@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from month_closure_truth import closure_status_is_deep_verified
 from cr_evidence import evaluate_cr_closure
 from health_engine import evaluate_quarter_hour_heartbeat
+from project_hygiene import ngrok_security_check, project_hygiene_check
 
 VALID_MODES = {'USER', 'DEVELOPMENT', 'MAINTENANCE'}
 LOCAL_TZ = ZoneInfo('Europe/Amsterdam')
@@ -282,5 +283,12 @@ class EnergyHealthCollector:
             ))
         except OSError as exc:
             checks.append(_check('project_storage_free_space', 'ORANGE', 'disk_usage_failed', self.project_root, {'error': str(exc)}, verified=False))
+
+        # 32.4.25: expose project-structure debt and ngrok boundary safety as
+        # read-only operational health.  These checks never move/delete files
+        # and are deliberately non-release-prefixed so they cannot create a
+        # circular release-acceptance dependency.
+        checks.append(project_hygiene_check(self.project_root, keep_rollbacks=3))
+        checks.append(ngrok_security_check(self.project_root))
 
         return checks

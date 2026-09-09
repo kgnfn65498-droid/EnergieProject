@@ -1,9 +1,11 @@
 # Changelog
 
-## 32.4.24 — legacy closure en non-mutating core-certificering
+## 32.4.25 — history freshness en reversibele CLEARUP
 
-- Recovery `OPEN` wordt gecombineerd met legacy/lifecycle-status; conflict met `CLOSED` of ontbrekende lifecycle-truth wordt `UNKNOWN` en blokkeert muterende maandflows fail-closed.
-- Productiekern `9.4-core3` krijgt een autonome non-mutating core-safety acceptance zonder maandworkflow of maandmutatie.
-- Certificaatbeheer verwerpt stale/tampered non-mutating bewijs en certificeert alleen volledig GREEN safety-evidence.
-- Roadmap-migratie behandelt directory-permission-denial zonder startup-crash en gebruikt de goedgekeurde roadmap-spec read-only in runtime.
-- Projectmanager V2 `2.0.0-rc21`; releaseketen en ngrok-ingressarchitectuur zijn verder ongewijzigd.
+- Verbruikshistorie-master valideert de nieuwste maand semantisch en repareert een stale master uitsluitend uit een valide maandarchief met atomische/hash-gecontroleerde publicatie.
+- Nieuwe dependency-audited CLEARUP-quarantaine gebruikt harde same-filesystem renames; oude bronpaden verdwijnen volledig en conflict/actieve referentie faalt gesloten.
+- Projectmanager V2 `2.0.0-rc22` meldt structurele cleanup-schuld en onbewezen ngrok-beveiliging read-only.
+- Oude ProjectManagerV2-staging wordt per child dependency-audited zodat een actieve RuntimeV2-referentie alleen dat specifieke artifact blokkeert.
+- CLEARUP-gating valideert de nieuwste CR-set op hash/manifest en gebruikt het aparte praktische Crash-Recovery-acceptatiebewijs als herstelketenbewijs.
+- Native MCP-tunnel op `127.0.0.1:8000` geldt expliciet niet als beveiligde ngrok-architectuur; de bestaande dedicated externe PM-ingress blijft de beoogde grens.
+- Productiekern blijft `9.4-core3`.

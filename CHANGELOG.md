@@ -1,3 +1,14 @@
+## 32.4.25 — Verbruikshistorie-correctheid + reversibele projecthygiëne
+
+- Historische Excel-bootstrap controleert nu de inhoudelijke nieuwste maand; een technisch geldige juli-master wordt voor een volledig afgesloten augustus niet langer als `skipped_existing` geaccepteerd. Een geldige augustus-archive kan de stale master atomair herstellen, met gehashte RepairBackup en idempotente herhaalrun.
+- Projectbrede housekeeping wordt fail-closed en reversibel: cleanup-kandidaten worden pas na dependency-audit hard verplaatst naar `CLEARUP/<run>/original/<oorspronkelijk-pad>`. Het oude pad bestaat daarna werkelijk niet meer; er worden geen symlinks, aliases of fallbacks gemaakt.
+- Actieve referenties in App/Infra/Inbox/PM-state, symlinks en de actuele atomic rollback blokkeren verplaatsing als `REVIEW`. Protected maanddata, Knowledge Base/Roadmap, Crash Recovery, actuele App en release-state zijn uitgesloten.
+- Projectmanager krijgt read-only structurele hygiënebewaking zodat rollback/staging/restore-bloat niet meer ongemerkt GREEN kan blijven. PMV2 wordt `2.0.0-rc22`.
+- ProjectManagerV2-staging wordt per directe submap beoordeeld: een nog door RuntimeV2 gerefereerde oude repair blijft `REVIEW`, terwijl onafhankelijke oude buildtrees wel naar CLEARUP mogen.
+- CLEARUP controleert de nieuwste Crash Recovery set op actuele SHA-256 + manifest en koppelt herstelketenbewijs aan de afzonderlijke praktische Crash-Recovery-acceptatie; de echte `restore.txt` wordt terecht als handleiding behandeld en hoeft geen synthetisch `VALID`-woord te bevatten.
+- Ngrok-security wordt permanent bewaakt. Een tunnel naar de volledige native MCP op `127.0.0.1:8000` wordt expliciet niet als beveiligd beschouwd; ook poort 8099 zonder onafhankelijk bewezen edge-auth, routebeperking, header-policy en rate-limit blijft niet-GREEN.
+- Productiekern blijft `9.4-core3`; maandclosure/scheduler/core-certificering worden in deze maintenance-release niet inhoudelijk gewijzigd.
+
 ## 32.4.24 — legacy closure + non-mutating core-certificering + roadmap permission closure
 
 - Legacy lifecycle-truth wordt nu naast RecoveryManager gecontroleerd. `Recovery OPEN` + legacy/lifecycle `CLOSED` wordt `UNKNOWN`, nooit `OPEN`; ook een onbereikbare lifecycle-bron bij Recovery-OPEN faalt gesloten.

@@ -725,6 +725,91 @@ def validate_xlsx(path: Path) -> dict[str, Any]:
     }
 
 
+def _worksheet_xml_path(zf: zipfile.ZipFile, sheet_name: str) -> str:
+    """Resolve a worksheet XML path by its workbook sheet name."""
+    main_ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    rel_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    package_rel_ns = "http://schemas.openxmlformats.org/package/2006/relationships"
+    workbook = ET.fromstring(zf.read("xl/workbook.xml"))
+    rel_id = None
+    for sheet in workbook.findall(f".//{{{main_ns}}}sheet"):
+        if sheet.attrib.get("name") == sheet_name:
+            rel_id = sheet.attrib.get(f"{{{rel_ns}}}id")
+            break
+    if not rel_id:
+        raise RuntimeError(f"Werkblad ontbreekt in XLSX: {sheet_name}")
+    rels = ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))
+    for rel in rels.findall(f"{{{package_rel_ns}}}Relationship"):
+        if rel.attrib.get("Id") == rel_id:
+            target = str(rel.attrib.get("Target") or "").lstrip("/")
+            if not target:
+                break
+            return "xl/" + target if not target.startswith("xl/") else target
+    raise RuntimeError(f"Werkbladrelatie ontbreekt in XLSX: {sheet_name}")
+
+
+def latest_month_key_in_workbook(path: Path) -> str:
+    """Read the newest month actually present in Maanddetail.
+
+    This is a semantic check, not merely an XLSX integrity check. XlsxWriter
+    stores the first two Maanddetail columns as Excel serial dates; column A
+    contains each period start date.
+    """
+    workbook_path = Path(path)
+    validation = validate_xlsx(workbook_path)
+    if validation.get("status") != "ok":
+        raise RuntimeError("Semantische maandcontrole vereist een geldige XLSX.")
+    spreadsheet_ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    starts: list[date] = []
+    with zipfile.ZipFile(workbook_path, "r") as zf:
+        sheet_path = _worksheet_xml_path(zf, "Maanddetail")
+        root = ET.fromstring(zf.read(sheet_path))
+        for cell in root.findall(f".//{{{spreadsheet_ns}}}c"):
+            ref = str(cell.attrib.get("r") or "")
+            match = re.fullmatch(r"A(\d+)", ref)
+            if not match or int(match.group(1)) < 5:
+                continue
+            value = cell.find(f"{{{spreadsheet_ns}}}v")
+            if value is None or value.text in (None, ""):
+                continue
+            try:
+                serial = float(value.text)
+            except ValueError:
+                continue
+            # Excel's 1900 date system with the historical leap-year quirk.
+            starts.append(date(1899, 12, 30) + timedelta(days=int(serial)))
+    if not starts:
+        raise RuntimeError("Maanddetail bevat geen leesbare periodedatums.")
+    newest = max(starts)
+    return f"{newest.year:04d}_{newest.month:02d}"
+
+
+def _month_key_ge(left: str, right: str) -> bool:
+    return _month_tuple(left) >= _month_tuple(right)
+
+
+def _preserve_stale_master_before_repair(master: Path, history_root: Path, target_month: str) -> Path:
+    backup_root = history_root / "RepairBackup"
+    backup_root.mkdir(parents=True, exist_ok=True)
+    source_sha = _hash_file(master)
+    backup = backup_root / f"Energie_verbruik_historie_master_before_{target_month}_{source_sha[:12]}.xlsx"
+    if backup.exists():
+        if _hash_file(backup) != source_sha:
+            raise RuntimeError("Bestaande history repair-backup heeft afwijkende SHA-256.")
+        return backup
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{backup.name}.", suffix=".tmp", dir=backup_root)
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        shutil.copyfile(master, tmp)
+        if _hash_file(tmp) != source_sha:
+            raise RuntimeError("History repair-backup SHA-256 verificatie mislukt.")
+        tmp.replace(backup)
+    finally:
+        tmp.unlink(missing_ok=True)
+    return backup
+
+
 def _formats(workbook: xlsxwriter.Workbook) -> dict[str, Any]:
     return {
         "title": workbook.add_format({"bold": True, "font_color": "white", "bg_color": "#1F4E78", "font_size": 18, "valign": "vcenter"}),
@@ -1071,19 +1156,78 @@ def _build_missing_archive_without_replacing_master(project_root: Path, month_ke
 
 
 def bootstrap_historical_energy_workbook(project_root: Path) -> dict[str, Any]:
-    """Ensure the first master and latest complete-month archive exist after app startup."""
+    """Ensure master/archive exist and the master semantically reaches the latest complete month."""
     month_key = latest_complete_month_key(project_root)
     master = project_root / MASTER_RELATIVE
+    history_root = master.parent
     archive = project_root / ARCHIVE_RELATIVE / f"Energie_verbruik_historie_{month_key}.xlsx"
 
-    master_ok = master.is_file() and validate_xlsx(master).get("status") == "ok"
-    archive_ok = archive.is_file() and validate_xlsx(archive).get("status") == "ok"
-    if master_ok and archive_ok:
+    master_validation = validate_xlsx(master) if master.is_file() else {"status": "missing"}
+    archive_validation = validate_xlsx(archive) if archive.is_file() else {"status": "missing"}
+    master_ok = master_validation.get("status") == "ok"
+    archive_ok = archive_validation.get("status") == "ok"
+    master_latest = latest_month_key_in_workbook(master) if master_ok else None
+    archive_latest = latest_month_key_in_workbook(archive) if archive_ok else None
+
+    if archive_ok and archive_latest != month_key:
+        raise RuntimeError(
+            f"Semantisch archief voor {month_key} bevat {archive_latest}; archief wordt niet vertrouwd."
+        )
+
+    if master_ok and master_latest and _month_key_ge(master_latest, month_key):
+        if archive_ok:
+            return {
+                "status": "skipped_existing",
+                "month": month_key,
+                "master": str(master),
+                "archive": str(archive),
+                "master_latest_month": master_latest,
+                "archive_latest_month": archive_latest,
+            }
+        result = _build_missing_archive_without_replacing_master(project_root, month_key)
+        result["master"] = str(master)
+        result["master_latest_month"] = master_latest
+        result["bootstrap"] = True
+        return result
+
+    if master_ok and master_latest and not _month_key_ge(master_latest, month_key):
+        # A structurally valid workbook can still be stale. Never accept it merely
+        # because the current-month archive happens to exist. The archive itself
+        # must be valid and must semantically contain the target month.
+        if not archive_ok or archive_latest != month_key:
+            raise RuntimeError(
+                f"Stale master {master_latest}; geldig semantisch archief {month_key} ontbreekt."
+            )
+        backup = _preserve_stale_master_before_repair(master, history_root, month_key)
+        source_sha = _hash_file(archive)
+        fd, tmp_name = tempfile.mkstemp(prefix=".Energie_verbruik_historie.repair.", suffix=".xlsx", dir=history_root)
+        os.close(fd)
+        tmp = Path(tmp_name)
+        try:
+            shutil.copyfile(archive, tmp)
+            validation = validate_xlsx(tmp)
+            if validation.get("status") != "ok":
+                raise RuntimeError("Stale master repair-kopie faalt XLSX-validatie.")
+            if latest_month_key_in_workbook(tmp) != month_key:
+                raise RuntimeError(f"Stale master repair-kopie bevat niet {month_key}.")
+            if _hash_file(tmp) != source_sha:
+                raise RuntimeError("Stale master repair-kopie SHA-256 wijkt af van maandarchief.")
+            tmp.replace(master)
+        finally:
+            tmp.unlink(missing_ok=True)
+        if _hash_file(master) != source_sha or latest_month_key_in_workbook(master) != month_key:
+            raise RuntimeError("Stale master repair eindverificatie mislukt.")
         return {
-            "status": "skipped_existing",
+            "status": "repaired_stale_master",
             "month": month_key,
+            "previous_master_month": master_latest,
+            "master_latest_month": month_key,
             "master": str(master),
             "archive": str(archive),
+            "master_sha256": source_sha,
+            "archive_sha256": source_sha,
+            "repair_backup": str(backup),
+            "bootstrap": True,
         }
 
     if not master_ok:
@@ -1094,13 +1238,11 @@ def bootstrap_historical_energy_workbook(project_root: Path) -> dict[str, Any]:
         )
         result = dict(result)
         result["bootstrap"] = True
+        result["master_latest_month"] = latest_month_key_in_workbook(Path(result["master"]))
         return result
 
-    result = _build_missing_archive_without_replacing_master(project_root, month_key)
-    result["master"] = str(master)
-    result["bootstrap"] = True
-    return result
-
+    # A valid workbook with unreadable semantic month must never be silently accepted.
+    raise RuntimeError("Historische master is structureel geldig maar semantische nieuwste maand is onbekend.")
 
 def publish_historical_energy_workbook(
     project_root: Path,
