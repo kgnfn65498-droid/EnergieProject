@@ -70,7 +70,7 @@ class SelfAuditor:
         invalid = []
         warnings = []
         if missing:
-            return {'status': 'RED', 'missing': missing, 'invalid': invalid, 'warnings': warnings, 'required_files': list(REQUIRED_RUNTIME_FILES)}
+            return {'status': 'RED', 'missing': missing, 'invalid': invalid, 'warnings': warnings, 'required_files': list(REQUIRED_RUNTIME_FILES), 'status_updated_at': None}
 
         status = self._json('status/current.json')
         heartbeat = self._json('heartbeat/manager.json')
@@ -307,4 +307,12 @@ class SelfAuditor:
                 warnings.append({'path': 'quarantine', 'reason': 'recent_recovered_corruption_present', 'latest': recent[0][0].name, 'latest_age_seconds': round(recent[0][1], 1), 'recent_count': len(recent)})
 
         result_status = 'RED' if invalid else ('ORANGE' if warnings else 'GREEN')
-        return {'status': result_status, 'missing': missing, 'invalid': invalid, 'warnings': warnings, 'required_files': list(REQUIRED_RUNTIME_FILES)}
+        status_updated_at = status.get('updated_at') if isinstance(status, dict) else None
+        return {
+            'status': result_status,
+            'missing': missing,
+            'invalid': invalid,
+            'warnings': warnings,
+            'required_files': list(REQUIRED_RUNTIME_FILES),
+            'status_updated_at': status_updated_at,
+        }

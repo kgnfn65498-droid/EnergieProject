@@ -68,7 +68,7 @@ class RuntimeCollector:
         except (OSError, UnicodeError, ValueError, OverflowError):
             return None
 
-    def _watcher_liveness(self, path, now):
+    def _watcher_liveness(self, path, now, *, source_label='content_epoch'):
         """Clock-independent watcher liveness for NAS/HA cross-host mounts.
 
         QNAP and Home Assistant may have different wall clocks.  Absolute epoch
@@ -95,7 +95,7 @@ class RuntimeCollector:
             return {
                 'active': True,
                 'heartbeat_age_seconds': round(max(0.0, raw_age), 1),
-                'heartbeat_source': 'content_epoch',
+                'heartbeat_source': source_label,
                 'heartbeat_clock_skew_detected': False,
                 'heartbeat_probe_seconds': 0.0,
             }
@@ -108,13 +108,13 @@ class RuntimeCollector:
             return {
                 'active': True,
                 'heartbeat_age_seconds': 0.0,
-                'heartbeat_source': 'content_pulse_probe',
+                'heartbeat_source': 'content_pulse_probe_v2' if source_label == 'content_epoch_v2' else 'content_pulse_probe',
                 'heartbeat_clock_skew_detected': True,
                 'heartbeat_probe_seconds': self.watcher_probe_seconds,
                 'reported_clock_delta_seconds': round(raw_age, 1),
             }
 
-        source = 'content_epoch' if raw_age > self.watcher_stale_seconds else 'content_epoch_future'
+        source = source_label if raw_age > self.watcher_stale_seconds else (source_label + '_future')
         return {
             'active': False,
             'heartbeat_age_seconds': round(max(0.0, raw_age), 1) if raw_age >= 0 else None,
@@ -149,8 +149,17 @@ class RuntimeCollector:
 
     def _release_chain(self, *, now):
         inbox = self.project_root / 'Inbox'
-        heartbeat_path = inbox / '.watcher.heartbeat'
-        watcher_liveness = self._watcher_liveness(heartbeat_path, now)
+        heartbeat_v2_path = inbox / 'watcher_heartbeat.v2'
+        legacy_heartbeat_path = inbox / '.watcher.heartbeat'
+        if heartbeat_v2_path.is_file():
+            heartbeat_path = heartbeat_v2_path
+            heartbeat_source_label = 'content_epoch_v2'
+        else:
+            heartbeat_path = legacy_heartbeat_path
+            heartbeat_source_label = 'content_epoch'
+        watcher_liveness = self._watcher_liveness(
+            heartbeat_path, now, source_label=heartbeat_source_label
+        )
         atomic_path = inbox / 'atomic_app_swap_state.json'
         legacy_publisher_path = inbox / 'github_publisher_state.json'
         shared_publication_path = inbox / 'github_publication_state.json'

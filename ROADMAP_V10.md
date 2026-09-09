@@ -151,3 +151,12 @@
 - [x] TDD voor positieve/negatieve skew, levende/dode watcher en release-acceptance met bewezen puls.
 - [ ] Live bewijs: 32.4.20 sluit autonoom `LIVE_ACCEPTANCE -> ACCEPTED`, hold wordt inactive en volgende ingress wordt vrijgegeven zonder bootstrap.
 
+
+
+## v32.4.21 — self-audit provenance / Incoming closure
+
+- [x] Live root cause 32.4.20 vastgesteld: watcher GREEN en publicatie GREEN, maar hold blokkeerde op `projectmanager self-audit stale versus current PM status`.
+- [x] Onmogelijke mtime-invariant verwijderd voor 32.4.21+: audit is door PM-finalisatie per ontwerp eerder geschreven dan de laatste statusrewrite.
+- [x] Expliciete status-generatieprovenance toegevoegd en fail-closed getest.
+- [x] Zes reeds aanwezige 32.4.20 SMB-heartbeattests die de artifactcode niet haalde gecorrigeerd door de ontbrekende stabiele-inode/v2-implementatie toe te voegen; tests niet verwijderd.
+- [ ] Live bewijs: 32.4.21 sluit autonoom `LIVE_ACCEPTANCE -> ACCEPTED`, hold inactive en volgende ingress vrij zonder bootstrap.

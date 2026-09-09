@@ -25,6 +25,7 @@ ATOMIC_SWAP_LOCK="$INBOX/.atomic_app_swap.lock"
 ATOMIC_SWAP_JOURNAL="$INBOX/atomic_app_swap_state.json"
 STATUSFILE="$INBOX/latest_release_status.txt"
 HEARTBEAT="$INBOX/.watcher.heartbeat"
+HEARTBEAT_V2="$INBOX/watcher_heartbeat.v2"
 ZIP_HELPER_SOURCE="$PROJECT/tools/release_zip.py"
 CRASH_CLEANUP_REQUEST="$INBOX/crash_recovery_cleanup_request.json"
 CRASH_CLEANUP_RESULT="$INBOX/crash_recovery_cleanup_result.json"
@@ -190,8 +191,12 @@ heartbeat_age(){
 }
 
 touch_heartbeat(){
-  printf '%s\n' "$(date +%s)" > "$HEARTBEAT.tmp.$$"
-  mv "$HEARTBEAT.tmp.$$" "$HEARTBEAT"
+  NOW_HEARTBEAT="$(date +%s)"
+  # Keep inode identity stable for NAS/SMB observers: overwrite in place rather
+  # than rename a new inode over the watched path. The v2 marker is the
+  # canonical heartbeat for 32.4.20+ readers; legacy remains for compatibility.
+  printf '%s\n' "$NOW_HEARTBEAT" > "$HEARTBEAT"
+  printf '%s\n' "$NOW_HEARTBEAT" > "$HEARTBEAT_V2"
 }
 
 process_mcp_guard_hotfix(){

@@ -1,3 +1,12 @@
+## 32.4.21 — self-audit provenance closure
+
+- Live root cause: 32.4.20 maakte watcher-liveness terecht GREEN, maar de hold bleef geblokkeerd doordat `self_audit/current.json` op file-mtime met `status/current.json` werd vergeleken. De PM schrijft binnen dezelfde cyclus eerst de audit en daarna opnieuw status; daardoor was de audit per ontwerp net ouder.
+- SelfAuditor schrijft nu expliciet `status_updated_at`: de exacte status-generatie die daadwerkelijk is geaudit.
+- Release-validatie gebruikt vanaf 32.4.21 deze generatie-provenance in plaats van mtime-volgorde. Een ontbrekende of afwijkende generatie blijft fail-closed.
+- TDD: matching provenance + oudere audit-mtime moet GREEN; mismatch + nieuwere audit-mtime moet blokkeren.
+- De al aanwezige 32.4.20 SMB-heartbeatregressies zijn nu ook werkelijk geïmplementeerd: heartbeatupdates behouden inode-identiteit en `watcher_heartbeat.v2` is canonieke readerbron wanneer aanwezig.
+- Projectmanager naar `2.0.0-rc18`.
+
 ## 32.4.20 — clock-skew-onafhankelijke watcher-liveness en definitieve release-closure
 
 - Live root cause 32.4.19: QNAP-watcher en Home Assistant/Projectmanager gebruiken dezelfde NAS-share maar hun wall clocks liepen circa 16–17 minuten uiteen. Absolute heartbeat-epoch en file-mtime werden daardoor door PM ten onrechte als ~1015s stale gezien terwijl de watcher iedere paar seconden pulseerde.

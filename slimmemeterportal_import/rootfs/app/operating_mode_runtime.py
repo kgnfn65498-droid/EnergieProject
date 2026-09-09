@@ -567,7 +567,20 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
             False,
             f"projectmanager self-audit release mismatch: status={status_release or 'missing'} app={app_version or 'missing'}",
         )
-    if audit_mtime < status_mtime:
+    if _numeric_release(app_version) >= (32, 4, 21):
+        # File mtime is not a valid provenance relation here: the PM finalization
+        # cycle writes the authoritative self-audit and then rewrites status with
+        # the same logical generation. That makes the audit file slightly older
+        # by construction and caused a permanent release-hold deadlock. Bind the
+        # audit to the exact status generation it inspected instead.
+        audit_status_updated_at = str(payload.get('status_updated_at') or '').strip()
+        status_updated_at = str(status_payload.get('updated_at') or '').strip()
+        if not audit_status_updated_at or audit_status_updated_at != status_updated_at:
+            return _validation_check(
+                False,
+                "projectmanager self-audit provenance mismatch versus current PM status",
+            )
+    elif audit_mtime < status_mtime:
         return _validation_check(False, "projectmanager self-audit stale versus current PM status")
     return _validation_check(
         status == "GREEN",

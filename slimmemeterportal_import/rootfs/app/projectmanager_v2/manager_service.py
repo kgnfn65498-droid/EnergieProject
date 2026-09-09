@@ -598,6 +598,11 @@ class ManagerService:
             '- Bij twijfel over timestamp-freshness wordt een begrensde heartbeat-pulsverandering gebruikt als clock-onafhankelijk bewijs; geen verandering blijft fail-closed.',
             '- Namespace-paden van dezelfde NAS-share mogen niet als split-brain worden bestempeld zonder mount-identiteit te bewijzen.',
             '- Een releasefix is pas compleet wanneer de live foutbron zelf in de regressie is nagebootst, inclusief infrastructuurverschillen zoals clock skew.',
+            '## Ontwikkelproceslessen 32.4.21',
+            '- Gebruik geen file-mtime als provenance tussen PM status en self-audit wanneer beide in dezelfde finalisatiecyclus herschreven worden.',
+            '- Koppel self-audit expliciet aan de status-generatie (`status_updated_at`) die daadwerkelijk is geaudit; mismatch blijft fail-closed.',
+            '- Een GREEN self-audit kan toch onbruikbaar zijn voor release-closure als niet bewezen is bij welke statusgeneratie hij hoort.',
+            '- Regressietests in een release moeten de meegeleverde productiecode zelf halen; ontbrekende SMB-heartbeat v2/inode-implementatie wordt niet door testverwijdering gemaskeerd.',
         ])
         return [
             self.document_sync.update(kb_dir / 'ACTUELE_STATUS.md', 'PROJECTMANAGER_V2', status_content, placement='top'),

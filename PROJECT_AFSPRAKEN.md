@@ -61,3 +61,14 @@
 - Release-closure mag pas doorgaan nadat watcher-liveness, publication, hold-state en atomic transition ieder via hun eigen broncontract zijn bewezen.
 - Verschillende namespace-paden (`/share/...` in Home Assistant versus QNAP-lokaal) zijn geen split-brain wanneer zij dezelfde fysieke NAS-share representeren; filesystem-identiteit moet op bronmountniveau worden beoordeeld.
 
+
+
+## Self-audit provenance contract vanaf 32.4.21
+
+- Release-acceptance mag self-audit freshness niet afleiden uit de schrijfvolgorde/mtime van losse runtimebestanden.
+- `self_audit/current.json.status_updated_at` moet exact overeenkomen met `status/current.json.updated_at`. Dit is de canonieke bewijsrelatie dat de audit bij de actuele PM-status hoort.
+- Ontbrekende of afwijkende provenance is fail-closed.
+- File-mtime mag niet opnieuw als generation/provenance-gate worden ingevoerd voor PM status/audit closure.
+
+- Release-artifact mag geen regressietest bevatten die de meegeleverde productiecode zelf niet haalt; dit wordt vóór packaging expliciet op de fresh extract gecontroleerd.
+- Watcher-heartbeatupdates behouden inode-identiteit voor NAS/SMB-observers en publiceren tevens `Inbox/watcher_heartbeat.v2`; readers prefereren v2 wanneer aanwezig.
