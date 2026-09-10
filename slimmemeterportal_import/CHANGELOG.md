@@ -1,7 +1,7 @@
 # Changelog
 
-## 32.4.32
+## 32.4.33
 
-- QNAP-side watcher bootstrap prepareert `EnergieProject/CLEARUP` als bestaande rootquarantaine vóór de HA CLEARUP-run; geen relocatie naar Inbox/Backups.
-- CLEARUP controleert de quarantainebestemming vroeg op symlink, filesystem en runtime-schrijfbaarheid; permissiefouten blokkeren vóór zware hashes.
-- 32.4.31 unreadable-candidate REVIEW-fix en alle bestaande CLEARUP safety-gates blijven intact.
+- CLEARUP hard-renames en restore worden na volledige HA safety-audit uitgevoerd via een expirerend, releasegebonden request naar de bestaande watchercontainer; geen verruiming van projectrootrechten.
+- Watcher-executor verifieert release, atomic ACCEPTED, vrije validatie-hold, request-id/expiry en no-delete contract vóór mutatie en schrijft request-id-gebonden resultaatbewijs.
+- De vaste bridge request/result-bestanden zijn observationeel zodat het control-plane zichzelf niet als nieuwe actieve dependency blokkeert; overige dependency-, hash-, rollback- en timeoutregels blijven intact.

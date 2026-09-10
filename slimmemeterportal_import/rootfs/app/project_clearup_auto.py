@@ -12,8 +12,9 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -21,6 +22,101 @@ from project_clearup import ClearupExecutionTimeout, apply_clearup_plan, build_c
 
 APPROVAL_RELATIVE = Path("Data/03_Systeem/Projectmanager/State/32_4_25_scope_cleanup_and_history_repair_20260909.md")
 MAX_CR_AGE_SECONDS = 30 * 86400
+CLEARUP_MOVE_REQUEST_RELATIVE = Path("Inbox/project_clearup_move_request.json")
+CLEARUP_MOVE_RESULT_RELATIVE = Path("Inbox/logs/project_clearup_move_result.json")
+CLEARUP_MOVE_REQUEST_SCHEMA = "energie_project_clearup_move_request_v1"
+CLEARUP_MOVE_RESULT_SCHEMA = "energie_project_clearup_move_result_v1"
+
+
+def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink():
+        raise RuntimeError(f"CLEARUP bridge weigert symlinkpad: {path}")
+    tmp = path.with_name(f".{path.name}.tmp-{os.getpid()}-{secrets.token_hex(4)}")
+    try:
+        with tmp.open("x", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def _apply_clearup_via_watcher(
+    root: Path,
+    plan: dict[str, Any],
+    *,
+    run_id: str | None,
+    deadline_monotonic: float,
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    started_monotonic: float,
+) -> dict[str, Any]:
+    request_path = root / CLEARUP_MOVE_REQUEST_RELATIVE
+    result_path = root / CLEARUP_MOVE_RESULT_RELATIVE
+    if request_path.is_symlink() or result_path.is_symlink():
+        raise RuntimeError("CLEARUP watcher bridge weigert symlink request/result pad")
+    if request_path.exists():
+        existing = _read_json(request_path) or {}
+        raise RuntimeError(f"CLEARUP watcher request bestaat al: {existing.get('request_id') or 'unknown'}")
+    if result_path.exists():
+        result_path.unlink()
+
+    remaining = float(deadline_monotonic) - time.monotonic()
+    if remaining <= 0:
+        raise ClearupExecutionTimeout("qnap_apply_wait")
+    effective_run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    request_id = secrets.token_hex(16)
+    payload = {
+        "schema": CLEARUP_MOVE_REQUEST_SCHEMA,
+        "request_id": request_id,
+        "operation": "apply",
+        "release_version": str(plan.get("current_version") or ""),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=remaining)).isoformat(),
+        "plan": plan,
+        "confirmation": str(plan.get("confirmation_required") or ""),
+        "run_id": effective_run_id,
+    }
+    _emit_progress(
+        progress_callback, phase="apply", started_monotonic=started_monotonic,
+        stage="watcher_request", candidate_total=int(plan.get("clearup_count") or 0),
+    )
+    _atomic_write_json(request_path, payload)
+    try:
+        while time.monotonic() < deadline_monotonic:
+            response = _read_json(result_path)
+            if response and response.get("request_id") == request_id:
+                if str(response.get("schema") or "") != CLEARUP_MOVE_RESULT_SCHEMA:
+                    raise RuntimeError("CLEARUP watcher result schema ongeldig")
+                status = str(response.get("status") or "").lower()
+                if status != "completed":
+                    raise RuntimeError(f"CLEARUP watcher executor {status or 'unknown'}: {response.get('error')}")
+                result = response.get("result")
+                if not isinstance(result, dict):
+                    raise RuntimeError("CLEARUP watcher result payload ontbreekt")
+                if result.get("delete_performed") not in (None, False):
+                    raise RuntimeError("CLEARUP watcher result rapporteert onverwachte delete")
+                _emit_progress(
+                    progress_callback, phase="manifest", started_monotonic=started_monotonic,
+                    manifest=result.get("manifest"), moved_count=int(result.get("moved_count") or 0),
+                    review_count=int(result.get("review_count") or 0), stage="watcher_completed",
+                )
+                return result
+            _emit_progress(
+                progress_callback, phase="qnap_apply_wait", started_monotonic=started_monotonic,
+                request_id=request_id, run_id=effective_run_id,
+            )
+            time.sleep(0.25)
+        raise ClearupExecutionTimeout("qnap_apply_wait")
+    finally:
+        try:
+            current = _read_json(request_path)
+            if current and current.get("request_id") == request_id:
+                request_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -301,10 +397,9 @@ def run_approved_clearup_once(
             "delete_performed": False,
             "gate": gate,
         }
-    result = apply_clearup_plan(
+    result = _apply_clearup_via_watcher(
         root,
         plan,
-        confirmation=str(plan["confirmation_required"]),
         run_id=run_id,
         deadline_monotonic=deadline_monotonic,
         progress_callback=progress_callback,

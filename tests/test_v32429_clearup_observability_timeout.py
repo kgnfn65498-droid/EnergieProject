@@ -56,13 +56,22 @@ def ready_root(root: Path, version: str = '32.4.29') -> None:
     Path(str(stem) + '.restore.txt').write_text('RESTORE VERIFIED\n', encoding='utf-8')
 
 
-def test_run_reports_permanent_ordered_phases(tmp_path: Path):
+def test_run_reports_permanent_ordered_phases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     auto = load_module('project_clearup_auto_32429_progress', 'project_clearup_auto.py')
     ready_root(tmp_path)
     for version in ('32.4.20', '32.4.21', '32.4.22', '32.4.23'):
         rollback(tmp_path, version)
 
     events = []
+
+    def local_executor(root, plan, *, run_id, deadline_monotonic, progress_callback, started_monotonic):
+        return auto.apply_clearup_plan(
+            root, plan, confirmation=plan['confirmation_required'], run_id=run_id,
+            deadline_monotonic=deadline_monotonic, progress_callback=progress_callback,
+            started_monotonic=started_monotonic,
+        )
+
+    monkeypatch.setattr(auto, '_apply_clearup_via_watcher', local_executor)
     result = auto.run_approved_clearup_once(
         tmp_path,
         app_version='32.4.29',

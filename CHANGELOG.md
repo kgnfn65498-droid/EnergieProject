@@ -1,3 +1,11 @@
+## 32.4.33 — CLEARUP source-parent permission bridge closure
+
+- Bewezen live 32.4.32-fout: de volledige 172/172 plan/hashfase en de nieuwe `CLEARUP`-destination-preflight waren groen, maar de eerste root-level hard-rename (`App.__failed_32.4.10_001`) faalde op source-parent `PermissionError`; niets werd verwijderd (`delete_performed=false`).
+- Home Assistant blijft plan, candidate hashes, dependency/symlink-audit, approval en no-delete policy bepalen; alleen de bestaande `apply_clearup_plan`/`restore_clearup_run` mutatie wordt releasegebonden via een expirerend request uitgevoerd door de bestaande `energie-release-watcher` Python-container.
+- De watcher-executor weigert release/atomic/hold mismatch, verlopen requests, symlinked control-plane bestanden, ongeldige confirmations en elk plan met delete-capability. Er is geen directe HA-fallback en de QNAP-projectrootrechten worden niet verruimd.
+- De twee vaste bridgebestanden zijn uitsluitend observationeel in de dependency-index, zodat het eigen control-plane de reeds geaudite kandidaatpaden niet als nieuwe actieve dependency terugblokkeert; gewone Inbox-referenties blijven hard blokkerend.
+- Ontwikkelproces aangescherpt: final candidates komen uit een unieke schone staging en worden tegen de exacte bron-ZIP gecontroleerd; een oude tool/process mag nooit ongemerkt dezelfde werkmap blijven wijzigen.
+
 ## 32.4.32 — CLEARUP quarantine-root live permission closure
 
 - Bewezen live 32.4.31-fout: na 171/171 plan-hashes stopte apply vóór enige move op `PermissionError` bij het aanmaken van `EnergieProject/CLEARUP`; projectroot is 0755 terwijl de HA-runtime die rootmap niet zelf mag creëren.

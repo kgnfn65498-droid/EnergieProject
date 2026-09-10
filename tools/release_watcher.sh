@@ -30,6 +30,9 @@ ZIP_HELPER_SOURCE="$PROJECT/tools/release_zip.py"
 CRASH_CLEANUP_REQUEST="$INBOX/crash_recovery_cleanup_request.json"
 CRASH_CLEANUP_RESULT="$INBOX/crash_recovery_cleanup_result.json"
 CRASH_CLEANUP_HELPER="$PROJECT/tools/crash_recovery_cleanup.py"
+PROJECT_CLEARUP_REQUEST="$INBOX/project_clearup_move_request.json"
+PROJECT_CLEARUP_RESULT="$INBOX/logs/project_clearup_move_result.json"
+PROJECT_CLEARUP_EXECUTOR="$PROJECT/tools/project_clearup_move_executor.py"
 MODE_GATE="$PROJECT/tools/operating_mode_gate.py"
 MCP_GUARD_HOTFIX_HELPER="$PROJECT/tools/mcp_system_path_guard_hotfix.py"
 CLEARUP_PREPARE="$PROJECT/tools/prepare_clearup_root.sh"
@@ -37,6 +40,7 @@ MCP_GUARD_HOTFIX_RESULT="$INBOX/logs/mcp_system_path_guard_hotfix_v3231.json"
 HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
 MODE_GATE_TIMEOUT="${ENERGIE_MODE_GATE_TIMEOUT_SECONDS:-5}"
 MAINTENANCE_HELPER_TIMEOUT="${ENERGIE_MAINTENANCE_HELPER_TIMEOUT_SECONDS:-20}"
+PROJECT_CLEARUP_HELPER_TIMEOUT="${ENERGIE_CLEARUP_MOVE_HELPER_TIMEOUT_SECONDS:-900}"
 BOUNDED_TERM_GRACE_SECONDS="${ENERGIE_BOUNDED_TERM_GRACE_SECONDS:-1}"
 INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"
 STABLE_POLLS="${ENERGIE_ZIP_STABLE_POLLS:-3}"
@@ -214,6 +218,32 @@ process_mcp_guard_hotfix(){
   return 1
 }
 
+process_project_clearup_move(){
+  [ -f "$PROJECT_CLEARUP_REQUEST" ] || return 0
+  if ! command -v python3 >/dev/null 2>&1; then
+    log "FOUT: CLEARUP move request wacht; python3 ontbreekt in watchercontainer"
+    return 1
+  fi
+  [ -f "$PROJECT_CLEARUP_EXECUTOR" ] || { log "FOUT: CLEARUP move executor ontbreekt: $PROJECT_CLEARUP_EXECUTOR"; return 1; }
+
+  rc=0
+  run_bounded "$PROJECT_CLEARUP_HELPER_TIMEOUT" python3 "$PROJECT_CLEARUP_EXECUTOR" \
+      --root "$ROOT" \
+      --request "$PROJECT_CLEARUP_REQUEST" \
+      --result "$PROJECT_CLEARUP_RESULT" >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
+
+  if [ -f "$PROJECT_CLEARUP_RESULT" ]; then
+    rm -f "$PROJECT_CLEARUP_REQUEST" 2>/dev/null || log "WAARSCHUWING: CLEARUP move request kon na resultaat niet worden verwijderd"
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    log "CLEARUP watcher-executor afgerond"
+    return 0
+  fi
+  log "FOUT: CLEARUP watcher-executor status rc=$rc; resultaat blijft beschikbaar"
+  return "$rc"
+}
+
 process_crash_recovery_cleanup(){
   [ -f "$CRASH_CLEANUP_REQUEST" ] || return 0
   if ! command -v python3 >/dev/null 2>&1; then
@@ -326,6 +356,7 @@ while :; do
   touch_heartbeat
 
   if mode_allows maintenance_requests; then
+    process_project_clearup_move || true
     process_crash_recovery_cleanup || true
   fi
 

@@ -354,6 +354,8 @@ def _reference_is_informational(relative: str) -> bool:
         or rel.startswith("Inbox/projectmanager_v2/RuntimeV2/snapshots/")
         or rel == "Data/03_Systeem/Projectmanager/State/project_clearup_runtime.json"
         or rel == "Inbox/logs/project_clearup_runtime.json"
+        or rel == "Inbox/project_clearup_move_request.json"
+        or rel == "Inbox/logs/project_clearup_move_result.json"
     )
 
 

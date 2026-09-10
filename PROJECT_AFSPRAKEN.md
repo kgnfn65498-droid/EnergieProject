@@ -117,3 +117,12 @@
 - Rootniveau-directoryvoorbereiding gebeurt via de QNAP-side release/watcherlaag die daarvoor al bevoegd is; Home Assistant krijgt geen extra projectrootrechten.
 - De HA CLEARUP-gate controleert vóór dure hashes: geen symlink, zelfde filesystem en echte create/fsync/unlink write-probe. Fout = vroeg fail-closed, geen move/delete.
 - Nieuwe chat/implementatie moet platformpermissions als ontwerpinvoer behandelen en een nieuwe destination live/prod-equivalent preflighten vóór release.
+
+
+## CLEARUP source-parent permission contract vanaf 32.4.33
+- Een same-filesystem rename vereist niet alleen een bruikbare bestemming maar ook mutatierecht op de oudermap van de bron. Beide zijden van iedere nieuwe mutatiegrens worden vóór release productie-equivalent bewezen; schrijfbaarheid van een andere rootmap is geen bewijs.
+- Root-level CLEARUP-bronnen worden niet oplosbaar gemaakt door `chmod`/`chown` van de projectroot of door een stillere alternatieve quarantaine. De canonieke bestemming blijft `EnergieProject/CLEARUP`.
+- Home Assistant blijft eigenaar van plan, dependency/symlink-audit, hashes, approvals, timeout en no-delete safety; alleen de uiteindelijke hard-rename/restore mag via een strikt releasegebonden en expirerend request aan de bestaande watchercontainer worden gedelegeerd. Geen directe HA-fallback bij bridgefout.
+- Control-plane request/result-bestanden die noodzakelijkerwijs kandidaathaden bevatten mogen uitsluitend als exact benoemde observationele bronnen uit dependency-blocking worden gehouden; een algemene Inbox-uitzondering is verboden.
+- Containerrechten en filesystemrechten worden afzonderlijk bewezen. Dat een container één root-level directory kan aanmaken bewijst niet dat hij bestaande root-level entries kan hernoemen.
+- Releaseontwikkeling gebruikt voor de finale kandidaat een unieke schone staging/workspace; vóór packaging wordt gecontroleerd dat geen achtergebleven proces die werkmap nog kan wijzigen. Exacte release-ZIP en fresh extract blijven de eindwaarheid.

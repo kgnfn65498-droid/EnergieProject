@@ -503,7 +503,7 @@ def test_32425_auto_clearup_gate_requires_persisted_approval_acceptance_hold_and
     assert not gate["blockers"]
 
 
-def test_32425_auto_clearup_run_uses_hard_move_only_after_gate(tmp_path: Path):
+def test_32425_auto_clearup_run_uses_hard_move_only_after_gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     mod = _load_clearup_auto()
     _minimal_project(tmp_path)
     _approve_clearup_scope(tmp_path)
@@ -512,6 +512,14 @@ def test_32425_auto_clearup_run_uses_hard_move_only_after_gate(tmp_path: Path):
     for version in ("32.4.20", "32.4.21", "32.4.22", "32.4.23"):
         _rollback(tmp_path, version)
 
+    def local_executor(root, plan, *, run_id, deadline_monotonic, progress_callback, started_monotonic):
+        return mod.apply_clearup_plan(
+            root, plan, confirmation=plan['confirmation_required'], run_id=run_id,
+            deadline_monotonic=deadline_monotonic, progress_callback=progress_callback,
+            started_monotonic=started_monotonic,
+        )
+
+    monkeypatch.setattr(mod, '_apply_clearup_via_watcher', local_executor)
     result = mod.run_approved_clearup_once(tmp_path, app_version="32.4.25", run_id="auto-test")
     assert result["status"] == "completed"
     assert not os.path.lexists(tmp_path / "App.__rollback_32.4.20")
