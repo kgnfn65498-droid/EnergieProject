@@ -73,10 +73,7 @@ class ProjectmanagerRuntime:
 
         mode_bridge = ModeBridge(config.mode_command_path) if getattr(config, 'mode_command_path', '') else None
         if nas_container_cr_service is None:
-            nas_container_cr_service = ConfiguredNasContainerCrService(
-                config.project_root,
-                private_root=getattr(config, 'nas_docker_tls_root', '/data/projectmanager_v2/docker_tls'),
-            )
+            nas_container_cr_service = ConfiguredNasContainerCrService(config.project_root)
         self.nas_container_cr_service = nas_container_cr_service
         self.processor = CommandProcessor(
             self.commands,

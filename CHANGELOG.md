@@ -1,3 +1,12 @@
+## 32.4.36 — CR max-1 / local QNAP NAS CR / fresh CLEARUP audit closure
+
+- Crash Recovery policy is fail-closed max-1 per managed CR type: a previous valid set is retired only after the replacement set is fully verified.
+- New CR names carry local date/time, active runtime version, `CR` and type. NAS Container CR migrates from Docker TLS/certificates to a fixed local QNAP Docker-socket bridge with a narrow allowlisted client.
+- Projectmanager health accepts only the canonical current-version CR set and verifies required sidecar/acceptance markers; legacy names remain migration inputs only.
+- A stale CLEARUP plan is discarded after the exact dependency-change error, followed by one fresh dependency audit and use of the new plan only; CLEARUP remains hard-move quarantine, never delete.
+- Native MCP CR policy migration is bounded to five known files and reports when a later explicit MCP process reload is required; this release performs no autonomous production restart.
+- Release watcher runs network-isolated with dropped capabilities plus only the filesystem capabilities required by the existing atomic/CLEARUP path, and exposes the local NAS-CR capability fail-closed.
+
 ## 32.4.35 — autonomous operational mode closure
 
 - Operational DEVELOPMENT/MAINTENANCE commands from the bounded PM remote ingress no longer create a contradictory extra MODE_CHANGE approval card.

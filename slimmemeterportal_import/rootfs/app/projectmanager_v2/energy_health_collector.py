@@ -1,4 +1,6 @@
+import hashlib
 import json
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -74,6 +76,38 @@ def _latest_file(directory, pattern):
         return None
     files = [path for path in root.glob(pattern) if path.is_file()]
     return max(files, key=lambda path: path.stat().st_mtime) if files else None
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    try:
+        with Path(path).open('rb') as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+                digest.update(chunk)
+    except OSError:
+        return ''
+    return digest.hexdigest()
+
+
+def _sidecar_sha_matches(zip_path: Path, sha_path: Path) -> bool:
+    try:
+        expected = sha_path.read_text(encoding='utf-8').split()[0]
+    except (OSError, IndexError):
+        return False
+    return len(expected) == 64 and expected == _sha256_file(zip_path)
+
+
+def _runtime_version(project_root: Path) -> str:
+    try:
+        return (Path(project_root) / 'App' / 'VERSIE.txt').read_text(encoding='utf-8').strip()
+    except OSError:
+        return ''
+
+
+def _canonical_cr_regex(version: str, cr_type: str) -> re.Pattern[str]:
+    return re.compile(
+        rf'^\d{{4}}-\d{{2}}-\d{{2}} \d{{2}}\.\d{{2}} {re.escape(version)} CR {re.escape(cr_type)}\.zip$'
+    )
 
 
 class EnergyHealthCollector:
@@ -238,38 +272,78 @@ class EnergyHealthCollector:
             'completed' if report_ok else 'missing_or_incomplete', report_path, {'month': month_key}, verified=report_ok,
         ))
 
+        version = _runtime_version(self.project_root)
         project_cr_dir = self.recovery_root / 'CrashRecovery'
-        project_zip = _latest_file(project_cr_dir, '*.zip')
+        project_all_zips = [path for path in project_cr_dir.glob('*.zip') if path.is_file()] if project_cr_dir.is_dir() else []
+        project_pattern = _canonical_cr_regex(version, 'EnergieProject') if version else None
+        project_canonical = [path for path in project_all_zips if project_pattern and project_pattern.fullmatch(path.name)]
+        project_zip = max(project_canonical, key=lambda path: path.stat().st_mtime) if project_canonical else None
         if project_zip:
             stem = project_zip.with_suffix('')
-            project_set_ok = all(path.is_file() for path in (
-                Path(str(stem) + '.sha256'), Path(str(stem) + '.manifest.json'), Path(str(stem) + '.restore.txt')
-            ))
+            project_sha = Path(str(stem) + '.sha256')
+            project_manifest = Path(str(stem) + '.manifest.json')
+            project_restore = Path(str(stem) + '.restore.txt')
+            project_set_ok = (
+                project_manifest.is_file() and project_restore.is_file()
+                and _sidecar_sha_matches(project_zip, project_sha)
+            )
             project_age = _age_seconds(project_zip, now)
-            project_fresh = project_set_ok and project_age is not None and project_age <= 30 * 86400
+            project_fresh = (
+                project_set_ok and len(project_all_zips) == 1
+                and project_age is not None and project_age <= 30 * 86400
+            )
         else:
             project_set_ok = False; project_age = None; project_fresh = False
         checks.append(_check(
             'project_crash_recovery_set', 'GREEN' if project_fresh else 'ORANGE',
-            'complete_recent_set' if project_fresh else 'missing_incomplete_or_old', project_zip or project_cr_dir,
-            {'age_seconds': round(project_age, 1) if project_age is not None else None, 'complete_set': project_set_ok}, verified=project_fresh,
+            'one_canonical_complete_recent_set' if project_fresh else 'retention_canonical_set_incomplete_or_old',
+            project_zip or project_cr_dir,
+            {
+                'zip_count': len(project_all_zips), 'canonical_count': len(project_canonical),
+                'runtime_version': version,
+                'age_seconds': round(project_age, 1) if project_age is not None else None,
+                'complete_set': project_set_ok,
+            },
+            verified=project_fresh,
         ))
 
         nas_dir = self.recovery_root / 'NAS Container'
         nas_zips = [path for path in nas_dir.glob('*.zip') if path.is_file()] if nas_dir.is_dir() else []
-        nas_zip = max(nas_zips, key=lambda path: path.stat().st_mtime) if nas_zips else None
+        nas_pattern = _canonical_cr_regex(version, 'NAS Containers') if version else None
+        nas_canonical = [path for path in nas_zips if nas_pattern and nas_pattern.fullmatch(path.name)]
+        nas_zip = max(nas_canonical, key=lambda path: path.stat().st_mtime) if nas_canonical else None
         if nas_zip:
             nas_sha = Path(str(nas_zip) + '.sha256')
             verify = nas_zip.with_name(nas_zip.stem + ' VERIFY.txt')
             nas_age = _age_seconds(nas_zip, now)
-            nas_set_ok = nas_sha.is_file() and verify.is_file()
-            nas_ok = nas_set_ok and len(nas_zips) == 1 and nas_age is not None and nas_age <= 30 * 86400
+            try:
+                verify_text = verify.read_text(encoding='utf-8', errors='replace')
+            except OSError:
+                verify_text = ''
+            nas_set_ok = (
+                _sidecar_sha_matches(nas_zip, nas_sha)
+                and all(marker in verify_text for marker in (
+                    'NAS_CONTAINER_CR_ACCEPTANCE_OK',
+                    'PRODUCTION_CONTAINERS_CHANGED=NO',
+                    'NAS_CR_RETENTION_MAX1_OK',
+                ))
+            )
+            nas_ok = (
+                nas_set_ok and len(nas_zips) == 1
+                and nas_age is not None and nas_age <= 30 * 86400
+            )
         else:
             nas_age = None; nas_set_ok = False; nas_ok = False
         checks.append(_check(
             'nas_container_crash_recovery_retention', 'GREEN' if nas_ok else 'ORANGE',
-            'one_complete_recent_set' if nas_ok else 'retention_or_set_incomplete', nas_zip or nas_dir,
-            {'zip_count': len(nas_zips), 'age_seconds': round(nas_age, 1) if nas_age is not None else None, 'complete_set': nas_set_ok}, verified=nas_ok,
+            'one_canonical_complete_recent_set' if nas_ok else 'retention_canonical_set_incomplete_or_old', nas_zip or nas_dir,
+            {
+                'zip_count': len(nas_zips), 'canonical_count': len(nas_canonical),
+                'runtime_version': version,
+                'age_seconds': round(nas_age, 1) if nas_age is not None else None,
+                'complete_set': nas_set_ok,
+            },
+            verified=nas_ok,
         ))
 
         try:

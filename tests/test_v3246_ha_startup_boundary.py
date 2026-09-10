@@ -31,7 +31,9 @@ assert hasattr(web,'DockerTlsConfig') and hasattr(web,'DockerEngineTlsClient')''
     r=subprocess.run([sys.executable,'-c',code],capture_output=True,text=True)
     assert r.returncode==0,r.stderr
 
-def test_nas_cr_service_uses_package_correct_imports():
+def test_nas_cr_service_startup_has_no_active_tls_import_dependency():
     s=(APP/'projectmanager_v2/nas_container_cr_service.py').read_text()
-    assert 'from .docker_engine_tls_client import DockerEngineTlsClient' in s
-    assert 'from .nas_docker_tls import DockerTlsConfig' in s
+    assert 'docker_engine_tls_client' not in s
+    assert 'nas_docker_tls' not in s
+    assert "'Inbox' / 'nas_container_cr_local'" in s
+    assert 'energie_nas_container_cr_local_request_v1' in s

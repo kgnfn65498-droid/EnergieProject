@@ -40,7 +40,7 @@ def test_32430_runtime_checkpoint_is_observational_not_a_dependency(tmp_path: Pa
 
 
 def test_32430_release_identity_is_consistent():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.35'
-    assert 'version: "32.4.35"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.4.35"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.4.35"' in MAIN.read_text(encoding='utf-8')
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.36'
+    assert 'version: "32.4.36"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert 'TARGET_RELEASE_VERSION = "32.4.36"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
+    assert 'APP_VERSION = "32.4.36"' in MAIN.read_text(encoding='utf-8')

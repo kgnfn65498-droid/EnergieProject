@@ -191,3 +191,8 @@
 - [x] Productiekern `9.4-core3` kan non-mutating worden gecertificeerd zonder een echte maand opnieuw te verwerken.
 - [x] Roadmap-migratie veroorzaakt geen startup-crash bij read-only directory-permissies.
 - [ ] Live acceptance na installatie: core3-certificaat geldig, augustus blijft CLOSED, juli blijft geblokkeerd, release-hold/atomic GREEN.
+## 32.4 closure — 32.4.36
+- 32.4.36: CR max-1 + canonieke naamgeving + lokale QNAP NAS-CR + fresh CLEARUP dependency-audit closure.
+- Na live 32.4.36/CLEARUP-acceptatie blijft de bestaande volgorde: ngrok security → Voice Mode live acceptance → new-chat/handover live acceptance → 32.5/Cowork.
+- Geen van deze vervolgstappen is onderdeel van 32.4.36.
+

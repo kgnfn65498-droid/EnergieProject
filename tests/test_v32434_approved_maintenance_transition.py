@@ -1,5 +1,9 @@
 import json
 from pathlib import Path
+import sys
+
+APP_ROOT = Path(__file__).resolve().parents[1] / "slimmemeterportal_import/rootfs/app"
+sys.path.insert(0, str(APP_ROOT))
 
 from operating_modes import Mode, process_mode_command
 from projectmanager_v2.mode_bridge import ModeBridge

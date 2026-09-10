@@ -148,6 +148,7 @@ def test_success_creates_three_file_set_then_keep1(tmp_path):
     assert result['backup_dir'].endswith('Backups/NAS Container')
     assert result['retention']['removed'] == 1
     assert not any(path.exists() for path in old)
+    assert Path(result['zip']).name == '2026-09-05 13.27 32.4.10 CR NAS Containers.zip'
     assert Path(result['zip']).is_file()
     assert Path(result['sha256_file']).is_file()
     verify = Path(result['verify_file'])
@@ -155,7 +156,7 @@ def test_success_creates_three_file_set_then_keep1(tmp_path):
     text = verify.read_text()
     assert 'NAS_CONTAINER_CR_ACCEPTANCE_OK' in text
     assert 'PRODUCTION_CONTAINERS_CHANGED=NO' in text
-    assert 'NAS_CR_RETENTION_KEEP1_OK' in text
+    assert 'NAS_CR_RETENTION_MAX1_OK' in text
     assert len(docker.created) == result['image_count']
     assert len(docker.removed) == result['image_count']
 
@@ -189,7 +190,7 @@ def test_old_set_is_restored_when_final_retention_marker_write_fails(tmp_path, m
     original = mod._atomic_text
 
     def fail_final_marker(path, text, **kwargs):
-        if 'NAS_CR_RETENTION_KEEP1_OK' in text:
+        if 'NAS_CR_RETENTION_MAX1_OK' in text:
             raise OSError('forced final marker failure')
         return original(path, text, **kwargs)
 
@@ -221,7 +222,7 @@ def test_failed_new_attempt_cleans_its_partial_top_level_files(tmp_path, monkeyp
     monkeypatch.setattr(service, '_verify_archive', lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError('forced archive failure')))
     with pytest.raises(RuntimeError, match='forced archive failure'):
         service.create()
-    stem = '2026-09-05 13.27 CrashRecovery NAS Containers'
+    stem = '2026-09-05 13.27 32.4.10 CR NAS Containers'
     assert not (target / f'{stem}.zip').exists()
     assert not (target / f'{stem}.zip.sha256').exists()
     assert not (target / f'{stem} VERIFY.txt').exists()

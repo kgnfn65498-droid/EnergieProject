@@ -156,4 +156,10 @@
 - Productieplaatsing en architectuurwijzigingen blijven expliciet beschermd en vereisen gebruikersgoedkeuring.
 - Bestaande pre-32.4.35 pending modebeslissingen blijven backward-compatible; nieuwe modeopdrachten gebruiken de directe auditbare mode-route.
 - DEVELOPMENT→MAINTENANCE moet end-to-end aantoonbaar de ontwikkelsessie afsluiten, maintenance_requests activeren en na de taak de correcte normale modus herstellen.
+## 32.4.36 CR/CLEARUP closurecontract
+- Project-managed Crash Recovery houdt maximaal één volledig geldige set per CR-type; oude geldige set pas reduceren na volledige GREEN-verificatie van de nieuwe set.
+- Canonieke CR-naam: `YYYY-MM-DD HH.MM <runtimeversie> CR <type>`.
+- NAS Container CR gebruikt de lokale QNAP-route; Docker TLS/certificaatsetup is geen actieve/user-facing route.
+- CLEARUP gebruikt bij stale plan exact één verse dependency-audit en alleen het verse plan; CLEARUP blijft hard-move/quarantaine en voert geen delete uit.
+- Native-MCP bronmigratie kan een expliciete latere procesreload vereisen; releases voeren die restart niet autonoom uit.
 

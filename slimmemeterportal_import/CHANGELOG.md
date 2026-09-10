@@ -1,8 +1,8 @@
 # Changelog
 
-## 32.4.35
+## 32.4.36
 
-- Autonomous operational DEVELOPMENT/MAINTENANCE routing through the bounded PM ingress; no extra MODE_CHANGE card for new requests.
-- Existing pre-32.4.35 pending mode approvals remain backward compatible.
-- DEVELOPMENT→MAINTENANCE carries user-authorized confirmation into the operating-mode runtime so the development session can close fail-closed.
-- Development Build Contract from 32.4.34 remains active across chat boundaries.
+- CR-retentie max-1 met versiegebonden canonieke namen en strikte health-validatie.
+- NAS Container CR via lokale QNAP Docker-socket bridge; geen actieve TLS/certificaatsetup.
+- CLEARUP stale-plan herstel voert één verse dependency-audit uit en blijft move-only/no-delete.
+- Watcher capability probe, begrensde executor en bounded native-MCP CR standaardmigratie toegevoegd.

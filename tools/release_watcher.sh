@@ -37,6 +37,15 @@ MODE_GATE="$PROJECT/tools/operating_mode_gate.py"
 MCP_GUARD_HOTFIX_HELPER="$PROJECT/tools/mcp_system_path_guard_hotfix.py"
 CLEARUP_PREPARE="$PROJECT/tools/prepare_clearup_root.sh"
 MCP_GUARD_HOTFIX_RESULT="$INBOX/logs/mcp_system_path_guard_hotfix_v3231.json"
+CR_STANDARD_HOTFIX_HELPER="$PROJECT/tools/cr_standard_native_mcp_hotfix.py"
+CR_STANDARD_HOTFIX_RESULT="$INBOX/logs/cr_standard_native_mcp_hotfix_v32436.json"
+NAS_CR_LOCAL_DIR="$INBOX/nas_container_cr_local"
+NAS_CR_LOCAL_REQUEST="$NAS_CR_LOCAL_DIR/request.json"
+NAS_CR_LOCAL_RESULT="$NAS_CR_LOCAL_DIR/result.json"
+NAS_CR_LOCAL_CAPABILITY="$NAS_CR_LOCAL_DIR/capability.json"
+NAS_CR_LOCAL_EXECUTOR="$PROJECT/tools/nas_cr_local_executor.py"
+NAS_CR_LOCAL_PROBE="$PROJECT/tools/nas_cr_local_probe.py"
+NAS_CR_LOCAL_TIMEOUT="${ENERGIE_NAS_CR_LOCAL_TIMEOUT_SECONDS:-1200}"
 HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
 MODE_GATE_TIMEOUT="${ENERGIE_MODE_GATE_TIMEOUT_SECONDS:-5}"
 MAINTENANCE_HELPER_TIMEOUT="${ENERGIE_MAINTENANCE_HELPER_TIMEOUT_SECONDS:-20}"
@@ -218,6 +227,54 @@ process_mcp_guard_hotfix(){
   return 1
 }
 
+process_cr_standard_hotfix(){
+  [ -f "$CR_STANDARD_HOTFIX_HELPER" ] || return 0
+  if ! command -v python3 >/dev/null 2>&1; then
+    log "FOUT: CR-standaardhotfix wacht; python3 ontbreekt in watchercontainer"
+    return 1
+  fi
+  if python3 "$CR_STANDARD_HOTFIX_HELPER" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1; then
+    if [ -f "$CR_STANDARD_HOTFIX_RESULT" ] && grep -q '"mcp_restart_required"[[:space:]]*:[[:space:]]*true' "$CR_STANDARD_HOTFIX_RESULT" 2>/dev/null; then
+      log "CR-standaardhotfix GREEN; bronwijziging native MCP vereist later expliciete procesreload voor live acceptance"
+    else
+      log "CR-standaardhotfix GREEN/idempotent"
+    fi
+    return 0
+  fi
+  log "FOUT: CR-standaardhotfix RED; NAS Container CR blijft fail-closed"
+  return 1
+}
+
+process_nas_cr_capability_probe(){
+  mkdir -p "$NAS_CR_LOCAL_DIR" || { log "FOUT: NAS CR capabilitymap niet maakbaar"; return 1; }
+  [ -f "$NAS_CR_LOCAL_PROBE" ] || { log "FOUT: NAS CR capability probe ontbreekt"; return 1; }
+  command -v python3 >/dev/null 2>&1 || { log "FOUT: NAS CR capability probe vereist python3"; return 1; }
+  if python3 "$NAS_CR_LOCAL_PROBE" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1; then
+    log "NAS CR lokale Docker capability = GREEN"
+    return 0
+  fi
+  log "FOUT: NAS CR lokale Docker capability = RED"
+  return 1
+}
+
+process_nas_container_cr_local(){
+  [ -f "$NAS_CR_LOCAL_REQUEST" ] || return 0
+  if ! process_cr_standard_hotfix; then
+    log "FOUT: NAS Container CR geweigerd omdat CR-standaardhotfix niet GREEN is"
+    return 1
+  fi
+  [ -f "$NAS_CR_LOCAL_EXECUTOR" ] || { log "FOUT: NAS CR lokale executor ontbreekt"; return 1; }
+  command -v python3 >/dev/null 2>&1 || { log "FOUT: NAS CR lokale executor vereist python3"; return 1; }
+  rc=0
+  run_bounded "$NAS_CR_LOCAL_TIMEOUT" python3 "$NAS_CR_LOCAL_EXECUTOR" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    log "NAS Container CR lokale executor = GREEN"
+    return 0
+  fi
+  log "FOUT: NAS Container CR lokale executor rc=$rc; resultaat blijft beschikbaar"
+  return "$rc"
+}
+
 process_project_clearup_move(){
   [ -f "$PROJECT_CLEARUP_REQUEST" ] || return 0
   if ! command -v python3 >/dev/null 2>&1; then
@@ -345,6 +402,18 @@ else
   write_status "MAINTENANCE_FAILED" "mcp-system-path-hotfix; watcher blijft actief"
 fi
 
+if process_cr_standard_hotfix; then
+  log "CR-standaardhotfix startupcontrole = OK"
+else
+  write_status "MAINTENANCE_FAILED" "cr-standard-hotfix; watcher blijft actief"
+fi
+
+if process_nas_cr_capability_probe; then
+  log "NAS CR capability startupcontrole = OK"
+else
+  write_status "MAINTENANCE_FAILED" "nas-cr-local-capability; watcher blijft actief"
+fi
+
 if cleanup_processed_releases_on_start; then
   write_status "WATCHER_ACTIVE" "startup-retention-ok keep=${PROCESSED_RETENTION}"
 else
@@ -356,6 +425,7 @@ while :; do
   touch_heartbeat
 
   if mode_allows maintenance_requests; then
+    process_nas_container_cr_local || true
     process_project_clearup_move || true
     process_crash_recovery_cleanup || true
   fi

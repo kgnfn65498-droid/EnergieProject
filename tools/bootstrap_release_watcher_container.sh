@@ -30,7 +30,9 @@ if [ -z "$DOCKER" ]; then
 fi
 [ -n "$DOCKER" ] || { echo "FOUT: Docker CLI van Container Station niet gevonden" >&2; exit 1; }
 
-mkdir -p "$INBOX/incoming" "$INBOX/logs"
+mkdir -p "$INBOX/incoming" "$INBOX/logs" "$INBOX/nas_container_cr_local"
+CAPABILITY_MARKER="$INBOX/nas_container_cr_local/capability.json"
+rm -f "$CAPABILITY_MARKER" 2>/dev/null || true
 
 # Oude losse watcher stoppen indien het PID op de host nog leeft.
 if [ -f "$INBOX/.watcher.pid" ]; then
@@ -48,6 +50,12 @@ rmdir "$INBOX/.watcher.lock" 2>/dev/null || true
 "$DOCKER" run -d \
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
+  --network none \
+  --cap-drop ALL \
+  --cap-add DAC_OVERRIDE \
+  --cap-add DAC_READ_SEARCH \
+  --cap-add FOWNER \
+  --security-opt no-new-privileges \
   -e ENERGIE_ROOT=/energy \
   -e ENERGIE_WATCH_INTERVAL=5 \
   -e ENERGIE_ZIP_STABLE_POLLS=3 \
@@ -55,6 +63,7 @@ rmdir "$INBOX/.watcher.lock" 2>/dev/null || true
   -e ENERGIE_BACKUP_RETENTION=999 \
   -e ENERGIE_PROCESSED_RETENTION=999 \
   -v "$ROOT:/energy" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   "$IMAGE" \
   sh /energy/App/tools/release_watcher.sh >/dev/null
 
@@ -66,3 +75,20 @@ else
   "$DOCKER" logs "$CONTAINER_NAME" 2>&1 | tail -n 30 >&2 || true
   exit 1
 fi
+
+CAPABILITY_READY=0
+N=0
+while [ "$N" -lt 20 ]; do
+  if [ -f "$CAPABILITY_MARKER" ] && grep -q '"ready"[[:space:]]*:[[:space:]]*true' "$CAPABILITY_MARKER" 2>/dev/null; then
+    CAPABILITY_READY=1
+    break
+  fi
+  sleep 1
+  N=$((N + 1))
+done
+if [ "$CAPABILITY_READY" -ne 1 ]; then
+  echo "FOUT: NAS Container CR lokale capability werd niet GREEN na watcher-recreate" >&2
+  "$DOCKER" logs "$CONTAINER_NAME" 2>&1 | tail -n 50 >&2 || true
+  exit 1
+fi
+echo "OK: NAS Container CR lokale capability is GREEN"

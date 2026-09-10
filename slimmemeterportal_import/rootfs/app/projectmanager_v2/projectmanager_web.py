@@ -308,26 +308,30 @@ def render_projectmanager_decisions(project_root) -> str:
 
 
 def render_nas_container_cr_setup(project_root, *, private_root: Path | str = DEFAULT_PRIVATE_ROOT) -> str:
-    del project_root
-    status = _tls_status(Path(private_root))
-    ready = status.get('ready') is True
+    # Compatibility keyword only. Active NAS CR uses the fixed local watcher bridge.
+    del private_root
+    root = Path(project_root)
+    capability_path = root / 'Inbox' / 'nas_container_cr_local' / 'capability.json'
+    try:
+        status = json.loads(capability_path.read_text(encoding='utf-8'))
+        if not isinstance(status, dict):
+            status = {}
+    except (OSError, json.JSONDecodeError):
+        status = {}
+    ready = status.get('ready') is True and str(status.get('status') or '').upper() == 'GREEN'
     state = 'Gereed' if ready else 'Niet gereed'
     border = '#2e7d32' if ready else '#9a6700'
-    host = html.escape(str(status.get('host') or ''), quote=True)
+    detail = (
+        'De lokale QNAP-route is beschikbaar; NAS Container CR kan zonder Terminal of certificaatsetup worden uitgevoerd.'
+        if ready else
+        'De lokale QNAP-route is nog niet aantoonbaar beschikbaar. De watcher controleert deze capability fail-closed.'
+    )
     return f'''<section id="pmv2-nas-container-cr" style="margin:16px 0;padding:14px;border:2px solid {border};border-radius:10px">
 <h3>NAS Container Crash Recovery</h3>
-<p><strong>{state}</strong> — veilige Docker TLS-koppeling via QNAP Container Station, poort 2376.</p>
-<p>Eenmalige setup: open op de QNAP <strong>Container Station → Voorkeuren → Certificaten</strong>, activeer Docker-poort 2376 en download de Docker-certificaatbundle. Upload die bundle hier. Geen Terminal of sudo nodig.</p>
-<form method="post" action="projectmanager-nas-cr-setup" enctype="multipart/form-data">
-<input type="hidden" name="csrf" value="{html.escape(_CSRF_TOKEN, quote=True)}">
-<label>QNAP host/IP <input name="nas_host" value="{host}" required maxlength="255"></label><br>
-<label>Docker-certificaatbundle <input type="file" name="certificate_bundle" accept=".zip,application/zip" required></label><br>
-<button type="submit">Veilige koppeling testen en opslaan</button>
-</form>
-{(f'<form method="post" action="projectmanager-nas-cr-activate" style="margin-top:10px"><input type="hidden" name="csrf" value="{html.escape(_CSRF_TOKEN, quote=True)}"><button type="submit">Activeer ChatGPT-koppeling</button><span style="margin-left:8px;font-size:0.9em">herstart uitsluitend energie-filesystem-mcp éénmalig</span></form>' if ready else '')}
-<p style="font-size:0.9em">Certificaten en privésleutel blijven uitsluitend in private Home Assistant add-ondata en worden nooit in het EnergieProject of in deze pagina teruggegeven.</p>
+<p><strong>{state}</strong> — lokale QNAP Container Station-route.</p>
+<p>{detail}</p>
+<p style="font-size:0.9em">Geen externe Docker-poort, geen periodieke sleutelvernieuwing en geen gebruikersactie nodig voor de normale CR-flow.</p>
 </section>'''
-
 
 def inject_decision_card(page: bytes, card: str) -> bytes:
     if not card:
@@ -404,9 +408,9 @@ def install_projectmanager_web(
     *,
     private_root: Path | str = DEFAULT_PRIVATE_ROOT,
 ) -> None:
-    """Install HA-ingress-only approval and NAS Container CR TLS setup UI."""
+    """Install HA-ingress-only PM approval UI and local NAS CR capability status."""
+    del private_root
     root = Path(project_root)
-    tls_private_root = Path(private_root)
 
     if not getattr(app_module, '_projectmanager_decision_html_installed', False):
         raw_html_page = app_module.html_page
@@ -416,7 +420,7 @@ def install_projectmanager_web(
             card = (
                 render_projectmanager_progress(root)
                 + render_projectmanager_decisions(root)
-                + render_nas_container_cr_setup(root, private_root=tls_private_root)
+                + render_nas_container_cr_setup(root)
             )
             return inject_decision_card(page, card)
 
@@ -431,54 +435,8 @@ def install_projectmanager_web(
     def wrapped_do_post(self):
         parsed_path = urlparse(self.path).path.rstrip('/')
         is_decision = parsed_path == '/projectmanager-decision' or parsed_path.endswith('/projectmanager-decision')
-        is_tls_setup = parsed_path == '/projectmanager-nas-cr-setup' or parsed_path.endswith('/projectmanager-nas-cr-setup')
-        is_connector_activate = parsed_path == '/projectmanager-nas-cr-activate' or parsed_path.endswith('/projectmanager-nas-cr-activate')
-        if not (is_decision or is_tls_setup or is_connector_activate):
+        if not is_decision:
             return raw_do_post(self)
-
-        if is_tls_setup:
-            try:
-                length = int(self.headers.get('Content-Length', '0') or 0)
-                if length <= 0 or length > MAX_TLS_POST_BYTES:
-                    raise ValueError('invalid_content_length')
-                content_type = str(self.headers.get('Content-Type', ''))
-                if 'multipart/form-data' not in content_type.lower():
-                    raise ValueError('unsupported_content_type')
-                fields, files = _parse_multipart(self.rfile.read(length), content_type)
-                csrf = str(fields.get('csrf') or '')
-                if not hmac.compare_digest(csrf, _CSRF_TOKEN):
-                    raise PermissionError('csrf_validation_failed')
-                host = str(fields.get('nas_host') or '').strip()
-                bundle = files.get('certificate_bundle') or b''
-                install_nas_docker_tls_bundle(
-                    project_root=root,
-                    private_root=tls_private_root,
-                    host=host,
-                    bundle=bundle,
-                )
-                _redirect(self, 'nas_cr_tls_ready')
-            except Exception:
-                _redirect(self, 'nas_cr_tls_rejected')
-            return
-
-        if is_connector_activate:
-            try:
-                length = int(self.headers.get('Content-Length', '0') or 0)
-                if length <= 0 or length > MAX_POST_BYTES:
-                    raise ValueError('invalid_content_length')
-                content_type = str(self.headers.get('Content-Type', '')).lower()
-                if 'application/x-www-form-urlencoded' not in content_type:
-                    raise ValueError('unsupported_content_type')
-                form = parse_qs(self.rfile.read(length).decode('utf-8', errors='strict'))
-                csrf = str((form.get('csrf') or [''])[0])
-                if not hmac.compare_digest(csrf, _CSRF_TOKEN):
-                    raise PermissionError('csrf_validation_failed')
-                activate_projectmanager_connector(project_root=root, private_root=tls_private_root)
-                _redirect(self, 'nas_cr_connector_activated')
-            except Exception:
-                _redirect(self, 'nas_cr_connector_activation_failed')
-            return
-
         try:
             length = int(self.headers.get('Content-Length', '0') or 0)
             if length <= 0 or length > MAX_POST_BYTES:
@@ -504,3 +462,4 @@ def install_projectmanager_web(
 
     handler_cls.do_POST = wrapped_do_post
     handler_cls._projectmanager_decision_post_installed = True
+

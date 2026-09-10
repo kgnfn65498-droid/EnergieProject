@@ -397,13 +397,60 @@ def run_approved_clearup_once(
             "delete_performed": False,
             "gate": gate,
         }
+    stale_plan_id = plan.get("plan_id")
+    try:
+        result = _apply_clearup_via_watcher(
+            root,
+            plan,
+            run_id=run_id,
+            deadline_monotonic=deadline_monotonic,
+            progress_callback=progress_callback,
+            started_monotonic=started_monotonic,
+        )
+        return {**result, "gate": gate, "plan_id": stale_plan_id}
+    except RuntimeError as exc:
+        if str(exc) != "CLEARUP-plan is gewijzigd; nieuwe dependency-audit vereist.":
+            raise
+
+    _emit_progress(
+        progress_callback,
+        phase="fresh_dependency_audit",
+        started_monotonic=started_monotonic,
+        stale_plan_id=stale_plan_id,
+    )
+    if time.monotonic() >= deadline_monotonic:
+        raise ClearupExecutionTimeout("fresh_dependency_audit")
+    fresh_plan = build_clearup_plan(
+        root, current_version=str(app_version), keep_rollbacks=3,
+        deadline_monotonic=deadline_monotonic, progress_callback=progress_callback,
+        started_monotonic=started_monotonic,
+    )
+    fresh_plan_id = fresh_plan.get("plan_id")
+    if not fresh_plan_id or fresh_plan_id == stale_plan_id:
+        raise RuntimeError("CLEARUP verse dependency-audit leverde geen nieuw plan-id op")
+    if int(fresh_plan.get("clearup_count") or 0) == 0:
+        return {
+            "status": "no_action",
+            "review_count": int(fresh_plan.get("review_count") or 0),
+            "plan_id": fresh_plan_id,
+            "stale_plan_id": stale_plan_id,
+            "replanned_after_stale": True,
+            "delete_performed": False,
+            "gate": gate,
+        }
     result = _apply_clearup_via_watcher(
         root,
-        plan,
+        fresh_plan,
         run_id=run_id,
         deadline_monotonic=deadline_monotonic,
         progress_callback=progress_callback,
         started_monotonic=started_monotonic,
     )
-    return {**result, "gate": gate, "plan_id": plan.get("plan_id")}
+    return {
+        **result,
+        "gate": gate,
+        "plan_id": fresh_plan_id,
+        "stale_plan_id": stale_plan_id,
+        "replanned_after_stale": True,
+    }
 

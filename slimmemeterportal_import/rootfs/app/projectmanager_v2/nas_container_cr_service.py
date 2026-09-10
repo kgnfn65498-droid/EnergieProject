@@ -5,6 +5,8 @@ import json
 import os
 import shutil
 import tarfile
+import secrets
+import time
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -22,7 +24,7 @@ OPTIONAL_CONTAINERS = ('energie-git',)
 BASE_IMAGE = 'python:3.12-slim'
 ACCEPTANCE_MARKER = 'NAS_CONTAINER_CR_ACCEPTANCE_OK'
 UNCHANGED_MARKER = 'PRODUCTION_CONTAINERS_CHANGED=NO'
-RETENTION_MARKER = 'NAS_CR_RETENTION_KEEP1_OK'
+RETENTION_MARKER = 'NAS_CR_RETENTION_MAX1_OK'
 
 
 def _sha256_file(path: Path) -> str:
@@ -149,8 +151,11 @@ class NasContainerCrService:
         except OSError:
             pass
 
-    def _new_stem(self, at: datetime) -> str:
-        base = at.astimezone(TZ).strftime('%Y-%m-%d %H.%M') + ' CrashRecovery NAS Containers'
+    def _new_stem(self, at: datetime, version: str) -> str:
+        safe_version = str(version).strip()
+        if not safe_version or any(ch not in '0123456789.' for ch in safe_version):
+            raise RuntimeError('Ongeldige runtimeversie voor NAS Container CR')
+        base = at.astimezone(TZ).strftime('%Y-%m-%d %H.%M') + f' {safe_version} CR NAS Containers'
         stem = base
         seq = 2
         while any((self.target / suffix).exists() for suffix in (
@@ -205,7 +210,7 @@ class NasContainerCrService:
         private.mkdir(parents=True, exist_ok=True)
         lines = [
             at.astimezone(TZ).isoformat(),
-            'Docker TLS ping: OK',
+            'Docker local socket ping: OK',
             '--- production containers ---',
         ]
         for name in CORE_CONTAINERS + OPTIONAL_CONTAINERS:
@@ -358,6 +363,15 @@ class NasContainerCrService:
             except OSError:
                 pass
 
+    def _retention_zip_candidates(self) -> list[Path]:
+        """Return legacy and canonical NAS CR ZIPs during the max-1 migration."""
+        found: dict[str, Path] = {}
+        for pattern in ('* CrashRecovery NAS Containers*.zip', '* CR NAS Containers*.zip'):
+            for path in self.target.glob(pattern):
+                if path.is_file():
+                    found[path.name] = path
+        return sorted(found.values(), key=lambda path: path.name)
+
     def _stage_keep1(self, new_stem: str) -> dict[str, Any]:
         if not self._validate_set(self.target, new_stem):
             raise RuntimeError('Nieuwe NAS Container CR-set is niet compleet/geldig voor retentie')
@@ -368,7 +382,7 @@ class NasContainerCrService:
             '_staged': [],
         }
         try:
-            for zip_path in sorted(self.target.glob('* CrashRecovery NAS Containers*.zip')):
+            for zip_path in self._retention_zip_candidates():
                 stem = zip_path.name[:-4]
                 if stem == new_stem:
                     continue
@@ -428,7 +442,8 @@ class NasContainerCrService:
         try:
             at = self.now()
             stamp = at.astimezone(TZ).strftime('%Y%m%dT%H%M%S')
-            stem = self._new_stem(at)
+            version = (self.project_root / 'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+            stem = self._new_stem(at, version)
             zip_path, sha_path, verify_path = self._set_paths(self.target, stem)
             output_paths = (zip_path, sha_path, verify_path)
             stage = self.target / f'.nas-cr-acceptance-{stamp}-{os.getpid()}'
@@ -437,7 +452,9 @@ class NasContainerCrService:
 
             self.docker.ping()
             before, images = self._container_snapshot()
-            version = self._copy_project_files(stage)
+            copied_version = self._copy_project_files(stage)
+            if copied_version != version:
+                raise RuntimeError('Runtimeversie wijzigde tijdens NAS Container CR')
             self._write_runtime_evidence(stage, at=at, snapshot=before, images=images)
             self._write_restore_doc(stage)
             offline = stage / 'offline'
@@ -528,20 +545,65 @@ class NasContainerCrService:
 
 
 class ConfiguredNasContainerCrService:
-    """Lazy adapter so an unconfigured TLS setup never breaks PM startup."""
+    """PM adapter for the fixed local watcher bridge; no TLS/network configuration."""
 
-    def __init__(self, project_root: Path | str, *, private_root: Path | str):
+    REQUEST_SCHEMA = 'energie_nas_container_cr_local_request_v1'
+    RESULT_SCHEMA = 'energie_nas_container_cr_local_result_v1'
+    OPERATION = 'nas_container_cr_create'
+
+    def __init__(
+        self,
+        project_root: Path | str,
+        *,
+        timeout_seconds: float = 20 * 60,
+        poll_seconds: float = 0.25,
+    ):
         self.project_root = Path(project_root)
-        self.private_root = Path(private_root)
+        self.bridge_root = self.project_root / 'Inbox' / 'nas_container_cr_local'
+        self.request_path = self.bridge_root / 'request.json'
+        self.result_path = self.bridge_root / 'result.json'
+        self.timeout_seconds = max(0.1, float(timeout_seconds))
+        self.poll_seconds = max(0.005, float(poll_seconds))
+
+    @staticmethod
+    def _load_json(path: Path) -> dict[str, Any] | None:
+        try:
+            value = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, json.JSONDecodeError):
+            return None
+        return value if isinstance(value, dict) else None
 
     def create(self) -> dict[str, Any]:
-        if __package__:
-            from .docker_engine_tls_client import DockerEngineTlsClient
-            from .nas_docker_tls import DockerTlsConfig
-        else:
-            from docker_engine_tls_client import DockerEngineTlsClient
-            from nas_docker_tls import DockerTlsConfig
+        version_path = self.project_root / 'App' / 'VERSIE.txt'
+        version = version_path.read_text(encoding='utf-8').strip()
+        if not version or any(ch not in '0123456789.' for ch in version):
+            raise RuntimeError('Actuele runtimeversie ontbreekt of is ongeldig')
+        self.bridge_root.mkdir(parents=True, exist_ok=True)
+        if self.request_path.is_symlink() or self.result_path.is_symlink():
+            raise RuntimeError('Onveilige NAS Container CR bridge-path')
+        request_id = secrets.token_hex(16)
+        request = {
+            'schema': self.REQUEST_SCHEMA,
+            'request_id': request_id,
+            'operation': self.OPERATION,
+            'expected_runtime_version': version,
+            'created_at': datetime.now(TZ).isoformat(),
+        }
+        _atomic_text(self.request_path, json.dumps(request, ensure_ascii=False, sort_keys=True) + '\n')
 
-        config = DockerTlsConfig.load(self.private_root, project_root=self.project_root)
-        client = DockerEngineTlsClient(config)
-        return NasContainerCrService(self.project_root, client).create()
+        deadline = time.monotonic() + self.timeout_seconds
+        while time.monotonic() < deadline:
+            result = self._load_json(self.result_path)
+            if not result or result.get('request_id') != request_id:
+                time.sleep(self.poll_seconds)
+                continue
+            if result.get('schema') != self.RESULT_SCHEMA:
+                raise RuntimeError('NAS Container CR lokaal resultaat heeft ongeldig schema')
+            if result.get('version') != version:
+                raise RuntimeError('NAS Container CR lokaal resultaat heeft verkeerde runtimeversie')
+            if not (result.get('status') == 'GREEN' and result.get('ok') is True):
+                raise RuntimeError(str(result.get('error') or 'NAS Container CR lokale executor rapporteert RED'))
+            if result.get('production_containers_changed') is not False:
+                raise RuntimeError('NAS Container CR kon onveranderde productiecontainers niet bewijzen')
+            return result
+        raise RuntimeError('NAS Container CR lokale executor timeout; fail-closed')
