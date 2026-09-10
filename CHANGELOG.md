@@ -1,3 +1,10 @@
+## 32.4.35 — autonomous operational mode closure
+
+- Operational DEVELOPMENT/MAINTENANCE commands from the bounded PM remote ingress no longer create a contradictory extra MODE_CHANGE approval card.
+- Existing pre-32.4.35 pending mode decisions remain backward compatible and still use the canonical approval path.
+- Remote operational mode transitions carry explicit user-authorized confirmation into the mode bridge so DEVELOPMENT→MAINTENANCE can close the development session fail-closed.
+- Added regression coverage for autonomous remote DEVELOPMENT and MAINTENANCE commands.
+
 ## 32.4.34 — approved MAINTENANCE transition closure
 
 - Fixes the live 32.4.33 mode-routing defect: an explicitly Peter-approved MODE_CHANGE to MAINTENANCE now carries user confirmation through the Projectmanager mode bridge.

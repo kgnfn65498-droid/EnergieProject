@@ -204,7 +204,14 @@ class CommandProcessor:
                 raise RuntimeError(f"blocked: {plan.get('reason', 'unknown_intent_fail_closed')}")
 
             action = plan.get('action')
-            if item.get('source') == 'mcp_remote' and action in {'mode_development', 'mode_maintenance'}:
+            if (
+                item.get('source') == 'mcp_remote'
+                and action in {'mode_development', 'mode_maintenance'}
+                and item.get('approval_decision_id')
+            ):
+                # Backward compatibility for already-pending pre-32.4.35 decisions.
+                # New operational mode commands follow COMMANDS.allowed_without_approval
+                # and are processed directly below.
                 return self._remote_mode_change(item, plan)
 
             if not plan.get('allowed_without_approval', False):
@@ -237,7 +244,12 @@ class CommandProcessor:
                 return waiting
 
             if action == 'mode_development':
-                mode_request = self._request_mode('DEVELOPMENT', reason=item.get('text') or 'development command', source=item.get('source'))
+                mode_request = self._request_mode(
+                    'DEVELOPMENT',
+                    reason=item.get('text') or 'development command',
+                    source=item.get('source'),
+                    confirmed_by_user=(item.get('source') == 'mcp_remote'),
+                )
                 task = self.tasks.start(
                     item.get('title') or item.get('text') or 'Development task',
                     item.get('goal') or item.get('text') or 'Development task',
@@ -250,7 +262,12 @@ class CommandProcessor:
                     task = self.tasks.progress(task['id'], next_action=item['next_action'])
                 result = {'ok': True, 'executed': True, 'task_id': task['id'], 'requested_mode': 'DEVELOPMENT', 'mode_request': mode_request}
             elif action == 'mode_maintenance':
-                mode_request = self._request_mode('MAINTENANCE', reason=item.get('text') or 'maintenance command', source=item.get('source'))
+                mode_request = self._request_mode(
+                    'MAINTENANCE',
+                    reason=item.get('text') or 'maintenance command',
+                    source=item.get('source'),
+                    confirmed_by_user=(item.get('source') == 'mcp_remote'),
+                )
                 task = self.tasks.start(
                     item.get('title') or item.get('text') or 'Maintenance task',
                     item.get('goal') or item.get('text') or 'Maintenance task',

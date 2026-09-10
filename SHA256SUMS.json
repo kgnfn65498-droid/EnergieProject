@@ -18,7 +18,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "878a316174372b58bbe2324042e1ad3de3484b8411bd56ed5ee3dcd5db59065b"
+      "sha256": "929be20f8ed86529424b029a146cad3ab143fd4b4c6cbe809d6d884757a714f5"
     },
     {
       "path": "INSTALL.md",
@@ -34,7 +34,7 @@
     },
     {
       "path": "PROJECT_AFSPRAKEN.md",
-      "sha256": "ad967ad31417449e7e5d58f26c7320025620676df43d3905c72e276254ecbb56"
+      "sha256": "d31a4d065ce8d28a94573179fe98ec51091cf943abadbcb5bf6c975c3687d2b7"
     },
     {
       "path": "README.md",
@@ -50,7 +50,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "8cefe5428dcefa7614ac671e55aa59b962bf4c092342c784ba8c5890c3d5ee92"
+      "sha256": "6e437ace327da0b869abfde2791b340d0db34cee74e3d1ec61ce14bc2953cb40"
     },
     {
       "path": "docs/superpowers/plans/2026-08-17-energie-assistant-ha-conversation.md",
@@ -162,7 +162,7 @@
     },
     {
       "path": "release_test_contract.py",
-      "sha256": "5f4e3396b82851b24728fef5279c0bd36c35ea050a240fda169a89e0d604e481"
+      "sha256": "8e8b951cd45a7b83011ed4895bcf78366c458793f769bbd08bcb1238fb261071"
     },
     {
       "path": "repository.yaml",
@@ -170,7 +170,7 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "2afaf940fee8b053a967dee3fb3fd74a9c37336c66f4c63938e4ef967f300a84"
+      "sha256": "6a05e679620dbb71b4f191d2102442b16bfe2db718edd52d3c6c8ef056fc21a7"
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -186,7 +186,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "ba075153238557385139078ccc56628f0359a4ae8f4347b4f39dccec52515c00"
+      "sha256": "afde0edaf3ff5495fe2b79abfb6980cb60afa949b26540302de8265af8e2193f"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -234,11 +234,11 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "4b140f83bca58386562c2dffe67ae28b0c64dfddea486dda7872e7562af03341"
+      "sha256": "96038b41941c4e3cd0dbc70ca813cb1061f1af47d05b3016b397e095cd533db6"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
-      "sha256": "96256047cc00b24a4049959ab58bcd6764833d346319e6034bba86679069877a"
+      "sha256": "645cadee4ff7b3e88ee1c7216b1c51ab2f9c717a56f2e3e018a9c46e89a7901f"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/month_closure_truth.py",
@@ -334,7 +334,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/command_processor.py",
-      "sha256": "724246bedd4f7a0d580a517669699e03f103b58856619fd77ffff75e9a8f6e63"
+      "sha256": "2a7742d1a2ab9ae05a3d9d8cc7405c52d90462006d03fc84f810c831f1f07408"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/command_store.py",
@@ -1374,7 +1374,7 @@
     },
     {
       "path": "tests/test_v32423_release_identity.py",
-      "sha256": "9721bcc959f5a93b8abba1fb68050097ef410f61c242198c11e81afdff2df6d6"
+      "sha256": "ebb8a3e4a9eeaa6c455bf553a42e8322a2bd3f8d6bad53f1de9abb113863576e"
     },
     {
       "path": "tests/test_v32423_roadmap_semantics.py",
@@ -1394,7 +1394,7 @@
     },
     {
       "path": "tests/test_v32425_release_identity.py",
-      "sha256": "b86a31b66bbfd3867edd39bf68ff9774816ede08afb7a914d5fbabe25f6e164c"
+      "sha256": "df4a0c1e69b7199eaf106e33be295193b13318ab56f77eaa18f567be16ecc837"
     },
     {
       "path": "tests/test_v32426_clearup_indexing.py",
@@ -1402,7 +1402,7 @@
     },
     {
       "path": "tests/test_v32426_release_identity.py",
-      "sha256": "0910b19fabefac71be7b2486f10139cac9a41dc479c7e21b6139156e7fca2757"
+      "sha256": "7c0561a2a6517ce22e4f8dd3608a421aca809ca174999336ee3c5bc838ab993e"
     },
     {
       "path": "tests/test_v32427_clearup_hash_efficiency.py",
@@ -1414,7 +1414,7 @@
     },
     {
       "path": "tests/test_v32428_release_identity.py",
-      "sha256": "8ea90a8979c751fe0d57d8749f7f968b09314bf5bf9f80a11a2a9c5b4c38c355"
+      "sha256": "b4ddd17940d1b5bee687fc57677569163fcfc38c1ae2917dfbb0d409bc9f44ae"
     },
     {
       "path": "tests/test_v32429_clearup_observability_timeout.py",
@@ -1422,7 +1422,7 @@
     },
     {
       "path": "tests/test_v32429_release_identity.py",
-      "sha256": "26b7d2978fef94524ee93278653890f7e2d07c9acbb04c3f5c8fc152cbd25f75"
+      "sha256": "7cc28885cbdb5f5f1ccb0154be7eaf90b71afbe54a5fad45a54485ca4ca42ca2"
     },
     {
       "path": "tests/test_v3242_projectmanager_repair.py",
@@ -1430,7 +1430,7 @@
     },
     {
       "path": "tests/test_v32430_clearup_checkpoint_surface.py",
-      "sha256": "44be17bb77515e1126d3192eeb6818abb5e9628b7eaae94cb56880bbc4d267d1"
+      "sha256": "1c2c1a4f2fabae5a6a528b59c2377614ea317a9b307cc3de44a330c0b9225e57"
     },
     {
       "path": "tests/test_v32430_release_packaging_failed_retention.py",
@@ -1438,15 +1438,15 @@
     },
     {
       "path": "tests/test_v32431_clearup_unreadable_candidate.py",
-      "sha256": "634be923f2715a1e8cc564f290d8ee68656689c7ea105603ee79ed39f718c219"
+      "sha256": "957e90f21a1cc5dd024a2323ee52d767e78c3449faf4f93f2a6e7a5679a232ff"
     },
     {
       "path": "tests/test_v32432_clearup_root_bootstrap.py",
-      "sha256": "fcadaa5f2ab963879303b99118bf4e33d44daedb5871600f2f9ba4b0fb555734"
+      "sha256": "f8eff9126d218760028d4bfcc5b3e5c8876a8f981a021448442f1f07908a8d78"
     },
     {
       "path": "tests/test_v32433_clearup_watcher_move_bridge.py",
-      "sha256": "264beb88988bf8f41a6022ccbb3ee3d6a76c4f8caba10de265b468175820fbec"
+      "sha256": "7f7eaced522e63a18e48163ebaf9cd1792299f002811df88d39db2c6bcb6d8f6"
     },
     {
       "path": "tests/test_v32434_approved_maintenance_transition.py",
@@ -1455,6 +1455,10 @@
     {
       "path": "tests/test_v32434_development_build_contract.py",
       "sha256": "6a517c678083cd370b79226cca757926c0b4ed126a4d15c49247935b71cce2ed"
+    },
+    {
+      "path": "tests/test_v32435_autonomous_operational_mode.py",
+      "sha256": "ac5a019f8b43031294f864d75b2cc171b6aaf3eca2dbfd6d934a9e6bc6c520c7"
     },
     {
       "path": "tests/test_v3243_projectmanager_closure_static.py",

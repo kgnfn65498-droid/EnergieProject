@@ -149,3 +149,11 @@
 - Geen autonome reboot/reset van NAS, Home Assistant, containers of services en geen destructief beheer zonder expliciete opdracht.
 - Bekende defecten en hun root cause/fix worden vóór closure als regressietest/gate en in KB + Projectmanager vastgelegd.
 - Een expliciet gemarkeerde build zonder complete Development Build Contract-metadata is **niet release-compliant** en mag niet als definitief groen worden gepresenteerd.
+## Autonome operationele modusroutering vanaf 32.4.35
+
+- DEVELOPMENT en MAINTENANCE zijn operationele PM-modi en mogen door de Projectmanager autonoom worden gekozen/gecorrigeerd binnen een bestaande, begrensde taak.
+- Hiervoor mag geen extra MODE_CHANGE-goedkeuringskaart worden toegevoegd wanneer de opdracht via de begrensde PM remote ingress komt.
+- Productieplaatsing en architectuurwijzigingen blijven expliciet beschermd en vereisen gebruikersgoedkeuring.
+- Bestaande pre-32.4.35 pending modebeslissingen blijven backward-compatible; nieuwe modeopdrachten gebruiken de directe auditbare mode-route.
+- DEVELOPMENT→MAINTENANCE moet end-to-end aantoonbaar de ontwikkelsessie afsluiten, maintenance_requests activeren en na de taak de correcte normale modus herstellen.
+
