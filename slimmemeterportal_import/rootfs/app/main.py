@@ -43,6 +43,7 @@ from project_paths import find_existing_nas_roots, resolve_nas_roots, wait_for_e
 from project_structure import HISTORICAL_BOOTSTRAP_STATUS_RELATIVE, migrate_project_structure
 from historical_energy_excel import bootstrap_historical_energy_workbook, publish_historical_energy_workbook
 from project_clearup_auto import run_approved_clearup_once
+from project_clearup_auto import ClearupExecutionTimeout
 from energy_conversation import EnergyConversationEngine
 from assistant_fast_context import load_quarter_hour_series_once
 from assistant_analysis_cache import AssistantAnalysisCache
@@ -79,8 +80,10 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
+PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Data/03_Systeem/Projectmanager/State/project_clearup_runtime.json")
+PROJECT_CLEARUP_MAX_SECONDS = 25 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.28"
+APP_VERSION = "32.4.29"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -22031,7 +22034,23 @@ def main() -> None:
     ).start()
 
     def startup_project_clearup() -> None:
-        """Run the approved reversible housekeeping only after release acceptance."""
+        """Run approved reversible housekeeping with live checkpoints and one hard deadline."""
+        worker_started = time.monotonic()
+        live_nas_layout_root = None
+
+        def persist_clearup(payload: dict[str, Any]) -> None:
+            enriched = {
+                **payload,
+                "release_version": APP_VERSION,
+                "trigger": "post-release-acceptance",
+                "observed_at": datetime.now(TZ).isoformat(),
+                "delete_performed": False,
+            }
+            write_atomic_json(PROJECT_CLEARUP_STATE_PATH, enriched)
+            if live_nas_layout_root is not None:
+                write_atomic_json(live_nas_layout_root / PROJECT_CLEARUP_RUNTIME_RELATIVE, enriched)
+            update_state(last_project_clearup=enriched)
+
         try:
             time.sleep(3)
             _, live_nas_layout_root = wait_for_existing_nas_roots(
@@ -22042,73 +22061,86 @@ def main() -> None:
             for attempt in range(1, 121):
                 if STOP.is_set():
                     return
+                elapsed = time.monotonic() - worker_started
+                remaining = PROJECT_CLEARUP_MAX_SECONDS - elapsed
+                if remaining <= 0:
+                    raise ClearupExecutionTimeout("release_acceptance_wait")
+
+                def clearup_progress(event: dict[str, Any]) -> None:
+                    persist_clearup({
+                        "status": "running",
+                        "attempt": attempt,
+                        **event,
+                    })
+
                 result = run_approved_clearup_once(
                     live_nas_layout_root,
                     app_version=APP_VERSION,
+                    timeout_seconds=remaining,
+                    progress_callback=clearup_progress,
                 )
                 status = str(result.get("status") or "")
                 if status != "blocked":
                     payload = {
                         **result,
-                        "trigger": "post-release-acceptance",
                         "attempt": attempt,
                         "finished_at": datetime.now(TZ).isoformat(),
+                        "elapsed_seconds": round(time.monotonic() - worker_started, 3),
                     }
-                    write_atomic_json(PROJECT_CLEARUP_STATE_PATH, payload)
-                    update_state(last_project_clearup=payload)
+                    persist_clearup(payload)
                     LOGGER.info(
                         "Project CLEARUP v%s: %s; moved=%s review=%s manifest=%s",
-                        APP_VERSION,
-                        status,
-                        result.get("moved_count"),
-                        result.get("review_count"),
-                        result.get("manifest"),
+                        APP_VERSION, status, result.get("moved_count"),
+                        result.get("review_count"), result.get("manifest"),
                     )
                     return
 
                 blockers = list((result.get("gate") or {}).get("blockers") or [])
-                # Waiting for this release's own atomic acceptance/hold is normal.
-                # Any other blocker after acceptance is a fail-closed stop, not a
-                # reason to keep retrying or to weaken the gate.
                 if "release_not_accepted" in blockers or "release_hold_not_released" in blockers:
                     if blockers != last_blockers:
                         LOGGER.info("Project CLEARUP wacht op release-acceptance: %s", blockers)
                         last_blockers = blockers
-                    STOP.wait(15.0)
+                    wait_seconds = min(15.0, max(0.0, PROJECT_CLEARUP_MAX_SECONDS - (time.monotonic() - worker_started)))
+                    if wait_seconds <= 0:
+                        raise ClearupExecutionTimeout("release_acceptance_wait")
+                    STOP.wait(wait_seconds)
                     continue
 
                 payload = {
                     **result,
-                    "trigger": "post-release-acceptance",
                     "attempt": attempt,
                     "finished_at": datetime.now(TZ).isoformat(),
+                    "elapsed_seconds": round(time.monotonic() - worker_started, 3),
                 }
-                write_atomic_json(PROJECT_CLEARUP_STATE_PATH, payload)
-                update_state(last_project_clearup=payload)
+                persist_clearup(payload)
                 LOGGER.warning("Project CLEARUP fail-closed geblokkeerd: %s", blockers)
                 return
 
+            raise ClearupExecutionTimeout("release_acceptance_wait")
+        except ClearupExecutionTimeout as exc:
             payload = {
                 "status": "timeout",
-                "trigger": "post-release-acceptance",
-                "error": "release acceptance bleef langer dan 30 minuten onbeslist",
+                "phase": exc.phase,
+                "candidate": exc.candidate,
+                "error": str(exc),
                 "finished_at": datetime.now(TZ).isoformat(),
-                "delete_performed": False,
+                "elapsed_seconds": round(time.monotonic() - worker_started, 3),
             }
-            write_atomic_json(PROJECT_CLEARUP_STATE_PATH, payload)
-            update_state(last_project_clearup=payload)
-            LOGGER.warning("Project CLEARUP timeout; geen bestanden verplaatst.")
+            try:
+                persist_clearup(payload)
+            except Exception:
+                LOGGER.exception("Project CLEARUP timeoutstatus kon niet worden opgeslagen.")
+            LOGGER.warning("Project CLEARUP harde timeout in fase %s; geen delete uitgevoerd.", exc.phase)
         except Exception as exc:
             payload = {
                 "status": "error",
-                "trigger": "post-release-acceptance",
+                "phase": "unhandled_error",
                 "error": f"{type(exc).__name__}: {exc}",
                 "finished_at": datetime.now(TZ).isoformat(),
-                "delete_performed": False,
+                "elapsed_seconds": round(time.monotonic() - worker_started, 3),
             }
             try:
-                write_atomic_json(PROJECT_CLEARUP_STATE_PATH, payload)
-                update_state(last_project_clearup=payload)
+                persist_clearup(payload)
             except Exception:
                 LOGGER.exception("Project CLEARUP foutstatus kon niet worden opgeslagen.")
             LOGGER.exception("Project CLEARUP startup-worker faalde gesloten; geen delete uitgevoerd.")

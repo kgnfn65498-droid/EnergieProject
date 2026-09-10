@@ -13,9 +13,10 @@ import hashlib
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 SCHEMA = "energie_project_clearup_v1"
 TEXT_SUFFIXES = {
@@ -23,6 +24,40 @@ TEXT_SUFFIXES = {
     ".cfg", ".py", ".sh", ".command", ".env", ".toml", ".service",
 }
 MAX_SCAN_BYTES = 2_000_000
+
+
+class ClearupExecutionTimeout(RuntimeError):
+    def __init__(self, phase: str, *, candidate: str | None = None):
+        self.phase = str(phase or "unknown")
+        self.candidate = candidate
+        detail = f"CLEARUP execution timeout in phase={self.phase}"
+        if candidate:
+            detail += f" candidate={candidate}"
+        super().__init__(detail)
+
+
+def _check_deadline(deadline_monotonic: float | None, phase: str, *, candidate: str | None = None) -> None:
+    if deadline_monotonic is not None and time.monotonic() >= float(deadline_monotonic):
+        raise ClearupExecutionTimeout(phase, candidate=candidate)
+
+
+def _emit_progress(
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    *,
+    phase: str,
+    started_monotonic: float | None,
+    **details: Any,
+) -> None:
+    if progress_callback is None:
+        return
+    started = time.monotonic() if started_monotonic is None else float(started_monotonic)
+    payload = {
+        "phase": str(phase),
+        "elapsed_seconds": round(max(0.0, time.monotonic() - started), 3),
+        **details,
+    }
+    progress_callback(payload)
+
 ACTIVE_SCAN_ROOTS = (
     "App/slimmemeterportal_import/rootfs/app",
     "App/slimmemeterportal_import/config.yaml",
@@ -72,17 +107,35 @@ def _version_tuple(value: str) -> tuple[int, ...]:
     return tuple(int(part) for part in parts[:4]) or (0,)
 
 
-def _hash_file(path: Path) -> str:
+def _hash_file(
+    path: Path,
+    *,
+    deadline_monotonic: float | None = None,
+    phase: str = "candidate_hash",
+    candidate: str | None = None,
+) -> str:
     digest = hashlib.sha256()
+    _check_deadline(deadline_monotonic, phase, candidate=candidate)
     with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+        while True:
+            _check_deadline(deadline_monotonic, phase, candidate=candidate)
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
             digest.update(chunk)
     return digest.hexdigest()
 
 
-def tree_sha256(path: Path) -> str:
+def tree_sha256(
+    path: Path,
+    *,
+    deadline_monotonic: float | None = None,
+    phase: str = "candidate_hash",
+    candidate: str | None = None,
+) -> str:
     """Stable hash for a file or directory tree, including empty directories."""
     path = Path(path)
+    _check_deadline(deadline_monotonic, phase, candidate=candidate)
     digest = hashlib.sha256()
     if path.is_symlink():
         digest.update(b"SYMLINK\0")
@@ -90,12 +143,13 @@ def tree_sha256(path: Path) -> str:
         return digest.hexdigest()
     if path.is_file():
         digest.update(b"FILE\0")
-        digest.update(_hash_file(path).encode("ascii"))
+        digest.update(_hash_file(path, deadline_monotonic=deadline_monotonic, phase=phase, candidate=candidate).encode("ascii"))
         return digest.hexdigest()
     if not path.is_dir():
         raise FileNotFoundError(path)
     digest.update(b"DIR\0")
     for item in sorted(path.rglob("*"), key=lambda p: p.relative_to(path).as_posix()):
+        _check_deadline(deadline_monotonic, phase, candidate=candidate)
         rel = item.relative_to(path).as_posix().encode("utf-8", errors="surrogateescape")
         if item.is_symlink():
             digest.update(b"L\0" + rel + b"\0")
@@ -104,11 +158,24 @@ def tree_sha256(path: Path) -> str:
             digest.update(b"D\0" + rel + b"\0")
         elif item.is_file():
             digest.update(b"F\0" + rel + b"\0")
-            digest.update(_hash_file(item).encode("ascii"))
+            digest.update(_hash_file(item, deadline_monotonic=deadline_monotonic, phase=phase, candidate=candidate).encode("ascii"))
     return digest.hexdigest()
 
 
-def _size_bytes(path: Path) -> int:
+def _tree_sha256_runtime(
+    path: Path, *, deadline_monotonic: float | None, phase: str, candidate: str | None
+) -> str:
+    # Preserve the historical one-argument tree_sha256 call contract when no
+    # deadline is active; existing test/instrumentation wrappers rely on it.
+    if deadline_monotonic is None:
+        return tree_sha256(path)
+    return tree_sha256(
+        path, deadline_monotonic=deadline_monotonic, phase=phase, candidate=candidate
+    )
+
+
+def _size_bytes(path: Path, *, deadline_monotonic: float | None = None, candidate: str | None = None) -> int:
+    _check_deadline(deadline_monotonic, "candidate_inventory", candidate=candidate)
     if path.is_file() or path.is_symlink():
         try:
             return int(path.lstat().st_size)
@@ -116,6 +183,7 @@ def _size_bytes(path: Path) -> int:
             return 0
     total = 0
     for item in path.rglob("*"):
+        _check_deadline(deadline_monotonic, "candidate_inventory", candidate=candidate)
         if item.is_file() and not item.is_symlink():
             try:
                 total += int(item.stat().st_size)
@@ -236,14 +304,16 @@ def _candidate_ancestor(relative: str, candidate_paths: set[str]) -> bool:
     return any(relative == cand or relative.startswith(cand.rstrip("/") + "/") for cand in candidate_paths)
 
 
-def _iter_active_text_files(root: Path, candidate_paths: set[str]) -> Iterable[Path]:
+def _iter_active_text_files(root: Path, candidate_paths: set[str], *, deadline_monotonic: float | None = None) -> Iterable[Path]:
     seen: set[str] = set()
     for root_rel in ACTIVE_SCAN_ROOTS:
+        _check_deadline(deadline_monotonic, "dependency_index")
         active_root = root / root_rel
         if not active_root.exists():
             continue
         paths = [active_root] if active_root.is_file() else active_root.rglob("*")
         for path in paths:
+            _check_deadline(deadline_monotonic, "dependency_index")
             if not path.is_file() or path.is_symlink():
                 continue
             relative = _rel(path, root)
@@ -282,11 +352,12 @@ def _reference_is_informational(relative: str) -> bool:
     return (
         rel.startswith("Inbox/projectmanager_v2/RuntimeV2/status/")
         or rel.startswith("Inbox/projectmanager_v2/RuntimeV2/snapshots/")
+        or rel == "Data/03_Systeem/Projectmanager/State/project_clearup_runtime.json"
     )
 
 
 def _build_active_dependency_index(
-    root: Path, candidate_paths: set[str], active_files: list[Path]
+    root: Path, candidate_paths: set[str], active_files: list[Path], *, deadline_monotonic: float | None = None
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
     """Inventory active text and symlink dependencies exactly once per plan.
 
@@ -303,6 +374,7 @@ def _build_active_dependency_index(
     # against the in-memory text.  Basename matching is intentionally preserved
     # because 32.4.25 treated both full relative paths and basenames as evidence.
     for path in active_files:
+        _check_deadline(deadline_monotonic, "dependency_index")
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -324,6 +396,7 @@ def _build_active_dependency_index(
     resolved_targets = {candidate: (root / candidate).resolve(strict=False) for candidate in candidates}
     seen_symlinks: set[str] = set()
     for active_root_rel in ACTIVE_SCAN_ROOTS:
+        _check_deadline(deadline_monotonic, "dependency_index")
         active_root = root / active_root_rel
         if not active_root.exists() or active_root.is_file():
             continue
@@ -332,6 +405,7 @@ def _build_active_dependency_index(
         except OSError:
             continue
         for path in iterator:
+            _check_deadline(deadline_monotonic, "dependency_index")
             if not path.is_symlink():
                 continue
             relative = _rel(path, root)
@@ -374,17 +448,42 @@ def _atomic_rollback_reference(root: Path) -> str | None:
     return value or None
 
 
-def build_clearup_plan(project_root: Path, *, current_version: str, keep_rollbacks: int = 3) -> dict[str, Any]:
+def build_clearup_plan(
+    project_root: Path,
+    *,
+    current_version: str,
+    keep_rollbacks: int = 3,
+    deadline_monotonic: float | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    started_monotonic: float | None = None,
+) -> dict[str, Any]:
     root = Path(project_root).resolve()
+    _check_deadline(deadline_monotonic, "candidate_inventory")
     raw_items = _collect_candidates(root, keep_rollbacks=keep_rollbacks)
+    _emit_progress(
+        progress_callback, phase="candidate_inventory", started_monotonic=started_monotonic,
+        candidate_total=len(raw_items),
+    )
     candidate_paths = {item["source_path"] for item in raw_items}
-    active_files = list(_iter_active_text_files(root, candidate_paths))
-    dependency_index = _build_active_dependency_index(root, candidate_paths, active_files)
+    active_files = list(_iter_active_text_files(root, candidate_paths, deadline_monotonic=deadline_monotonic))
+    dependency_index = _build_active_dependency_index(
+        root, candidate_paths, active_files, deadline_monotonic=deadline_monotonic
+    )
+    _emit_progress(
+        progress_callback, phase="dependency_index", started_monotonic=started_monotonic,
+        candidate_total=len(raw_items), active_file_count=len(active_files),
+    )
     atomic_rollback = _atomic_rollback_reference(root)
 
     items: list[dict[str, Any]] = []
-    for base in raw_items:
+    total = len(raw_items)
+    for index, base in enumerate(raw_items, 1):
         relative = base["source_path"]
+        _check_deadline(deadline_monotonic, "candidate_hash", candidate=relative)
+        _emit_progress(
+            progress_callback, phase="candidate_hash", started_monotonic=started_monotonic,
+            candidate=relative, candidate_index=index, candidate_total=total, stage="plan",
+        )
         source = root / relative
         refs, informational_refs = _active_references(relative, dependency_index)
         if atomic_rollback == relative:
@@ -393,8 +492,10 @@ def build_clearup_plan(project_root: Path, *, current_version: str, keep_rollbac
         items.append({
             **base,
             "type": "symlink" if source.is_symlink() else ("directory" if source.is_dir() else "file"),
-            "size_bytes": _size_bytes(source),
-            "tree_sha256": tree_sha256(source),
+            "size_bytes": _size_bytes(source, deadline_monotonic=deadline_monotonic, candidate=relative),
+            "tree_sha256": _tree_sha256_runtime(
+                source, deadline_monotonic=deadline_monotonic, phase="candidate_hash", candidate=relative
+            ),
             "active_references": refs,
             "informational_references": informational_refs,
             "disposition": disposition,
@@ -451,8 +552,12 @@ def apply_clearup_plan(
     *,
     confirmation: str,
     run_id: str | None = None,
+    deadline_monotonic: float | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    started_monotonic: float | None = None,
 ) -> dict[str, Any]:
     root = Path(project_root).resolve()
+    _check_deadline(deadline_monotonic, "apply")
     if confirmation != plan.get("confirmation_required"):
         raise ValueError(f"Bevestiging ongeldig. Verwacht exact: {plan.get('confirmation_required')}")
     # Revalidate candidate membership and active dependencies immediately before
@@ -461,12 +566,15 @@ def apply_clearup_plan(
     # directly before its hard rename below.  This keeps the dependency audit
     # fresh/fail-closed without multiplying multi-GB NAS reads.
     raw_items = _collect_candidates(root, keep_rollbacks=int(plan.get("keep_rollbacks") or 3))
+    _check_deadline(deadline_monotonic, "dependency_index")
     candidate_paths = {item["source_path"] for item in raw_items}
     planned_paths = {str(item.get("source_path") or "") for item in (plan.get("items") or [])}
     if candidate_paths != planned_paths:
         raise RuntimeError("CLEARUP-plan is gewijzigd; nieuwe dependency-audit vereist.")
-    active_files = list(_iter_active_text_files(root, candidate_paths))
-    dependency_index = _build_active_dependency_index(root, candidate_paths, active_files)
+    active_files = list(_iter_active_text_files(root, candidate_paths, deadline_monotonic=deadline_monotonic))
+    dependency_index = _build_active_dependency_index(
+        root, candidate_paths, active_files, deadline_monotonic=deadline_monotonic
+    )
     atomic_rollback = _atomic_rollback_reference(root)
     planned_by_path = {str(item["source_path"]): item for item in (plan.get("items") or [])}
     for base in raw_items:
@@ -487,6 +595,11 @@ def apply_clearup_plan(
         previous["informational_references"] = informational_refs
 
     fresh = plan
+    _check_deadline(deadline_monotonic, "apply")
+    _emit_progress(
+        progress_callback, phase="apply", started_monotonic=started_monotonic,
+        candidate_total=sum(1 for item in fresh["items"] if item["disposition"] == "CLEARUP"),
+    )
     run_id = _safe_run_id(run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ"))
     run_root = root / "CLEARUP" / run_id
     original_root = run_root / "original"
@@ -499,9 +612,13 @@ def apply_clearup_plan(
     moved: list[tuple[Path, Path, dict[str, Any]]] = []
     manifest_items: list[dict[str, Any]] = []
     try:
-        for item in fresh["items"]:
-            if item["disposition"] != "CLEARUP":
-                continue
+        clearup_items = [item for item in fresh["items"] if item["disposition"] == "CLEARUP"]
+        for index, item in enumerate(clearup_items, 1):
+            _check_deadline(deadline_monotonic, "candidate_hash", candidate=item["source_path"])
+            _emit_progress(
+                progress_callback, phase="candidate_hash", started_monotonic=started_monotonic,
+                candidate=item["source_path"], candidate_index=index, candidate_total=len(clearup_items), stage="pre_move",
+            )
             source = root / item["source_path"]
             if _is_protected(item["source_path"]):
                 raise RuntimeError(f"Protected path mocht niet in CLEARUP-plan staan: {item['source_path']}")
@@ -509,7 +626,9 @@ def apply_clearup_plan(
                 raise RuntimeError(f"CLEARUP-bron verdwenen vóór move: {item['source_path']}")
             if source.stat().st_dev != root.stat().st_dev:
                 raise RuntimeError(f"Cross-filesystem CLEARUP geblokkeerd: {item['source_path']}")
-            before_hash = tree_sha256(source)
+            before_hash = _tree_sha256_runtime(
+                source, deadline_monotonic=deadline_monotonic, phase="candidate_hash", candidate=item["source_path"]
+            )
             if before_hash != item["tree_sha256"]:
                 raise RuntimeError(f"CLEARUP-bron gewijzigd na plan: {item['source_path']}")
             # A rename on the same filesystem preserves the inode.  Capture
@@ -563,7 +682,13 @@ def apply_clearup_plan(
         "items": manifest_items,
         "review_items": [item for item in fresh["items"] if item["disposition"] == "REVIEW"],
     }
+    _check_deadline(deadline_monotonic, "manifest")
     _write_json_atomic(run_root / "manifest.json", manifest)
+    _emit_progress(
+        progress_callback, phase="manifest", started_monotonic=started_monotonic,
+        manifest=_rel(run_root / "manifest.json", root), moved_count=len(manifest_items),
+        review_count=len(manifest["review_items"]),
+    )
     return {
         "status": "completed",
         "run_id": run_id,

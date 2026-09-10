@@ -11,11 +11,12 @@ same dependency-audited hard-rename implementation used by manual previews.
 import hashlib
 import json
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-from project_clearup import apply_clearup_plan, build_clearup_plan
+from project_clearup import ClearupExecutionTimeout, apply_clearup_plan, build_clearup_plan
 
 APPROVAL_RELATIVE = Path("Data/03_Systeem/Projectmanager/State/32_4_25_scope_cleanup_and_history_repair_20260909.md")
 MAX_CR_AGE_SECONDS = 30 * 86400
@@ -29,12 +30,35 @@ def _read_json(path: Path) -> dict[str, Any] | None:
         return None
 
 
-def _sha256(path: Path) -> str:
+def _sha256(path: Path, *, deadline_monotonic: float | None = None) -> str:
     digest = hashlib.sha256()
+    if deadline_monotonic is not None and time.monotonic() >= float(deadline_monotonic):
+        raise ClearupExecutionTimeout("crash_recovery_check")
     with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+        while True:
+            if deadline_monotonic is not None and time.monotonic() >= float(deadline_monotonic):
+                raise ClearupExecutionTimeout("crash_recovery_check")
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _emit_progress(
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    *,
+    phase: str,
+    started_monotonic: float,
+    **details: Any,
+) -> None:
+    if progress_callback is None:
+        return
+    progress_callback({
+        "phase": str(phase),
+        "elapsed_seconds": round(max(0.0, time.monotonic() - float(started_monotonic)), 3),
+        **details,
+    })
 
 
 def _approval_ok(root: Path) -> bool:
@@ -92,8 +116,10 @@ def _practical_recovery_acceptance(root: Path) -> dict[str, Any]:
     return {"ok": False, "path": None, "status": None}
 
 
-def _crash_recovery_gate(root: Path, *, now: datetime | None = None) -> dict[str, Any]:
+def _crash_recovery_gate(root: Path, *, now: datetime | None = None, deadline_monotonic: float | None = None, progress_callback: Callable[[dict[str, Any]], None] | None = None, started_monotonic: float | None = None) -> dict[str, Any]:
     now = now or datetime.now(timezone.utc)
+    started = time.monotonic() if started_monotonic is None else float(started_monotonic)
+    _emit_progress(progress_callback, phase="crash_recovery_check", started_monotonic=started, stage="start")
     cr = root / "Backups/CrashRecovery"
     try:
         zips = [path for path in cr.glob("*.zip") if path.is_file()]
@@ -111,7 +137,7 @@ def _crash_recovery_gate(root: Path, *, now: datetime | None = None) -> dict[str
     try:
         age = max(0.0, now.timestamp() - latest.stat().st_mtime)
         expected_sha = _parse_expected_sha(sha_path.read_text(encoding="utf-8"))
-        actual_sha = _sha256(latest)
+        actual_sha = _sha256(latest, deadline_monotonic=deadline_monotonic)
         manifest = _read_json(manifest_path)
         restore_text = restore_path.read_text(encoding="utf-8", errors="replace").upper()
     except OSError as exc:
@@ -140,7 +166,12 @@ def _crash_recovery_gate(root: Path, *, now: datetime | None = None) -> dict[str
     }
 
 
-def clearup_auto_gate(project_root: Path, *, app_version: str, now: datetime | None = None) -> dict[str, Any]:
+def clearup_auto_gate(
+    project_root: Path, *, app_version: str, now: datetime | None = None,
+    deadline_monotonic: float | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    started_monotonic: float | None = None,
+) -> dict[str, Any]:
     root = Path(project_root).resolve()
     accepted, atomic = _release_accepted(root, app_version)
     hold_ok, hold = _hold_released(root)
@@ -157,7 +188,10 @@ def clearup_auto_gate(project_root: Path, *, app_version: str, now: datetime | N
     # release itself is settled; otherwise a startup poll would repeatedly read
     # hundreds of MB while acceptance is still in progress.
     if approval and accepted and hold_ok:
-        cr = _crash_recovery_gate(root, now=now)
+        cr = _crash_recovery_gate(
+            root, now=now, deadline_monotonic=deadline_monotonic,
+            progress_callback=progress_callback, started_monotonic=started_monotonic,
+        )
         if not cr.get("ok"):
             blockers.append("crash_recovery_not_verified")
     else:
@@ -182,17 +216,28 @@ def run_approved_clearup_once(
     app_version: str,
     run_id: str | None = None,
     now: datetime | None = None,
+    timeout_seconds: float = 25 * 60,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     root = Path(project_root).resolve()
-    gate = clearup_auto_gate(root, app_version=app_version, now=now)
+    started_monotonic = time.monotonic()
+    timeout = max(0.0, float(timeout_seconds))
+    deadline_monotonic = started_monotonic + timeout
+    _emit_progress(progress_callback, phase="gate", started_monotonic=started_monotonic, stage="start")
+    if timeout <= 0:
+        raise ClearupExecutionTimeout("gate")
+    gate = clearup_auto_gate(
+        root, app_version=app_version, now=now, deadline_monotonic=deadline_monotonic,
+        progress_callback=progress_callback, started_monotonic=started_monotonic,
+    )
     if not gate["ready"]:
         return {"status": "blocked", "gate": gate, "delete_performed": False}
 
-    # If this exact release already completed a quarantine run, do not create a
-    # second one automatically. Manual restore/retry remains possible.
     clearup_root = root / "CLEARUP"
     if clearup_root.is_dir():
         for manifest_path in sorted(clearup_root.glob("*/manifest.json")):
+            if time.monotonic() >= deadline_monotonic:
+                raise ClearupExecutionTimeout("candidate_inventory")
             manifest = _read_json(manifest_path) or {}
             if manifest.get("current_version") == str(app_version) and manifest.get("hard_move") is True:
                 return {
@@ -203,7 +248,11 @@ def run_approved_clearup_once(
                     "gate": gate,
                 }
 
-    plan = build_clearup_plan(root, current_version=str(app_version), keep_rollbacks=3)
+    plan = build_clearup_plan(
+        root, current_version=str(app_version), keep_rollbacks=3,
+        deadline_monotonic=deadline_monotonic, progress_callback=progress_callback,
+        started_monotonic=started_monotonic,
+    )
     if int(plan.get("clearup_count") or 0) == 0:
         return {
             "status": "no_action",
@@ -217,5 +266,9 @@ def run_approved_clearup_once(
         plan,
         confirmation=str(plan["confirmation_required"]),
         run_id=run_id,
+        deadline_monotonic=deadline_monotonic,
+        progress_callback=progress_callback,
+        started_monotonic=started_monotonic,
     )
     return {**result, "gate": gate, "plan_id": plan.get("plan_id")}
+

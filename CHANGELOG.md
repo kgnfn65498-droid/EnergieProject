@@ -1,3 +1,11 @@
+## 32.4.29 — CLEARUP harde observability/timeout closure
+
+- CLEARUP schrijft permanente live fase-checkpoints naar Projectmanager State en lokale runtime-state: gate, Crash Recovery, kandidaat-inventaris, dependency-index, kandidaat-hash, apply en manifest, inclusief verstreken tijd en kandidaat N/X.
+- Eén harde maximale doorlooptijd van 25 minuten geldt nu voor de volledige post-release CLEARUP-keten; zware Crash-Recovery- en tree-SHA256-lussen controleren die deadline coöperatief en stoppen fail-closed vóór verdere mutatie.
+- Het nieuwe `project_clearup_runtime.json` is expliciet observationeel, net als Projectmanager status/snapshots, zodat monitoring nooit opnieuw als actieve dependency kan terugkoppelen. Echte config/runtime/symlinkdependencies blijven hard blokkerend.
+- Bestaande veiligheidsgrenzen blijven intact: geen delete, alleen same-filesystem hard rename, verse dependency/symlink-audit, bronhash vóór move, old-path-absent controle, transactionele rollback en herstelmanifest.
+- 32.4.25–32.4.28 CLEARUP-regressies blijven onderdeel van de releaseacceptatie.
+
 ## 32.4.28 — CLEARUP PM-observation dependency closure
 
 - Root cause live 32.4.27: de CLEARUP dependency-audit scande afgeleide Projectmanager status- en snapshot-JSON als harde actieve consumenten. PM rapporteert daarin juist stale rollbackpaden; daardoor blokkeerde CLEARUP zichzelf en kon een normale PM-refresh tussen planbouw en apply de fail-closed tweede audit laten afbreken vóór `CLEARUP/` werd aangemaakt.

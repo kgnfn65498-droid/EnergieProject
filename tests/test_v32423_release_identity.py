@@ -9,7 +9,7 @@ APP = ROOT / 'slimmemeterportal_import/rootfs/app'
 
 
 def test_v32423_release_and_pm_identity_are_synchronized():
-    assert CURRENT_RELEASE == '32.4.28'
+    assert CURRENT_RELEASE == '32.4.29'
     assert CURRENT_PM_VERSION == '2.0.0-rc22'
     assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == CURRENT_RELEASE
     assert f'APP_VERSION = "{CURRENT_RELEASE}"' in (APP / 'main.py').read_text(encoding='utf-8')
@@ -23,8 +23,8 @@ def test_v32423_release_documents_audit_closure_and_pre_325_voice_gate():
     addon_changelog = (ROOT / 'slimmemeterportal_import/CHANGELOG.md').read_text(encoding='utf-8')
     roadmap = (ROOT / 'ROADMAP_V10.md').read_text(encoding='utf-8')
     agreements = (ROOT / 'PROJECT_AFSPRAKEN.md').read_text(encoding='utf-8')
-    assert changelog.startswith('## 32.4.28')
-    assert addon_changelog.startswith('# Changelog\n\n## 32.4.28')
+    assert changelog.startswith('## 32.4.29')
+    assert addon_changelog.startswith('# Changelog\n\n## 32.4.29')
     assert 'CLOSED_VALID' in changelog and 'UNKNOWN' in changelog
     assert 'voice-live-acceptance' in roadmap
     assert 'new-chat-handover-live' in roadmap
