@@ -1,3 +1,11 @@
+## 32.4.31 — CLEARUP unreadable-candidate fail-closed closure
+
+- Repareert live 32.4.30 CLEARUP-fout waarbij één `PermissionError` in een historische `Backups/RestoreStaging`-kandidaat de volledige run als `unhandled_error` afbrak.
+- Onleesbare of anderszins via `OSError` ontoegankelijke kandidaten worden nu individueel `REVIEW` met expliciet `candidate_read_error`-bewijs en zonder vertrouwde tree-hash; zij worden nooit verplaatst.
+- Andere bewezen veilige kandidaten kunnen in dezelfde run wel via de bestaande same-filesystem hard-rename naar `CLEARUP` worden verplaatst.
+- `ClearupExecutionTimeout` blijft fataal en wordt niet tot REVIEW afgezwakt; dependency-, symlink-, hash-, rollback-, no-delete- en manifestregels blijven intact.
+- Nieuwe-chat ontwikkelregel aangescherpt: ontwerpen mag, maar alle bestaande/toekomstige ontwikkel- en platformregels blijven verplicht over chatgrenzen; QNAP-host `python3` mag niet als dependency worden verondersteld, Python loopt via de afgesproken container/runtime.
+
 ## 32.4.30 — CLEARUP runtime-checkpoint surface closure
 
 - Verplaatst het live CLEARUP-runtimecheckpoint van Projectmanager/State naar de reeds door dezelfde HA-app bewezen schrijfbare runtime-oppervlakte `Inbox/logs/project_clearup_runtime.json`.

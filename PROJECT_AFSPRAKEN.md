@@ -101,3 +101,11 @@
 - Certificering van een nieuwe productiekern mag nooit vereisen dat een reeds afgesloten echte maand opnieuw wordt verwerkt; daarvoor is de non-mutating core-safety acceptance de standaardroute.
 - Systeemroadmap-migraties mogen niet aannemen dat de Home Assistant-add-on nieuwe tempbestanden kan maken in `Data/03_Systeem`; permission-denial moet runtime-safe blijven en persistence-required expliciet maken.
 - Voor 32.4.24 is de productiekern `9.4-core3`.
+
+
+## Cross-chat ontwikkelcontract vanaf 32.4.31
+- Een nieuwe ChatGPT-, Voice- of Nomad-chat mag ontwerpen, oplossingen bedenken en ontwikkelen wanneer de taak dat vereist; een chatwissel reset echter nooit bestaande ontwikkelregels, architectuurbesluiten, veiligheidsgrenzen of platformconstraints.
+- Vóór relevante ontwerp-, terminal-, code-, test-, cleanup-, packaging- of releaseactie worden de actuele runtime-truth, PM/handover, actieve taak/roadmap, relevante Knowledge Base-lessen en deze ontwikkelafspraken toegepast.
+- Bij ontbrekende of conflicterende bronwaarheid blijft risicovolle uitvoering fail-closed; geen gok of shortcut.
+- QNAP-hostconstraint: `python3` mag niet als aanwezige hostdependency worden verondersteld en hoeft niet als shortcut op de host te worden geïnstalleerd. Python-taken op de NAS lopen via de afgesproken container/runtime waarin Python beschikbaar is.
+- Nieuwe fouten worden na bewezen oplossing teruggeschreven naar Knowledge Base + Projectmanager en waar praktisch als regressietest/gate vastgelegd, zodat een nieuwe chat dezelfde basale fout niet opnieuw introduceert.

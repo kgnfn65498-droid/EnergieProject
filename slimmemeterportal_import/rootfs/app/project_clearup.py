@@ -490,13 +490,30 @@ def build_clearup_plan(
         if atomic_rollback == relative:
             refs.append({"path": "Inbox/atomic_app_swap_state.json", "matches": ["current_atomic_rollback"]})
         disposition = "REVIEW" if refs else "CLEARUP"
+        candidate_read_error = None
+        size_bytes = None
+        tree_hash = None
+        try:
+            size_bytes = _size_bytes(source, deadline_monotonic=deadline_monotonic, candidate=relative)
+            tree_hash = _tree_sha256_runtime(
+                source, deadline_monotonic=deadline_monotonic, phase="candidate_hash", candidate=relative
+            )
+        except OSError as exc:
+            # Fail closed per candidate: unreadable or otherwise inaccessible
+            # candidates cannot be content-verified and therefore may never be
+            # moved.  Keep the rest of the plan usable so one historical tree
+            # cannot abort housekeeping for unrelated proven-safe candidates.
+            disposition = "REVIEW"
+            candidate_read_error = {
+                "type": type(exc).__name__,
+                "message": str(exc),
+            }
         items.append({
             **base,
             "type": "symlink" if source.is_symlink() else ("directory" if source.is_dir() else "file"),
-            "size_bytes": _size_bytes(source, deadline_monotonic=deadline_monotonic, candidate=relative),
-            "tree_sha256": _tree_sha256_runtime(
-                source, deadline_monotonic=deadline_monotonic, phase="candidate_hash", candidate=relative
-            ),
+            "size_bytes": size_bytes,
+            "tree_sha256": tree_hash,
+            "candidate_read_error": candidate_read_error,
             "active_references": refs,
             "informational_references": informational_refs,
             "disposition": disposition,
@@ -509,6 +526,7 @@ def build_clearup_plan(
         "items": [{
             "source_path": item["source_path"],
             "tree_sha256": item["tree_sha256"],
+            "candidate_read_error": item.get("candidate_read_error"),
             "disposition": item["disposition"],
             "active_references": item["active_references"],
             "informational_references": item.get("informational_references", []),
@@ -583,8 +601,8 @@ def apply_clearup_plan(
         refs, informational_refs = _active_references(relative, dependency_index)
         if atomic_rollback == relative:
             refs.append({"path": "Inbox/atomic_app_swap_state.json", "matches": ["current_atomic_rollback"]})
-        disposition = "REVIEW" if refs else "CLEARUP"
         previous = planned_by_path[relative]
+        disposition = "REVIEW" if refs or previous.get("candidate_read_error") else "CLEARUP"
         if (
             disposition != previous.get("disposition")
             or refs != list(previous.get("active_references") or [])
