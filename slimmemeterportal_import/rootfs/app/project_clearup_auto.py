@@ -10,6 +10,7 @@ same dependency-audited hard-rename implementation used by manual previews.
 
 import hashlib
 import json
+import os
 import re
 import time
 from datetime import datetime, timezone
@@ -166,6 +167,33 @@ def _crash_recovery_gate(root: Path, *, now: datetime | None = None, deadline_mo
     }
 
 
+
+def _clearup_destination_gate(root: Path) -> dict[str, Any]:
+    """Prove the pre-created quarantine root is safe and writable before heavy scans."""
+    clearup_root = root / "CLEARUP"
+    if clearup_root.is_symlink():
+        return {"ok": False, "reason": "clearup_root_symlink", "path": str(clearup_root)}
+    if not clearup_root.exists():
+        return {"ok": False, "reason": "clearup_root_missing", "path": str(clearup_root)}
+    if not clearup_root.is_dir():
+        return {"ok": False, "reason": "clearup_root_not_directory", "path": str(clearup_root)}
+    try:
+        if clearup_root.stat().st_dev != root.stat().st_dev:
+            return {"ok": False, "reason": "clearup_root_cross_filesystem", "path": str(clearup_root)}
+        probe = clearup_root / f".clearup-runtime-probe.{os.getpid()}"
+        with probe.open("x", encoding="utf-8") as handle:
+            handle.write("clearup-runtime-write-probe\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        probe.unlink()
+    except OSError as exc:
+        try:
+            probe.unlink(missing_ok=True)
+        except (OSError, UnboundLocalError):
+            pass
+        return {"ok": False, "reason": "clearup_root_not_writable", "path": str(clearup_root), "error": f"{type(exc).__name__}: {exc}"}
+    return {"ok": True, "reason": "verified", "path": str(clearup_root)}
+
 def clearup_auto_gate(
     project_root: Path, *, app_version: str, now: datetime | None = None,
     deadline_monotonic: float | None = None,
@@ -184,16 +212,27 @@ def clearup_auto_gate(
     if not hold_ok:
         blockers.append("release_hold_not_released")
 
-    # Hashing a large Crash Recovery ZIP is intentionally deferred until the
-    # release itself is settled; otherwise a startup poll would repeatedly read
-    # hundreds of MB while acceptance is still in progress.
+    # The quarantine destination is a release prerequisite.  Prove it before
+    # hashing Crash Recovery or any CLEARUP candidate so a permission problem
+    # fails quickly and never after minutes of expensive NAS reads.
     if approval and accepted and hold_ok:
+        clearup_destination = _clearup_destination_gate(root)
+        if not clearup_destination.get("ok"):
+            blockers.append("clearup_root_not_ready")
+    else:
+        clearup_destination = {"ok": False, "reason": "deferred_until_release_acceptance", "path": str(root / "CLEARUP")}
+
+    # Hashing a large Crash Recovery ZIP is intentionally deferred until the
+    # release itself is settled and the quarantine destination is proven.
+    if approval and accepted and hold_ok and clearup_destination.get("ok"):
         cr = _crash_recovery_gate(
             root, now=now, deadline_monotonic=deadline_monotonic,
             progress_callback=progress_callback, started_monotonic=started_monotonic,
         )
         if not cr.get("ok"):
             blockers.append("crash_recovery_not_verified")
+    elif approval and accepted and hold_ok:
+        cr = {"ok": False, "reason": "deferred_until_clearup_root_ready"}
     else:
         cr = {"ok": False, "reason": "deferred_until_release_acceptance"}
         if not accepted or not approval or not hold_ok:
@@ -206,6 +245,7 @@ def clearup_auto_gate(
         "user_approval": approval,
         "atomic": atomic,
         "release_hold": hold,
+        "clearup_destination": clearup_destination,
         "crash_recovery": cr,
     }
 

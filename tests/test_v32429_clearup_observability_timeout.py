@@ -32,6 +32,7 @@ def rollback(root: Path, version: str, files: int = 1):
 
 
 def ready_root(root: Path, version: str = '32.4.29') -> None:
+    (root / 'CLEARUP').mkdir(parents=True, exist_ok=True)
     approval = root / 'Data/03_Systeem/Projectmanager/State/32_4_25_scope_cleanup_and_history_repair_20260909.md'
     approval.parent.mkdir(parents=True, exist_ok=True)
     approval.write_text('Status: DEVELOPMENT SCOPE APPROVED BY USER\nCLEARUP\n', encoding='utf-8')

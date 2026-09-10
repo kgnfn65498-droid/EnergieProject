@@ -109,3 +109,11 @@
 - Bij ontbrekende of conflicterende bronwaarheid blijft risicovolle uitvoering fail-closed; geen gok of shortcut.
 - QNAP-hostconstraint: `python3` mag niet als aanwezige hostdependency worden verondersteld en hoeft niet als shortcut op de host te worden geïnstalleerd. Python-taken op de NAS lopen via de afgesproken container/runtime waarin Python beschikbaar is.
 - Nieuwe fouten worden na bewezen oplossing teruggeschreven naar Knowledge Base + Projectmanager en waar praktisch als regressietest/gate vastgelegd, zodat een nieuwe chat dezelfde basale fout niet opnieuw introduceert.
+
+
+## CLEARUP destination-preflight vanaf 32.4.32
+- Een nieuw cleanup-/quarantainepad wordt nooit pas tijdens de mutatiefase voor het eerst aangemaakt. De uitvoerende runtime moet de exacte bestemming vooraf aantoonbaar kunnen gebruiken.
+- `EnergieProject/CLEARUP` blijft de canonieke quarantaine-root; geen stille relocatie naar Inbox/Backups als permissie-shortcut.
+- Rootniveau-directoryvoorbereiding gebeurt via de QNAP-side release/watcherlaag die daarvoor al bevoegd is; Home Assistant krijgt geen extra projectrootrechten.
+- De HA CLEARUP-gate controleert vóór dure hashes: geen symlink, zelfde filesystem en echte create/fsync/unlink write-probe. Fout = vroeg fail-closed, geen move/delete.
+- Nieuwe chat/implementatie moet platformpermissions als ontwerpinvoer behandelen en een nieuwe destination live/prod-equivalent preflighten vóór release.

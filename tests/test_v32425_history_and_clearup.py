@@ -122,6 +122,7 @@ def _minimal_project(root: Path) -> None:
     (root / "App/VERSIE.txt").write_text("32.4.25\n", encoding="utf-8")
     (root / "Infra").mkdir(parents=True)
     (root / "Inbox").mkdir(parents=True)
+    (root / "CLEARUP").mkdir(parents=True)
     (root / "Data/03_Systeem/Projectmanager/Roadmap").mkdir(parents=True)
     (root / "Data/03_Systeem/Projectmanager/Policies").mkdir(parents=True)
     (root / "Data/03_Systeem/Projectmanager/State").mkdir(parents=True)

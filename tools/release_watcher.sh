@@ -32,6 +32,7 @@ CRASH_CLEANUP_RESULT="$INBOX/crash_recovery_cleanup_result.json"
 CRASH_CLEANUP_HELPER="$PROJECT/tools/crash_recovery_cleanup.py"
 MODE_GATE="$PROJECT/tools/operating_mode_gate.py"
 MCP_GUARD_HOTFIX_HELPER="$PROJECT/tools/mcp_system_path_guard_hotfix.py"
+CLEARUP_PREPARE="$PROJECT/tools/prepare_clearup_root.sh"
 MCP_GUARD_HOTFIX_RESULT="$INBOX/logs/mcp_system_path_guard_hotfix_v3231.json"
 HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
 MODE_GATE_TIMEOUT="${ENERGIE_MODE_GATE_TIMEOUT_SECONDS:-5}"
@@ -299,6 +300,12 @@ refresh_watcher_from_installed_release(){
   exec sh "$NEW_WATCHER" run
 }
 trap 'cleanup_watcher' EXIT INT TERM
+if [ -f "$CLEARUP_PREPARE" ] && sh "$CLEARUP_PREPARE" "$ROOT" >/dev/null 2>&1; then
+  log "CLEARUP-root startup-preflight = OK"
+else
+  write_status "MAINTENANCE_FAILED" "clearup-root-bootstrap; watcher blijft actief"
+  log "WAARSCHUWING: CLEARUP-root startup-preflight mislukt; watcher blijft actief, CLEARUP blijft fail-closed"
+fi
 touch_heartbeat
 log "Release watcher gestart; interval=${INTERVAL}s"
 

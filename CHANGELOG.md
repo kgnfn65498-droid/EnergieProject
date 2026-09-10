@@ -1,3 +1,10 @@
+## 32.4.32 — CLEARUP quarantine-root live permission closure
+
+- Bewezen live 32.4.31-fout: na 171/171 plan-hashes stopte apply vóór enige move op `PermissionError` bij het aanmaken van `EnergieProject/CLEARUP`; projectroot is 0755 terwijl de HA-runtime die rootmap niet zelf mag creëren.
+- De nieuw geïnstalleerde QNAP-side release-watcher prepareert daarom de bestaande rootquarantaine `EnergieProject/CLEARUP` vóór HA CLEARUP, zonder padwijziging en zonder host-Python-afhankelijkheid; symlinks/non-directories worden geweigerd.
+- De HA CLEARUP-gate bewijst voortaan vóór Crash-Recovery- en kandidaathashes dat de pre-created root geen symlink is, op hetzelfde filesystem staat en door de runtime atomair beschrijfbaar is. Niet gereed = vroeg fail-closed `clearup_root_not_ready`.
+- Geen wijziging aan hard-rename, dependency/symlink-audit, tree-hashes, rollback, manifest of no-delete semantics.
+
 ## 32.4.31 — CLEARUP unreadable-candidate fail-closed closure
 
 - Repareert live 32.4.30 CLEARUP-fout waarbij één `PermissionError` in een historische `Backups/RestoreStaging`-kandidaat de volledige run als `unhandled_error` afbrak.
