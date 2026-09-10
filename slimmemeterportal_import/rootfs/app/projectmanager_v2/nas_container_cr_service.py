@@ -8,7 +8,7 @@ import tarfile
 import secrets
 import time
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
@@ -353,13 +353,21 @@ class NasContainerCrService:
     def _rollback_keep1(self, transaction: dict[str, Any]) -> None:
         for batch_info in reversed(transaction.get('_staged') or []):
             batch = Path(batch_info['batch'])
+            quarantine = Path(batch_info['quarantine']) if batch_info.get('quarantine') else None
+            source_root = quarantine if quarantine is not None and quarantine.is_dir() else batch
             for original_s, dest_s in reversed(batch_info.get('moved') or []):
                 original = Path(original_s)
-                dest = Path(dest_s)
+                staged_name = Path(dest_s).name
+                dest = source_root / staged_name
                 if dest.exists() and not original.exists():
+                    original.parent.mkdir(parents=True, exist_ok=True)
                     os.replace(dest, original)
             try:
-                batch.rmdir()
+                (source_root / 'manifest.json').unlink(missing_ok=True)
+            except OSError:
+                pass
+            try:
+                source_root.rmdir()
             except OSError:
                 pass
 
@@ -419,17 +427,47 @@ class NasContainerCrService:
             raise
 
     def _commit_keep1(self, transaction: dict[str, Any]) -> dict[str, Any]:
-        for batch_info in transaction.get('_staged') or []:
-            batch = Path(batch_info['batch'])
-            for _, dest_s in batch_info.get('moved') or []:
-                dest = Path(dest_s)
-                if dest.exists():
-                    dest.unlink()
-            batch.rmdir()
+        quarantine_root = self.project_root / 'Backups/CRRetentionQuarantine/NAS Container'
+        quarantine_root.mkdir(parents=True, exist_ok=True)
+        committed = []
+        try:
+            for index, batch_info in enumerate(transaction.get('_staged') or [], 1):
+                batch = Path(batch_info['batch'])
+                moved = list(batch_info.get('moved') or [])
+                manifest = {
+                    'schema': 'energie_cr_retention_quarantine_v1',
+                    'type': 'NAS Containers',
+                    'kept': str(transaction.get('kept') or ''),
+                    'original_paths': [original for original, _ in moved],
+                    'files': [Path(dest).name for _, dest in moved],
+                    'delete_performed': False,
+                }
+                (batch / 'manifest.json').write_text(
+                    json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
+                    encoding='utf-8',
+                )
+                name = f'{datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")}-{index}'
+                destination = quarantine_root / name
+                if destination.exists():
+                    raise RuntimeError('CR-retentiequarantaine bestemming bestaat al')
+                os.replace(batch, destination)
+                batch_info['quarantine'] = str(destination)
+                committed.append(str(destination))
+            if not self._validate_set(
+                self.target,
+                str(transaction.get('kept') or ''),
+                require_retention_marker=True,
+            ):
+                raise RuntimeError('Nieuwe NAS Container CR-set verloor geldigheid na retentiecommit')
+        except Exception:
+            self._rollback_keep1(transaction)
+            raise
         return {
             'removed': int(transaction.get('removed') or 0),
             'skipped_unverified': int(transaction.get('skipped_unverified') or 0),
             'kept': str(transaction.get('kept') or ''),
+            'quarantined': committed,
+            'delete_performed': False,
         }
 
     def create(self) -> dict[str, Any]:

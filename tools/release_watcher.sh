@@ -38,7 +38,7 @@ MCP_GUARD_HOTFIX_HELPER="$PROJECT/tools/mcp_system_path_guard_hotfix.py"
 CLEARUP_PREPARE="$PROJECT/tools/prepare_clearup_root.sh"
 MCP_GUARD_HOTFIX_RESULT="$INBOX/logs/mcp_system_path_guard_hotfix_v3231.json"
 CR_STANDARD_HOTFIX_HELPER="$PROJECT/tools/cr_standard_native_mcp_hotfix.py"
-CR_STANDARD_HOTFIX_RESULT="$INBOX/logs/cr_standard_native_mcp_hotfix_v32436.json"
+CR_STANDARD_HOTFIX_RESULT="$INBOX/logs/cr_standard_native_mcp_hotfix_v32437.json"
 NAS_CR_LOCAL_DIR="$INBOX/nas_container_cr_local"
 NAS_CR_LOCAL_REQUEST="$NAS_CR_LOCAL_DIR/request.json"
 NAS_CR_LOCAL_RESULT="$NAS_CR_LOCAL_DIR/result.json"
@@ -46,6 +46,13 @@ NAS_CR_LOCAL_CAPABILITY="$NAS_CR_LOCAL_DIR/capability.json"
 NAS_CR_LOCAL_EXECUTOR="$PROJECT/tools/nas_cr_local_executor.py"
 NAS_CR_LOCAL_PROBE="$PROJECT/tools/nas_cr_local_probe.py"
 NAS_CR_LOCAL_TIMEOUT="${ENERGIE_NAS_CR_LOCAL_TIMEOUT_SECONDS:-1200}"
+WATCHER_CONTRACT_HELPER="$PROJECT/tools/watcher_container_contract.py"
+WATCHER_CONTRACT_MARKER="$INBOX/watcher_container_contract.json"
+NATIVE_MCP_GUARD="$PROJECT/tools/native_mcp_runtime_guard.py"
+NATIVE_MCP_RELOAD_EXECUTOR="$PROJECT/tools/native_mcp_reload_executor.py"
+NATIVE_MCP_RELOAD_REQUEST="$INBOX/native_mcp_runtime/reload_request.json"
+NATIVE_MCP_RELOAD_RESULT="$INBOX/native_mcp_runtime/reload_result.json"
+POST_RELEASE_MODE_HELPER="$PROJECT/tools/post_release_mode_transition.py"
 HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
 MODE_GATE_TIMEOUT="${ENERGIE_MODE_GATE_TIMEOUT_SECONDS:-5}"
 MAINTENANCE_HELPER_TIMEOUT="${ENERGIE_MAINTENANCE_HELPER_TIMEOUT_SECONDS:-20}"
@@ -245,6 +252,53 @@ process_cr_standard_hotfix(){
   return 1
 }
 
+process_watcher_container_contract(){
+  [ -f "$WATCHER_CONTRACT_HELPER" ] || { log "FOUT: watcher contract helper ontbreekt"; return 1; }
+  command -v python3 >/dev/null 2>&1 || return 1
+  rc=0
+  python3 "$WATCHER_CONTRACT_HELPER" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] && { log "Watcher container-contract = GREEN"; return 0; }
+  [ "$rc" -eq 3 ] && { log "Watcher container-contract = RECREATE_REQUIRED"; return 1; }
+  log "FOUT: watcher container-contract probe rc=$rc"
+  return 1
+}
+
+process_native_mcp_runtime_guard(){
+  [ -f "$NATIVE_MCP_GUARD" ] || { log "FOUT: native MCP runtime guard ontbreekt"; return 1; }
+  command -v python3 >/dev/null 2>&1 || return 1
+  rc=0
+  python3 "$NATIVE_MCP_GUARD" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] && { log "Native MCP runtime fingerprint = GREEN"; return 0; }
+  [ "$rc" -eq 3 ] && { log "Native MCP runtime fingerprint = RELOAD_REQUIRED"; return 1; }
+  log "FOUT: native MCP runtime guard rc=$rc"
+  return 1
+}
+
+process_native_mcp_reload(){
+  [ -f "$NATIVE_MCP_RELOAD_REQUEST" ] || return 0
+  [ -f "$NATIVE_MCP_RELOAD_EXECUTOR" ] || { log "FOUT: native MCP reload executor ontbreekt"; return 1; }
+  command -v python3 >/dev/null 2>&1 || return 1
+  # Een oud result mag nooit een nieuw request als verwerkt laten lijken.
+  rm -f "$NATIVE_MCP_RELOAD_RESULT" 2>/dev/null || return 1
+  rc=0
+  run_bounded 120 python3 -c 'import sys; from pathlib import Path; sys.path.insert(0, sys.argv[2]); import native_mcp_reload_executor as m; m.run(Path(sys.argv[1]))' "$ROOT" "$PROJECT/tools" >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
+  if [ -f "$NATIVE_MCP_RELOAD_RESULT" ]; then rm -f "$NATIVE_MCP_RELOAD_REQUEST" 2>/dev/null || true; fi
+  [ "$rc" -eq 0 ] && { log "Native MCP beschermde reload = GREEN"; return 0; }
+  log "FOUT: native MCP beschermde reload rc=$rc"
+  return 1
+}
+
+process_post_release_maintenance_transition(){
+  [ -f "$POST_RELEASE_MODE_HELPER" ] || return 0
+  command -v python3 >/dev/null 2>&1 || return 1
+  if python3 "$POST_RELEASE_MODE_HELPER" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1; then
+    log "Post-release mode-transition gecontroleerd"
+    return 0
+  fi
+  log "FOUT: post-release mode-transition mislukt"
+  return 1
+}
+
 process_nas_cr_capability_probe(){
   mkdir -p "$NAS_CR_LOCAL_DIR" || { log "FOUT: NAS CR capabilitymap niet maakbaar"; return 1; }
   [ -f "$NAS_CR_LOCAL_PROBE" ] || { log "FOUT: NAS CR capability probe ontbreekt"; return 1; }
@@ -387,44 +441,67 @@ refresh_watcher_from_installed_release(){
   exec sh "$NEW_WATCHER" run
 }
 trap 'cleanup_watcher' EXIT INT TERM
+STARTUP_DEGRADED=""
+mark_startup_degraded(){
+  item="$1"
+  if [ -n "$STARTUP_DEGRADED" ]; then STARTUP_DEGRADED="$STARTUP_DEGRADED,$item"; else STARTUP_DEGRADED="$item"; fi
+}
 if [ -f "$CLEARUP_PREPARE" ] && sh "$CLEARUP_PREPARE" "$ROOT" >/dev/null 2>&1; then
   log "CLEARUP-root startup-preflight = OK"
 else
-  write_status "MAINTENANCE_FAILED" "clearup-root-bootstrap; watcher blijft actief"
+  mark_startup_degraded "clearup-root-bootstrap"
   log "WAARSCHUWING: CLEARUP-root startup-preflight mislukt; watcher blijft actief, CLEARUP blijft fail-closed"
 fi
 touch_heartbeat
 log "Release watcher gestart; interval=${INTERVAL}s"
 
+if ! process_post_release_maintenance_transition; then mark_startup_degraded "post-release-mode-transition"; fi
+
 if process_mcp_guard_hotfix; then
   log "MCP hotfix startupcontrole = OK"
 else
-  write_status "MAINTENANCE_FAILED" "mcp-system-path-hotfix; watcher blijft actief"
+  mark_startup_degraded "mcp-system-path-hotfix"
 fi
 
 if process_cr_standard_hotfix; then
   log "CR-standaardhotfix startupcontrole = OK"
 else
-  write_status "MAINTENANCE_FAILED" "cr-standard-hotfix; watcher blijft actief"
+  mark_startup_degraded "cr-standard-hotfix"
+fi
+
+if process_watcher_container_contract; then
+  log "Watcher container-contract startupcontrole = OK"
+else
+  mark_startup_degraded "watcher-container-recreate-required"
+fi
+
+if process_native_mcp_runtime_guard; then
+  log "Native MCP runtime startupcontrole = OK"
+else
+  mark_startup_degraded "native-mcp-reload-required"
 fi
 
 if process_nas_cr_capability_probe; then
   log "NAS CR capability startupcontrole = OK"
 else
-  write_status "MAINTENANCE_FAILED" "nas-cr-local-capability; watcher blijft actief"
+  mark_startup_degraded "nas-cr-local-capability"
 fi
 
-if cleanup_processed_releases_on_start; then
-  write_status "WATCHER_ACTIVE" "startup-retention-ok keep=${PROCESSED_RETENTION}"
-else
-  write_status "MAINTENANCE_FAILED" "processed-retention; watcher blijft actief"
+if ! cleanup_processed_releases_on_start; then
+  mark_startup_degraded "processed-retention"
 fi
-[ -f "$STATUSFILE" ] || write_status "WATCHER_ACTIVE" "interval=${INTERVAL}s"
+if [ -n "$STARTUP_DEGRADED" ]; then
+  write_status "MAINTENANCE_FAILED" "$STARTUP_DEGRADED; watcher blijft actief"
+else
+  write_status "WATCHER_ACTIVE" "startup-retention-ok keep=${PROCESSED_RETENTION}; startup-gates-ok"
+fi
 
 while :; do
   touch_heartbeat
 
   if mode_allows maintenance_requests; then
+    process_native_mcp_reload || true
+    process_native_mcp_runtime_guard || true
     process_nas_container_cr_local || true
     process_project_clearup_move || true
     process_crash_recovery_cleanup || true

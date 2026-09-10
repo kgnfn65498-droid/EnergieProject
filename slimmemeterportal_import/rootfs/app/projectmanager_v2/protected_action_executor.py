@@ -8,9 +8,10 @@ from pathlib import Path
 class ProtectedActionExecutor:
     """Local capability-bounded executor for already Peter-approved actions.
 
-    Only production_deploy is executable in 32.4.10. It can only publish an
-    exact, already fully verified release artifact to Inbox/incoming. No shell,
-    arbitrary path, payment, purchase or direct production mutation is exposed.
+    Production deploy can publish only an exact verified artifact to Incoming.
+    Native MCP reload can only queue and later verify the fixed protected restart
+    of energie-filesystem-mcp. No generic shell, container name or Docker command
+    is exposed by this executor.
     """
 
     def __init__(self, project_root, approved_actions, commands, decisions, *, audit=None):
@@ -21,6 +22,7 @@ class ProtectedActionExecutor:
         self.audit = audit
         self.staging_root = (self.project_root / 'Data/03_Systeem/Projectmanager/Staging').resolve()
         self.incoming_root = (self.project_root / 'Inbox/incoming').resolve()
+        self.native_mcp_runtime_root = (self.project_root / 'Inbox/native_mcp_runtime').resolve()
 
     @staticmethod
     def _sha256(path: Path):
@@ -114,34 +116,127 @@ class ProtectedActionExecutor:
                 pass
             raise
 
+    def _queue_native_mcp_reload(self, action, command, decision):
+        if decision.get('status') != 'APPROVED' or decision.get('approved_by') != 'Peter' or decision.get('kind') != 'PRODUCTION_RESTART':
+            raise RuntimeError('Peter PRODUCTION_RESTART approval missing')
+
+        request_id = hashlib.sha256(str(action['id']).encode('utf-8')).hexdigest()[:32]
+        self.native_mcp_runtime_root.mkdir(parents=True, exist_ok=True)
+        result_path = self.native_mcp_runtime_root / 'reload_result.json'
+
+        # A matching GREEN executor result is completion proof in itself: the
+        # executor only writes GREEN after the live runtime fingerprint matches.
+        # Check this before the current guard, which may already have converged
+        # from RELOAD_REQUIRED to GREEN by the time PM observes the result.
+        if result_path.is_file() and not result_path.is_symlink():
+            proof = json.loads(result_path.read_text(encoding='utf-8'))
+            if proof.get('request_id') == request_id:
+                expected = str(proof.get('expected_fingerprint') or '').lower()
+                if len(expected) != 64 or any(c not in '0123456789abcdef' for c in expected):
+                    raise RuntimeError('native MCP reload result fingerprint ongeldig')
+                if proof.get('schema') != 'energie_native_mcp_reload_result_v1':
+                    raise RuntimeError('native MCP reload result schema ongeldig')
+                if proof.get('status') == 'RED':
+                    raise RuntimeError('native MCP reload result RED')
+                if not (
+                    proof.get('status') == 'GREEN'
+                    and proof.get('ok') is True
+                    and proof.get('container') == 'energie-filesystem-mcp'
+                    and str(proof.get('runtime_fingerprint') or '').lower() == expected
+                    and proof.get('restart_performed') is True
+                ):
+                    raise RuntimeError('native MCP reload result niet volledig GREEN')
+                return {
+                    'ok': True,
+                    'executed': True,
+                    'production_changed': True,
+                    'restart_performed': True,
+                    'runtime_green': True,
+                    'request_id': request_id,
+                    'expected_fingerprint': expected,
+                    'result_path': str(result_path),
+                }
+
+        guard_path = self.native_mcp_runtime_root / 'runtime_guard.json'
+        if not guard_path.is_file() or guard_path.is_symlink():
+            raise RuntimeError('native MCP runtime guard ontbreekt')
+        guard = json.loads(guard_path.read_text(encoding='utf-8'))
+        if guard.get('status') != 'RELOAD_REQUIRED' or guard.get('reload_required') is not True:
+            raise RuntimeError('native MCP reload is niet aantoonbaar vereist')
+        expected = str(guard.get('expected_fingerprint') or '').lower()
+        if len(expected) != 64 or any(c not in '0123456789abcdef' for c in expected):
+            raise RuntimeError('native MCP expected fingerprint ongeldig')
+        payload = {
+            'schema': 'energie_native_mcp_reload_request_v1',
+            'request_id': request_id,
+            'expected_fingerprint': expected,
+            'operation': 'restart_exact_energie_filesystem_mcp',
+            'approved_by': 'Peter',
+            'decision_id': decision['id'],
+        }
+        target = self.native_mcp_runtime_root / 'reload_request.json'
+        if target.exists():
+            if not target.is_file() or target.is_symlink():
+                raise RuntimeError('native MCP pending reload request is onveilig')
+            pending = json.loads(target.read_text(encoding='utf-8'))
+            if pending.get('request_id') != request_id or pending.get('expected_fingerprint') != expected:
+                raise RuntimeError('native MCP pending reload request conflicteert')
+        else:
+            temp = target.with_name(target.name + f'.tmp-{os.getpid()}')
+            try:
+                temp.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+                os.replace(temp, target)
+            finally:
+                temp.unlink(missing_ok=True)
+        return {
+            'ok': True,
+            'executed': False,
+            'awaiting_executor': True,
+            'production_changed': False,
+            'restart_queued': True,
+            'request_id': request_id,
+            'expected_fingerprint': expected,
+            'request_path': str(target),
+        }
+
     def run_once(self, *, max_items=5):
         results = []
         for action in self.approved_actions.open_items()[:max(0, int(max_items))]:
-            if action.get('action') != 'production_deploy':
-                # Unsupported protected capabilities are never executed silently.
+            if action.get('action') not in {'production_deploy', 'native_mcp_reload'}:
                 continue
             try:
                 command = self.commands.get(action['command_id'])
                 decision = self.decisions.get(action['decision_id'])
-                artifact, artifact_sha, release_version, report_path = self._verify_release(command, decision)
-                target, published = self._publish_once(artifact)
-                result = {
-                    'ok': True,
-                    'executed': True,
-                    'production_changed': False,
-                    'release_published_to_incoming': True,
-                    'published_now': published,
-                    'release_version': release_version,
-                    'artifact_sha256': artifact_sha,
-                    'verification_report': str(report_path),
-                    'incoming_path': str(target),
-                }
+                if action.get('action') == 'production_deploy':
+                    artifact, artifact_sha, release_version, report_path = self._verify_release(command, decision)
+                    target, published = self._publish_once(artifact)
+                    result = {
+                        'ok': True,
+                        'executed': True,
+                        'production_changed': False,
+                        'release_published_to_incoming': True,
+                        'published_now': published,
+                        'release_version': release_version,
+                        'artifact_sha256': artifact_sha,
+                        'verification_report': str(report_path),
+                        'incoming_path': str(target),
+                    }
+                else:
+                    result = self._queue_native_mcp_reload(action, command, decision)
+                    if result.get('awaiting_executor') is True:
+                        if self.audit is not None:
+                            self.audit.write('protected_action.queued', actor='projectmanager', result='pending', details={
+                                'action_id': action['id'], 'command_id': command['id'], 'action': action['action'],
+                                'request_id': result.get('request_id'),
+                            })
+                        results.append(result)
+                        continue
                 self.approved_actions.complete(action['id'], result=result)
                 self.commands.complete(command['id'], result=result)
                 if self.audit is not None:
                     self.audit.write('protected_action.executed', actor='projectmanager', result='ok', details={
                         'action_id': action['id'], 'command_id': command['id'], 'action': action['action'],
-                        'release_version': release_version, 'artifact_sha256': artifact_sha,
+                        'result': result,
                     })
                 results.append(result)
             except Exception as exc:
@@ -157,3 +252,4 @@ class ProtectedActionExecutor:
                     'reason': f'{type(exc).__name__}: {exc}',
                 })
         return results
+

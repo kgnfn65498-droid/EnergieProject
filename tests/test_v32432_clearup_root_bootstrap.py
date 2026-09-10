@@ -80,6 +80,6 @@ def test_clearup_gate_blocks_missing_destination_before_expensive_work(tmp_path:
 
 
 def test_32432_release_identity_is_consistent():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.36'
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.37'
     main = (ROOT / 'slimmemeterportal_import/rootfs/app/main.py').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.4.36"' in main
+    assert 'APP_VERSION = "32.4.37"' in main

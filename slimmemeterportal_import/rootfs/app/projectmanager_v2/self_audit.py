@@ -18,7 +18,7 @@ VALID_COMMAND = {
 }
 VALID_HANDOFF = {'OPEN', 'DONE', 'BLOCKED', 'CANCELLED'}
 VALID_APPROVED_ACTION = {'APPROVED_AWAITING_SAFETY_OR_EXECUTOR', 'DONE', 'CANCELLED', 'FAILED'}
-SUPPORTED_EXECUTOR_ACTIONS = {'production_deploy'}
+SUPPORTED_EXECUTOR_ACTIONS = {'production_deploy', 'native_mcp_reload'}
 REQUIRED_RUNTIME_FILES = (
     'status/current.json',
     'heartbeat/manager.json',

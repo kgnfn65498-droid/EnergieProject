@@ -1,3 +1,13 @@
+## 32.4.37 — 32.4 closure: runtime reconciliation, fail-closed CR retention and live acceptance
+
+- Repairs the 32.4.36 watcher upgrade boundary: container configuration is now versioned and probed; a watcher that lacks the required Docker socket/hardening is explicitly `RECREATE_REQUIRED` instead of falsely GREEN.
+- Adds a source/runtime fingerprint for native MCP and a Peter-approved, fixed-target reload request for exactly `energie-filesystem-mcp`; no generic Docker restart surface is introduced.
+- Makes EnergieProject and NAS Container CR max-1 retention quarantine-first and recoverable: old complete sets are moved with origin evidence and are not directly deleted.
+- Makes post-release mode transition idempotent and keeps startup degradation visible; successful release installation enters MAINTENANCE acceptance without allowing later `WATCHER_ACTIVE` to mask failed startup gates.
+- Preserves fresh CLEARUP dependency-audit, hard-move/no-delete, restore evidence and stale-plan rejection; active TLS/certificate routing remains unreachable.
+- PM health now includes watcher-container contract and native-MCP runtime agreement in addition to canonical single-set CR health.
+- 32.4 is only closed after live watcher reconciliation, protected MCP reload, both CR acceptances, fresh CLEARUP acceptance and final PM-health GREEN.
+
 ## 32.4.36 — CR max-1 / local QNAP NAS CR / fresh CLEARUP audit closure
 
 - Crash Recovery policy is fail-closed max-1 per managed CR type: a previous valid set is retired only after the replacement set is fully verified.

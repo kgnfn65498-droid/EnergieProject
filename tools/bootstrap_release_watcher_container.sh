@@ -32,7 +32,10 @@ fi
 
 mkdir -p "$INBOX/incoming" "$INBOX/logs" "$INBOX/nas_container_cr_local"
 CAPABILITY_MARKER="$INBOX/nas_container_cr_local/capability.json"
-rm -f "$CAPABILITY_MARKER" 2>/dev/null || true
+CONTRACT_MARKER="$INBOX/watcher_container_contract.json"
+CONTRACT_HELPER="$ROOT/App/tools/watcher_container_contract.py"
+[ -f "$CONTRACT_HELPER" ] || { echo "FOUT: watcher container-contract helper ontbreekt" >&2; exit 1; }
+rm -f "$CAPABILITY_MARKER" "$CONTRACT_MARKER" 2>/dev/null || true
 
 # Oude losse watcher stoppen indien het PID op de host nog leeft.
 if [ -f "$INBOX/.watcher.pid" ]; then
@@ -60,6 +63,7 @@ rmdir "$INBOX/.watcher.lock" 2>/dev/null || true
   -e ENERGIE_WATCH_INTERVAL=5 \
   -e ENERGIE_ZIP_STABLE_POLLS=3 \
   -e ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS=30 \
+  -e ENERGIE_WATCHER_CONTAINER_CONTRACT=2 \
   -e ENERGIE_BACKUP_RETENTION=999 \
   -e ENERGIE_PROCESSED_RETENTION=999 \
   -v "$ROOT:/energy" \
@@ -75,6 +79,23 @@ else
   "$DOCKER" logs "$CONTAINER_NAME" 2>&1 | tail -n 30 >&2 || true
   exit 1
 fi
+
+CONTRACT_READY=0
+N=0
+while [ "$N" -lt 20 ]; do
+  if [ -f "$CONTRACT_MARKER" ] && grep -q '"ready"[[:space:]]*:[[:space:]]*true' "$CONTRACT_MARKER" 2>/dev/null; then
+    CONTRACT_READY=1
+    break
+  fi
+  sleep 1
+  N=$((N + 1))
+done
+if [ "$CONTRACT_READY" -ne 1 ]; then
+  echo "FOUT: watcher container-contract werd niet GREEN na recreate" >&2
+  "$DOCKER" logs "$CONTAINER_NAME" 2>&1 | tail -n 50 >&2 || true
+  exit 1
+fi
+echo "OK: watcher container-contract v2 is GREEN"
 
 CAPABILITY_READY=0
 N=0

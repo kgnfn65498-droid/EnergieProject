@@ -172,7 +172,7 @@ class CommandProcessor:
                 'next_action': next_action,
             }
 
-        if action == 'production_deploy':
+        if action in {'production_deploy', 'native_mcp_reload'}:
             if self.approved_actions is None:
                 raise RuntimeError('approved action store unavailable; fail closed')
             approved_action = self.approved_actions.add(

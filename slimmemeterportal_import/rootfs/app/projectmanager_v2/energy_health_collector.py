@@ -200,6 +200,41 @@ class EnergyHealthCollector:
         valid_mode = isinstance(mode_data, dict) and mode in VALID_MODES
         checks.append(_check('operating_mode_source', 'GREEN' if valid_mode else 'RED', 'valid' if valid_mode else 'missing_or_invalid_mode', mode_path, {'effective_mode': mode}, verified=valid_mode))
 
+        watcher_contract_path = self.project_root / 'Inbox' / 'watcher_container_contract.json'
+        watcher_contract = _read_json(watcher_contract_path)
+        watcher_contract_ok = (
+            isinstance(watcher_contract, dict)
+            and watcher_contract.get('status') == 'GREEN'
+            and watcher_contract.get('ready') is True
+            and int(watcher_contract.get('contract_version') or 0) >= 2
+        )
+        checks.append(_check(
+            'watcher_container_contract', 'GREEN' if watcher_contract_ok else 'RED',
+            'contract_v2_active' if watcher_contract_ok else 'recreate_required_or_unverified',
+            watcher_contract_path,
+            {'contract_version': (watcher_contract or {}).get('contract_version'), 'reason': (watcher_contract or {}).get('reason')},
+            verified=watcher_contract_ok,
+        ))
+
+        native_runtime_path = self.project_root / 'Inbox' / 'native_mcp_runtime' / 'runtime_guard.json'
+        native_runtime = _read_json(native_runtime_path)
+        native_runtime_ok = (
+            isinstance(native_runtime, dict)
+            and native_runtime.get('status') == 'GREEN'
+            and native_runtime.get('ready') is True
+            and native_runtime.get('expected_fingerprint') == native_runtime.get('runtime_fingerprint')
+        )
+        checks.append(_check(
+            'native_mcp_runtime', 'GREEN' if native_runtime_ok else 'RED',
+            'source_runtime_fingerprint_match' if native_runtime_ok else 'reload_required_or_unverified',
+            native_runtime_path,
+            {
+                'expected_fingerprint': (native_runtime or {}).get('expected_fingerprint'),
+                'runtime_fingerprint': (native_runtime or {}).get('runtime_fingerprint'),
+            },
+            verified=native_runtime_ok,
+        ))
+
         hold_path = self.project_root / 'Inbox' / 'operating_mode' / 'release_validation_hold.json'
         hold = _read_json(hold_path)
         hold_ok = isinstance(hold, dict) and hold.get('active') is False and hold.get('validation_status') == 'ok'

@@ -163,3 +163,11 @@
 - CLEARUP gebruikt bij stale plan exact één verse dependency-audit en alleen het verse plan; CLEARUP blijft hard-move/quarantaine en voert geen delete uit.
 - Native-MCP bronmigratie kan een expliciete latere procesreload vereisen; releases voeren die restart niet autonoom uit.
 
+
+## 32.4.37 regressiepreventie
+- Een watcher-code-refresh via `exec` is geen container-recreate: wijzigingen in mounts, capabilities, network mode of security options vereisen een apart containercontract en live reconciliation.
+- Broncode op disk is geen runtimebewijs voor een langlevend Pythonproces; native MCP gebruikt een bron/runtimefingerprint en een expliciet beschermde reload van exact één container.
+- CR-retentie verwijdert een oude geldige set niet direct. Eerst wordt de volledige set atomisch naar `Backups/CRRetentionQuarantine/<type>` verplaatst met herkomstmanifest; definitieve delete valt buiten de CR-commit.
+- Post-release acceptance mag geen startup-RED maskeren met een latere generieke `WATCHER_ACTIVE`-status. De overgang naar MAINTENANCE is eenmalig/idempotent.
+- CLEARUP blijft: verse dependency/reference-audit, stale plan weigeren, hard move, old path absent, restoremanifest, symlink/live-reference checks en `delete_capability=false`.
+

@@ -87,6 +87,8 @@ _PRODUCTION_ACTION = (
     r'\bzet\b', r'\bvoer\b.*\bdoor\b', r'\bbreng\b.*\blive\b',
 )
 _LIVE_ACTION = (r'\bzet\b.*\blive\b', r'\bbreng\b.*\blive\b', r'\bgo[ -]?live\b')
+_NATIVE_MCP_CONTEXT = (r'\bnative[ -]?mcp\b', r'\benergie-filesystem-mcp\b')
+_NATIVE_MCP_RELOAD_ACTION = (r'\bherstart\w*\b', r'\brestart\w*\b', r'\bherlaad\w*\b', r'\breload\w*\b')
 _SOURCE_CHANNELS = {'chatgpt', 'typed', 'dictation', 'voice', 'nomad', 'speech'}
 _SOURCE_ALIASES = {'spraak': 'speech', 'typed/chatgpt': 'chatgpt'}
 _SPEECH_CHANNELS = {'dictation', 'voice', 'nomad', 'speech'}
@@ -100,6 +102,8 @@ def _matches(text, patterns):
 
 def protected_action_kind(text):
     value = str(text or '')
+    if _matches(value, _NATIVE_MCP_CONTEXT) and _matches(value, _NATIVE_MCP_RELOAD_ACTION):
+        return 'native_mcp_reload'
     architecture_change = _matches(value, _ARCHITECTURE_CONTEXT) and _matches(value, _ARCHITECTURE_ACTION)
     if architecture_change:
         return 'architecture_change'

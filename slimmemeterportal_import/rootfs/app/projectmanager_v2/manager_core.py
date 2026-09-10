@@ -2,7 +2,7 @@ from typing import Tuple
 
 RED_EVENTS = {'data_loss', 'security', 'production_down', 'blocking_failure'}
 ORANGE_EVENTS = {'drift', 'warning', 'overdue', 'degraded'}
-PROTECTED_ACTIONS = {'production_deploy', 'architecture_change', 'paid_commitment', 'purchase'}
+PROTECTED_ACTIONS = {'production_deploy', 'native_mcp_reload', 'architecture_change', 'paid_commitment', 'purchase'}
 
 
 def classify_severity(event_type: str) -> Tuple[str, str]:

@@ -18,8 +18,8 @@ TARGETS = (
     'Infra/Docker/native-mcp/nas_cr_keep1_retention.sh',
     'Infra/Docker/native-mcp/tests/test_crash_recovery_filename_standard.py',
 )
-BACKUP_ROOT = 'Backups/MCPHotfix/v32.4.36'
-RESULT_REL = 'Inbox/logs/cr_standard_native_mcp_hotfix_v32436.json'
+BACKUP_ROOT = 'Backups/MCPHotfix/v32.4.37'
+RESULT_REL = 'Inbox/logs/cr_standard_native_mcp_hotfix_v32437.json'
 
 
 def _replace(text: str, old: str, new: str, label: str, *, count: int | None = 1) -> str:
@@ -53,12 +53,145 @@ def _crash_recovery(text: str) -> str:
         'base_stem = f"{_local_file_stamp()} {version} {CRASH_NAME_SUFFIX}"',
         'crash_recovery canonical name',
     )
+    if 'energie_cr_retention_quarantine_v1' not in text:
+        old = """def _apply_retention(crash_root: Path, retention: int):
+    retention = max(1, int(retention))
+    zips = sorted(_crash_zip_candidates(crash_root),
+                  key=lambda p: p.stat().st_mtime, reverse=True)
+    removed = []
+    for old_zip in zips[retention:]:
+        stem = old_zip.name[:-4]
+        for item in (
+            old_zip,
+            crash_root / f\"{stem}.sha256\",
+            crash_root / f\"{stem}.manifest.json\",
+            crash_root / f\"{stem}.restore.txt\",
+        ):
+            if item.exists():
+                item.unlink()
+        removed.append(old_zip.name)
+    return removed
+"""
+        new = """def _external_set_paths(crash_root: Path, zip_path: Path) -> tuple[Path, Path, Path, Path]:
+    stem = zip_path.name[:-4]
+    return (
+        zip_path,
+        crash_root / f\"{stem}.sha256\",
+        crash_root / f\"{stem}.manifest.json\",
+        crash_root / f\"{stem}.restore.txt\",
+    )
+
+
+def _external_set_valid(crash_root: Path, zip_path: Path) -> bool:
+    zip_file, sha_file, manifest_file, restore_file = _external_set_paths(crash_root, zip_path)
+    if not all(path.is_file() and not path.is_symlink() for path in (zip_file, sha_file, manifest_file, restore_file)):
+        return False
+    try:
+        expected = sha_file.read_text(encoding=\"utf-8\").split()[0]
+        return len(expected) == 64 and _sha256_file(zip_file) == expected
+    except (OSError, IndexError):
+        return False
+
+
+def _apply_retention(crash_root: Path, retention: int):
+    retention = max(1, int(retention))
+    zips = sorted(_crash_zip_candidates(crash_root), key=lambda p: p.stat().st_mtime, reverse=True)
+    moved = []
+    quarantine_root = crash_root.parent / \"CRRetentionQuarantine\" / \"EnergieProject\"
+    for old_zip in zips[retention:]:
+        if not _external_set_valid(crash_root, old_zip):
+            continue
+        paths = _external_set_paths(crash_root, old_zip)
+        batch = crash_root / f\".cr-retention-stage-{_utc_stamp()}\"
+        batch.mkdir()
+        staged = []
+        try:
+            for source in paths:
+                destination = batch / source.name
+                os.replace(source, destination)
+                staged.append((source, destination))
+            manifest = {
+                \"schema\": \"energie_cr_retention_quarantine_v1\",
+                \"type\": \"EnergieProject\",
+                \"original_paths\": [str(source) for source, _ in staged],
+                \"files\": [destination.name for _, destination in staged],
+                \"delete_performed\": False,
+            }
+            (batch / \"manifest.json\").write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + \"\\n\", encoding=\"utf-8\")
+            quarantine_root.mkdir(parents=True, exist_ok=True)
+            final = quarantine_root / batch.name.removeprefix(\".\")
+            os.replace(batch, final)
+            moved.append(old_zip.name)
+        except Exception:
+            for source, destination in reversed(staged):
+                if destination.exists() and not source.exists():
+                    os.replace(destination, source)
+            try:
+                (batch / \"manifest.json\").unlink(missing_ok=True)
+                batch.rmdir()
+            except OSError:
+                pass
+            raise
+    return moved
+"""
+        text = _replace(text, old, new, 'EnergieProject CR transaction-safe quarantine retention')
+    # 32.4.37 truthfulness: moved to quarantine is not deletion.
+    if 'removed = _apply_retention(crash_root, retention)' in text:
+        text = text.replace(
+            'removed = _apply_retention(crash_root, retention)',
+            'quarantined = _apply_retention(crash_root, retention)',
+            1,
+        )
+        text = text.replace(
+            '"retention_removed": removed,',
+            '"retention_removed": [],\n            "retention_quarantined": quarantined,\n            "retention_delete_performed": False,',
+            1,
+        )
     return text
 
-
 def _tools_recovery(text: str) -> str:
-    return _replace(text, 'retention=3,', 'retention=1,', 'tools_recovery max-1', count=2)
+    text = _replace(text, 'retention=3,', 'retention=1,', 'tools_recovery max-1', count=2)
+    if 'energie_native_mcp_runtime_v1' in text:
+        return text
+    text = _replace(
+        text,
+        'from pathlib import Path\nfrom typing import Any\n',
+        'from pathlib import Path\nfrom typing import Any\nimport hashlib\nimport json\nimport os\nfrom datetime import datetime, timezone\n',
+        'native MCP runtime fingerprint imports',
+    )
+    anchor = """PATHS = RecoveryPaths(
+    project_root=PROJECT_ROOT,
+    report_root=REPORT_ROOT,
+    recovery_root=RECOVERY_ROOT,
+)
+"""
+    marker = anchor + """
 
+def _write_native_mcp_runtime_fingerprint() -> None:
+    digest = hashlib.sha256()
+    for name in (\"crash_recovery.py\", \"tools_recovery.py\"):
+        path = Path(__file__).with_name(name)
+        digest.update(name.encode(\"utf-8\") + b\"\\0\")
+        digest.update(hashlib.sha256(path.read_bytes()).digest())
+    target = PROJECT_ROOT / \"Inbox/native_mcp_runtime/runtime_fingerprint.json\"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temp = target.with_name(target.name + f\".tmp-{os.getpid()}\")
+    payload = {
+        \"schema\": \"energie_native_mcp_runtime_v1\",
+        \"fingerprint\": digest.hexdigest(),
+        \"loaded_at\": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        temp.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + \"\\n\", encoding=\"utf-8\")
+        os.replace(temp, target)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+_write_native_mcp_runtime_fingerprint()
+"""
+    text = _replace(text, anchor, marker, 'native MCP runtime fingerprint marker')
+    return text
 
 def _nas_builder(text: str) -> str:
     text = _replace(
@@ -107,8 +240,26 @@ def _nas_retention(text: str) -> str:
         'NAS retention new-set max-1 proof',
         count=2,
     )
+    if 'CRRetentionQuarantine' not in text:
+        old = """  rm -f \\
+    \"$BATCH/$STEM.zip\" \\
+    \"$BATCH/$STEM.zip.sha256\" \\
+    \"$BATCH/$STEM VERIFY.txt\" || fail \"oude set kon niet definitief worden verwijderd: $STEM\"
+  rmdir \"$BATCH\" || fail \"tijdelijke retentiemap bleef achter: $BATCH\"
+"""
+        new = """  QROOT=\"$(dirname \"$DIR\")/CRRetentionQuarantine/NAS Container\"
+  QDEST=\"$QROOT/$(date '+%Y%m%dT%H%M%S')-$$-$REMOVED\"
+  printf '%s\\n' \\
+    'schema=energie_cr_retention_quarantine_v1' \\
+    'type=NAS Containers' \\
+    \"source=$DIR\" \\
+    \"stem=$STEM\" \\
+    'delete_performed=false' > \"$BATCH/manifest.txt\" || fail \"retentie-manifest kon niet worden geschreven: $STEM\"
+  mkdir -p \"$QROOT\" || fail \"retentiequarantaine kon niet worden gemaakt\"
+  mv \"$BATCH\" \"$QDEST\" || fail \"oude set kon niet naar retentiequarantaine: $STEM\"
+"""
+        text = _replace(text, old, new, 'NAS retention quarantine instead of delete')
     return text
-
 
 def _native_test(text: str) -> str:
     text = _replace(text, 'retention=3,', 'retention=1,', 'native CR test retention')
@@ -191,15 +342,18 @@ def apply(root: Path) -> dict:
         required = (
             'RETENTION_DEFAULT = 1' in crash,
             ' CR EnergieProject' in crash,
+            'CRRetentionQuarantine' in crash,
             'retention=1,' in tools,
+            'energie_native_mcp_runtime_v1' in tools,
             '${VERSION} CR NAS Containers' in builder,
             'NAS_CR_RETENTION_MAX1_OK' in builder,
             ' CR NAS Containers' in retention,
+            'CRRetentionQuarantine' in retention,
         )
         if not all(required):
             raise RuntimeError('native-MCP CR standaard postcheck RED')
         result = {
-            'schema': 'energie_cr_standard_native_mcp_hotfix_v32436',
+            'schema': 'energie_cr_standard_native_mcp_hotfix_v32437',
             'status': 'GREEN',
             'ok': True,
             'targets': list(TARGETS),
@@ -216,7 +370,7 @@ def apply(root: Path) -> dict:
             if backup.is_file():
                 shutil.copy2(backup, target)
         result = {
-            'schema': 'energie_cr_standard_native_mcp_hotfix_v32436',
+            'schema': 'energie_cr_standard_native_mcp_hotfix_v32437',
             'status': 'RED',
             'ok': False,
             'error': str(exc),
@@ -234,7 +388,7 @@ def apply(root: Path) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Bounded 32.4.36 native-MCP CR standard migration')
+    parser = argparse.ArgumentParser(description='Bounded 32.4.37 native-MCP CR/runtime/retention migration')
     parser.add_argument('--root', required=True)
     args = parser.parse_args()
     try:

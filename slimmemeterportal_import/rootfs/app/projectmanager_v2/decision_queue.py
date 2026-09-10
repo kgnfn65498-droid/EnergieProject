@@ -7,6 +7,7 @@ from persistence import atomic_write_json, load_json
 PROTECTED_DECISION_KINDS = {
     'MODE_CHANGE',
     'PRODUCTION_DEPLOY',
+    'PRODUCTION_RESTART',
     'ARCHITECTURE_CHANGE',
     'PAID_COMMITMENT',
     'PURCHASE',

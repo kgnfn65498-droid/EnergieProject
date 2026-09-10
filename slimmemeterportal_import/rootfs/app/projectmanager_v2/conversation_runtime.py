@@ -230,6 +230,8 @@ class ProjectmanagerConversationRuntime:
             lowered = (text or '').lower()
             target = 'Claude Cowork' if 'claude cowork' in lowered else 'systeemarchitectuur'
             return {'version': version, 'target': target}
+        if action == 'native_mcp_reload':
+            return {'version': version, 'target': 'energie-filesystem-mcp'}
         return {}
 
     def _challenge(self, action: str, text: str, source_channel: str, session_id: str, status: dict, *, now=None):

@@ -30,6 +30,7 @@ ZIP_HELPER="$PROJECT/tools/release_zip.py"
 ATOMIC_SWAP="$PROJECT/tools/atomic_app_swap.py"
 HA_PUBLICATION_REQUIRED="$INBOX/ha_publication_required.json"
 RELEASE_HOLD_STATE="$INBOX/operating_mode/release_validation_hold.json"
+POST_RELEASE_MAINTENANCE="$INBOX/operating_mode/post_release_maintenance_required.json"
 PREVIOUS_RELEASE_HOLD_BACKUP=""
 PREVIOUS_RELEASE_HOLD_EXISTED=0
 RELEASE_HOLD_ARMED=0
@@ -62,6 +63,17 @@ WATCHER_PIDFILE="$INBOX/.watcher.pid"
 schedule_watcher_refresh(){
   log "Watcher-refresh gepland; actieve watcher schakelt autonoom over op de nieuw geïnstalleerde release"
 }
+
+write_post_release_maintenance_required(){
+  mkdir -p "$INBOX/operating_mode" || return 1
+  TMP_POST="$POST_RELEASE_MAINTENANCE.tmp.$$"
+  cat > "$TMP_POST" <<EOF
+{"schema":"energie_post_release_maintenance_v1","status":"REQUIRED","release_version":"$NEW_VERSION","from_version":"$CURRENT_VERSION","reason":"release_installed_live_acceptance_required","created_at":"$(date '+%Y-%m-%dT%H:%M:%S%z')"}
+EOF
+  mv "$TMP_POST" "$POST_RELEASE_MAINTENANCE" || { rm -f "$TMP_POST" 2>/dev/null || true; return 1; }
+  return 0
+}
+
 cleanup(){
   [ -n "$STAGE" ] && rm -rf "$STAGE" 2>/dev/null || true
   [ -n "$ATOMIC_SWAP_RUNNER" ] && rm -f "$ATOMIC_SWAP_RUNNER" 2>/dev/null || true
@@ -442,6 +454,8 @@ if [ "$GIT_AVAILABLE" -eq 0 ]; then
 fi
 cleanup_old_backups
 cleanup_processed_releases
+# Laat atomic rollback actief tot ook de post-release acceptance-marker duurzaam staat.
+write_post_release_maintenance_required || fail "post-release MAINTENANCE-marker schrijven mislukt"
 ZIP_WORK=""
 WORKTREE_REPLACED=0
 ATOMIC_SWAP_ACTIVE=0

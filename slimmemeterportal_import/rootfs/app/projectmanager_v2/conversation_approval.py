@@ -12,6 +12,7 @@ from secret_guard import redact
 
 _ACTION_KINDS = {
     'production_deploy': 'PRODUCTION_DEPLOY',
+    'native_mcp_reload': 'PRODUCTION_RESTART',
     'architecture_change': 'ARCHITECTURE_CHANGE',
 }
 _VALID_STATUSES = {'PENDING', 'CONFIRMED', 'EXPIRED', 'INVALIDATED'}
@@ -128,6 +129,8 @@ class ConversationApprovalCoordinator:
         subject = 'de beschermde actie'
         if action == 'production_deploy':
             subject = f"{version or 'de release'} als productie-update in {target or 'de productieomgeving'}"
+        elif action == 'native_mcp_reload':
+            subject = 'de gecontroleerde restart van energie-filesystem-mcp'
         elif action == 'architecture_change':
             subject = f"de architectuurwijziging voor {target or version or 'het opgegeven doel'}"
         prompt = f'Ik ga {subject} uitvoeren. Wil je dit nu definitief uitvoeren?'
