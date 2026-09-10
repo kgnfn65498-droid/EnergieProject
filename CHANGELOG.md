@@ -1,3 +1,11 @@
+## 32.4.28 — CLEARUP PM-observation dependency closure
+
+- Root cause live 32.4.27: de CLEARUP dependency-audit scande afgeleide Projectmanager status- en snapshot-JSON als harde actieve consumenten. PM rapporteert daarin juist stale rollbackpaden; daardoor blokkeerde CLEARUP zichzelf en kon een normale PM-refresh tussen planbouw en apply de fail-closed tweede audit laten afbreken vóór `CLEARUP/` werd aangemaakt.
+- `Inbox/projectmanager_v2/RuntimeV2/status/**` en `snapshots/**` blijven volledig als audit-evidence opgenomen, maar worden expliciet observationeel/informatief behandeld in plaats van als dependency-consument.
+- De tweede audit blijft fail-closed op iedere wijziging in echte actieve dependencies, symlinks, atomic rollback of CLEARUP/REVIEW-dispositie. Alleen wijzigingen in observationele evidence verversen het manifest en breken de run niet meer af.
+- Echte runtime/configreferenties (o.a. `Infra`) blijven hard blokkerend; protected paths, same-filesystem hard move, pre-move tree-SHA256, negative-path-check, restore en no-delete blijven ongewijzigd.
+- Geen wijziging aan ngrok, maandclosure, productiekern `9.4-core3` of PM `2.0.0-rc22`.
+
 ## 32.4.27 — CLEARUP hash-I/O closure
 
 - Live 32.4.26 bleef na ACCEPTED te lang zonder CLEARUP-run doordat grote kandidaatbomen ondanks de gedeelde dependency-index nog herhaald volledig werden gehasht tijdens plan, verse plancontrole en post-rename verificatie.

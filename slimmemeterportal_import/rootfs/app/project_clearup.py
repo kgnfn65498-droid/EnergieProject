@@ -263,17 +263,26 @@ def _iter_active_text_files(root: Path, candidate_paths: set[str]) -> Iterable[P
 
 
 def _reference_is_informational(relative: str) -> bool:
-    """References that describe housekeeping are evidence, not consumers.
+    """References that observe housekeeping are evidence, not consumers.
 
-    Runtime JSON/config/source references still block.  Only Markdown and the
-    two housekeeping modules themselves are non-blocking; this prevents the
-    cleanup registry and audit documentation from creating a permanent
-    self-dependency while retaining them in the manifest for traceability.
+    Executable/runtime configuration references still block.  Markdown and the
+    housekeeping modules are descriptive.  Projectmanager status/snapshot JSON
+    under RuntimeV2 is also derived observation output: it reports stale paths
+    (for example rollback_excess) but never consumes those paths.  Treating
+    those files as hard dependencies creates a self-blocking feedback loop and
+    can make the second fail-closed audit differ from the first while PM updates
+    its status during the same CLEARUP run.
     """
     path = Path(relative)
     if path.suffix.lower() == ".md":
         return True
-    return path.name in {"project_clearup.py", "project_hygiene.py"}
+    if path.name in {"project_clearup.py", "project_hygiene.py"}:
+        return True
+    rel = relative.replace("\\", "/")
+    return (
+        rel.startswith("Inbox/projectmanager_v2/RuntimeV2/status/")
+        or rel.startswith("Inbox/projectmanager_v2/RuntimeV2/snapshots/")
+    )
 
 
 def _build_active_dependency_index(
@@ -470,9 +479,12 @@ def apply_clearup_plan(
         if (
             disposition != previous.get("disposition")
             or refs != list(previous.get("active_references") or [])
-            or informational_refs != list(previous.get("informational_references") or [])
         ):
             raise RuntimeError(f"CLEARUP dependency-audit gewijzigd; nieuwe plancontrole vereist: {relative}")
+        # Observation-only evidence may legitimately change while PM refreshes
+        # status/snapshots.  Refresh it for the manifest, but never turn that
+        # non-consuming telemetry churn into a hard dependency failure.
+        previous["informational_references"] = informational_refs
 
     fresh = plan
     run_id = _safe_run_id(run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ"))
