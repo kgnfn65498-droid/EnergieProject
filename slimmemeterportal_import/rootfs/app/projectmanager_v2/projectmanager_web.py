@@ -98,6 +98,7 @@ def render_projectmanager_progress(project_root) -> str:
 
     blockers = progress.get('blockers') if isinstance(progress.get('blockers'), list) else []
     blockers_text = ', '.join(str(item) for item in blockers if str(item).strip()) or 'geen'
+    contract = status.get('development_build_contract') if isinstance(status.get('development_build_contract'), dict) else {}
     color = str(progress.get('status_color') or (status.get('health') or {}).get('status') or 'NOG_TE_CONTROLEREN').upper()
     border = {'GREEN': '#2e7d32', 'ORANGE': '#d18b00', 'RED': '#b3261e'}.get(color, '#6b7280')
     return f'''<section id="pmv2-progress" style="margin:16px 0;padding:14px;border:2px solid {border};border-radius:10px">
@@ -106,6 +107,8 @@ def render_projectmanager_progress(project_root) -> str:
 <p>Voltooid: {esc(progress.get('completed_steps'))} | Resterend: {esc(progress.get('remaining_steps'))} | Status: {esc(color)}</p>
 <p>Volgende stap: {esc(progress.get('next_step') or task.get('next_action') or 'geen')}</p>
 <p>Verstreken: {esc(progress.get('elapsed_seconds'))} s | Geschat resterend: {esc(progress.get('estimated_remaining_seconds'))} s</p>
+<p><strong>Development Build Contract</strong>: {esc(contract.get('contract_version'))} | Denksetting: {esc(contract.get('thinking_level'))}</p>
+<p>Oorspronkelijke raming: {esc(contract.get('estimated_total_seconds'))} s | Test/verificatie: {esc(contract.get('estimated_test_verification_seconds'))} s | Contract: {esc('GREEN' if contract.get('compliant') is True else ('ROOD' if contract.get('required') else 'n.v.t.'))}</p>
 <p>Planningstrend: {esc(progress.get('planning_trend') or 'insufficient_data')} | Blockers: {esc(blockers_text)}</p>
 </section>'''
 

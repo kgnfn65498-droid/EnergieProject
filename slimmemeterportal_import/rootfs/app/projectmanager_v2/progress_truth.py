@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from development_build_contract import evaluate_build_contract
+
 
 def _parse_time(value):
     if isinstance(value, datetime):
@@ -101,7 +103,7 @@ def build_task_progress(task, *, now=None):
         'ACTIVE': 'GREEN',
     }.get(status, 'ORANGE')
     percent = 100 if status == 'DONE' else int(round((step / total) * 100))
-    return {
+    result = {
         'step_label': f'Stap {step}/{total}',
         'step': step,
         'steps_total': total,
@@ -115,3 +117,13 @@ def build_task_progress(task, *, now=None):
         'progress_percent': percent,
         'planning_trend': _planning_trend(history),
     }
+    contract = evaluate_build_contract(task, result)
+    if contract.get('required'):
+        result.update({
+            'development_build_contract': contract,
+            'thinking_level': contract.get('thinking_level'),
+            'estimated_total_seconds': contract.get('estimated_total_seconds'),
+            'estimated_test_verification_seconds': contract.get('estimated_test_verification_seconds'),
+            'step_estimates_seconds': contract.get('step_estimates_seconds'),
+        })
+    return result

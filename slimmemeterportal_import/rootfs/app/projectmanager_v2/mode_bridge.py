@@ -11,7 +11,7 @@ class ModeBridge:
     def __init__(self, command_path):
         self.command_path=Path(command_path)
 
-    def request_base_mode(self, mode: str, *, reason: str='', issued_by: str='projectmanager') -> dict:
+    def request_base_mode(self, mode: str, *, reason: str='', issued_by: str='projectmanager', confirmed_by_user: bool=False) -> dict:
         mode=str(mode).upper().strip()
         if mode not in VALID_MODES:
             raise ValueError(f'invalid mode: {mode}')
@@ -22,7 +22,7 @@ class ModeBridge:
             'requested_mode':mode,
             'reason':reason,
             'issued_by':issued_by,
-            'confirmed_by_user':False,
+            'confirmed_by_user':bool(confirmed_by_user),
             'created_at':datetime.now(timezone.utc).isoformat(),
         }
         self._atomic_write(payload)

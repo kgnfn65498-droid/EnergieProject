@@ -3,6 +3,7 @@ from pathlib import Path
 
 from persistence import atomic_write_json, load_json
 from secret_guard import redact
+from development_build_contract import evaluate_build_contract, canonical_contract
 
 
 def build_handover(*, mode: dict, active_task: dict = None, release: dict = None, decisions=None, evidence=None, last_changes=None, progress=None):
@@ -29,6 +30,7 @@ def build_handover(*, mode: dict, active_task: dict = None, release: dict = None
         'next_action': task.get('next_action'),
         'decisions_needed': [item for item in (decisions or []) if item.get('status') == 'PENDING'],
         'pending_approval': next((item.get('kind') for item in (decisions or []) if item.get('status') == 'PENDING'), None),
+        'development_build_contract': evaluate_build_contract(task, progress) if active_task and task.get('build_contract_required') is True else canonical_contract(),
     }
     return redact(payload)
 

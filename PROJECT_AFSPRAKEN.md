@@ -126,3 +126,26 @@
 - Control-plane request/result-bestanden die noodzakelijkerwijs kandidaathaden bevatten mogen uitsluitend als exact benoemde observationele bronnen uit dependency-blocking worden gehouden; een algemene Inbox-uitzondering is verboden.
 - Containerrechten en filesystemrechten worden afzonderlijk bewezen. Dat een container één root-level directory kan aanmaken bewijst niet dat hij bestaande root-level entries kan hernoemen.
 - Releaseontwikkeling gebruikt voor de finale kandidaat een unieke schone staging/workspace; vóór packaging wordt gecontroleerd dat geen achtergebleven proces die werkmap nog kan wijzigen. Exacte release-ZIP en fresh extract blijven de eindwaarheid.
+
+
+## MAINTENANCE approval transition vanaf 32.4.34
+
+- Een door Peter expliciet goedgekeurde MODE_CHANGE naar MAINTENANCE moet de user-confirmation doorgeven tot in de operating-mode runtime.
+- Vanuit een actieve DEVELOPMENT-sessie mag alleen een bevestigde overgang atomair de ontwikkelsessie sluiten en MAINTENANCE activeren.
+- Een onbevestigde DEVELOPMENT -> MAINTENANCE/USER overgang blijft fail-closed met development_session_requires_explicit_close.
+- Een goedgekeurde PM-moduswissel geldt pas als geslaagd nadat de authoritative operating_mode_state dezelfde effectieve modus rapporteert; alleen een verwerkt request-id is onvoldoende bewijs.
+
+
+## Development Build Contract vanaf 32.4.34
+- Iedere release/build krijgt vóór de eerste implementatiestap een expliciete denksetting **MIDDEL** of **HOOG**. Die keuze wordt gemeld en in de Projectmanager-buildmetadata vastgelegd.
+- Iedere build start met **Stap X/Y**, totaal aantal geplande stappen, een oorspronkelijke totale raming, een raming per stap en geplande test-/verificatietijd. De oorspronkelijke totale raming wordt later niet stilzwijgend herschreven.
+- Tijdens ontwikkeling blijven verstreken actieve ontwikkeltijd, geschatte resterende tijd, test-/verificatietijd, afwijking en planningstrend/leercurve onderdeel van dezelfde buildtruth. Testtijd telt volledig mee.
+- Een chatwissel, nieuwe Voice-chat of Nomad-ingang reset deze contracttruth nooit. De actuele handover bevat de Development Build Contract-versie en moet vóór verdere ontwikkeling worden geladen.
+- `sla dit op` of een equivalente expliciete opslagopdracht betekent: daadwerkelijke write + read-back-verificatie; geen succesclaim op alleen intentie.
+- Voor uitspraken als `klaar`, `serie dicht`, `wat hierna` of een roadmapwijziging worden eerst actuele roadmap, Knowledge Base, open taken, beslissingen en afhankelijkheden gecontroleerd.
+- Relevante afspraken uit chat/Voice/Nomad worden via de PM-intake gerouteerd en gededupliceerd; zij mogen niet alleen in chatcontext blijven hangen.
+- UX is deel van groen: geen onnodige Terminal-, sudo-, wachtwoord- of dubbele handmatige stappen voor Peter wanneer de bestaande veilige systeemroute dit autonoom kan.
+- Geen QNAP host-`python3`-aanname. Python op de NAS loopt alleen via de afgesproken container/runtime.
+- Geen autonome reboot/reset van NAS, Home Assistant, containers of services en geen destructief beheer zonder expliciete opdracht.
+- Bekende defecten en hun root cause/fix worden vóór closure als regressietest/gate en in KB + Projectmanager vastgelegd.
+- Een expliciet gemarkeerde build zonder complete Development Build Contract-metadata is **niet release-compliant** en mag niet als definitief groen worden gepresenteerd.

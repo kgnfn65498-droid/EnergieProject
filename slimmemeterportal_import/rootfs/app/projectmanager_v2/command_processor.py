@@ -1,5 +1,6 @@
 from approval_gate import PROTECTED_ACTIONS, can_execute
 from command_gateway import plan_command
+from development_build_contract import build_metadata_from_command
 
 
 class CommandProcessor:
@@ -14,9 +15,9 @@ class CommandProcessor:
         self.nas_container_cr_service = nas_container_cr_service
         self.conversation_intake = conversation_intake
 
-    def _request_mode(self, mode: str, *, reason: str, source: str):
+    def _request_mode(self, mode: str, *, reason: str, source: str, confirmed_by_user: bool=False):
         if self.mode_bridge is not None:
-            return self.mode_bridge.request_base_mode(mode, reason=reason, issued_by='projectmanager')
+            return self.mode_bridge.request_base_mode(mode, reason=reason, issued_by='projectmanager', confirmed_by_user=confirmed_by_user)
         self.mode.set(mode, reason=reason, source=source or 'command')
         return None
 
@@ -102,6 +103,7 @@ class CommandProcessor:
             target_mode,
             reason=item.get('text') or f'Peter approved {target_mode}',
             source='approved_decision',
+            confirmed_by_user=True,
         )
         task = self.tasks.start(
             item.get('title') or item.get('text') or f'{target_mode.title()} task',
@@ -109,6 +111,7 @@ class CommandProcessor:
             mode=target_mode,
             steps_total=max(1, int(item.get('steps_total') or 1)),
             priority=int(item.get('priority') or 2),
+            build_metadata=build_metadata_from_command(item),
         )
         if item.get('next_action'):
             task = self.tasks.progress(task['id'], next_action=item['next_action'])
@@ -151,6 +154,7 @@ class CommandProcessor:
                 mode='DEVELOPMENT',
                 steps_total=max(1, int(item.get('steps_total') or 1)),
                 priority=int(item.get('priority') or 2),
+                build_metadata=build_metadata_from_command(item),
             )
             next_action = item.get('next_action') or 'continue approved architecture work in isolated staging and verify before deployment'
             task = self.tasks.progress(task['id'], next_action=next_action, change='Peter approved architecture_change')
@@ -240,6 +244,7 @@ class CommandProcessor:
                     mode='DEVELOPMENT',
                     steps_total=max(1, int(item.get('steps_total') or 1)),
                     priority=int(item.get('priority') or 2),
+                    build_metadata=build_metadata_from_command(item),
                 )
                 if item.get('next_action'):
                     task = self.tasks.progress(task['id'], next_action=item['next_action'])
@@ -252,6 +257,7 @@ class CommandProcessor:
                     mode='MAINTENANCE',
                     steps_total=max(1, int(item.get('steps_total') or 1)),
                     priority=int(item.get('priority') or 2),
+                    build_metadata=build_metadata_from_command(item),
                 )
                 result = {'ok': True, 'executed': True, 'task_id': task['id'], 'requested_mode': 'MAINTENANCE', 'mode_request': mode_request}
             elif action in {'read_status', 'read_energy', 'read_roadmap'}:

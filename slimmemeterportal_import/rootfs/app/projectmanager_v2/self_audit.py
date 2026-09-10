@@ -6,6 +6,7 @@ from pathlib import Path
 from decision_queue import VALID_STATUSES as DECISION_QUEUE_VALID_STATUSES
 from task_engine import VALID_TASK_STATUSES
 from roadmap_regie import RoadmapRegie
+from development_build_contract import evaluate_build_contract
 
 VALID_MODES = {'USER', 'DEVELOPMENT', 'MAINTENANCE'}
 VALID_HEALTH = {'GREEN', 'ORANGE', 'RED'}
@@ -145,6 +146,20 @@ class SelfAuditor:
                         'path': 'status/current.json', 'reason': 'release_mismatch',
                         'status_release': release, 'production_release': actual_nas,
                     })
+
+
+        if status is not None:
+            active_task = status.get('active_task') if isinstance(status.get('active_task'), dict) else None
+            if active_task and active_task.get('build_contract_required') is True:
+                contract = status.get('development_build_contract') if isinstance(status.get('development_build_contract'), dict) else evaluate_build_contract(active_task, status.get('progress'))
+                if contract.get('compliant') is not True:
+                    invalid.append({
+                        'path': 'status/current.json',
+                        'reason': 'build_contract_noncompliant',
+                        'missing': list(contract.get('missing') or []),
+                    })
+                if contract.get('contract_version') != '2026-09-10.v1':
+                    invalid.append({'path': 'status/current.json', 'reason': 'development_build_contract_version_mismatch'})
 
         if heartbeat is not None:
             if heartbeat.get('mode') not in VALID_MODES:

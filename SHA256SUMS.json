@@ -18,7 +18,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "6760f5fb5f6f7ded31fba1e4bfbf8e8759bbeab7a6f0a30a7807e009252481ad"
+      "sha256": "878a316174372b58bbe2324042e1ad3de3484b8411bd56ed5ee3dcd5db59065b"
     },
     {
       "path": "INSTALL.md",
@@ -34,7 +34,7 @@
     },
     {
       "path": "PROJECT_AFSPRAKEN.md",
-      "sha256": "11f515df17e2d51af87c47820afd8750ca74a712c960cee38daeb05847ffb080"
+      "sha256": "ad967ad31417449e7e5d58f26c7320025620676df43d3905c72e276254ecbb56"
     },
     {
       "path": "README.md",
@@ -50,7 +50,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "83e22413bcbb2f4abefb4e61020dc9d6528df5fa62c6fc5cf18f4d5931721b18"
+      "sha256": "8cefe5428dcefa7614ac671e55aa59b962bf4c092342c784ba8c5890c3d5ee92"
     },
     {
       "path": "docs/superpowers/plans/2026-08-17-energie-assistant-ha-conversation.md",
@@ -109,6 +109,10 @@
       "sha256": "8890e8ddfc96e142dae4018f051c1a65fee14201cbc130899f7b9e7bf8519e7f"
     },
     {
+      "path": "docs/superpowers/plans/2026-09-10-development-build-contract.md",
+      "sha256": "7bb92a5f5771db0797d97288b96a844bab982fa38fe872c589850727aa1548be"
+    },
+    {
       "path": "docs/superpowers/specs/2026-08-17-nomad-native-ha-event-bridge-design.md",
       "sha256": "242c46b8529893f647c52a2394ce3f418b21f8dd7466bd9d535509bbc3253481"
     },
@@ -149,12 +153,16 @@
       "sha256": "327e8937ca870a325e04b17d1fb0d3f24548e1681ed2e6ea0519bd0d084812f4"
     },
     {
+      "path": "docs/superpowers/specs/2026-09-10-development-build-contract-design.md",
+      "sha256": "c550decc990c867276f99c4f393010cc0e9ddf947d0f210cdf2a8ad1788a45ff"
+    },
+    {
       "path": "pytest.ini",
       "sha256": "8b9943ec4a214c9e5d7f343f151ae11f7fb4f587c5734a78ba6d898d186b7d4c"
     },
     {
       "path": "release_test_contract.py",
-      "sha256": "faec5e2e2c0bbe6ca250961393aa919f59da8a03ba2053a6120984b240506d0d"
+      "sha256": "5f4e3396b82851b24728fef5279c0bd36c35ea050a240fda169a89e0d604e481"
     },
     {
       "path": "repository.yaml",
@@ -162,7 +170,7 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "1f6514c0293dd8a62683bf95e5ac3426c5f78c43b7c2052159cb186dfc1e1b67"
+      "sha256": "2afaf940fee8b053a967dee3fb3fd74a9c37336c66f4c63938e4ef967f300a84"
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -178,7 +186,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "a67f46661bf9d06763e7527600635223a1d8a0031e28e09a0d292fea0717acbb"
+      "sha256": "ba075153238557385139078ccc56628f0359a4ae8f4347b4f39dccec52515c00"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -226,11 +234,11 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "ea5aa7ef571847152b5808aaf303b98f259b43b9b067ab40ba98dbc3c831c330"
+      "sha256": "4b140f83bca58386562c2dffe67ae28b0c64dfddea486dda7872e7562af03341"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
-      "sha256": "7ccb6b968dbde0a2e68633859a31cb000faed335eae3bacb4b11f0c0668a0079"
+      "sha256": "96256047cc00b24a4049959ab58bcd6764833d346319e6034bba86679069877a"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/month_closure_truth.py",
@@ -254,7 +262,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/operating_modes.py",
-      "sha256": "7b310bbd571410f436e1171b4899226f3c875b629465ac10e8d1363d92ebe6c3"
+      "sha256": "731f2943ef579dc93d642e657c1d80bddfd0589966b3f290ae780e5d92c469a0"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/project_clearup.py",
@@ -326,7 +334,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/command_processor.py",
-      "sha256": "5ad62a4f0557b7d3e059942043a162cdb7dca9ea6817b833fcfb528a3e0b1575"
+      "sha256": "724246bedd4f7a0d580a517669699e03f103b58856619fd77ffff75e9a8f6e63"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/command_store.py",
@@ -355,6 +363,10 @@
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/decision_queue.py",
       "sha256": "76b73c285b002de523ead81afc5aaaa7a8721477150bafef69ff9d9f9c4a0909"
+    },
+    {
+      "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/development_build_contract.py",
+      "sha256": "a16c14d337ae39c48e5a8176bbefece85ee18a115a5338f7813ca29fde7f71bf"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/docker_engine_tls_client.py",
@@ -398,7 +410,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/handover.py",
-      "sha256": "254bea861d6cc876367e547c82063ed97456b9b496502e629abddf80267e7a20"
+      "sha256": "70fd1eb4d72b7a180497822552533484f528fe37bb500ee3518c252cd4f08d04"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/handover_snapshot.py",
@@ -438,7 +450,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/manager_service.py",
-      "sha256": "9df540d0da1853f1006357dca39b7ba85298c44ef85640583ab20abd06f17eff"
+      "sha256": "a594e9be411d723c9df2ac77321832fc9b493e6e01b2a8dc51415adcfef9b3ca"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/manager_state.py",
@@ -454,7 +466,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/mode_bridge.py",
-      "sha256": "d55963a3172e6c171bb68746e8f2bc4cd6a3f39806bcdc1474326c0aef695dfb"
+      "sha256": "205799b029ee0c6533b3edb75fd35e4e8bec779546b3cf06330e266a88c7855e"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/month_closure_truth.py",
@@ -506,7 +518,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/progress_truth.py",
-      "sha256": "2e4c809b19a6b5e6a875060feeadc4248dc182faf7dee7660d3f926f2444cd80"
+      "sha256": "dc432ed9a1083c38c0db707355add09cd6046b54c7debbf1be2e8fbcfb562117"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/project_hygiene.py",
@@ -518,7 +530,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/projectmanager_web.py",
-      "sha256": "b0c7982993938d454258ce0a3f765ce02cc0d51a90856f81686c80912f359bb8"
+      "sha256": "95f9c54bb0b65ef0d3ff3c326ba2c9651af85805403cda183f27bac89f70746f"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/protected_action_executor.py",
@@ -558,7 +570,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/self_audit.py",
-      "sha256": "407d8c69895634725193bffd0d5f5d814ccde1907a4c0233efb935f318719b5e"
+      "sha256": "925cba1e01dc0a6d06781c4c597a92f01a5b7e2a9cf2666a3d747c3863254d1e"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/service_lock.py",
@@ -574,7 +586,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/task_engine.py",
-      "sha256": "ba1d4f78b4a3263585ea1670cdc4be5c849b81177c294be719e4fec6ab33837a"
+      "sha256": "e87947a88e7a5fd4fe57c183070d00be5f45dc61493360a68ec60c6a6f59bc5c"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/tools_projectmanager.py",
@@ -1362,7 +1374,7 @@
     },
     {
       "path": "tests/test_v32423_release_identity.py",
-      "sha256": "a273b7883598b5c03409a2f21a8fd5e6a628557ba7063e5403f8f599b9008960"
+      "sha256": "9721bcc959f5a93b8abba1fb68050097ef410f61c242198c11e81afdff2df6d6"
     },
     {
       "path": "tests/test_v32423_roadmap_semantics.py",
@@ -1382,7 +1394,7 @@
     },
     {
       "path": "tests/test_v32425_release_identity.py",
-      "sha256": "dc0fec1c6a6f8a58ddc227474f899b6c09cce98c2be969121ca67ec9623c7ed3"
+      "sha256": "b86a31b66bbfd3867edd39bf68ff9774816ede08afb7a914d5fbabe25f6e164c"
     },
     {
       "path": "tests/test_v32426_clearup_indexing.py",
@@ -1390,7 +1402,7 @@
     },
     {
       "path": "tests/test_v32426_release_identity.py",
-      "sha256": "9b4f2ebfcd5898e775fb0b3fe198776ccb30eab9986f72d89db6833f1338a805"
+      "sha256": "0910b19fabefac71be7b2486f10139cac9a41dc479c7e21b6139156e7fca2757"
     },
     {
       "path": "tests/test_v32427_clearup_hash_efficiency.py",
@@ -1402,7 +1414,7 @@
     },
     {
       "path": "tests/test_v32428_release_identity.py",
-      "sha256": "80e36e82c8ab774651defbd4c2938083dd18c51caa315b9a64f47e8ad085621b"
+      "sha256": "8ea90a8979c751fe0d57d8749f7f968b09314bf5bf9f80a11a2a9c5b4c38c355"
     },
     {
       "path": "tests/test_v32429_clearup_observability_timeout.py",
@@ -1410,7 +1422,7 @@
     },
     {
       "path": "tests/test_v32429_release_identity.py",
-      "sha256": "5f3a73bcbc2c6704d25b38c9f20fb3bd700aa99b7d79fa3d9ee5d6796914707b"
+      "sha256": "26b7d2978fef94524ee93278653890f7e2d07c9acbb04c3f5c8fc152cbd25f75"
     },
     {
       "path": "tests/test_v3242_projectmanager_repair.py",
@@ -1418,7 +1430,7 @@
     },
     {
       "path": "tests/test_v32430_clearup_checkpoint_surface.py",
-      "sha256": "8b25a9e1890d22e5e5779e94af52a8c15673bbc1844c97a6081b001049a3a8e6"
+      "sha256": "44be17bb77515e1126d3192eeb6818abb5e9628b7eaae94cb56880bbc4d267d1"
     },
     {
       "path": "tests/test_v32430_release_packaging_failed_retention.py",
@@ -1426,15 +1438,23 @@
     },
     {
       "path": "tests/test_v32431_clearup_unreadable_candidate.py",
-      "sha256": "a72a0c6a26df9ff90044f2ff1d62eaf951649aab24ec33f0e231446e25c12c6a"
+      "sha256": "634be923f2715a1e8cc564f290d8ee68656689c7ea105603ee79ed39f718c219"
     },
     {
       "path": "tests/test_v32432_clearup_root_bootstrap.py",
-      "sha256": "6a8d051a0f9dcd6f8cb56f59d6b1ebd52fe0f08d4ba35bd5e06813705bc5cad4"
+      "sha256": "fcadaa5f2ab963879303b99118bf4e33d44daedb5871600f2f9ba4b0fb555734"
     },
     {
       "path": "tests/test_v32433_clearup_watcher_move_bridge.py",
-      "sha256": "d490dcff8bc107b278f0c47c465eb5ca1d91ca59da5e7a0ea61c0c8f68ee4dba"
+      "sha256": "264beb88988bf8f41a6022ccbb3ee3d6a76c4f8caba10de265b468175820fbec"
+    },
+    {
+      "path": "tests/test_v32434_approved_maintenance_transition.py",
+      "sha256": "1359e2337a2d59b4e1bc3f4486490c1c54c907e82ba684baf608655996e37df6"
+    },
+    {
+      "path": "tests/test_v32434_development_build_contract.py",
+      "sha256": "6a517c678083cd370b79226cca757926c0b4ed126a4d15c49247935b71cce2ed"
     },
     {
       "path": "tests/test_v3243_projectmanager_closure_static.py",

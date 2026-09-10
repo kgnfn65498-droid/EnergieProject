@@ -1,3 +1,12 @@
+## 32.4.34 — approved MAINTENANCE transition closure
+
+- Fixes the live 32.4.33 mode-routing defect: an explicitly Peter-approved MODE_CHANGE to MAINTENANCE now carries user confirmation through the Projectmanager mode bridge.
+- DEVELOPMENT -> MAINTENANCE can therefore close the active development session atomically only when confirmation is present; unconfirmed transitions remain fail-closed.
+- Preserves existing CLEARUP watcher bridge, no-delete policy, dependency audit, release chain and rollback behavior.
+- Adds the canonical Development Build Contract to Projectmanager status/handover/self-audit so MIDDEL/HOOG, Stap X/Y, original estimate, per-step estimates, test-verification estimate, elapsed time, ETA and learning trend survive chat/Voice/Nomad boundaries.
+- Explicitly marked release-builds without complete build-contract metadata are non-compliant; historical/non-build tasks remain backwards compatible.
+- Cross-chat process rules are now carried as machine-readable PM contract truth, including write+read-back for explicit saves, roadmap/KB dependency checks, no unnecessary sudo/Terminal, no QNAP host-python3 assumption and defect→KB+PM+regression persistence.
+
 ## 32.4.33 — CLEARUP source-parent permission bridge closure
 
 - Bewezen live 32.4.32-fout: de volledige 172/172 plan/hashfase en de nieuwe `CLEARUP`-destination-preflight waren groen, maar de eerste root-level hard-rename (`App.__failed_32.4.10_001`) faalde op source-parent `PermissionError`; niets werd verwijderd (`delete_performed=false`).

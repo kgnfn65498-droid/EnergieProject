@@ -255,11 +255,11 @@ def _add_drift(state: ModeState, item: str) -> ModeState:
     return replace(state, drift=state.drift + (item,))
 
 
-def set_base_mode(state: ModeState, mode: Mode | str) -> ModeState:
+def set_base_mode(state: ModeState, mode: Mode | str, *, confirmed_by_user: bool = False) -> ModeState:
     resolved = Mode(mode)
     if state.active_transition_id:
         return _add_drift(state, "base_mode_change_blocked_active_transition")
-    if state.development_session_active and resolved is not Mode.DEVELOPMENT:
+    if state.development_session_active and resolved is not Mode.DEVELOPMENT and not confirmed_by_user:
         return _add_drift(state, "development_session_requires_explicit_close")
     return replace(
         state,
@@ -357,7 +357,7 @@ def process_mode_command(project_root: Path | str, now: Any = None) -> ModeState
 
     updated = state
     if command.action == "set_base":
-        updated = set_base_mode(state, command.requested_mode)
+        updated = set_base_mode(state, command.requested_mode, confirmed_by_user=command.confirmed_by_user)
     elif command.action == "set_auto":
         updated = set_automatic_switching(state, bool(command.enabled))
     elif command.action == "begin_temporary":

@@ -3,6 +3,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from persistence import atomic_write_json, load_json
+from development_build_contract import normalize_build_metadata
 
 REQUIRED_DOD_GATES = (
     'code_ready',
@@ -92,7 +93,7 @@ class TaskStore:
         self._save(data)
         return dict(task)
 
-    def start(self, title: str, goal: str, *, mode: str, steps_total: int, priority: int = 2):
+    def start(self, title: str, goal: str, *, mode: str, steps_total: int, priority: int = 2, build_metadata=None):
         data = self._load()
         now = datetime.now(timezone.utc).isoformat()
         task = {
@@ -112,6 +113,9 @@ class TaskStore:
             'created_at': now,
             'updated_at': now,
         }
+        if build_metadata is not None:
+            task['build_contract_required'] = True
+            task['build_metadata'] = normalize_build_metadata(build_metadata, steps_total=steps_total)
         for existing in data.get('tasks', []):
             if existing.get('status') == 'ACTIVE':
                 existing['status'] = 'PAUSED'

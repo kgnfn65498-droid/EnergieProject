@@ -19,6 +19,7 @@ from operating_mode import ModeStore
 from opportunity_register import OpportunityRegister
 from proactive_policy import evaluate_signal
 from progress_truth import build_task_progress
+from development_build_contract import evaluate_build_contract, canonical_contract
 from persistence import atomic_write_json
 from research_queue import ResearchQueue
 from retention import retention_candidates, apply_retention
@@ -141,6 +142,7 @@ class ManagerService:
             'release_chain': dict(runtime.get('release_chain') or {}),
             'active_task': active_task,
             'progress': progress,
+            'development_build_contract': evaluate_build_contract(active_task, progress) if active_task and active_task.get('build_contract_required') is True else canonical_contract(),
             'decisions_needed': pending_decisions,
             'needs_human': bool(pending_decisions),
             'open_issues': self.issues.open_items(),
@@ -551,6 +553,9 @@ class ManagerService:
             f"- Voltooid: {progress.get('completed_steps', '-')} | Resterend: {progress.get('remaining_steps', '-')} | Voortgang: {progress.get('progress_percent', '-')}%",
             f"- Verstreken: {progress.get('elapsed_seconds', '-')} s | Geschat resterend: {progress.get('estimated_remaining_seconds', '-')} s",
             f"- Planningstrend: {progress.get('planning_trend') or 'insufficient_data'}",
+            f"- Development Build Contract: {(status.get('development_build_contract') or {}).get('contract_version', '-')}",
+            f"- Denksetting: {(status.get('development_build_contract') or {}).get('thinking_level') or '-'}",
+            f"- Test/verificatie raming: {(status.get('development_build_contract') or {}).get('estimated_test_verification_seconds') or '-'} s",
             f"- Volgende actie: {progress.get('next_step') or task.get('next_action') or 'geen'}",
             f"- Open issues: {len(issues)}",
             f"- Peter nodig: {'ja' if decisions else 'nee'}",
