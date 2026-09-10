@@ -28,6 +28,7 @@
 - Bij ieder defect worden symptoom, root cause, structurele fix en regressietest in de Projectmanager Knowledge Base vastgelegd.
 - Tests die alleen de huidige release accepteren zijn onvoldoende voor ingress-closure; de volgende release moet onderdeel zijn van de E2E.
 - Een release-ZIP wordt nooit rechtstreeks uit een door tests vervuilde werkboom gemaakt: eerst schone staging, expliciete uitsluiting van `.pytest_cache`, `__pycache__`, `.DS_Store`, `*.pyc` en `*.pyo`, daarna manifests, ZIP en tenslotte validatie met dezelfde atomic release-validator als productie.
+- Vanaf 32.4.30 wordt een overdraagbare release-ZIP uitsluitend met `tools/release_artifact_builder.py` gebouwd; een ad-hoc ZIP-commando geldt niet als releasebewijs. De exacte uiteindelijke ZIP-bytes moeten daarna nog een volledige geïsoleerde `atomic_app_swap prepare-and-swap` simulatie doorstaan vóór handoff.
 
 ## Release- en leercontract vanaf 32.4.17
 

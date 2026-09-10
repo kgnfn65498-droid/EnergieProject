@@ -46,6 +46,14 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
     excess_rollbacks = [name for _, name in rollbacks[max(0, int(keep_rollbacks)):]]
 
     failed_release_count = sum(1 for path in root.glob("App.__failed_*") if path.exists())
+    failed_inbox = root / "Inbox/failed"
+    if failed_inbox.is_dir():
+        try:
+            failed_release_count += sum(
+                1 for path in failed_inbox.iterdir() if path.exists() or path.is_symlink()
+            )
+        except OSError:
+            pass
     restore_count = _count_children(root / "Backups/RestoreStaging")
     release_prepare_count = _count_children(root / "Backups/_release_prepare")
     release_builder_count = _count_children(root / "Data/03_Systeem/ReleaseBuilders")

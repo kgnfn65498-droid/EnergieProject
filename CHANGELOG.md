@@ -1,3 +1,12 @@
+## 32.4.30 — CLEARUP runtime-checkpoint surface closure
+
+- Verplaatst het live CLEARUP-runtimecheckpoint van Projectmanager/State naar de reeds door dezelfde HA-app bewezen schrijfbare runtime-oppervlakte `Inbox/logs/project_clearup_runtime.json`.
+- Schrijft direct na NAS-rootresolutie een permanent `root_resolved` checkpoint vóór gate/CR/dependencywerk.
+- Classificeert het nieuwe Inbox/logs-checkpoint als observationeel, zodat telemetry zichzelf niet als actieve dependency kan blokkeren.
+- Geen wijziging aan CLEARUP move-, hash-, dependency-, symlink-, rollback- of no-delete veiligheidsregels.
+- Repair na afgewezen eerste 32.4.30-artifact: `tools/release_artifact_builder.py` is de canonieke packagingroute; cache/junk wordt vóór manifest/ZIP uitgesloten en de gebouwde ZIP doorloopt direct de atomic ZIP-membervalidator.
+- Projectmanager-hygiëne telt nu ook `Inbox/failed/*` mee; de bestaande CLEARUP-policy blijft zulke settled failed releases uitsluitend reversibel naar `CLEARUP/<run>/original/...` hard-verplaatsen.
+
 ## 32.4.29 — CLEARUP harde observability/timeout closure
 
 - CLEARUP schrijft permanente live fase-checkpoints naar Projectmanager State en lokale runtime-state: gate, Crash Recovery, kandidaat-inventaris, dependency-index, kandidaat-hash, apply en manifest, inclusief verstreken tijd en kandidaat N/X.

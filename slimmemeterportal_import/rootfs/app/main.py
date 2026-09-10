@@ -80,10 +80,10 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
-PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Data/03_Systeem/Projectmanager/State/project_clearup_runtime.json")
+PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 25 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.29"
+APP_VERSION = "32.4.30"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -22057,6 +22057,12 @@ def main() -> None:
                 attempts=60,
                 delay_seconds=5.0,
             )
+            persist_clearup({
+                "status": "running",
+                "phase": "root_resolved",
+                "elapsed_seconds": round(time.monotonic() - worker_started, 3),
+                "nas_layout_root": str(live_nas_layout_root),
+            })
             last_blockers: list[str] | None = None
             for attempt in range(1, 121):
                 if STOP.is_set():
