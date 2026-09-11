@@ -1,3 +1,15 @@
+# Testinstructies v32.4.41 — dedicated control-plane closure
+
+1. Gerichte 32.4.41 TDD: control-plane allowlist/approval binding, runtime-first native MCP, chat approval ingress, progress/timing, CR-inclusie, Inbox/Develop/CLEARUP en audit-tellers.
+2. Alle top-level regressietests in verse bronboom; daarna afzonderlijk de drie rapportgenerator-testsets.
+3. Compileer alle Pythonbestanden en valideer alle shellscripts met `sh -n`.
+4. Bouw uitsluitend met `tools/release_artifact_builder.py`; valideer ZIP CRC, path-safety, MANIFEST.sha256 en SHA256SUMS.json.
+5. Pak exact die ZIP schoon uit en herhaal volledige regressie in chunks, rapportgenerators, compile en shellsyntax.
+6. Voer een production-equivalent atomic App sibling-swap simulatie uit op exact die fresh extract; productie zelf niet wijzigen.
+7. Live na installatie: runtime-identiteit, watcher contract, Native MCP fingerprint, CR-sets, CLEARUP/hygiëne, hold en atomic acceptance moeten daadwerkelijk GREEN readback hebben.
+
+---
+
 # Testinstructies v32.3.17 — idempotente GitHub-publicatie en risicogestuurde releasecontrole
 
 1. Draai tijdens ontwikkeling eerst de gerichte tests; een onverwachte fout of wijziging aan release/recovery/modes/installer schakelt automatisch naar de uitgebreidere route.

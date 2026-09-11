@@ -1,9 +1,9 @@
-# Nieuwe chat overdracht — EnergieProject na v10.4.5
+# Nieuwe-chat overdracht — EnergieProject 32.4.41
 
-Basis vóór test: v10.4.2-productie met permanente QNAP-cronwatcher. v10.4.3 en v10.4.4 waren gecontroleerde mislukte releaseproeven en staan in `failed`.
+Actuele ontwikkellijn: 32.4.41 control-plane closure, gebouwd vanaf de exact bewezen 32.4.40-basis.
 
-v10.4.5 verhelpt de twee QNAP-installerbeperkingen die tijdens die proeven zijn vastgesteld: Git is optioneel en installatie/rollback bewaren geen metadata/timestamps op de projectshare. De installer voert vóór worktree-vervanging een QNAP-schrijf/kopie/verwijder-preflight uit.
+De dedicated `energie-control-plane` Container Station-container is de structurele Docker-socket beheerlaag. Hij heeft geen netwerk en accepteert uitsluitend `watcher_recreate` en `native_mcp_reload`, beide exact approval-gated. Watcher-contract en Native MCP runtimefingerprint zijn vóór de 32.4.41-build live groen bewezen; 32.4.41 borgt dat pad structureel in releasecode en Crash Recovery.
 
-Voor v10.4.5 is één eenmalige bootstrap nodig omdat de actieve oudere installer zichzelf niet met de nieuwe installer uit een ZIP kan vervangen. Na succesvolle v10.4.5 moet de normale werkwijze weer zijn: alleen ZIP in `incoming`.
+Vaste werkwijze: root-cause eerst, TDD RED→GREEN, geen gebruikers-Terminal, geen candidate-ZIP, exacte finale ZIP pas na fresh-extract regressie/compile/shell/manifest/atomic-simulatie. Ontwikkelwerk hoort onder `Inbox/Develop`; CLEARUP is uitsluitend reversible no-delete quarantine. Iedere release-audit gebruikt statusbol + echte reparatieronde-teller.
 
-Failed releases pas opruimen nadat v10.4.5 en minstens één daaropvolgende ZIP-only release succesvol zijn bewezen.
+Na live installatie van 32.4.41 eerst volledige 32.4 closure bewijzen. Daarna roadmapvolgorde: ngrok security → Voice Mode E2E → nieuwe-chat/handover E2E → pas daarna 32.5/Cowork.

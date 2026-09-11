@@ -10,6 +10,8 @@ RUNTIME_MODULE = 'from __future__ import annotations\n\nimport hashlib\nimport j
 REQUIRED_INTAKE_FIELDS = ("source_channel", "source_ref", "occurred_at", "classification_hint")
 RESULT_REL = Path("Inbox/logs/native_mcp_runtime_contract_hotfix_32.4.39.json")
 
+APPROVAL_TOOL_BLOCK = '\n\nAPPROVAL_INGRESS_ROOT = Path(os.environ.get(\n    \'PM_APPROVAL_INGRESS_ROOT\',\n    \'/system/Projectmanager/ApprovalIngress\',\n))\nMAX_APPROVAL_BYTES = 16384\n_APPROVAL_YES = {\'ja\', \'akkoord\', \'goedkeuren\', \'goedgekeurd\', \'yes\', \'approve\'}\n_APPROVAL_NO = {\'nee\', \'afwijzen\', \'afgekeurd\', \'no\', \'reject\'}\n_APPROVAL_CHANNELS = {\'chatgpt\', \'typed\', \'dictation\', \'voice\', \'nomad\', \'speech\'}\n\n\ndef _approval_text_token(value: str) -> str:\n    return \' \'.join(str(value or \'\').strip().lower().strip(\' .,!?:;\').split())\n\n\ndef _pending_decision(decision_id: str) -> dict:\n    status_path = RUNTIME_ROOT / \'status\' / \'current.json\'\n    try:\n        data = json.loads(status_path.read_text(encoding=\'utf-8\'))\n    except (OSError, json.JSONDecodeError) as exc:\n        raise ValueError(\'Projectmanager-status niet leesbaar voor approval.\') from exc\n    matches = [\n        item for item in (data.get(\'decisions_needed\') or [])\n        if isinstance(item, dict)\n        and item.get(\'id\') == decision_id\n        and item.get(\'status\') == \'PENDING\'\n    ]\n    if len(matches) != 1:\n        raise ValueError(\'Exacte PENDING Projectmanager-beslissing niet gevonden.\')\n    return dict(matches[0])\n\n\n@mcp.tool(annotations=WRITE_ANNOTATIONS)\ndef projectmanager_submit_approval(\n    decision_id: str,\n    explicit_user_text: str,\n    approved: bool = True,\n    source_channel: str = \'chatgpt\',\n) -> dict[str, Any]:\n    """Submit Peter\'s explicit approval/rejection for one exact pending decision.\n\n    This tool writes only an immutable approval ingress envelope. It never mutates\n    RuntimeV2 or executes the protected action directly. Remote approval stays\n    fail-closed until the secured connector/edge explicitly enables it.\n    """\n    enabled = str(os.environ.get(\'PM_REMOTE_APPROVAL_ENABLED\', \'\')).strip().lower()\n    if enabled not in {\'1\', \'true\', \'yes\', \'on\'}:\n        raise ValueError(\'Remote approval is fail-closed until secured edge is enabled.\')\n    decision_id = str(decision_id or \'\').strip()\n    if not decision_id:\n        raise ValueError(\'decision_id ontbreekt\')\n    if type(approved) is not bool:\n        raise ValueError(\'approved moet boolean zijn\')\n    channel = str(source_channel or \'\').strip().lower()\n    if channel not in _APPROVAL_CHANNELS:\n        raise ValueError(\'ongeldig approval source_channel\')\n    token = _approval_text_token(explicit_user_text)\n    allowed = _APPROVAL_YES if approved else _APPROVAL_NO\n    if token not in allowed:\n        raise ValueError(\'expliciete gebruikersgoedkeuring/afwijzing ontbreekt of is ambigu\')\n    decision = _pending_decision(decision_id)\n    ingress_id = uuid4().hex\n    envelope = {\n        \'schema\': \'energie_pmv2_approval_ingress_v1\',\n        \'id\': ingress_id,\n        \'decision_id\': decision_id,\n        \'approved\': approved,\n        \'approved_by\': \'Peter\',\n        \'explicit_user_text\': str(explicit_user_text or \'\')[:200],\n        \'source_channel\': channel,\n        \'decision_kind\': decision.get(\'kind\'),\n        \'decision_fingerprint\': decision.get(\'fingerprint\'),\n    }\n    _write_immutable(APPROVAL_INGRESS_ROOT, envelope, max_bytes=MAX_APPROVAL_BYTES)\n    return {\n        \'ok\': True,\n        \'executed\': False,\n        \'state\': \'PROPOSED_EXACT_APPROVAL_TO_LOCAL_PROJECTMANAGER\',\n        \'ingress_id\': ingress_id,\n        \'decision_id\': decision_id,\n        \'approved\': approved,\n        \'requires_local_pm_processing\': True,\n    }\n'
+
 def _atomic_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_symlink():
@@ -23,6 +25,19 @@ def _atomic_text(path: Path, text: str) -> None:
 
 def _atomic_json(path: Path, payload: dict) -> None:
     _atomic_text(path, json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+
+
+
+def _ensure_approval_tool(tools_text: str) -> tuple[str, bool]:
+    if 'def projectmanager_submit_approval(' in tools_text:
+        return tools_text, False
+    anchor = (
+        '# Remote decision resolution, direct deploy/purchase/payment and arbitrary\n'
+        '# RuntimeV2 writes are deliberately absent. Protected approval stays local HA.\n'
+    )
+    if tools_text.count(anchor) != 1:
+        raise RuntimeError('tools_projectmanager approval insertion anchor mismatch')
+    return tools_text.replace(anchor, APPROVAL_TOOL_BLOCK + '\n' + anchor, 1), True
 
 def apply(root: Path | str) -> dict:
     root = Path(root).resolve()
@@ -43,6 +58,11 @@ def apply(root: Path | str) -> dict:
     if missing:
         raise RuntimeError("tools_projectmanager.py missing required intake fields: " + ",".join(missing))
     changed = []
+    patched_tools, approval_changed = _ensure_approval_tool(tools_text)
+    if approval_changed:
+        _atomic_text(tools_pm, patched_tools)
+        tools_text = patched_tools
+        changed.append("tools_projectmanager.py:approval_tool")
     runtime = native / "runtime_fingerprint.py"
     if not runtime.is_file() or runtime.read_text(encoding="utf-8") != RUNTIME_MODULE:
         _atomic_text(runtime, RUNTIME_MODULE)
@@ -72,6 +92,7 @@ def apply(root: Path | str) -> dict:
         "changed": changed,
         "reload_required": bool(changed),
         "intake_schema_source_fields_present": True,
+        "approval_ingress_tool_present": "def projectmanager_submit_approval(" in tools_text,
     }
     _atomic_json(root / RESULT_REL, result)
     return result

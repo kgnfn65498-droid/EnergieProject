@@ -25,6 +25,36 @@ def _count_children(path: Path) -> int:
         return 0
 
 
+
+
+def _inbox_development_debt(root: Path) -> tuple[int, int, list[str]]:
+    """Count development debris at Inbox root while allowing canonical Inbox/Develop.
+
+    Operational runtime namespaces are not debt. Development artifacts must live
+    under one canonical Inbox/Develop subtree so the Inbox root remains stable.
+    """
+    inbox = root / "Inbox"
+    develop = inbox / "Develop"
+    develop_children = _count_children(develop)
+    if not inbox.is_dir():
+        return develop_children, 0, []
+    operational = {
+        "Develop", "incoming", "processed", "processing", "failed", "logs",
+        "projectmanager_v2", "operating_mode", "control_plane", "native_mcp_runtime",
+        "nas_container_cr_local", "project_cr_local",
+    }
+    pattern = re.compile(r"^(?:attempt|dev|develop|test|tmp|temp|repair|staging|candidate|build)(?:[._-]|$)|(?:[._-](?:tmp|temp|test|dev))$", re.IGNORECASE)
+    debt: list[str] = []
+    try:
+        for path in inbox.iterdir():
+            if path.name in operational:
+                continue
+            if pattern.search(path.name):
+                debt.append(path.name)
+    except OSError:
+        return develop_children, 0, []
+    return develop_children, len(debt), sorted(debt)
+
 def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dict[str, Any]:
     """Report structural cleanup debt without mutating or recursively hashing it."""
     root = Path(project_root)
@@ -58,6 +88,7 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
     release_prepare_count = _count_children(root / "Backups/_release_prepare")
     release_builder_count = _count_children(root / "Data/03_Systeem/ReleaseBuilders")
     clearup_run_count = _count_children(root / "CLEARUP")
+    inbox_develop_count, inbox_root_debt_count, inbox_root_debt = _inbox_development_debt(root)
 
     known_staging_paths = (
         root / "_fix_backup_auto",
@@ -89,6 +120,9 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
         "release_builder_child_count": release_builder_count,
         "known_staging_path_count": known_staging_count,
         "clearup_run_count": clearup_run_count,
+        "inbox_develop_child_count": inbox_develop_count,
+        "inbox_root_development_debt_count": inbox_root_debt_count,
+        "inbox_root_development_debt": inbox_root_debt,
         "mutated": False,
     }
     debt = (
@@ -98,6 +132,7 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
         + release_prepare_count
         + release_builder_count
         + known_staging_count
+        + inbox_root_debt_count
         # CLEARUP is intentional reversible quarantine. Existing runs are
         # evidence/history, not live-structure debt.
     )

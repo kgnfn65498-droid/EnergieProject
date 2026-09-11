@@ -17,8 +17,8 @@ for p in (str(ROOT), str(APP), str(PM), str(TOOLS)):
 
 
 def test_release_identity_is_32437_and_pm_rc24():
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.40'
-    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc27'
+    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.41'
+    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc28'
 
 
 def test_watcher_contract_fails_closed_without_socket(tmp_path):
@@ -387,8 +387,11 @@ def test_protected_reload_stays_pending_until_matching_green_result(tmp_path):
     assert pending[0]['awaiting_executor'] is True
     assert actions.completed == []
     assert commands.completed == []
-    request=json.loads(runtime.joinpath('reload_request.json').read_text())
-    runtime.joinpath('reload_result.json').write_text(json.dumps({
+    request_path=root/'Inbox/control_plane/requests/native_mcp_reload.json'
+    request=json.loads(request_path.read_text())
+    result_path=root/'Inbox/control_plane/results/native_mcp_reload.json'
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    result_path.write_text(json.dumps({
         'schema':'energie_native_mcp_reload_result_v1','request_id':request['request_id'],
         'status':'GREEN','ok':True,'container':'energie-filesystem-mcp',
         'expected_fingerprint':'e'*64,'runtime_fingerprint':'e'*64,'restart_performed':True,

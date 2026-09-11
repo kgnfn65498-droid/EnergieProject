@@ -193,4 +193,12 @@
 - Peter hoeft normaal alleen ZIP te downloaden en protected approvals te geven. Voor ontwikkeling, build, verificatie, release en herstel krijgt Peter geen Terminal-commando’s; een ontbrekende capability is een tooling-blocker die structureel wordt opgelost.
 - Live handover is primaire overdrachtswaarheid; afzonderlijk handoverdocument is alleen export/backup.
 - Waarschuw vroegtijdig bij hoge chat/contextdruk zodat nieuwe chat met `verder` kan hervatten.
+## Control-plane- en auditcontract vanaf 32.4.41
+- De dedicated `energie-control-plane` is de enige structurele Docker-socket beheerlaag voor watcher recreate en Native MCP reload; geen Docker TLS-bootstrap en geen watcher self-control als normale route.
+- De control-plane heeft geen netwerk en een vaste allowlist van exact `watcher_recreate` en `native_mcp_reload`; iedere actie is gekoppeld aan één expliciet goedgekeurde decision.
+- Chat/Voice/Nomad mag een beschermde beslissing alleen via exact decision-bound immutable approval-ingress doorgeven; lokale Projectmanager blijft de resolver.
+- Een reeds exact GREEN Native MCP runtimefingerprint supersedeert een stale restartbeslissing; er volgt nooit een tweede restart alleen om state te synchroniseren.
+- `energie-control-plane` is verplicht onderdeel van NAS Container Crash Recovery én restore-acceptance.
+- Development artefacts onder Inbox horen canoniek in `Inbox/Develop`; losse dev/temp/staging-rootitems worden alleen via no-delete CLEARUP-quarantaine afgehandeld.
+- Iedere release-audit toont per concrete fout/acceptanceklasse een statusbol plus het aantal echte gerichte reparatierondes; N>=3 zonder groen vereist architectuurreview in plaats van symptoompatch #4.
 

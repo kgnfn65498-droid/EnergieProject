@@ -268,6 +268,11 @@ class RuntimeCollector:
             if version and version not in rollback_versions:
                 rollback_versions.append(version)
         active_version = self.running_release_version
+        native_guard_path = self.project_root / 'Inbox/native_mcp_runtime/runtime_guard.json'
+        native_guard = self._read_json(native_guard_path) or {}
+        if native_guard:
+            native_guard = dict(native_guard)
+            native_guard['source'] = str(native_guard_path)
         result = {
             'release': {
                 'version': active_version,
@@ -282,6 +287,7 @@ class RuntimeCollector:
             },
             'release_chain': self._release_chain(now=now),
             'operating_mode': {'effective_mode': None, 'source': str(mode_path)},
+            'native_mcp_runtime': native_guard,
         }
         if not version_path.is_file():
             result['release']['missing'] = True

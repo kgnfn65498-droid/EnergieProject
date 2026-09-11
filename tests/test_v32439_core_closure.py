@@ -35,11 +35,11 @@ def _old_canonical():
 
 
 def test_32439_four_core_scope_identity():
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.40'
-    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc27'
-    assert 'version: "32.4.40"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text()
-    assert 'APP_VERSION = "32.4.40"' in (APP / 'main.py').read_text()
-    assert 'TARGET_RELEASE_VERSION = "32.4.40"' in (APP / 'mode_entrypoint.py').read_text()
+    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.41'
+    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc28'
+    assert 'version: "32.4.41"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text()
+    assert 'APP_VERSION = "32.4.41"' in (APP / 'main.py').read_text()
+    assert 'TARGET_RELEASE_VERSION = "32.4.41"' in (APP / 'mode_entrypoint.py').read_text()
 
 
 def test_watcher_red_is_actionable_request_not_dead_end():
@@ -178,7 +178,7 @@ def test_r4_preacceptance_rejects_processing_but_allows_waiting_incoming(tmp_pat
     executor, root, request = _r4_preacceptance_fixture(tmp_path)
     incoming = root / 'Inbox/incoming'
     incoming.mkdir()
-    (incoming / 'EnergieProject_v32.4.40.zip').write_bytes(b'waiting')
+    (incoming / 'EnergieProject_v32.4.41.zip').write_bytes(b'waiting')
     result = executor._validate_common(root, request)
     assert result[4] is True
     processing = root / 'Inbox/processing'

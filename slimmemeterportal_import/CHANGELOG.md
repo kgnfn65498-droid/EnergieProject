@@ -1,7 +1,7 @@
 # Changelog
 
-## 32.4.40 — final PM core closure
+## 32.4.41 — control-plane closure
 
-- Roadmap–Ledger acceptance traceability, stale-task reconciliation and factual build timing.
-- Cross-runtime canonical roadmap mode contract and protected watcher recreate via bounded QNAP Docker TLS.
-- Exact-artifact efficient release validation with live-only gates kept fail-closed.
+- Dedicated bounded control-plane voor watcher/native MCP protected restarts.
+- Exact chat approval ingress en runtime-first stale restart reconciliation.
+- Control-plane verplicht in NAS Container Crash Recovery en Inbox/CLEARUP hygiene aangescherpt.

@@ -38,7 +38,7 @@ def test_progress_truth_contains_complete_step_timing_blocker_and_trend_fields()
     assert progress['estimated_remaining_seconds'] is not None
     assert progress['blockers'] == ['geen']
     assert progress['status_color'] == 'GREEN'
-    assert progress['progress_percent'] == 43
+    assert progress['progress_percent'] == 29
     assert progress['planning_trend'] in {'faster', 'stable', 'slower'}
 
 

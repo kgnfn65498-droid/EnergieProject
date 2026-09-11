@@ -7,7 +7,7 @@ from pathlib import Path
 
 from persistence import atomic_write_json
 
-TARGET_RELEASE = '32.4.40'
+TARGET_RELEASE = '32.4.41'
 EXPECTED_SCHEMA = 'energie_projectmanager_canonical_roadmap_v3'
 BASE_KEYS = {
     'conversation-intake', 'proactive-pm', 'nomad-next', 'ngrok-assessment',
@@ -102,7 +102,7 @@ def migrate_canonical_roadmap(path: Path | str) -> dict:
     migrated = deepcopy(current)
     migrated.update({
         'approved_at': '2026-09-11', 'approved_by': 'Peter',
-        'source': 'conversation_2026-09-11_32.4.40_final_pm_closure',
+        'source': 'conversation_2026-09-11_32.4.41_control_plane_closure',
         'principle': '32.4 eerst live sluiten; daarna ngrok-security, Voice Mode, nieuwe-chat handover en pas daarna 32.5/Cowork.',
         'migration_release': TARGET_RELEASE,
         'required_gates_before_32_5': list(REQUIRED_GATES),

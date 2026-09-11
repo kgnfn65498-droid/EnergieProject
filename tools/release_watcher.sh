@@ -55,13 +55,14 @@ WATCHER_CONTRACT_HELPER="$PROJECT/tools/watcher_container_contract.py"
 WATCHER_CONTRACT_MARKER="$INBOX/watcher_container_contract.json"
 NATIVE_MCP_GUARD="$PROJECT/tools/native_mcp_runtime_guard.py"
 NATIVE_MCP_RUNTIME_CONTRACT_HOTFIX="$PROJECT/tools/native_mcp_runtime_contract_hotfix.py"
+CONTROL_PLANE_SOURCE_SYNC="$PROJECT/tools/control_plane_source_sync.py"
 NATIVE_MCP_RELOAD_EXECUTOR="$PROJECT/tools/native_mcp_reload_executor.py"
 NATIVE_MCP_RELOAD_REQUEST="$INBOX/native_mcp_runtime/reload_request.json"
 NATIVE_MCP_RELOAD_RESULT="$INBOX/native_mcp_runtime/reload_result.json"
 POST_RELEASE_MODE_HELPER="$PROJECT/tools/post_release_mode_transition.py"
 CANONICAL_ROADMAP_MIGRATION="$PROJECT/slimmemeterportal_import/rootfs/app/projectmanager_v2/canonical_roadmap_migration.py"
 CANONICAL_ROADMAP="$ROOT/Data/03_Systeem/Projectmanager/Roadmap/canonical_roadmap_v3.json"
-CANONICAL_ROADMAP_MIGRATION_STATE="$INBOX/logs/canonical_roadmap_migration_32.4.40.json"
+CANONICAL_ROADMAP_MIGRATION_STATE="$INBOX/logs/canonical_roadmap_migration_32.4.41.json"
 HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
 MODE_GATE_TIMEOUT="${ENERGIE_MODE_GATE_TIMEOUT_SECONDS:-5}"
 MAINTENANCE_HELPER_TIMEOUT="${ENERGIE_MAINTENANCE_HELPER_TIMEOUT_SECONDS:-20}"
@@ -269,6 +270,17 @@ process_watcher_container_contract(){
   [ "$rc" -eq 0 ] && { log "Watcher container-contract = GREEN"; return 0; }
   [ "$rc" -eq 3 ] && { log "Watcher container-contract = RECREATE_REQUIRED"; return 1; }
   log "FOUT: watcher container-contract probe rc=$rc"
+  return 1
+}
+
+process_control_plane_source_sync(){
+  [ -f "$CONTROL_PLANE_SOURCE_SYNC" ] || { log "FOUT: control-plane source-sync helper ontbreekt"; return 1; }
+  command -v python3 >/dev/null 2>&1 || return 1
+  if python3 "$CONTROL_PLANE_SOURCE_SYNC" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1; then
+    log "Control-plane source sync = GREEN"
+    return 0
+  fi
+  log "FOUT: control-plane source sync = RED"
   return 1
 }
 
@@ -522,6 +534,8 @@ if process_cr_standard_hotfix; then
 else
   mark_startup_degraded "cr-standard-hotfix"
 fi
+
+if ! process_control_plane_source_sync; then mark_startup_degraded "control-plane-source-sync"; fi
 
 if process_watcher_container_contract; then
   log "Watcher container-contract startupcontrole = OK"

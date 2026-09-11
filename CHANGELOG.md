@@ -1,3 +1,13 @@
+## 32.4.41 — dedicated control-plane, exact chat approval en hygiene closure
+
+- Dedicated `energie-control-plane` wordt de enige begrensde Docker-socket route voor watcher recreate en Native MCP reload.
+- Projectmanager schrijft alleen exact decision-bound control-plane requests; Docker TLS en watcher self-control verdwijnen uit de beschermde executorroute.
+- Native MCP runtime truth wint van stale restart-beslissingen, zodat een reeds GREEN fingerprint nooit een tweede restart veroorzaakt.
+- Chat/Voice/Nomad approval krijgt een immutable exact-decision ingress; lokale PM blijft de enige resolver/executor.
+- NAS Container Crash Recovery omvat verplicht `energie-control-plane` plus bootstrap/compose restorebron.
+- Inbox ontwikkelartefacten horen onder `Inbox/Develop`; losse dev/temp-rootitems worden alleen via no-delete CLEARUP-quarantaine afgehandeld.
+- Release-audits tonen statusbol plus echte reparatieronde-teller per concrete foutklasse.
+
 ## 32.4.40 — final PM core closure and development continuity
 
 - Roadmap–Ledger Acceptance Matrix voorkomt vergeten carry-forward en onderscheidt TEST_GREEN, LIVE_REQUIRED, LIVE_PROVEN en CLOSED/COLD.

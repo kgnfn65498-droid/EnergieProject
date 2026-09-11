@@ -37,6 +37,23 @@ def _mode_evidence(runtime, release_validation):
     return _clean_refs(refs)
 
 
+
+
+def _native_mcp_green(runtime):
+    guard = (runtime or {}).get('native_mcp_runtime')
+    if not isinstance(guard, dict):
+        return False, []
+    expected = str(guard.get('expected_fingerprint') or '').lower()
+    actual = str(guard.get('runtime_fingerprint') or '').lower()
+    ok = (
+        guard.get('status') == 'GREEN'
+        and guard.get('ready') is True
+        and guard.get('reload_required') is False
+        and len(expected) == 64
+        and expected == actual
+    )
+    return ok, _clean_refs([guard.get('source')])
+
 def _pure_mode_command(decision, command):
     if not isinstance(command, dict):
         return False
@@ -115,6 +132,17 @@ class StateReconciler:
                 'changed': False,
             }
         if decision.get('kind') != 'MODE_CHANGE':
+            context = decision.get('context') or {}
+            intent = str((command or {}).get('intent') or context.get('intent') or '').strip()
+            if decision.get('kind') == 'PRODUCTION_RESTART' and intent == 'native_mcp_reload':
+                green, refs = _native_mcp_green(runtime)
+                if green and refs and isinstance(command, dict) and command.get('status') == 'WAITING_APPROVAL' and command.get('approval_decision_id') == decision.get('id'):
+                    return {
+                        'disposition': 'SUPERSEDED',
+                        'reason': 'native MCP exact runtime fingerprint is already GREEN; restart no longer required',
+                        'evidence_refs': refs,
+                        'changed': True,
+                    }
             return {
                 'disposition': 'ACTIVE_KEEP',
                 'reason': 'protected decision remains for Peter; no automatic reconciliation rule',

@@ -24,6 +24,8 @@ class ProtectedActionExecutor:
         self.staging_root = (self.project_root / 'Data/03_Systeem/Projectmanager/Staging').resolve()
         self.incoming_root = (self.project_root / 'Inbox/incoming').resolve()
         self.native_mcp_runtime_root = (self.project_root / 'Inbox/native_mcp_runtime').resolve()
+        self.control_plane_request_root = (self.project_root / 'Inbox/control_plane/requests').resolve()
+        self.control_plane_result_root = (self.project_root / 'Inbox/control_plane/results').resolve()
 
     @staticmethod
     def _sha256(path: Path):
@@ -117,108 +119,153 @@ class ProtectedActionExecutor:
                 pass
             raise
 
+    @staticmethod
+    def _atomic_json(path: Path, payload: dict):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.is_symlink():
+            raise RuntimeError(f'onveilig request/result pad: {path}')
+        temp = path.with_name(path.name + f'.tmp-{os.getpid()}')
+        try:
+            temp.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+            os.replace(temp, path)
+        finally:
+            temp.unlink(missing_ok=True)
+
+    @staticmethod
+    def _read_json_object(path: Path):
+        if not path.is_file() or path.is_symlink():
+            return None
+        data = json.loads(path.read_text(encoding='utf-8'))
+        return data if isinstance(data, dict) else None
+
     def _queue_native_mcp_reload(self, action, command, decision):
         if decision.get('status') != 'APPROVED' or decision.get('approved_by') != 'Peter' or decision.get('kind') != 'PRODUCTION_RESTART':
             raise RuntimeError('Peter PRODUCTION_RESTART approval missing')
 
         request_id = hashlib.sha256(str(action['id']).encode('utf-8')).hexdigest()[:32]
-        self.native_mcp_runtime_root.mkdir(parents=True, exist_ok=True)
-        result_path = self.native_mcp_runtime_root / 'reload_result.json'
-
-        # A matching GREEN executor result is completion proof in itself: the
-        # executor only writes GREEN after the live runtime fingerprint matches.
-        # Check this before the current guard, which may already have converged
-        # from RELOAD_REQUIRED to GREEN by the time PM observes the result.
-        if result_path.is_file() and not result_path.is_symlink():
-            proof = json.loads(result_path.read_text(encoding='utf-8'))
-            if proof.get('request_id') == request_id:
-                expected = str(proof.get('expected_fingerprint') or '').lower()
-                if len(expected) != 64 or any(c not in '0123456789abcdef' for c in expected):
-                    raise RuntimeError('native MCP reload result fingerprint ongeldig')
-                if proof.get('schema') != 'energie_native_mcp_reload_result_v1':
-                    raise RuntimeError('native MCP reload result schema ongeldig')
-                if proof.get('status') == 'RED':
-                    raise RuntimeError('native MCP reload result RED')
-                if not (
-                    proof.get('status') == 'GREEN'
-                    and proof.get('ok') is True
-                    and proof.get('container') == 'energie-filesystem-mcp'
-                    and str(proof.get('runtime_fingerprint') or '').lower() == expected
-                    and proof.get('restart_performed') is True
-                ):
-                    raise RuntimeError('native MCP reload result niet volledig GREEN')
-                return {
-                    'ok': True,
-                    'executed': True,
-                    'production_changed': True,
-                    'restart_performed': True,
-                    'runtime_green': True,
-                    'request_id': request_id,
-                    'expected_fingerprint': expected,
-                    'result_path': str(result_path),
-                }
-
         guard_path = self.native_mcp_runtime_root / 'runtime_guard.json'
-        if not guard_path.is_file() or guard_path.is_symlink():
+        guard = self._read_json_object(guard_path)
+        if not guard:
             raise RuntimeError('native MCP runtime guard ontbreekt')
-        guard = json.loads(guard_path.read_text(encoding='utf-8'))
-        if guard.get('status') != 'RELOAD_REQUIRED' or guard.get('reload_required') is not True:
-            raise RuntimeError('native MCP reload is niet aantoonbaar vereist')
         expected = str(guard.get('expected_fingerprint') or '').lower()
         if len(expected) != 64 or any(c not in '0123456789abcdef' for c in expected):
             raise RuntimeError('native MCP expected fingerprint ongeldig')
+
+        # Runtime truth wins.  A manual/bootstrap restart may already have made
+        # the exact source/runtime fingerprint GREEN before PM reaches this
+        # approved action.  Never perform a second unnecessary restart.
+        if (
+            guard.get('status') == 'GREEN'
+            and guard.get('ready') is True
+            and guard.get('reload_required') is False
+            and str(guard.get('runtime_fingerprint') or '').lower() == expected
+        ):
+            return {
+                'ok': True, 'executed': False, 'production_changed': False,
+                'restart_performed': False, 'already_runtime_green': True,
+                'runtime_green': True, 'request_id': request_id,
+                'expected_fingerprint': expected, 'runtime_fingerprint': expected,
+                'evidence_ref': str(guard_path),
+            }
+
+        result_path = self.control_plane_result_root / 'native_mcp_reload.json'
+        proof = self._read_json_object(result_path)
+        if proof and proof.get('request_id') == request_id:
+            if not (
+                proof.get('schema') == 'energie_native_mcp_reload_result_v1'
+                and proof.get('status') == 'GREEN' and proof.get('ok') is True
+                and proof.get('container') == 'energie-filesystem-mcp'
+                and str(proof.get('expected_fingerprint') or '').lower() == expected
+                and str(proof.get('runtime_fingerprint') or '').lower() == expected
+                and proof.get('restart_performed') is True
+            ):
+                raise RuntimeError('control-plane native MCP result niet volledig GREEN')
+            return {
+                'ok': True, 'executed': True, 'production_changed': True,
+                'restart_performed': True, 'runtime_green': True,
+                'request_id': request_id, 'expected_fingerprint': expected,
+                'result_path': str(result_path),
+            }
+
+        if guard.get('status') != 'RELOAD_REQUIRED' or guard.get('reload_required') is not True:
+            raise RuntimeError('native MCP reload is niet aantoonbaar vereist')
+        legacy_pending = self._read_json_object(self.native_mcp_runtime_root / 'reload_request.json')
+        if legacy_pending is not None:
+            raise RuntimeError('legacy native MCP pending request bestaat; eerst reconciliëren')
         payload = {
-            'schema': 'energie_native_mcp_reload_request_v1',
+            'schema': 'energie_control_plane_request_v1',
             'request_id': request_id,
-            'expected_fingerprint': expected,
-            'operation': 'restart_exact_energie_filesystem_mcp',
+            'action': 'native_mcp_reload',
             'approved_by': 'Peter',
             'decision_id': decision['id'],
-        }
-        target = self.native_mcp_runtime_root / 'reload_request.json'
-        if target.exists():
-            if not target.is_file() or target.is_symlink():
-                raise RuntimeError('native MCP pending reload request is onveilig')
-            pending = json.loads(target.read_text(encoding='utf-8'))
-            if pending.get('request_id') != request_id or pending.get('expected_fingerprint') != expected:
-                raise RuntimeError('native MCP pending reload request conflicteert')
-        else:
-            temp = target.with_name(target.name + f'.tmp-{os.getpid()}')
-            try:
-                temp.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-                os.replace(temp, target)
-            finally:
-                temp.unlink(missing_ok=True)
-        return {
-            'ok': True,
-            'executed': False,
-            'awaiting_executor': True,
-            'production_changed': False,
-            'restart_queued': True,
-            'request_id': request_id,
             'expected_fingerprint': expected,
+        }
+        target = self.control_plane_request_root / 'native_mcp_reload.json'
+        pending = self._read_json_object(target)
+        if pending is not None and pending != payload:
+            raise RuntimeError('control-plane native MCP pending request conflicteert')
+        if pending is None:
+            self._atomic_json(target, payload)
+        return {
+            'ok': True, 'executed': False, 'awaiting_executor': True,
+            'production_changed': False, 'restart_queued': True,
+            'request_id': request_id, 'expected_fingerprint': expected,
             'request_path': str(target),
         }
 
+    def _queue_watcher_recreate(self, action, command, decision):
+        if decision.get('status') != 'APPROVED' or decision.get('approved_by') != 'Peter' or decision.get('kind') != 'PRODUCTION_RESTART':
+            raise RuntimeError('Peter PRODUCTION_RESTART approval missing')
+        request_id = hashlib.sha256(str(action['id']).encode('utf-8')).hexdigest()[:32]
+        marker = self.project_root / 'Inbox/watcher_container_contract.json'
+        proof = self._read_json_object(marker)
+        if proof and proof.get('status') == 'GREEN' and proof.get('ready') is True and int(proof.get('contract_version') or 0) == 3:
+            return {
+                'ok': True, 'executed': False, 'production_changed': False,
+                'restart_performed': False, 'already_runtime_green': True,
+                'watcher_contract_green': True, 'contract_version': 3,
+                'request_id': request_id, 'evidence_ref': str(marker),
+            }
 
-    def _execute_watcher_recreate(self, action, command, decision):
-        if decision.get('status') != 'APPROVED' or decision.get('approved_by') != 'Peter' or decision.get('kind') != 'PRODUCTION_RESTART': raise RuntimeError('Peter PRODUCTION_RESTART approval missing')
-        try:
-            from nas_docker_tls import DockerTlsConfig
-            from docker_engine_tls_client import DockerEngineTlsClient
-        except ImportError:
-            from .nas_docker_tls import DockerTlsConfig
-            from .docker_engine_tls_client import DockerEngineTlsClient
-        config=DockerTlsConfig.load(project_root=self.project_root); client=DockerEngineTlsClient(config,timeout_seconds=30)
-        if client.ping().get('ok') is not True: raise RuntimeError('QNAP Docker TLS ping not GREEN')
-        result=client.recreate_release_watcher(); marker=self.project_root/'Inbox/watcher_container_contract.json'; deadline=time.monotonic()+45.0; proof=None
-        while time.monotonic()<deadline:
-            try: proof=json.loads(marker.read_text(encoding='utf-8'))
-            except (OSError,json.JSONDecodeError): proof=None
-            if isinstance(proof,dict) and proof.get('ready') is True and proof.get('contract_version')==3: break
-            time.sleep(0.5)
-        if not isinstance(proof,dict) or proof.get('ready') is not True or proof.get('contract_version')!=3: raise RuntimeError('watcher recreated but live contract readback not GREEN')
-        return {'ok':True,'executed':True,'production_changed':True,'restart_performed':True,'watcher_contract_green':True,'contract_version':3,'docker_result':result,'marker':str(marker)}
+        result_path = self.control_plane_result_root / 'watcher_recreate.json'
+        legacy_result_path = self.project_root / 'Inbox/control_plane/watcher_recreate_result.json'
+        result = self._read_json_object(result_path) or self._read_json_object(legacy_result_path)
+        if result is not None and not result_path.is_file():
+            result_path = legacy_result_path
+        if result and result.get('request_id') == request_id:
+            if not (result.get('schema') == 'energie_control_plane_result_v1' and result.get('status') == 'GREEN' and result.get('ok') is True and int(result.get('contract_version') or 0) == 3):
+                raise RuntimeError('control-plane watcher result niet volledig GREEN')
+            return {
+                'ok': True, 'executed': True, 'production_changed': True,
+                'restart_performed': True, 'watcher_contract_green': True,
+                'contract_version': 3, 'request_id': request_id,
+                'result_path': str(result_path),
+            }
+
+        version_path = self.project_root / 'App/VERSIE.txt'
+        release_version = version_path.read_text(encoding='utf-8').strip()
+        payload = {
+            'schema': 'energie_watcher_recreate_request_v1',
+            'request_id': request_id,
+            'operation': 'recreate_exact_energie_release_watcher',
+            'release_version': release_version,
+            'container': 'energie-release-watcher',
+            'contract_version': 3,
+            'confirmation_required': f'RECREATE WATCHER {release_version}',
+        }
+        target = self.project_root / 'Inbox/watcher_recreate_request.json'
+        pending = self._read_json_object(target)
+        if pending is not None and pending.get('request_id') != request_id:
+            # A stale request may exist from a previous release.  It is safe to
+            # replace only because the current approved action and decision are
+            # exact and the dedicated control-plane revalidates both.
+            pass
+        self._atomic_json(target, payload)
+        return {
+            'ok': True, 'executed': False, 'awaiting_executor': True,
+            'production_changed': False, 'restart_queued': True,
+            'request_id': request_id, 'request_path': str(target),
+        }
 
     def run_once(self, *, max_items=5):
         results = []
@@ -253,7 +300,15 @@ class ProtectedActionExecutor:
                         results.append(result)
                         continue
                 else:
-                    result = self._execute_watcher_recreate(action, command, decision)
+                    result = self._queue_watcher_recreate(action, command, decision)
+                    if result.get('awaiting_executor') is True:
+                        if self.audit is not None:
+                            self.audit.write('protected_action.queued', actor='projectmanager', result='pending', details={
+                                'action_id': action['id'], 'command_id': command['id'], 'action': action['action'],
+                                'request_id': result.get('request_id'),
+                            })
+                        results.append(result)
+                        continue
                 self.approved_actions.complete(action['id'], result=result)
                 self.commands.complete(command['id'], result=result)
                 if self.audit is not None:

@@ -26,6 +26,7 @@ class FakeDocker:
             'energie-quarter-hour-scheduler': self._container('c2', 'python:3.12-slim'),
             'energie-ngrok': self._container('c3', 'ngrok/ngrok:latest'),
             'energie-release-watcher': self._container('c4', 'python:3.12-slim'),
+            'energie-control-plane': self._container('c6', 'python:3.12-slim'),
             'energie-git': self._container('c5', 'alpine/git:2.54.0'),
         }
 
@@ -77,6 +78,11 @@ def make_project(tmp_path: Path) -> Path:
     (root / 'Infra/docker-compose.yml').write_text('services: {}\n')
     (root / 'Infra/Docker/Energie.env').write_text('SECRET=not-for-ui\n')
     (root / 'App/VERSIE.txt').write_text('32.4.10\n')
+    cp = root / 'Data/03_Systeem/Projectmanager/ControlPlane'
+    cp.mkdir(parents=True)
+    (cp / 'control_plane.py').write_text('# control plane\n')
+    (cp / 'qnap_control_plane_bootstrap.py').write_text('# qnap adapter\n')
+    (cp / 'docker-compose.containerstation.yml').write_text('services: {}\n')
     return root
 
 

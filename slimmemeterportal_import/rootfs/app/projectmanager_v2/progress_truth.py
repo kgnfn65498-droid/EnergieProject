@@ -47,7 +47,10 @@ def build_task_progress(task, *, now=None):
     test_actual=task.get('test_verification_actual_seconds')
     efficiency={'schema':'energie_development_efficiency_v1','step_actual_seconds':actual,'test_verification_actual_seconds':test_actual,'original_estimated_total_seconds':original,'elapsed_seconds':elapsed,'estimate_variance_seconds':variance,'planning_ratio': round(elapsed/int(original),3) if elapsed is not None and original else None,'planning_trend':_trend(rates)}
     color={'BLOCKED':'RED','WAITING_APPROVAL':'ORANGE','PAUSED':'ORANGE','DONE':'GREEN','ACTIVE':'GREEN'}.get(status,'ORANGE')
-    result={'step_label':f'Stap {step}/{total}','step':step,'steps_total':total,'completed_steps':completed,'remaining_steps':remaining,'next_step':str(task.get('next_action') or ''),'elapsed_seconds':elapsed,'estimated_remaining_seconds':eta,'blockers':list(task.get('blockers') or []),'status_color':color,'progress_percent':100 if status=='DONE' else int(round((step/total)*100)),'planning_trend':_trend(rates),'step_actual_seconds':actual,'test_verification_actual_seconds':test_actual,'estimate_variance_seconds':variance,'development_efficiency':efficiency}
+    progress_percent = 100 if status=='DONE' else int(round((completed/total)*100))
+    if eta is None and original and elapsed is not None:
+        eta=max(0,int(original)-elapsed)
+    result={'step_label':f'Stap {step}/{total}','step':step,'steps_total':total,'completed_steps':completed,'remaining_steps':remaining,'next_step':str(task.get('next_action') or ''),'elapsed_seconds':elapsed,'estimated_remaining_seconds':eta,'blockers':list(task.get('blockers') or []),'status_color':color,'progress_percent':progress_percent,'planning_trend':_trend(rates),'step_actual_seconds':actual,'test_verification_actual_seconds':test_actual,'estimate_variance_seconds':variance,'original_estimated_total_seconds':original,'development_efficiency':efficiency}
     contract=evaluate_build_contract(task,result)
     if contract.get('required'):
         result.update({'development_build_contract':contract,'thinking_level':contract.get('thinking_level'),'estimated_total_seconds':contract.get('estimated_total_seconds'),'estimated_test_verification_seconds':contract.get('estimated_test_verification_seconds'),'step_estimates_seconds':contract.get('step_estimates_seconds')})

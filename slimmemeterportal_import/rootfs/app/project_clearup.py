@@ -278,6 +278,22 @@ def _collect_candidates(root: Path, *, keep_rollbacks: int) -> list[dict[str, An
         for child in sorted(failed.iterdir(), key=lambda p: p.name):
             _add_candidate(items, root, child, reason="settled_failed_release", category="failed_release")
 
+    # 32.4.41: ad-hoc development debris may no longer accumulate directly
+    # under Inbox.  Long-lived development material belongs below Inbox/Develop;
+    # only narrowly identified loose dev/temp names are quarantine candidates.
+    inbox = root / "Inbox"
+    if inbox.is_dir():
+        for child in sorted(inbox.iterdir(), key=lambda p: p.name):
+            name = child.name.lower()
+            if name == "develop":
+                continue
+            if name.startswith(("attempt_", "dev_", "tmp_", "temp_", "staging_")):
+                _add_candidate(
+                    items, root, child,
+                    reason="loose_inbox_development_debt",
+                    category="inbox_development_debt",
+                )
+
     infra = root / "Infra"
     if infra.is_dir():
         for child in infra.glob("*.pre_*"):

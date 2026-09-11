@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from manager_config import ManagerConfig
@@ -21,7 +22,10 @@ def build_embedded_config(project_root, manager_app_root, *, supervisor_token=''
         mode_command_path=str(root / 'Inbox/operating_mode/operating_mode_command.json'),
         manager_app_root=str(Path(manager_app_root)),
         command_ingress_root=str(root / 'Data/03_Systeem/Projectmanager/CommandIngress'),
-        approval_ingress_root=str(root / 'Inbox/projectmanager_v2/ApprovalIngress'),
+        approval_ingress_root=os.pathsep.join((
+            str(root / 'Inbox/projectmanager_v2/ApprovalIngress'),
+            str(root / 'Data/03_Systeem/Projectmanager/ApprovalIngress'),
+        )),
         handoff_result_ingress_root=str(root / 'Data/03_Systeem/Projectmanager/HandoffResultIngress'),
         canonical_roadmap_path=str(root / 'Data/03_Systeem/Projectmanager/Roadmap/canonical_roadmap_v3.json'),
         nas_docker_tls_root='/data/projectmanager_v2/docker_tls',

@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,7 +17,13 @@ class ApprovalIngressConsumer:
     """Consume local HA-ingress approval envelopes exactly once."""
 
     def __init__(self, directory, receipt_path, decision_queue):
-        self.directory = Path(directory) if directory else None
+        if isinstance(directory, (list, tuple)):
+            raw_directories = [str(item) for item in directory if str(item).strip()]
+        else:
+            raw = str(directory or '')
+            raw_directories = [item for item in raw.split(os.pathsep) if item.strip()]
+        self.directories = [Path(item) for item in raw_directories]
+        self.directory = self.directories[0] if self.directories else None
         self.receipt_path = Path(receipt_path)
         self.decisions = decision_queue
 
@@ -32,13 +39,17 @@ class ApprovalIngressConsumer:
         atomic_write_json(self.receipt_path, data)
 
     def consume(self, *, max_items=20):
-        if self.directory is None or not self.directory.is_dir():
+        directories = [path for path in self.directories if path.is_dir()]
+        if not directories:
             return []
         receipts = self._receipts()
         results = []
         changed = False
         budget = max(0, int(max_items))
-        for path in sorted(self.directory.glob('*.json')):
+        candidates = []
+        for directory in directories:
+            candidates.extend(directory.glob('*.json'))
+        for path in sorted(candidates, key=lambda item: (item.name, str(item.parent))):
             if len(results) >= budget:
                 break
             ingress_id = path.stem

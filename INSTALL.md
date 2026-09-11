@@ -1,11 +1,13 @@
-# Installatie / praktijktest v10.4.5
+# Installatie — EnergieProject 32.4.41
 
-## Belangrijk: eenmalige bootstrap
-De actieve productiebasis is na de mislukte v10.4.4-poging teruggevallen op de oudere installer. Die oudere installer kan v10.4.5 niet zelfstandig bootstrappen. Daarom is voor v10.4.5 één eenmalige bootstrap nodig via het meegeleverde `BOOTSTRAP_v10.4.5.sh`-bestand. Na succesvolle installatie moeten normale volgende releases weer uitsluitend als ZIP in `incoming` kunnen worden geplaatst.
+## Normale releaseflow
 
-## Doelresultaat
-- v10.4.5 wordt geïnstalleerd zonder `git` en zonder metadata-/timestamp-preservering op de QNAP-share.
-- De release-ZIP eindigt in `processed`.
-- `VERSIE.txt` bevat `10.4.5`.
-- De QNAP-watcher start daarna weer automatisch via de bestaande cronconfiguratie en controleert iedere 5 seconden.
-- Bestaande failed-releases blijven ongemoeid.
+32.4.41 gebruikt de bestaande veilige releaseketen. De uiteindelijke, geverifieerde `EnergieProject_v32.4.41.zip` wordt via de normale Home Assistant/QNAP release-ingress geïnstalleerd; geen Terminal-, sudo- of handmatige Docker-commando's.
+
+## Dedicated control-plane
+
+De eenmalige Container Station-bootstrap van `energie-control-plane` is een infrastructuurvoorwaarde en staat los van het installeren van de 32.4.41-ZIP. De container gebruikt geen netwerkpoort en voert uitsluitend de exact goedgekeurde acties `watcher_recreate` en `native_mcp_reload` uit via de lokale Docker Unix-socket.
+
+## Live acceptance na installatie
+
+Een installatie geldt pas als live bewezen wanneer release-identiteit, watcher-contract, Native MCP-runtimefingerprint, actuele Crash Recovery-sets, CLEARUP/hygiëne, release-hold en atomic state via runtime-readback groen zijn. Een beschermde productieactie blijft expliciet approval-gated.

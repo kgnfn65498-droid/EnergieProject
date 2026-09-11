@@ -19,12 +19,14 @@ CORE_CONTAINERS = (
     'energie-quarter-hour-scheduler',
     'energie-ngrok',
     'energie-release-watcher',
+    'energie-control-plane',
 )
 OPTIONAL_CONTAINERS = ('energie-git',)
 BASE_IMAGE = 'python:3.12-slim'
 ACCEPTANCE_MARKER = 'NAS_CONTAINER_CR_ACCEPTANCE_OK'
 UNCHANGED_MARKER = 'PRODUCTION_CONTAINERS_CHANGED=NO'
 RETENTION_MARKER = 'NAS_CR_RETENTION_MAX1_OK'
+CONTROL_PLANE_MARKER = 'ENERGIE_CONTROL_PLANE_INCLUDED=YES'
 
 
 def _sha256_file(path: Path) -> str:
@@ -166,10 +168,14 @@ class NasContainerCrService:
         return stem
 
     def _required_project_files(self) -> tuple[tuple[Path, str, int], ...]:
+        control_plane = self.project_root / 'Data/03_Systeem/Projectmanager/ControlPlane'
         return (
             (self.project_root / 'Infra/docker-compose.yml', 'project/Infra/docker-compose.yml', 0o640),
             (self.project_root / 'Infra/Docker/Energie.env', 'private/Energie.env', 0o600),
             (self.project_root / 'App/VERSIE.txt', 'project/VERSIE.txt', 0o640),
+            (control_plane / 'control_plane.py', 'project/ControlPlane/control_plane.py', 0o640),
+            (control_plane / 'qnap_control_plane_bootstrap.py', 'project/ControlPlane/qnap_control_plane_bootstrap.py', 0o640),
+            (control_plane / 'docker-compose.containerstation.yml', 'project/ControlPlane/docker-compose.containerstation.yml', 0o640),
         )
 
     def _copy_project_files(self, stage: Path) -> str:
@@ -242,7 +248,9 @@ class NasContainerCrService:
             'NAS/Containers Crash Recovery acceptance package.\n'
             'Doel: herstel van container-runtime na vervanging/herbouw NAS.\n'
             'Vereist daarnaast de afzonderlijk groen-geteste EnergieProject CR voor projectdata/broncode.\n'
-            'Deze acceptatietest wijzigt geen productiecontainers.\n',
+            'Deze acceptatietest wijzigt geen productiecontainers.\n'
+            'De dedicated energie-control-plane is opgenomen met inspect-evidence, image en bootstrapbron.\n'
+            'Herstel project/ControlPlane naar Data/03_Systeem/Projectmanager/ControlPlane en importeer de compose in Container Station.\n',
             encoding='utf-8',
         )
 
@@ -527,6 +535,7 @@ class NasContainerCrService:
                 f'SHA256={digest}\n'
                 f'IMAGE_COUNT={len(images)}\n'
                 f'{UNCHANGED_MARKER}\n'
+                f'{CONTROL_PLANE_MARKER}\n'
             )
             _atomic_text(verify_path, verify_text)
             if not self._validate_set(self.target, stem):
@@ -564,6 +573,7 @@ class NasContainerCrService:
                 'hash_count': hash_count,
                 'verified_files': verified_files,
                 'production_containers_changed': False,
+                'control_plane_included': True,
                 'retention': retention,
             }
         except Exception:

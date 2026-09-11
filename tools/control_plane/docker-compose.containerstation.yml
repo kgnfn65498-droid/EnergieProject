@@ -1,0 +1,52 @@
+version: "3.8"
+services:
+  control-plane:
+    image: python:3.12-slim
+    container_name: energie-control-plane
+    restart: unless-stopped
+    network_mode: none
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    command:
+      - python3
+      - /control-plane/qnap_control_plane_bootstrap.py
+      - --inbox
+      - /energy-inbox
+      - --approved-queue
+      - /pm-approved/queue.json
+      - --version
+      - /energy-version/VERSIE.txt
+      - --runtime-evidence
+      - /runtime-evidence
+      - --host-project-root
+      - "/share/CACHEDEV1_DATA/AI Projecten/EnergieProject"
+      - --interval
+      - "2"
+    volumes:
+      - "/share/CACHEDEV1_DATA/AI Projecten/EnergieProject/Data/03_Systeem/Projectmanager/ControlPlane:/control-plane:ro"
+      - "/share/CACHEDEV1_DATA/AI Projecten/EnergieProject/Inbox:/energy-inbox:rw"
+      - "/share/CACHEDEV1_DATA/AI Projecten/EnergieProject/Inbox/projectmanager_v2/RuntimeV2/approved_actions:/pm-approved:ro"
+      - "/share/CACHEDEV1_DATA/AI Projecten/EnergieProject/App/VERSIE.txt:/energy-version/VERSIE.txt:ro"
+      - "/share/CACHEDEV1_DATA/AI Projecten/EnergieProject/Data/03_Systeem/Projectmanager/RuntimeEvidence:/runtime-evidence:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:rw"
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import pathlib,socket; assert b'qnap_control_plane_bootstrap.py' in pathlib.Path('/proc/1/cmdline').read_bytes(); s=socket.socket(socket.AF_UNIX); s.settimeout(3); s.connect('/var/run/docker.sock'); s.close()"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      com.energie.component: control-plane
+      com.energie.cr.required: "true"
