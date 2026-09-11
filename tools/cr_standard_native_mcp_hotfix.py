@@ -18,8 +18,8 @@ TARGETS = (
     'Infra/Docker/native-mcp/nas_cr_keep1_retention.sh',
     'Infra/Docker/native-mcp/tests/test_crash_recovery_filename_standard.py',
 )
-BACKUP_ROOT = 'Backups/MCPHotfix/v32.4.37'
-RESULT_REL = 'Inbox/logs/cr_standard_native_mcp_hotfix_v32437.json'
+BACKUP_ROOT = 'Backups/MCPHotfix/v32.4.38'
+RESULT_REL = 'Inbox/logs/cr_standard_native_mcp_hotfix_v32438.json'
 
 
 def _replace(text: str, old: str, new: str, label: str, *, count: int | None = 1) -> str:
@@ -47,6 +47,14 @@ def _crash_recovery(text: str) -> str:
         'crash_recovery migration discovery',
     )
     text = _replace(text, 'retention: int = 3,', 'retention: int = 1,', 'crash_recovery default retention', count=2)
+    old_exclude = 'parts[1] in {CRASH_DIR_NAME, "RestoreStaging", "_release_prepare"}'
+    new_exclude = 'parts[1] in {CRASH_DIR_NAME, "CRRetentionQuarantine", "RestoreStaging", "_release_prepare"}'
+    if new_exclude not in text and old_exclude in text:
+        text = _replace(text, old_exclude, new_exclude, 'project CR quarantine exclusion', count=None)
+    text = text.replace(
+        '[f"Backups/{CRASH_DIR_NAME}/**"]',
+        '[f"Backups/{CRASH_DIR_NAME}/**", "Backups/CRRetentionQuarantine/**"]',
+    )
     text = _replace(
         text,
         'base_stem = f"{_local_file_stamp()} {CRASH_NAME_SUFFIX}"',
@@ -353,7 +361,7 @@ def apply(root: Path) -> dict:
         if not all(required):
             raise RuntimeError('native-MCP CR standaard postcheck RED')
         result = {
-            'schema': 'energie_cr_standard_native_mcp_hotfix_v32437',
+            'schema': 'energie_cr_standard_native_mcp_hotfix_v32438',
             'status': 'GREEN',
             'ok': True,
             'targets': list(TARGETS),
@@ -370,7 +378,7 @@ def apply(root: Path) -> dict:
             if backup.is_file():
                 shutil.copy2(backup, target)
         result = {
-            'schema': 'energie_cr_standard_native_mcp_hotfix_v32437',
+            'schema': 'energie_cr_standard_native_mcp_hotfix_v32438',
             'status': 'RED',
             'ok': False,
             'error': str(exc),
@@ -388,7 +396,7 @@ def apply(root: Path) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Bounded 32.4.37 native-MCP CR/runtime/retention migration')
+    parser = argparse.ArgumentParser(description='Bounded 32.4.38 native-MCP CR/runtime/retention migration')
     parser.add_argument('--root', required=True)
     args = parser.parse_args()
     try:

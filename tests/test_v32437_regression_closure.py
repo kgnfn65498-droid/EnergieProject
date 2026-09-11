@@ -17,8 +17,8 @@ for p in (str(ROOT), str(APP), str(PM), str(TOOLS)):
 
 
 def test_release_identity_is_32437_and_pm_rc24():
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.37'
-    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc24'
+    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.38'
+    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc25'
 
 
 def test_watcher_contract_fails_closed_without_socket(tmp_path):

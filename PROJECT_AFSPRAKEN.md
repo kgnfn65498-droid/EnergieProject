@@ -171,3 +171,9 @@
 - Post-release acceptance mag geen startup-RED maskeren met een latere generieke `WATCHER_ACTIVE`-status. De overgang naar MAINTENANCE is eenmalig/idempotent.
 - CLEARUP blijft: verse dependency/reference-audit, stale plan weigeren, hard move, old path absent, restoremanifest, symlink/live-reference checks en `delete_capability=false`.
 
+
+## 32.4.38 autonomie/live-acceptance
+- Wanneer Peter meldt `vXX draait`, start Projectmanager automatisch alle build-specifieke live checks; geen tweede hint nodig.
+- Voor 32.4.38+ moeten actuele project- en NAS-CR GREEN zijn vóór CLEARUP.
+- CLEARUP is quarantaine/hard-move/no-delete; bestaande quarantaine is geen hygiene-schuld.
+- 32.4 closure-health staat los van de bewust later geplande ngrok-securitycheck.

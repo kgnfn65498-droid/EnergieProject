@@ -105,7 +105,7 @@ def test_roadmap_migration_permission_denied_returns_runtime_spec(monkeypatch, t
 
     assert result['status'] == 'migrated_read_only'
     assert result['persistence_required'] is True
-    assert result['spec']['migration_release'] == '32.4.23'
+    assert result['spec']['migration_release'] == '32.4.38'
     assert path.read_text(encoding='utf-8') == json.dumps(original)
 
 

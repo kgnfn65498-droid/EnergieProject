@@ -277,6 +277,20 @@ class RoadmapRegie:
                 return dict(item)
         raise KeyError(key)
 
+    def mark_done_by_key(self, key, *, evidence=None):
+        data = self._load()
+        now = datetime.now(timezone.utc).isoformat()
+        for item in data.get('items', []):
+            if item.get('key') == key:
+                item['status'] = 'DONE'
+                item.pop('task_id', None)
+                item['updated_at'] = now
+                if evidence is not None:
+                    item['completion_evidence'] = evidence
+                self._save(data)
+                return dict(item)
+        raise KeyError(key)
+
     def mark_done_for_task(self, task_id):
         data = self._load()
         now = datetime.now(timezone.utc).isoformat()

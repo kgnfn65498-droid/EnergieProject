@@ -4,7 +4,7 @@ from development_build_contract import build_metadata_from_command
 
 
 class CommandProcessor:
-    def __init__(self, commands, decisions, mode_store, task_store, *, audit=None, mode_bridge=None, approved_actions=None, nas_container_cr_service=None, conversation_intake=None):
+    def __init__(self, commands, decisions, mode_store, task_store, *, audit=None, mode_bridge=None, approved_actions=None, project_cr_service=None, nas_container_cr_service=None, conversation_intake=None):
         self.commands = commands
         self.decisions = decisions
         self.mode = mode_store
@@ -12,6 +12,7 @@ class CommandProcessor:
         self.audit = audit
         self.mode_bridge = mode_bridge
         self.approved_actions = approved_actions
+        self.project_cr_service = project_cr_service
         self.nas_container_cr_service = nas_container_cr_service
         self.conversation_intake = conversation_intake
 
@@ -286,6 +287,14 @@ class CommandProcessor:
                 result = {'ok': True, 'executed': True, 'intake': intake}
             elif action == 'admin_update':
                 result = {'ok': True, 'executed': True, 'admin_note': item.get('text') or ''}
+            elif action == 'project_cr_create':
+                if self.project_cr_service is None:
+                    raise RuntimeError('EnergieProject CR service is niet geconfigureerd; fail closed')
+                result = dict(self.project_cr_service.create() or {})
+                if result.get('ok') is not True or result.get('status') != 'GREEN' or result.get('deep_verified') is not True:
+                    raise RuntimeError('EnergieProject CR service gaf geen GREEN deep-verified resultaat')
+                result['executed'] = True
+                result['action'] = 'project_cr_create'
             elif action == 'nas_container_cr_create':
                 if self.nas_container_cr_service is None:
                     raise RuntimeError('NAS Container CR service is niet geconfigureerd; fail closed')

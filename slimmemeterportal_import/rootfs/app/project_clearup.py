@@ -697,6 +697,7 @@ def apply_clearup_plan(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "current_version": fresh["current_version"],
         "plan_id": fresh["plan_id"],
+        "prerequisite_fingerprint": fresh.get("prerequisite_fingerprint"),
         "hard_move": True,
         "symlinks_created": False,
         "delete_capability": False,

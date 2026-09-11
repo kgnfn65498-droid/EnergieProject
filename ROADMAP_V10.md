@@ -1,5 +1,10 @@
 # Roadmap v10.x
 
+## 32.4 closurestatus — 32.4.38
+- 32.4.38 sluit de resterende autonomie/CLEARUP-truth: `vXX draait` triggert live acceptance, actuele CRs gaan vóór CLEARUP, quarantaine telt niet als schuld, KB/roadmap worden door PM bijgewerkt.
+- Canonieke gate `32-4-closure-live` moet live GREEN/DONE zijn vóór ngrok-security.
+- Daarna blijft de volgorde: **ngrok-security → Voice Mode live acceptance → new-chat/handover live acceptance → 32.5/Cowork**.
+
 ## 32.4 closurestatus — 32.4.37
 - 32.4.37 is uitsluitend regressieclosure: watcher container-reconciliation, native-MCP runtime/reload, transactionele CR-retentie, canonical PM-health en volledige CLEARUP live acceptance.
 - 32.4 wordt pas gesloten na live bewijs: watchercontract GREEN, native MCP runtime GREEN, EnergieProject CR + NAS Container CR ieder exact 1 canonieke geldige set, verse CLEARUP dependency-audit/move-evidence en eind-PM-health GREEN.

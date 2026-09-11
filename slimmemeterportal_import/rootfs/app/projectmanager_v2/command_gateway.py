@@ -6,6 +6,7 @@ COMMANDS = {
     'start_development': {'action': 'mode_development', 'allowed_without_approval': True},
     'start_maintenance': {'action': 'mode_maintenance', 'allowed_without_approval': True},
     'admin_update': {'action': 'admin_update', 'allowed_without_approval': True},
+    'project_cr_create': {'action': 'project_cr_create', 'allowed_without_approval': True},
     'nas_container_cr_create': {'action': 'nas_container_cr_create', 'allowed_without_approval': True},
     'native_mcp_reload': {'action': 'native_mcp_reload', 'allowed_without_approval': False, 'decision_kind': 'PRODUCTION_RESTART'},
     'production_deploy': {'action': 'production_deploy', 'allowed_without_approval': False, 'decision_kind': 'PRODUCTION_DEPLOY'},

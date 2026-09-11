@@ -29,6 +29,7 @@ def _filtered_release_path(relative: Path) -> bool:
     return (
         _is_forbidden_release_path(relative)
         or any(part in _EXCLUDED_DIR_PARTS for part in relative.parts)
+        or (len(relative.parts) == 1 and relative.name.startswith('.testfiles') and relative.suffix == '.txt')
     )
 
 

@@ -264,6 +264,61 @@ def _crash_recovery_gate(root: Path, *, now: datetime | None = None, deadline_mo
 
 
 
+def _version_tuple(value: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in re.findall(r"\d+", str(value))[:4]) or (0,)
+
+
+def _requires_current_release_cr(app_version: str) -> bool:
+    return _version_tuple(app_version) >= (32, 4, 38)
+
+
+def _canonical_cr_name(version: str, cr_type: str) -> re.Pattern[str]:
+    return re.compile(rf"^\d{{4}}-\d{{2}}-\d{{2}} \d{{2}}\.\d{{2}} {re.escape(version)} CR {re.escape(cr_type)}\.zip$")
+
+
+def _current_release_cr_gate(root: Path, *, app_version: str) -> dict[str, Any]:
+    root = Path(root).resolve()
+    project_dir = root / "Backups/CrashRecovery"
+    nas_dir = root / "Backups/NAS Container"
+    project_zips = [p for p in project_dir.glob("*.zip") if p.is_file()] if project_dir.is_dir() else []
+    nas_zips = [p for p in nas_dir.glob("*.zip") if p.is_file()] if nas_dir.is_dir() else []
+    pp = _canonical_cr_name(app_version, "EnergieProject")
+    np = _canonical_cr_name(app_version, "NAS Containers")
+    project = [p for p in project_zips if pp.fullmatch(p.name)]
+    nas = [p for p in nas_zips if np.fullmatch(p.name)]
+    project_ok = False; nas_ok = False; project_sha = ''; nas_sha = ''
+    if len(project_zips) == 1 and len(project) == 1:
+        z = project[0]; stem = z.with_suffix('')
+        sha = Path(str(stem) + '.sha256'); manifest = Path(str(stem) + '.manifest.json'); restore = Path(str(stem) + '.restore.txt')
+        try:
+            project_sha = _sha256(z)
+            expected = _parse_expected_sha(sha.read_text(encoding='utf-8')) if sha.is_file() else None
+            manifest_data = _read_json(manifest)
+            project_ok = bool(expected == project_sha and manifest_data and str(manifest_data.get('version') or app_version) == app_version and restore.is_file() and restore.stat().st_size > 0)
+        except OSError:
+            project_ok = False
+    if len(nas_zips) == 1 and len(nas) == 1:
+        z = nas[0]; sha = Path(str(z) + '.sha256'); verify = z.with_name(z.stem + ' VERIFY.txt')
+        try:
+            nas_sha = _sha256(z)
+            expected = _parse_expected_sha(sha.read_text(encoding='utf-8')) if sha.is_file() else None
+            text = verify.read_text(encoding='utf-8', errors='replace') if verify.is_file() else ''
+            nas_ok = bool(expected == nas_sha and all(m in text for m in ('NAS_CONTAINER_CR_ACCEPTANCE_OK','PRODUCTION_CONTAINERS_CHANGED=NO','NAS_CR_RETENTION_MAX1_OK')))
+        except OSError:
+            nas_ok = False
+    payload = {
+        'version': app_version, 'project_ok': project_ok, 'nas_ok': nas_ok,
+        'project_zip_count': len(project_zips), 'nas_zip_count': len(nas_zips),
+        'project_name': project[0].name if project else None, 'nas_name': nas[0].name if nas else None,
+        'project_sha256': project_sha or None, 'nas_sha256': nas_sha or None,
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    payload['fingerprint'] = hashlib.sha256(raw).hexdigest()
+    payload['ok'] = bool(project_ok and nas_ok)
+    payload['reason'] = 'verified_current_release_crs' if payload['ok'] else 'current_release_cr_not_verified'
+    return payload
+
+
 def _clearup_destination_gate(root: Path) -> dict[str, Any]:
     """Prove the pre-created quarantine root is safe and writable before heavy scans."""
     clearup_root = root / "CLEARUP"
@@ -318,21 +373,30 @@ def clearup_auto_gate(
     else:
         clearup_destination = {"ok": False, "reason": "deferred_until_release_acceptance", "path": str(root / "CLEARUP")}
 
-    # Hashing a large Crash Recovery ZIP is intentionally deferred until the
-    # release itself is settled and the quarantine destination is proven.
+    # 32.4.38+ uses the current-release canonical project+NAS CR pair as the
+    # authoritative prerequisite. Older releases preserve the historical
+    # practical-acceptance gate for backward compatibility.
     if approval and accepted and hold_ok and clearup_destination.get("ok"):
-        cr = _crash_recovery_gate(
-            root, now=now, deadline_monotonic=deadline_monotonic,
-            progress_callback=progress_callback, started_monotonic=started_monotonic,
-        )
-        if not cr.get("ok"):
-            blockers.append("crash_recovery_not_verified")
+        if _requires_current_release_cr(str(app_version)):
+            current_cr = _current_release_cr_gate(root, app_version=str(app_version))
+            cr = dict(current_cr)
+            if not current_cr.get("ok"):
+                blockers.append("current_release_cr_not_verified")
+        else:
+            cr = _crash_recovery_gate(
+                root, now=now, deadline_monotonic=deadline_monotonic,
+                progress_callback=progress_callback, started_monotonic=started_monotonic,
+            )
+            current_cr = {"ok": True, "reason": "legacy_release_gate", "fingerprint": None}
+            if not cr.get("ok"):
+                blockers.append("crash_recovery_not_verified")
     elif approval and accepted and hold_ok:
         cr = {"ok": False, "reason": "deferred_until_clearup_root_ready"}
+        current_cr = {"ok": False, "reason": "deferred_until_clearup_root_ready", "fingerprint": None}
     else:
         cr = {"ok": False, "reason": "deferred_until_release_acceptance"}
+        current_cr = {"ok": False, "reason": "deferred_until_release_acceptance", "fingerprint": None}
         if not accepted or not approval or not hold_ok:
-            # Keep the blocker visible without performing the expensive proof.
             blockers.append("crash_recovery_not_verified")
     return {
         "ready": not blockers,
@@ -343,6 +407,8 @@ def clearup_auto_gate(
         "release_hold": hold,
         "clearup_destination": clearup_destination,
         "crash_recovery": cr,
+        "current_release_cr": current_cr,
+        "prerequisite_fingerprint": current_cr.get("fingerprint"),
     }
 
 
@@ -370,12 +436,20 @@ def run_approved_clearup_once(
         return {"status": "blocked", "gate": gate, "delete_performed": False}
 
     clearup_root = root / "CLEARUP"
+    current_prerequisite_fingerprint = (gate.get("current_release_cr") or {}).get("fingerprint")
     if clearup_root.is_dir():
         for manifest_path in sorted(clearup_root.glob("*/manifest.json")):
             if time.monotonic() >= deadline_monotonic:
                 raise ClearupExecutionTimeout("candidate_inventory")
             manifest = _read_json(manifest_path) or {}
-            if manifest.get("current_version") == str(app_version) and manifest.get("hard_move") is True:
+            if (
+                manifest.get("current_version") == str(app_version)
+                and manifest.get("hard_move") is True
+                and (
+                    not _requires_current_release_cr(str(app_version))
+                    or manifest.get("prerequisite_fingerprint") == current_prerequisite_fingerprint
+                )
+            ):
                 return {
                     "status": "already_completed",
                     "run_id": manifest.get("run_id"),
@@ -389,6 +463,8 @@ def run_approved_clearup_once(
         deadline_monotonic=deadline_monotonic, progress_callback=progress_callback,
         started_monotonic=started_monotonic,
     )
+    if current_prerequisite_fingerprint:
+        plan["prerequisite_fingerprint"] = current_prerequisite_fingerprint
     if int(plan.get("clearup_count") or 0) == 0:
         return {
             "status": "no_action",
@@ -425,6 +501,8 @@ def run_approved_clearup_once(
         deadline_monotonic=deadline_monotonic, progress_callback=progress_callback,
         started_monotonic=started_monotonic,
     )
+    if current_prerequisite_fingerprint:
+        fresh_plan["prerequisite_fingerprint"] = current_prerequisite_fingerprint
     fresh_plan_id = fresh_plan.get("plan_id")
     if not fresh_plan_id or fresh_plan_id == stale_plan_id:
         raise RuntimeError("CLEARUP verse dependency-audit leverde geen nieuw plan-id op")

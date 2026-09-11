@@ -19,6 +19,8 @@ from handover_snapshot import HandoverSnapshotService
 from health_engine import summarize_health_with_self_audit
 from mode_bridge import ModeBridge
 from nas_container_cr_service import ConfiguredNasContainerCrService
+from project_cr_service import ConfiguredProjectCrService
+from series_324_live_closure import evaluate as evaluate_324_closure, next_action as next_324_action
 from persistence import atomic_write_json, load_json
 from protected_action_executor import ProtectedActionExecutor
 from progress_truth import build_task_progress
@@ -35,7 +37,7 @@ def _read_manager_version(app_root) -> str:
 
 
 class ProjectmanagerRuntime:
-    def __init__(self, config, *, base_service=None, nas_container_cr_service=None):
+    def __init__(self, config, *, base_service=None, project_cr_service=None, nas_container_cr_service=None):
         self.config = config
         self.base = base_service or ConfiguredManagerService(config)
         root = Path(config.system_root)
@@ -72,8 +74,11 @@ class ProjectmanagerRuntime:
             )
 
         mode_bridge = ModeBridge(config.mode_command_path) if getattr(config, 'mode_command_path', '') else None
+        if project_cr_service is None:
+            project_cr_service = ConfiguredProjectCrService(config.project_root)
         if nas_container_cr_service is None:
             nas_container_cr_service = ConfiguredNasContainerCrService(config.project_root)
+        self.project_cr_service = project_cr_service
         self.nas_container_cr_service = nas_container_cr_service
         self.processor = CommandProcessor(
             self.commands,
@@ -83,6 +88,7 @@ class ProjectmanagerRuntime:
             audit=self.base.audit,
             mode_bridge=mode_bridge,
             approved_actions=self.approved_actions,
+            project_cr_service=self.project_cr_service,
             nas_container_cr_service=self.nas_container_cr_service,
             conversation_intake=self.conversation_intake,
         )
@@ -150,6 +156,56 @@ class ProjectmanagerRuntime:
         issues = getattr(self.base, 'issues', None)
         if issues is not None:
             issues.open(fingerprint, severity=severity, title=title, details=details)
+
+    def _queue_324_action_once(self, intent: str, release_version: str):
+        active_statuses = {'PENDING','PROCESSING','WAITING_APPROVAL','APPROVED_READY','APPROVED_WAITING_EXECUTOR'}
+        matching = [item for item in self.commands.all() if item.get('intent') == intent and item.get('release_version') == release_version]
+        if any(item.get('status') in active_statuses for item in matching):
+            return {'status':'already_pending','intent':intent}
+        # A successful command is not repeated in the same manager cycle; health
+        # immediately after execution decides whether another attempt is needed.
+        if matching and matching[-1].get('status') == 'DONE':
+            return {'status':'already_done','intent':intent}
+        command = self.commands.enqueue({
+            'intent': intent, 'source':'projectmanager_auto',
+            'text': f'32.4 live closure: {intent}',
+            'release_version': release_version,
+            'title': f'32.4 live closure {intent}',
+            'goal': 'Autonoom afronden van de goedgekeurde 32.4 live acceptance.',
+            'steps_total': 1, 'priority': 1,
+        })
+        return {'status':'queued','intent':intent,'command_id':command.get('id')}
+
+    def _reconcile_324_live_closure(self, status: dict):
+        release_version = str(((status.get('release') or {}).get('installed_version') or (status.get('release') or {}).get('version') or '')).strip()
+        if not release_version:
+            try:
+                release_version = (Path(self.config.project_root) / 'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+            except OSError:
+                return {'status':'NOT_APPLICABLE','reason':'release_version_unavailable'}
+        parts = tuple(int(x) for x in release_version.split('.') if x.isdigit())
+        if parts < (32,4,38):
+            return {'status':'NOT_APPLICABLE','release_version':release_version}
+        checks = [dict(item) for item in ((status.get('health') or {}).get('checks') or [])]
+        by_name = {str(item.get('name')):str(item.get('status')) for item in checks}
+        clearup_path = Path(self.config.project_root) / 'Inbox/logs/project_clearup_runtime.json'
+        clearup = load_json(clearup_path, default={}) or {}
+        closure = evaluate_324_closure(checks, clearup=clearup, release_version=release_version)
+        action = next_324_action(by_name, clearup_done=(str(clearup.get('status') or '') in {'completed','already_completed','no_action'} and str(clearup.get('release_version') or '') == release_version))
+        closure['next_action'] = action
+        if closure.get('status') == 'GREEN':
+            try:
+                self.roadmap.mark_done_by_key('32-4-closure-live', evidence={'release_version':release_version,'clearup':str(clearup_path)})
+            except KeyError:
+                pass
+        elif action == 'REQUEST_NATIVE_MCP_RELOAD':
+            closure['automation'] = self._queue_324_action_once('native_mcp_reload', release_version)
+        elif action == 'CREATE_PROJECT_CR':
+            closure['automation'] = self._queue_324_action_once('project_cr_create', release_version)
+        elif action == 'CREATE_NAS_CR':
+            closure['automation'] = self._queue_324_action_once('nas_container_cr_create', release_version)
+        atomic_write_json(self.root / 'state' / 'series_32_4_live_closure.json', closure)
+        return closure
 
     def _release_validation_snapshot(self):
         path = self.release_validation_path
@@ -253,6 +309,7 @@ class ProjectmanagerRuntime:
         status['canonical_roadmap'] = self.roadmap.canonical_metadata()
         status['conversation_intake'] = self.conversation_intake.summary()
         status['state_reconciliation'] = reconciliation_result
+        status['series_324_live_closure'] = self._reconcile_324_live_closure(status)
         self._refresh_coordination(status)
         self._finalize_coordination_audit(status, now=now)
         return status

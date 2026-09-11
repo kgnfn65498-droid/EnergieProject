@@ -38,7 +38,7 @@ MCP_GUARD_HOTFIX_HELPER="$PROJECT/tools/mcp_system_path_guard_hotfix.py"
 CLEARUP_PREPARE="$PROJECT/tools/prepare_clearup_root.sh"
 MCP_GUARD_HOTFIX_RESULT="$INBOX/logs/mcp_system_path_guard_hotfix_v3231.json"
 CR_STANDARD_HOTFIX_HELPER="$PROJECT/tools/cr_standard_native_mcp_hotfix.py"
-CR_STANDARD_HOTFIX_RESULT="$INBOX/logs/cr_standard_native_mcp_hotfix_v32437.json"
+CR_STANDARD_HOTFIX_RESULT="$INBOX/logs/cr_standard_native_mcp_hotfix_v32438.json"
 NAS_CR_LOCAL_DIR="$INBOX/nas_container_cr_local"
 NAS_CR_LOCAL_REQUEST="$NAS_CR_LOCAL_DIR/request.json"
 NAS_CR_LOCAL_RESULT="$NAS_CR_LOCAL_DIR/result.json"
@@ -46,6 +46,11 @@ NAS_CR_LOCAL_CAPABILITY="$NAS_CR_LOCAL_DIR/capability.json"
 NAS_CR_LOCAL_EXECUTOR="$PROJECT/tools/nas_cr_local_executor.py"
 NAS_CR_LOCAL_PROBE="$PROJECT/tools/nas_cr_local_probe.py"
 NAS_CR_LOCAL_TIMEOUT="${ENERGIE_NAS_CR_LOCAL_TIMEOUT_SECONDS:-1200}"
+PROJECT_CR_LOCAL_DIR="$INBOX/project_cr_local"
+PROJECT_CR_LOCAL_REQUEST="$PROJECT_CR_LOCAL_DIR/request.json"
+PROJECT_CR_LOCAL_RESULT="$PROJECT_CR_LOCAL_DIR/result.json"
+PROJECT_CR_LOCAL_EXECUTOR="$PROJECT/tools/project_cr_local_executor.py"
+PROJECT_CR_LOCAL_TIMEOUT="${ENERGIE_PROJECT_CR_LOCAL_TIMEOUT_SECONDS:-1200}"
 WATCHER_CONTRACT_HELPER="$PROJECT/tools/watcher_container_contract.py"
 WATCHER_CONTRACT_MARKER="$INBOX/watcher_container_contract.json"
 NATIVE_MCP_GUARD="$PROJECT/tools/native_mcp_runtime_guard.py"
@@ -311,6 +316,25 @@ process_nas_cr_capability_probe(){
   return 1
 }
 
+process_project_cr_local(){
+  [ -f "$PROJECT_CR_LOCAL_REQUEST" ] || return 0
+  if ! process_cr_standard_hotfix; then
+    log "FOUT: EnergieProject CR geweigerd omdat CR-standaardhotfix niet GREEN is"
+    return 1
+  fi
+  if ! process_native_mcp_runtime_guard; then
+    log "FOUT: EnergieProject CR wacht op native-MCP runtime agreement"
+    return 1
+  fi
+  [ -f "$PROJECT_CR_LOCAL_EXECUTOR" ] || { log "FOUT: EnergieProject CR lokale executor ontbreekt"; return 1; }
+  command -v python3 >/dev/null 2>&1 || { log "FOUT: EnergieProject CR lokale executor vereist python3"; return 1; }
+  rc=0
+  run_bounded "$PROJECT_CR_LOCAL_TIMEOUT" python3 "$PROJECT_CR_LOCAL_EXECUTOR" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] && { log "EnergieProject CR lokale executor = GREEN"; return 0; }
+  log "FOUT: EnergieProject CR lokale executor rc=$rc; resultaat blijft beschikbaar"
+  return "$rc"
+}
+
 process_nas_container_cr_local(){
   [ -f "$NAS_CR_LOCAL_REQUEST" ] || return 0
   if ! process_cr_standard_hotfix; then
@@ -502,6 +526,7 @@ while :; do
   if mode_allows maintenance_requests; then
     process_native_mcp_reload || true
     process_native_mcp_runtime_guard || true
+    process_project_cr_local || true
     process_nas_container_cr_local || true
     process_project_clearup_move || true
     process_crash_recovery_cleanup || true

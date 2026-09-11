@@ -83,7 +83,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 25 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.37"
+APP_VERSION = "32.4.38"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -22064,14 +22064,9 @@ def main() -> None:
                 "nas_layout_root": str(live_nas_layout_root),
             })
             last_blockers: list[str] | None = None
-            for attempt in range(1, 121):
-                if STOP.is_set():
-                    return
-                elapsed = time.monotonic() - worker_started
-                remaining = PROJECT_CLEARUP_MAX_SECONDS - elapsed
-                if remaining <= 0:
-                    raise ClearupExecutionTimeout("release_acceptance_wait")
-
+            attempt = 0
+            while not STOP.is_set():
+                attempt += 1
                 def clearup_progress(event: dict[str, Any]) -> None:
                     persist_clearup({
                         "status": "running",
@@ -22082,7 +22077,7 @@ def main() -> None:
                 result = run_approved_clearup_once(
                     live_nas_layout_root,
                     app_version=APP_VERSION,
-                    timeout_seconds=remaining,
+                    timeout_seconds=PROJECT_CLEARUP_MAX_SECONDS,
                     progress_callback=clearup_progress,
                 )
                 status = str(result.get("status") or "")
@@ -22102,14 +22097,15 @@ def main() -> None:
                     return
 
                 blockers = list((result.get("gate") or {}).get("blockers") or [])
-                if "release_not_accepted" in blockers or "release_hold_not_released" in blockers:
+                waiting_for_prerequisites = any(blocker in blockers for blocker in (
+                    "release_not_accepted", "release_hold_not_released", "current_release_cr_not_verified",
+                    "crash_recovery_not_verified",
+                ))
+                if waiting_for_prerequisites:
                     if blockers != last_blockers:
-                        LOGGER.info("Project CLEARUP wacht op release-acceptance: %s", blockers)
+                        LOGGER.info("Project CLEARUP wacht op prerequisites: %s", blockers)
                         last_blockers = blockers
-                    wait_seconds = min(15.0, max(0.0, PROJECT_CLEARUP_MAX_SECONDS - (time.monotonic() - worker_started)))
-                    if wait_seconds <= 0:
-                        raise ClearupExecutionTimeout("release_acceptance_wait")
-                    STOP.wait(wait_seconds)
+                    STOP.wait(15.0)
                     continue
 
                 payload = {
@@ -22122,7 +22118,7 @@ def main() -> None:
                 LOGGER.warning("Project CLEARUP fail-closed geblokkeerd: %s", blockers)
                 return
 
-            raise ClearupExecutionTimeout("release_acceptance_wait")
+            return
         except ClearupExecutionTimeout as exc:
             payload = {
                 "status": "timeout",

@@ -65,7 +65,6 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
         root / "Data/03_Systeem/Manuals/.@__thumb",
         root / "Data/03_Systeem/Projectmanager/_acceptance_retest_20260816",
         root / "Data/03_Systeem/Projectmanager/_mcp_write_test_20260816",
-        root / "Data/03_Systeem/Projectmanager/Staging/ProjectManagerV2",
         root / "Data/02_Output/Rapportages/share",
         root / "Data/02_Output/Rapportages/Data",
         root / "Inbox/release_hold_tmp",
@@ -74,6 +73,10 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
         root / "Infra/Docker/native-mcp/_permission_fix_backup",
     )
     known_staging_count = sum(1 for path in known_staging_paths if path.exists() or path.is_symlink())
+    # ProjectManagerV2 staging is managed per child by CLEARUP. The stable
+    # parent directory may intentionally remain present and is not debt by
+    # itself; only residual children count.
+    known_staging_count += _count_children(root / "Data/03_Systeem/Projectmanager/Staging/ProjectManagerV2")
 
     details = {
         "rollback_total_count": len(rollbacks),
@@ -95,7 +98,8 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
         + release_prepare_count
         + release_builder_count
         + known_staging_count
-        + clearup_run_count
+        # CLEARUP is intentional reversible quarantine. Existing runs are
+        # evidence/history, not live-structure debt.
     )
     return {
         "name": "project_structure_hygiene",

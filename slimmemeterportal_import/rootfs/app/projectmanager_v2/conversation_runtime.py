@@ -32,7 +32,7 @@ _PM_INTENT_PATTERNS = (
     r'\bprojectmanager\b', r'\broadmap\b', r'\bknowledge base\b', r'\bkennisbank\b',
     r'\bblocker\w*\b', r'\bhandover\b', r'\boverdracht\b', r'\bnieuwe chat\b', r'\bverse chat\b',
     r'\b(?:release|build|versie)\s*\d+\.\d+(?:\.\d+)?\b',
-    r'\b\d+\.\d+(?:\.\d+)?\b.*\b(?:status|installeer|deploy|live|audit|test|bouw|maak)\b',
+    r'\bv?\d+(?:\.\d+){0,2}\b.*\b(?:status|installeer|deploy|live|audit|test|bouw|maak|draait|running|actief)\b',
     r'\b(?:installeer|deploy|breng|zet|rol)\b.*\b(?:home[ -]?assistant|green|productie|live)\b',
     r'\b(?:architectuur|systeemarchitectuur)\b', r'\bclaude cowork\b',
     r'\bstap\s+\d+\s*/\s*\d+\b',
