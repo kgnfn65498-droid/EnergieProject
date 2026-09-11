@@ -18,7 +18,7 @@ VALID_COMMAND = {
 }
 VALID_HANDOFF = {'OPEN', 'DONE', 'BLOCKED', 'CANCELLED'}
 VALID_APPROVED_ACTION = {'APPROVED_AWAITING_SAFETY_OR_EXECUTOR', 'DONE', 'CANCELLED', 'FAILED'}
-SUPPORTED_EXECUTOR_ACTIONS = {'production_deploy', 'native_mcp_reload'}
+SUPPORTED_EXECUTOR_ACTIONS = {'production_deploy', 'native_mcp_reload', 'watcher_recreate'}
 REQUIRED_RUNTIME_FILES = (
     'status/current.json',
     'heartbeat/manager.json',
@@ -46,6 +46,15 @@ def _canonical_semantic_validation(spec):
     except ValueError as exc:
         return {'ok': False, 'reason': str(exc)}
     return {'ok': True, 'reason': 'canonical roadmap semantics valid'}
+
+
+def _release_at_least(value, minimum):
+    try:
+        current = tuple(int(part) for part in str(value or '').split('.'))
+        floor = tuple(int(part) for part in str(minimum).split('.'))
+    except ValueError:
+        return False
+    return len(current) == 3 and len(floor) == 3 and current >= floor
 
 
 class SelfAuditor:
@@ -158,7 +167,7 @@ class SelfAuditor:
                         'reason': 'build_contract_noncompliant',
                         'missing': list(contract.get('missing') or []),
                     })
-                if contract.get('contract_version') != '2026-09-10.v1':
+                if contract.get('contract_version') != '2026-09-11.v2':
                     invalid.append({'path': 'status/current.json', 'reason': 'development_build_contract_version_mismatch'})
 
         if heartbeat is not None:
@@ -187,10 +196,16 @@ class SelfAuditor:
                 invalid.append({'path': 'handover/current.json', 'reason': 'release_mismatch'})
 
         if require_coordination and status is not None and handover is not None:
+            coordination_v2 = _release_at_least(
+                self.running_release_version or ((status.get('release') or {}).get('version')),
+                '32.4.40',
+            )
             required_status_fields = (
                 'manager', 'conversation_intake', 'canonical_roadmap',
                 'state_reconciliation', 'open_issues', 'progress',
             )
+            if coordination_v2:
+                required_status_fields += ('acceptance_matrix', 'development_efficiency', 'development_context')
             for field in required_status_fields:
                 if field not in status:
                     invalid.append({'path': 'status/current.json', 'reason': f'final_field_missing:{field}'})
@@ -202,12 +217,19 @@ class SelfAuditor:
             elif s_manager.get('version') != h_manager.get('version'):
                 invalid.append({'path': 'handover/current.json', 'reason': 'manager_version_mismatch'})
 
-            for field, reason in (
+            coordination_fields = [
                 ('conversation_intake', 'conversation_intake_mismatch'),
                 ('canonical_roadmap', 'canonical_roadmap_mismatch'),
                 ('state_reconciliation', 'state_reconciliation_mismatch'),
                 ('progress', 'progress_mismatch'),
-            ):
+            ]
+            if coordination_v2:
+                coordination_fields.extend([
+                    ('acceptance_matrix', 'acceptance_matrix_mismatch'),
+                    ('development_efficiency', 'development_efficiency_mismatch'),
+                    ('development_context', 'development_context_mismatch'),
+                ])
+            for field, reason in coordination_fields:
                 if status.get(field) != handover.get(field):
                     invalid.append({'path': 'handover/current.json', 'reason': reason})
 

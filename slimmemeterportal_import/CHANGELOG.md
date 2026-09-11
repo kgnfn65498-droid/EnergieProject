@@ -1,8 +1,7 @@
 # Changelog
 
-## 32.4.39 — four-core runtime closure repair
+## 32.4.40 — final PM core closure
 
-- Watcher contract/recreate boundary hardened.
-- Native MCP source/runtime fingerprint v2 + writable runtime evidence.
-- Canonical roadmap persistence is fail-closed and disk-backed.
-- CLEARUP/atomic acceptance circular dependency removed with bounded same-release pre-acceptance safety gates.
+- Roadmap–Ledger acceptance traceability, stale-task reconciliation and factual build timing.
+- Cross-runtime canonical roadmap mode contract and protected watcher recreate via bounded QNAP Docker TLS.
+- Exact-artifact efficient release validation with live-only gates kept fail-closed.

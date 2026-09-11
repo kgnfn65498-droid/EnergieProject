@@ -185,3 +185,12 @@
 - Geen GREEN op alleen broncodepresence: runtime/readback blijft vereist.
 - ChatGPT-onderbrekingen worden opgevangen door kleine bewijsblokken met write+readback; eerder bewezen werk wordt niet opnieuw uitgevoerd.
 
+## 32.4.40 stabiele ontwikkelstandaard
+- Nieuwe chats laden Active Development Context, Development Manifest, live PM handover en relevante Ledger-context; geen procesreset.
+- Roadmap en Ledger zijn via acceptance matrix gekoppeld; niets wordt vergeten doordat alle open carry-forward machineleesbaar blijft.
+- CLOSED/COLD betekent: specifieke oude check niet standaard herhalen, blijvende les/regressie blijft actief.
+- Ontwikkeling meet efficiëntie; gerichte tests tijdens implementatie, één zware exacte-ZIP eindcontrole.
+- Peter hoeft normaal alleen ZIP te downloaden en protected approvals te geven. Voor ontwikkeling, build, verificatie, release en herstel krijgt Peter geen Terminal-commando’s; een ontbrekende capability is een tooling-blocker die structureel wordt opgelost.
+- Live handover is primaire overdrachtswaarheid; afzonderlijk handoverdocument is alleen export/backup.
+- Waarschuw vroegtijdig bij hoge chat/contextdruk zodat nieuwe chat met `verder` kan hervatten.
+

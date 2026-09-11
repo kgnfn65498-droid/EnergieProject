@@ -31,16 +31,26 @@ def _fsync_parent(path: Path) -> None:
         os.close(fd)
 
 
-def atomic_write_text(path, content: str) -> None:
+def atomic_write_text(path, content: str, *, mode: int | None = None) -> None:
     target = _path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
+    if mode is not None:
+        mode = int(mode)
+        if mode < 0 or mode > 0o777:
+            raise ValueError('invalid atomic final mode')
     fd, tmp_name = tempfile.mkstemp(prefix=f'.{target.name}.', suffix='.tmp', dir=str(target.parent))
+    if mode is not None:
+        os.fchmod(fd, mode)
     try:
         with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as handle:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(tmp_name, target)
+        if mode is not None:
+            os.chmod(target, mode)
+            if (target.stat().st_mode & 0o777) != mode:
+                raise OSError(f'atomic final mode mismatch for {target}')
         _fsync_parent(target)
     except Exception:
         try:
@@ -50,8 +60,8 @@ def atomic_write_text(path, content: str) -> None:
         raise
 
 
-def atomic_write_json(path, payload: Any) -> None:
-    atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n')
+def atomic_write_json(path, payload: Any, *, mode: int | None = None) -> None:
+    atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n', mode=mode)
 
 
 def _clone_default(default):

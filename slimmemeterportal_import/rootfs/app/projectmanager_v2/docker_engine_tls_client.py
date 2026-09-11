@@ -175,6 +175,32 @@ class DockerEngineTlsClient:
         )
         return {'ok': True, 'name': safe_name, 'result': result}
 
+
+    @staticmethod
+    def _watcher_checks(info: dict[str, Any]) -> dict[str, bool]:
+        config=info.get('Config') or {}; host=info.get('HostConfig') or {}; state=info.get('State') or {}
+        env=set(config.get('Env') or []); mounts=info.get('Mounts') or []
+        mount_map={str(m.get('Destination') or ''):str(m.get('Source') or '') for m in mounts if isinstance(m,dict)}
+        return {'running':state.get('Running') is True,'image':str(config.get('Image') or '')=='python:3.12-slim','command':list(config.get('Cmd') or [])==['sh','/energy/App/tools/release_watcher.sh'],'contract_env':'ENERGIE_WATCHER_CONTAINER_CONTRACT=3' in env,'network_none':str(host.get('NetworkMode') or '')=='none','cap_drop':set(host.get('CapDrop') or [])=={'ALL'},'cap_add':set(host.get('CapAdd') or [])=={'DAC_OVERRIDE','DAC_READ_SEARCH','FOWNER'},'security':any('no-new-privileges' in str(v) for v in (host.get('SecurityOpt') or [])),'restart':str((host.get('RestartPolicy') or {}).get('Name') or '')=='unless-stopped','energy_mount':bool(mount_map.get('/energy')),'docker_socket':mount_map.get('/var/run/docker.sock')=='/var/run/docker.sock'}
+
+    def recreate_release_watcher(self) -> dict[str, Any]:
+        name='energie-release-watcher'; current=self.container_inspect(name)
+        if not isinstance(current,dict): raise RuntimeError('existing watcher required to prove fixed /energy host source')
+        energy_source=''
+        for mount in current.get('Mounts') or []:
+            if isinstance(mount,dict) and mount.get('Destination')=='/energy': energy_source=str(mount.get('Source') or ''); break
+        if not energy_source or not energy_source.rstrip('/').endswith('/EnergieProject'): raise RuntimeError('watcher /energy host source is not a proven EnergieProject path')
+        if all(self._watcher_checks(current).values()): return {'ok':True,'recreated':False,'container':name,'contract':self._watcher_checks(current)}
+        self.image_inspect('python:3.12-slim')
+        self._json_call('DELETE',f'{API_PREFIX}/containers/{quote(name,safe="")}?v=1&force=1',expected=(204,))
+        body={'Image':'python:3.12-slim','Cmd':['sh','/energy/App/tools/release_watcher.sh'],'Env':['ENERGIE_ROOT=/energy','ENERGIE_WATCH_INTERVAL=5','ENERGIE_ZIP_STABLE_POLLS=3','ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS=30','ENERGIE_WATCHER_CONTAINER_CONTRACT=3','ENERGIE_BACKUP_RETENTION=999','ENERGIE_PROCESSED_RETENTION=999'],'HostConfig':{'Binds':[f'{energy_source}:/energy','/var/run/docker.sock:/var/run/docker.sock'],'RestartPolicy':{'Name':'unless-stopped'},'NetworkMode':'none','CapDrop':['ALL'],'CapAdd':['DAC_OVERRIDE','DAC_READ_SEARCH','FOWNER'],'SecurityOpt':['no-new-privileges']}}
+        created=self._json_call('POST',f'{API_PREFIX}/containers/create?{urlencode({"name":name})}',body=body,expected=(201,))
+        if not isinstance(created,dict) or not created.get('Id'): raise RuntimeError('watcher recreate returned no container id')
+        self._json_call('POST',f'{API_PREFIX}/containers/{quote(name,safe="")}/start',expected=(204,))
+        info=self.container_inspect(name) or {}; checks=self._watcher_checks(info)
+        if not all(checks.values()): raise RuntimeError('watcher recreate inspect contract mismatch: '+','.join(k for k,v in checks.items() if not v))
+        return {'ok':True,'recreated':True,'container':name,'contract':checks,'energy_source':energy_source}
+
     def reload_projectmanager_connector(self) -> dict[str, Any]:
         """One bounded restart used only after explicit GUI activation."""
         self._json_call(

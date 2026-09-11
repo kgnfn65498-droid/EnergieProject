@@ -9,6 +9,7 @@ COMMANDS = {
     'project_cr_create': {'action': 'project_cr_create', 'allowed_without_approval': True},
     'nas_container_cr_create': {'action': 'nas_container_cr_create', 'allowed_without_approval': True},
     'native_mcp_reload': {'action': 'native_mcp_reload', 'allowed_without_approval': False, 'decision_kind': 'PRODUCTION_RESTART'},
+    'watcher_recreate': {'action': 'watcher_recreate', 'allowed_without_approval': False, 'decision_kind': 'PRODUCTION_RESTART'},
     'production_deploy': {'action': 'production_deploy', 'allowed_without_approval': False, 'decision_kind': 'PRODUCTION_DEPLOY'},
     'architecture_change': {'action': 'architecture_change', 'allowed_without_approval': False, 'decision_kind': 'ARCHITECTURE_CHANGE'},
 }

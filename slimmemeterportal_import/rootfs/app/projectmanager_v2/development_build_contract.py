@@ -1,7 +1,7 @@
 import json
 import re
 
-CONTRACT_VERSION = '2026-09-10.v1'
+CONTRACT_VERSION = '2026-09-11.v2'
 VALID_THINKING_LEVELS = {'MIDDEL', 'HOOG'}
 REQUIRED_BUILD_METADATA = (
     'thinking_level',
@@ -37,6 +37,10 @@ def canonical_contract():
             'route_relevant_chat_voice_nomad_intake_to_pm',
             'persist_defect_rootcause_fix_regression_to_kb_and_pm',
             'chat_switch_never_resets_rules_architecture_platform_constraints',
+            'roadmap_ledger_acceptance_matrix_required',
+            'closed_cold_lessons_hot_checks_cold',
+            'efficient_targeted_tests_then_one_exact_artifact_final_audit',
+            'live_handover_is_primary_new_chat_truth',
         ],
     }
 
@@ -144,5 +148,8 @@ def evaluate_build_contract(task, progress=None):
         'estimated_remaining_seconds': progress.get('estimated_remaining_seconds'),
         'test_verification_actual_seconds': progress.get('test_verification_actual_seconds'),
         'planning_trend': progress.get('planning_trend') or 'insufficient_data',
+        'step_actual_seconds': progress.get('step_actual_seconds') or {},
+        'estimate_variance_seconds': progress.get('estimate_variance_seconds'),
+        'development_efficiency': progress.get('development_efficiency') or {},
     })
     return result

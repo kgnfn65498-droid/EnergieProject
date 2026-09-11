@@ -128,3 +128,13 @@ def test_orchestrator_runs_coordination_self_audit_after_final_refresh():
     assert 'self._refresh_coordination(status)' in run_once
     assert 'self._finalize_coordination_audit(status, now=now)' in run_once
     assert run_once.index('self._finalize_coordination_audit(status, now=now)') > run_once.index('self._refresh_coordination(status)')
+
+
+def test_32440_coordination_requires_matrix_efficiency_and_context(tmp_path):
+    root = tmp_path / 'RuntimeV2'
+    _final_runtime(root, active='32.4.40', nas='32.4.40', manager='2.0.0-rc27')
+    result = SelfAuditor(root, running_release_version='32.4.40').run(require_coordination=True)
+    reasons = {item['reason'] for item in result['invalid']}
+    assert 'final_field_missing:acceptance_matrix' in reasons
+    assert 'final_field_missing:development_efficiency' in reasons
+    assert 'final_field_missing:development_context' in reasons

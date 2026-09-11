@@ -64,8 +64,9 @@ def _write_recreate_request(root: Path, reason: str) -> dict:
         release_version = (root / 'App/VERSIE.txt').read_text(encoding='utf-8').strip()
     except OSError as exc:
         raise RuntimeError(f'cannot read release version: {exc}') from exc
-    if release_version != '32.4.39':
-        raise RuntimeError(f'watcher recreate request only valid for 32.4.39 transition, got {release_version!r}')
+    parts = release_version.split('.')
+    if len(parts) != 3 or any(not part.isdigit() for part in parts):
+        raise RuntimeError(f'invalid active release version for watcher recreate: {release_version!r}')
     fingerprint = spec_fingerprint()
     request_id = hashlib.sha256(f'{release_version}:{fingerprint}'.encode('utf-8')).hexdigest()[:32]
     payload = {

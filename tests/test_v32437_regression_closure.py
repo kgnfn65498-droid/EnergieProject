@@ -17,8 +17,8 @@ for p in (str(ROOT), str(APP), str(PM), str(TOOLS)):
 
 
 def test_release_identity_is_32437_and_pm_rc24():
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.39'
-    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc26'
+    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.40'
+    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc27'
 
 
 def test_watcher_contract_fails_closed_without_socket(tmp_path):
@@ -77,7 +77,6 @@ def test_native_mcp_runtime_guard_detects_missing_or_stale_marker(tmp_path, monk
     green = guard.probe(root)
     assert green['status'] == 'GREEN'
     assert green['ready'] is True
-
 
 def test_native_hotfix_injects_runtime_fingerprint_marker():
     source = (TOOLS / 'cr_standard_native_mcp_hotfix.py').read_text()

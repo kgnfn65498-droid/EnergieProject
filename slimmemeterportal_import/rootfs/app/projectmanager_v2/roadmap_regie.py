@@ -7,6 +7,7 @@ from persistence import atomic_write_json, load_json
 
 VALID_STATUSES = {'OPEN', 'ACTIVE', 'DONE', 'BLOCKED', 'SUPERSEDED'}
 VALID_EXECUTORS = {'handoff', 'embedded'}
+VALID_ACCEPTANCE_STATES = {'TODO','IN_PROGRESS','TEST_GREEN','LIVE_REQUIRED','LIVE_PROVEN','CLOSED_COLD'}
 
 
 FALLBACK_ITEMS = (
@@ -110,6 +111,13 @@ class RoadmapRegie:
                 raise ValueError(f"invalid executor for {item['key']}")
             if item.get('status', 'OPEN') not in {'OPEN', 'DONE'}:
                 raise ValueError(f"canonical status must be OPEN/DONE: {item['key']}")
+            if item.get('acceptance_matrix_required') is True:
+                state = item.get('acceptance_state')
+                if state not in VALID_ACCEPTANCE_STATES:
+                    raise ValueError(f"invalid acceptance_state for {item['key']}")
+                for field in ('ledger_refs','required_tests','evidence_refs','carry_forward'):
+                    if not isinstance(item.get(field, []), list):
+                        raise ValueError(f"invalid {field} for {item['key']}")
         dependencies = {}
         for item in spec['items']:
             deps = list(item.get('depends_on', []))
@@ -177,6 +185,8 @@ class RoadmapRegie:
                 }
             old_status = current.get('status', 'OPEN')
             old_task_id = current.get('task_id')
+            previous_acceptance = current.get('acceptance_state')
+            previous_evidence = list(current.get('evidence_refs') or []) if isinstance(current.get('evidence_refs'), list) else []
             current.update({
                 'title': source['title'],
                 'priority': int(source.get('priority', order)),
@@ -186,16 +196,25 @@ class RoadmapRegie:
                 'depends_on': list(source.get('depends_on', [])),
                 'acceptance': source.get('acceptance', ''),
                 'canonical_order': order,
+                'acceptance_matrix_required': source.get('acceptance_matrix_required') is True,
+                'ledger_refs': list(source.get('ledger_refs', [])),
+                'required_tests': list(source.get('required_tests', [])),
+                'live_required': source.get('live_required') is True,
+                'carry_forward': list(source.get('carry_forward', [])),
                 'updated_at': now,
             })
+            current['evidence_refs'] = previous_evidence or list(source.get('evidence_refs', []))
             if old_status == 'DONE':
                 current['status'] = 'DONE'
+                current['acceptance_state'] = 'CLOSED_COLD'
             elif old_status in {'ACTIVE', 'BLOCKED'}:
                 current['status'] = old_status
+                current['acceptance_state'] = previous_acceptance if previous_acceptance in VALID_ACCEPTANCE_STATES else source.get('acceptance_state', 'LIVE_REQUIRED' if source.get('live_required') else 'TODO')
                 if old_task_id:
                     current['task_id'] = old_task_id
             else:
                 current['status'] = source.get('status', 'OPEN')
+                current['acceptance_state'] = previous_acceptance if previous_acceptance in VALID_ACCEPTANCE_STATES else source.get('acceptance_state', 'LIVE_REQUIRED' if source.get('live_required') else 'TODO')
                 current.pop('task_id', None)
             new_items.append(current)
 
@@ -282,6 +301,13 @@ class RoadmapRegie:
         now = datetime.now(timezone.utc).isoformat()
         for item in data.get('items', []):
             if item.get('key') == key:
+                if item.get('acceptance_matrix_required') is True:
+                    state = item.get('acceptance_state')
+                    if item.get('live_required') is True and state != 'LIVE_PROVEN':
+                        raise ValueError(f'live acceptance evidence required before DONE: {key}')
+                    if item.get('live_required') is not True and state not in {'TEST_GREEN','LIVE_PROVEN','CLOSED_COLD'}:
+                        raise ValueError(f'test acceptance evidence required before DONE: {key}')
+                    item['acceptance_state'] = 'CLOSED_COLD'
                 item['status'] = 'DONE'
                 item.pop('task_id', None)
                 item['updated_at'] = now
@@ -321,6 +347,38 @@ class RoadmapRegie:
         if changed:
             self._save(data)
         return changed
+
+
+    def mark_acceptance(self, key, state, *, evidence_refs=None, carry_forward=None):
+        if state not in VALID_ACCEPTANCE_STATES:
+            raise ValueError('invalid_acceptance_state')
+        data = self._load()
+        now = datetime.now(timezone.utc).isoformat()
+        for item in data.get('items', []):
+            if item.get('key') != key:
+                continue
+            item['acceptance_state'] = state
+            if evidence_refs is not None:
+                refs = [str(ref).strip() for ref in evidence_refs if str(ref).strip()]
+                item['evidence_refs'] = list(dict.fromkeys(list(item.get('evidence_refs') or []) + refs))
+            if carry_forward is not None:
+                item['carry_forward'] = [str(value).strip() for value in carry_forward if str(value).strip()]
+            item['updated_at'] = now
+            self._save(data)
+            return dict(item)
+        raise KeyError(key)
+
+    def acceptance_summary(self):
+        items = [item for item in self.all() if item.get('acceptance_matrix_required') is True]
+        counts = {state: 0 for state in VALID_ACCEPTANCE_STATES}
+        blockers = []
+        for item in items:
+            state = item.get('acceptance_state') or 'TODO'
+            if state in counts:
+                counts[state] += 1
+            if state not in {'LIVE_PROVEN','CLOSED_COLD'}:
+                blockers.append({'key': item.get('key'),'state': state,'ledger_refs': list(item.get('ledger_refs') or []),'required_tests': list(item.get('required_tests') or []),'carry_forward': list(item.get('carry_forward') or [])})
+        return {'schema': 'energie_roadmap_ledger_acceptance_matrix_v1','counts': counts,'blockers': blockers,'items_total': len(items)}
 
     def canonical_metadata(self):
         data = self._load()

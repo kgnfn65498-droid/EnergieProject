@@ -7,7 +7,7 @@ from pathlib import Path
 
 from persistence import atomic_write_json
 
-TARGET_RELEASE = '32.4.39'
+TARGET_RELEASE = '32.4.40'
 EXPECTED_SCHEMA = 'energie_projectmanager_canonical_roadmap_v3'
 BASE_KEYS = {
     'conversation-intake', 'proactive-pm', 'nomad-next', 'ngrok-assessment',
@@ -102,7 +102,7 @@ def migrate_canonical_roadmap(path: Path | str) -> dict:
     migrated = deepcopy(current)
     migrated.update({
         'approved_at': '2026-09-11', 'approved_by': 'Peter',
-        'source': 'conversation_2026-09-11_32.4.39_core_closure',
+        'source': 'conversation_2026-09-11_32.4.40_final_pm_closure',
         'principle': '32.4 eerst live sluiten; daarna ngrok-security, Voice Mode, nieuwe-chat handover en pas daarna 32.5/Cowork.',
         'migration_release': TARGET_RELEASE,
         'required_gates_before_32_5': list(REQUIRED_GATES),
@@ -116,8 +116,32 @@ def migrate_canonical_roadmap(path: Path | str) -> dict:
         'new_chat_handover_live_required_before_32_5': True,
     })
     migrated['safety'] = safety
+    trace = {
+        'conversation-intake': (['UDL-004'], ['conversation_intake_e2e'], True),
+        'proactive-pm': (['UDL-004'], ['proactive_pm_e2e'], True),
+        'nomad-next': (['UDL-004'], ['nomad_same_truth'], True),
+        '32-4-closure-live': (['UDL-001','UDL-002','UDL-003','UDL-004'], ['watcher_v3','native_mcp_fingerprint','canonical_roadmap_readback','cr_sets','clearup_hygiene','atomic_acceptance'], True),
+        'ngrok-assessment': (['UDL-004'], ['ngrok_edge_security'], True),
+        'voice-live-acceptance': (['UDL-004'], ['voice_e2e'], True),
+        'new-chat-handover-live': (['UDL-003','UDL-004'], ['new_chat_verder_e2e'], True),
+        'subscription-independence': (['UDL-004'], ['subscription_analysis'], False),
+        'cowork-pilot': (['UDL-003','UDL-004'], ['cowork_pilot_metrics'], True),
+        'month-import-next': (['UDL-003'], ['month_import_e2e'], True),
+    }
+    for item in migrated['items']:
+        refs, tests, live_required = trace.get(item.get('key'), ([], [], False))
+        item['acceptance_matrix_required'] = True
+        item['ledger_refs'] = list(refs)
+        item['required_tests'] = list(tests)
+        item['live_required'] = bool(live_required)
+        item.setdefault('evidence_refs', [])
+        item.setdefault('carry_forward', [])
+        if item.get('status') == 'DONE':
+            item['acceptance_state'] = 'CLOSED_COLD'
+        else:
+            item['acceptance_state'] = 'LIVE_REQUIRED' if live_required else 'TODO'
     try:
-        atomic_write_json(target, migrated)
+        atomic_write_json(target, migrated, mode=0o644)
     except OSError as exc:
         return {
             'status': 'persistence_required', 'path': str(target), 'release': TARGET_RELEASE,
@@ -129,6 +153,11 @@ def migrate_canonical_roadmap(path: Path | str) -> dict:
         return {
             'status': 'persistence_verification_failed', 'path': str(target),
             'release': TARGET_RELEASE, 'reason': f'{type(exc).__name__}: {exc}',
+        }
+    if (target.stat().st_mode & 0o777) != 0o644:
+        return {
+            'status': 'persistence_verification_failed', 'path': str(target),
+            'release': TARGET_RELEASE, 'reason': 'canonical_roadmap_mode_not_0644',
         }
     if persisted != migrated:
         return {

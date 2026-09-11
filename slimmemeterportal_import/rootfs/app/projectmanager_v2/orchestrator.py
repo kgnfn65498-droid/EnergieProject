@@ -193,19 +193,39 @@ class ProjectmanagerRuntime:
         closure = evaluate_324_closure(checks, clearup=clearup, release_version=release_version)
         action = next_324_action(by_name, clearup_done=(str(clearup.get('status') or '') in {'completed','already_completed','no_action'} and str(clearup.get('release_version') or '') == release_version))
         closure['next_action'] = action
-        if closure.get('status') == 'GREEN':
-            try:
+        try:
+            if closure.get('status') == 'GREEN':
+                self.roadmap.mark_acceptance('32-4-closure-live', 'LIVE_PROVEN', evidence_refs=[str(clearup_path)], carry_forward=[])
                 self.roadmap.mark_done_by_key('32-4-closure-live', evidence={'release_version':release_version,'clearup':str(clearup_path)})
-            except KeyError:
-                pass
-        elif action == 'REQUEST_NATIVE_MCP_RELOAD':
+            else:
+                self.roadmap.mark_acceptance('32-4-closure-live', 'LIVE_REQUIRED', carry_forward=list(closure.get('failed_or_missing') or []))
+        except (KeyError, ValueError):
+            pass
+        if closure.get('status') != 'GREEN' and action == 'REQUEST_WATCHER_RECREATE':
+            closure['automation'] = self._queue_324_action_once('watcher_recreate', release_version)
+        elif closure.get('status') != 'GREEN' and action == 'REQUEST_NATIVE_MCP_RELOAD':
             closure['automation'] = self._queue_324_action_once('native_mcp_reload', release_version)
-        elif action == 'CREATE_PROJECT_CR':
+        elif closure.get('status') != 'GREEN' and action == 'CREATE_PROJECT_CR':
             closure['automation'] = self._queue_324_action_once('project_cr_create', release_version)
-        elif action == 'CREATE_NAS_CR':
+        elif closure.get('status') != 'GREEN' and action == 'CREATE_NAS_CR':
             closure['automation'] = self._queue_324_action_once('nas_container_cr_create', release_version)
         atomic_write_json(self.root / 'state' / 'series_32_4_live_closure.json', closure)
         return closure
+
+
+    def _sync_324_closure_task(self, closure, status):
+        if not isinstance(closure, dict): return
+        release = str(closure.get('release_version') or ((status.get('release') or {}).get('version') or '')).strip()
+        if not release: return
+        marker_title = f'{release} live closure'; active = self.base.tasks.active()
+        if closure.get('status') == 'GREEN':
+            if active and active.get('title') == marker_title:
+                self.base.tasks.progress(active['id'], step=6, steps_total=6, next_action='')
+                gates = {name: True for name in ('code_ready','tests_green','functional_validation_green','kb_updated','roadmap_updated','handover_updated','release_ready','no_blockers')}; self.base.tasks.complete(active['id'], gates)
+            return
+        if active is None: active = self.base.tasks.start(marker_title, 'Autonoom alle live 32.4 closure-gates runtime-first afronden.', mode='MAINTENANCE', steps_total=6, priority=1)
+        if active.get('title') != marker_title: return
+        mapping={'REQUEST_WATCHER_RECREATE':(1,'Watcher contract v3 recreëren en live bewijzen'),'REQUEST_NATIVE_MCP_RELOAD':(2,'Native MCP reload + fingerprint readback'),'CREATE_PROJECT_CR':(3,'Actuele EnergieProject Crash Recovery set maken/verifiëren'),'CREATE_NAS_CR':(4,'Actuele NAS Container Crash Recovery set maken/verifiëren'),'RUN_CLEARUP':(5,'CLEARUP/hygiene no-delete closure uitvoeren'),'COMPLETE':(6,'Finale release hold/atomic acceptance verifiëren')}; step,next_action=mapping.get(str(closure.get('next_action') or ''),(1,str(closure.get('next_action') or '32.4 live closure vervolgen'))); self.base.tasks.progress(active['id'], step=step, steps_total=6, next_action=next_action)
 
     def _release_validation_snapshot(self):
         path = self.release_validation_path
@@ -310,6 +330,7 @@ class ProjectmanagerRuntime:
         status['conversation_intake'] = self.conversation_intake.summary()
         status['state_reconciliation'] = reconciliation_result
         status['series_324_live_closure'] = self._reconcile_324_live_closure(status)
+        self._sync_324_closure_task(status['series_324_live_closure'], status)
         self._refresh_coordination(status)
         self._finalize_coordination_audit(status, now=now)
         return status
@@ -376,6 +397,9 @@ class ProjectmanagerRuntime:
         status['approved_actions'] = self.approved_actions.open_items()
         status['handoffs'] = self.handoffs.open_items()
         status['canonical_roadmap'] = self.roadmap.canonical_metadata()
+        status['acceptance_matrix'] = self.roadmap.acceptance_summary()
+        status['development_efficiency'] = (status.get('progress') or {}).get('development_efficiency') or {}
+        status['development_context'] = {'active_context':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_ACTIVE_DEVELOPMENT_CONTEXT.md','manifest':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_DEVELOPMENT_MANIFEST.md','ledger':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/01_UNIFIED_DEVELOPMENT_LEDGER.md','live_handover_primary':True}
         status['conversation_intake'] = self.conversation_intake.summary()
         issues = getattr(self.base, 'issues', None)
         status['open_issues'] = issues.open_items() if issues is not None else status.get('open_issues', [])
@@ -398,6 +422,9 @@ class ProjectmanagerRuntime:
         handover['approved_actions'] = status.get('approved_actions', [])
         handover['handoffs'] = status.get('handoffs', [])
         handover['canonical_roadmap'] = status.get('canonical_roadmap', {})
+        handover['acceptance_matrix'] = status.get('acceptance_matrix', {})
+        handover['development_efficiency'] = status.get('development_efficiency', {})
+        handover['development_context'] = status.get('development_context', {})
         handover['conversation_intake'] = status.get('conversation_intake', {})
         handover['state_reconciliation'] = status.get('state_reconciliation', {})
         atomic_write_json(self.root / 'handover' / 'current.json', handover)

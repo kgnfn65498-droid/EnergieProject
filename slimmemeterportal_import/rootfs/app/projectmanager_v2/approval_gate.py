@@ -2,6 +2,7 @@ PROTECTED_ACTIONS = {
     'production_deploy': 'PRODUCTION_DEPLOY',
     'architecture_change': 'ARCHITECTURE_CHANGE',
     'native_mcp_reload': 'PRODUCTION_RESTART',
+    'watcher_recreate': 'PRODUCTION_RESTART',
     'paid_commitment': 'PAID_COMMITMENT',
     'purchase': 'PURCHASE',
 }

@@ -1,3 +1,13 @@
+## 32.4.40 — final PM core closure and development continuity
+
+- Roadmap–Ledger Acceptance Matrix voorkomt vergeten carry-forward en onderscheidt TEST_GREEN, LIVE_REQUIRED, LIVE_PROVEN en CLOSED/COLD.
+- Runtime-first task reconciliation verwijdert stale release-buildtaken; status/handover/progress/Nomad volgen dezelfde actuele waarheid.
+- Canonieke roadmap atomic persistence gebruikt expliciet cross-runtime leesbare 0644 zonder private runtimewrites te verbreden.
+- Protected watcher recreate gebruikt uitsluitend exact begrensde QNAP Docker TLS-capability; geen Terminal/generieke Dockerroute.
+- Timing/efficiencytruth bewaart oorspronkelijke raming, werkelijke stapintervallen, ETA, variance en planningtrend.
+- Teststrategie: gerichte TDD tijdens werk, één zware onafhankelijke audit op exact finale ZIP.
+- Live 32.4 closure blijft fail-closed tot watcher, Native MCP, CR, CLEARUP, hold en atomic acceptance werkelijk GREEN zijn.
+
 ## 32.4.39 — four-core runtime closure repair
 
 - Reparatie beperkt tot vier bewezen kernoorzaken: watcher recreategrens, Native MCP runtime truth, canonical roadmap persistence en CLEARUP/acceptance-deadlock.

@@ -27,8 +27,12 @@ def _atomic_json(path: Path, payload: dict) -> None:
 def apply(root: Path | str) -> dict:
     root = Path(root).resolve()
     version = (root / "App/VERSIE.txt").read_text(encoding="utf-8").strip()
-    if version != "32.4.39":
-        raise RuntimeError(f"runtime contract hotfix requires active 32.4.39, got {version!r}")
+    try:
+        version_tuple = tuple(int(part) for part in version.split("."))
+    except ValueError as exc:
+        raise RuntimeError(f"invalid active release version: {version!r}") from exc
+    if version_tuple < (32, 4, 39):
+        raise RuntimeError(f"runtime contract hotfix requires 32.4.39+, got {version!r}")
     native = root / "Infra/Docker/native-mcp"
     server = native / "server.py"
     tools_pm = native / "tools_projectmanager.py"

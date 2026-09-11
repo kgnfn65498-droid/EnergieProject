@@ -184,7 +184,6 @@ def execute_request(root: Path, request_path: Path) -> tuple[str, dict[str, Any]
                     raise RequestRejected("pre-acceptance CLEARUP plan item ongeldig")
                 if str(item.get("source_path") or "").rstrip("/") == protected_rollback:
                     raise RequestRejected("pre-acceptance CLEARUP mag actieve rollback niet verplaatsen")
-        if pre_acceptance:
             expected_fingerprint = str(plan.get("prerequisite_fingerprint") or "").strip().lower()
             if len(expected_fingerprint) != 64 or any(ch not in "0123456789abcdef" for ch in expected_fingerprint):
                 raise RequestRejected("pre-acceptance CLEARUP mist geldige recovery prerequisite_fingerprint")

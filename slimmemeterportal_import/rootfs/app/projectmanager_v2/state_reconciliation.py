@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime, timezone
+import re
 
 
 FINAL_TASK_STATUSES = {'DONE', 'SUPERSEDED'}
@@ -54,6 +55,37 @@ def _pure_mode_command(decision, command):
         if str(command.get(field) or context.get(field) or '').strip():
             return False
     return True
+
+
+def _release_tuple(value):
+    try:
+        parts = tuple(int(part) for part in str(value or '').strip().split('.'))
+    except ValueError:
+        return None
+    return parts if len(parts) == 3 else None
+
+
+def _task_release(task):
+    metadata = task.get('build_metadata') if isinstance(task.get('build_metadata'), dict) else {}
+    for value in (metadata.get('release_version'), task.get('release_version')):
+        parsed = _release_tuple(value)
+        if parsed:
+            return str(value), parsed
+    for field in ('title', 'goal', 'next_action'):
+        match = re.search(r'(?<![0-9])([0-9]+\.[0-9]+\.[0-9]+)(?![0-9])', str(task.get(field) or ''))
+        if match:
+            parsed = _release_tuple(match.group(1))
+            if parsed:
+                return match.group(1), parsed
+    return None, None
+
+
+def _is_release_build_task(task):
+    metadata = task.get('build_metadata') if isinstance(task.get('build_metadata'), dict) else {}
+    if task.get('build_contract_required') is True or _release_tuple(metadata.get('release_version')):
+        return True
+    text = ' '.join(str(task.get(field) or '') for field in ('title', 'goal')).lower()
+    return 'build' in text
 
 
 class StateReconciler:
@@ -162,6 +194,21 @@ class StateReconciler:
                 'evidence_refs': refs,
                 'changed': False,
             }
+        task_release, task_tuple = _task_release(task)
+        release = (runtime or {}).get('release') or {}
+        live_release = str(release.get('version') or release.get('ha_runtime_version') or '').strip()
+        live_tuple = _release_tuple(live_release)
+        release_chain = (runtime or {}).get('release_chain') or {}
+        atomic = release_chain.get('atomic_swap') or {}
+        atomic_raw = atomic.get('raw') if isinstance(atomic.get('raw'), dict) else {}
+        atomic_state = str(atomic.get('state') or atomic_raw.get('state') or '')
+        atomic_to = str(atomic_raw.get('to_version') or '')
+        refs = _clean_refs([release.get('source'), atomic.get('source')])
+        if task_tuple and live_tuple and task.get('mode') == 'DEVELOPMENT' and _is_release_build_task(task) and refs:
+            installed_newer = live_tuple > task_tuple
+            same_release_installed = live_tuple == task_tuple and atomic_to == task_release and atomic_state in {'LIVE_ACCEPTANCE', 'ACCEPTED'}
+            if installed_newer or same_release_installed:
+                return {'disposition': 'SUPERSEDED','reason': f'release build phase superseded by authoritative runtime {live_release} atomic={atomic_state}','evidence_refs': refs,'changed': True,'superseded_by': 'state_reconciliation:runtime_release_rule'}
         proof = task.get('reconciliation_proof')
         if isinstance(proof, dict) and proof.get('goal_satisfied') is True:
             refs = _clean_refs(proof.get('evidence_refs'))

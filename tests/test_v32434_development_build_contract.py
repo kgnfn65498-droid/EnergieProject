@@ -12,7 +12,7 @@ for path in (str(APP), str(PM)):
 
 def _meta():
     return {
-        'contract_version': '2026-09-10.v1',
+        'contract_version': '2026-09-11.v2',
         'thinking_level': 'HOOG',
         'release_version': '32.4.34',
         'estimated_total_seconds': 3000,
@@ -78,7 +78,7 @@ def test_progress_and_handover_carry_contract_across_chat_boundary(tmp_path):
     assert progress['estimated_test_verification_seconds'] == 1500
     handover = build_handover(mode={'mode': 'DEVELOPMENT'}, active_task=task, release={'version': '32.4.34'}, progress=progress)
     contract = handover['development_build_contract']
-    assert contract['contract_version'] == '2026-09-10.v1'
+    assert contract['contract_version'] == '2026-09-11.v2'
     assert contract['thinking_level'] == 'HOOG'
     assert contract['step_label'] == 'Stap 4/7'
     assert contract['cross_chat_required'] is True

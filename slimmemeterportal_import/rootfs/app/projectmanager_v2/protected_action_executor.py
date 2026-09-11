@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import shutil
+import time
 from pathlib import Path
 
 
@@ -199,10 +200,30 @@ class ProtectedActionExecutor:
             'request_path': str(target),
         }
 
+
+    def _execute_watcher_recreate(self, action, command, decision):
+        if decision.get('status') != 'APPROVED' or decision.get('approved_by') != 'Peter' or decision.get('kind') != 'PRODUCTION_RESTART': raise RuntimeError('Peter PRODUCTION_RESTART approval missing')
+        try:
+            from nas_docker_tls import DockerTlsConfig
+            from docker_engine_tls_client import DockerEngineTlsClient
+        except ImportError:
+            from .nas_docker_tls import DockerTlsConfig
+            from .docker_engine_tls_client import DockerEngineTlsClient
+        config=DockerTlsConfig.load(project_root=self.project_root); client=DockerEngineTlsClient(config,timeout_seconds=30)
+        if client.ping().get('ok') is not True: raise RuntimeError('QNAP Docker TLS ping not GREEN')
+        result=client.recreate_release_watcher(); marker=self.project_root/'Inbox/watcher_container_contract.json'; deadline=time.monotonic()+45.0; proof=None
+        while time.monotonic()<deadline:
+            try: proof=json.loads(marker.read_text(encoding='utf-8'))
+            except (OSError,json.JSONDecodeError): proof=None
+            if isinstance(proof,dict) and proof.get('ready') is True and proof.get('contract_version')==3: break
+            time.sleep(0.5)
+        if not isinstance(proof,dict) or proof.get('ready') is not True or proof.get('contract_version')!=3: raise RuntimeError('watcher recreated but live contract readback not GREEN')
+        return {'ok':True,'executed':True,'production_changed':True,'restart_performed':True,'watcher_contract_green':True,'contract_version':3,'docker_result':result,'marker':str(marker)}
+
     def run_once(self, *, max_items=5):
         results = []
         for action in self.approved_actions.open_items()[:max(0, int(max_items))]:
-            if action.get('action') not in {'production_deploy', 'native_mcp_reload'}:
+            if action.get('action') not in {'production_deploy', 'native_mcp_reload', 'watcher_recreate'}:
                 continue
             try:
                 command = self.commands.get(action['command_id'])
@@ -221,7 +242,7 @@ class ProtectedActionExecutor:
                         'verification_report': str(report_path),
                         'incoming_path': str(target),
                     }
-                else:
+                elif action.get('action') == 'native_mcp_reload':
                     result = self._queue_native_mcp_reload(action, command, decision)
                     if result.get('awaiting_executor') is True:
                         if self.audit is not None:
@@ -231,6 +252,8 @@ class ProtectedActionExecutor:
                             })
                         results.append(result)
                         continue
+                else:
+                    result = self._execute_watcher_recreate(action, command, decision)
                 self.approved_actions.complete(action['id'], result=result)
                 self.commands.complete(command['id'], result=result)
                 if self.audit is not None:

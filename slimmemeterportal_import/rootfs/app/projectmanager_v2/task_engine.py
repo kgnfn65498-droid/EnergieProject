@@ -124,7 +124,7 @@ class TaskStore:
         self._save(data)
         return dict(task)
 
-    def progress(self, task_id: str, *, step=None, steps_total=None, next_action=None, change=None, evidence_ref=None):
+    def progress(self, task_id: str, *, step=None, steps_total=None, next_action=None, change=None, evidence_ref=None, test_verification_actual_seconds=None):
         data = self._load()
         task = self._find(data, task_id)
         previous_step = int(task.get('step') or 1)
@@ -138,6 +138,11 @@ class TaskStore:
             task.setdefault('changes', []).append(change)
         if evidence_ref:
             task.setdefault('evidence_refs', []).append(evidence_ref)
+        if test_verification_actual_seconds is not None:
+            seconds = int(test_verification_actual_seconds)
+            if seconds < 0:
+                raise ValueError('test_verification_actual_seconds must be >= 0')
+            task['test_verification_actual_seconds'] = seconds
         updated_at = datetime.now(timezone.utc).isoformat()
         if int(task.get('step') or 1) != previous_step:
             task.setdefault('progress_history', []).append({'step': int(task.get('step') or 1), 'at': updated_at})

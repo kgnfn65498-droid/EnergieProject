@@ -40,8 +40,8 @@ def _write_nas_cr(root: Path, version: str):
 
 
 def test_release_identity_is_32438_and_pm_rc25():
-    assert (ROOT/'VERSIE.txt').read_text().strip() == '32.4.39'
-    assert (PM/'VERSION.txt').read_text().strip() == '2.0.0-rc26'
+    assert (ROOT/'VERSIE.txt').read_text().strip() == '32.4.40'
+    assert (PM/'VERSION.txt').read_text().strip() == '2.0.0-rc27'
 
 
 def test_short_running_signal_is_projectmanager_intent():
@@ -107,7 +107,8 @@ def test_kb_sync_contains_recent_32436_32437_32438_lessons():
 
 def test_canonical_roadmap_has_live_324_closure_before_ngrok():
     source=(PM/'canonical_roadmap_migration.py').read_text()
-    assert "TARGET_RELEASE = '32.4.39'" in source
+    current=(ROOT/'VERSIE.txt').read_text().strip()
+    assert f"TARGET_RELEASE = '{current}'" in source
     assert "'32-4-closure-live'" in source
     assert "'depends_on': ['32-4-closure-live']" in source
 
