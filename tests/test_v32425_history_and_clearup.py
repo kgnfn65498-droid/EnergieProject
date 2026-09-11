@@ -492,7 +492,7 @@ def test_32425_auto_clearup_gate_requires_persisted_approval_acceptance_hold_and
     gate = mod.clearup_auto_gate(tmp_path, app_version="32.4.25")
     assert gate["ready"] is False
     assert "user_approval" in gate["blockers"]
-    assert "release_not_accepted" in gate["blockers"]
+    assert "release_phase_not_safe" in gate["blockers"]
     assert "crash_recovery_not_verified" in gate["blockers"]
 
     _approve_clearup_scope(tmp_path)
@@ -512,7 +512,7 @@ def test_32425_auto_clearup_run_uses_hard_move_only_after_gate(tmp_path: Path, m
     for version in ("32.4.20", "32.4.21", "32.4.22", "32.4.23"):
         _rollback(tmp_path, version)
 
-    def local_executor(root, plan, *, run_id, deadline_monotonic, progress_callback, started_monotonic):
+    def local_executor(root, plan, *, run_id, deadline_monotonic, progress_callback, started_monotonic, pre_acceptance=False):
         return mod.apply_clearup_plan(
             root, plan, confirmation=plan['confirmation_required'], run_id=run_id,
             deadline_monotonic=deadline_monotonic, progress_callback=progress_callback,
@@ -538,7 +538,7 @@ def test_32425_auto_gate_does_not_hash_cr_before_release_is_accepted(tmp_path: P
     monkeypatch.setattr(mod, "_crash_recovery_gate", forbidden)
     gate = mod.clearup_auto_gate(tmp_path, app_version="32.4.25")
     assert gate["ready"] is False
-    assert "release_not_accepted" in gate["blockers"]
+    assert "release_phase_not_safe" in gate["blockers"]
 
 
 

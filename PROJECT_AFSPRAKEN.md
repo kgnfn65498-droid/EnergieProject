@@ -177,3 +177,11 @@
 - Voor 32.4.38+ moeten actuele project- en NAS-CR GREEN zijn vóór CLEARUP.
 - CLEARUP is quarantaine/hard-move/no-delete; bestaande quarantaine is geen hygiene-schuld.
 - 32.4 closure-health staat los van de bewust later geplande ngrok-securitycheck.
+
+## 32.4.39 kernfix-/kleine-stappencontract
+- Een release met veel rode/oranje gevolgen wordt niet automatisch een monsterbuild; eerst worden de kleinste bewezen root-causeclusters volledig opgelost.
+- 32.4.39 bevat alleen watcher recreategrens, Native MCP runtime truth/fingerprint, canonical roadmap persistence en CLEARUP/acceptance-deadlock.
+- Gevolgproblemen worden pas na live installatie opnieuw gemeten; alleen wat dan nog werkelijk fout is krijgt een volgende build.
+- Geen GREEN op alleen broncodepresence: runtime/readback blijft vereist.
+- ChatGPT-onderbrekingen worden opgevangen door kleine bewijsblokken met write+readback; eerder bewezen werk wordt niet opnieuw uitgevoerd.
+

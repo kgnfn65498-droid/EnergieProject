@@ -64,7 +64,7 @@ def test_run_reports_permanent_ordered_phases(tmp_path: Path, monkeypatch: pytes
 
     events = []
 
-    def local_executor(root, plan, *, run_id, deadline_monotonic, progress_callback, started_monotonic):
+    def local_executor(root, plan, *, run_id, deadline_monotonic, progress_callback, started_monotonic, pre_acceptance=False):
         return auto.apply_clearup_plan(
             root, plan, confirmation=plan['confirmation_required'], run_id=run_id,
             deadline_monotonic=deadline_monotonic, progress_callback=progress_callback,

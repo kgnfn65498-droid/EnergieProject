@@ -105,7 +105,7 @@ def test_approved_v3_migration_retains_ngrok_and_inserts_voice_and_handover_befo
     by_key = {item['key']: item for item in migrated['items']}
     assert first['status'] == 'migrated'
     assert second['status'] == 'already_current'
-    assert migrated['migration_release'] == '32.4.38'
+    assert migrated['migration_release'] == '32.4.39'
     assert migrated['required_gates_before_32_5'] == [
         '32-4-closure-live', 'ngrok-assessment', 'voice-live-acceptance', 'new-chat-handover-live'
     ]

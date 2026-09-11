@@ -17,8 +17,8 @@ for p in (str(ROOT), str(APP), str(PM), str(TOOLS)):
 
 
 def test_release_identity_is_32437_and_pm_rc24():
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.38'
-    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc25'
+    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.39'
+    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc26'
 
 
 def test_watcher_contract_fails_closed_without_socket(tmp_path):
@@ -29,14 +29,14 @@ def test_watcher_contract_fails_closed_without_socket(tmp_path):
     result = probe(root, socket_path=tmp_path / 'missing.sock')
     assert result['status'] == 'RECREATE_REQUIRED'
     assert result['ready'] is False
-    assert result['contract_version'] == 2
+    assert result['contract_version'] == 3
     marker = json.loads((root / 'Inbox/watcher_container_contract.json').read_text())
     assert marker['recreate_required'] is True
 
 
-def test_watcher_bootstrap_declares_and_verifies_contract_v2():
+def test_watcher_bootstrap_declares_and_verifies_contract_v3():
     text = (TOOLS / 'bootstrap_release_watcher_container.sh').read_text()
-    assert 'ENERGIE_WATCHER_CONTAINER_CONTRACT=2' in text
+    assert 'ENERGIE_WATCHER_CONTAINER_CONTRACT=3' in text
     assert '/var/run/docker.sock:/var/run/docker.sock' in text
     assert '--network none' in text
     assert '--cap-drop ALL' in text
@@ -51,25 +51,30 @@ def test_release_watcher_checks_contract_before_nas_capability():
     assert startup.index('process_watcher_container_contract') < startup.index('process_nas_cr_capability_probe')
 
 
-def test_native_mcp_runtime_guard_detects_missing_or_stale_marker(tmp_path):
-    from native_mcp_runtime_guard import expected_fingerprint, probe
+def test_native_mcp_runtime_guard_detects_missing_or_stale_marker(tmp_path, monkeypatch):
+    import native_mcp_runtime_guard as guard
 
     root = tmp_path / 'EnergieProject'
-    native = root / 'Infra/Docker/native-mcp'
-    native.mkdir(parents=True)
-    (root / 'Inbox').mkdir()
-    (native / 'crash_recovery.py').write_text('a=1\n')
-    (native / 'tools_recovery.py').write_text('b=2\n')
-    expected = expected_fingerprint(root)
-    missing = probe(root)
+    (root / 'Inbox').mkdir(parents=True)
+    expected = 'e' * 64
+    targets = ['native:runtime_fingerprint.py', 'native:server.py', 'pm:command_gateway.py']
+    monkeypatch.setattr(guard, 'expected_fingerprint', lambda _root: (expected, targets))
+
+    missing = guard.probe(root)
     assert missing['status'] == 'RELOAD_REQUIRED'
-    marker = root / 'Inbox/native_mcp_runtime/runtime_fingerprint.json'
+
+    marker = root / 'Data/03_Systeem/Projectmanager/RuntimeEvidence/native_mcp_runtime_fingerprint.json'
     marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(json.dumps({'schema': 'energie_native_mcp_runtime_v1', 'fingerprint': '0'*64}))
-    stale = probe(root)
+    marker.write_text(json.dumps({
+        'schema': 'energie_native_mcp_runtime_v2', 'fingerprint': '0' * 64, 'targets': targets,
+    }))
+    stale = guard.probe(root)
     assert stale['status'] == 'RELOAD_REQUIRED'
-    marker.write_text(json.dumps({'schema': 'energie_native_mcp_runtime_v1', 'fingerprint': expected}))
-    green = probe(root)
+
+    marker.write_text(json.dumps({
+        'schema': 'energie_native_mcp_runtime_v2', 'fingerprint': expected, 'targets': targets,
+    }))
+    green = guard.probe(root)
     assert green['status'] == 'GREEN'
     assert green['ready'] is True
 

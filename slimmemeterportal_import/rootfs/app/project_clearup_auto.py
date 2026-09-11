@@ -52,6 +52,7 @@ def _apply_clearup_via_watcher(
     deadline_monotonic: float,
     progress_callback: Callable[[dict[str, Any]], None] | None,
     started_monotonic: float,
+    pre_acceptance: bool,
 ) -> dict[str, Any]:
     request_path = root / CLEARUP_MOVE_REQUEST_RELATIVE
     result_path = root / CLEARUP_MOVE_RESULT_RELATIVE
@@ -78,6 +79,7 @@ def _apply_clearup_via_watcher(
         "plan": plan,
         "confirmation": str(plan.get("confirmation_required") or ""),
         "run_id": effective_run_id,
+        "pre_acceptance": bool(pre_acceptance),
     }
     _emit_progress(
         progress_callback, phase="apply", started_monotonic=started_monotonic,
@@ -177,6 +179,19 @@ def _hold_released(root: Path) -> tuple[bool, dict[str, Any]]:
     hold = _read_json(root / "Inbox/operating_mode/release_validation_hold.json") or {}
     ok = hold.get("active") is False and str(hold.get("validation_status") or "").lower() == "ok"
     return ok, hold
+
+def _pre_acceptance_phase(root: Path, app_version: str) -> tuple[bool, dict[str, Any], dict[str, Any]]:
+    atomic = _read_json(root / "Inbox/atomic_app_swap_state.json") or {}
+    hold = _read_json(root / "Inbox/operating_mode/release_validation_hold.json") or {}
+    status = str(hold.get("validation_status") or "").lower()
+    ok = bool(
+        str(atomic.get("state") or "").upper() == "LIVE_ACCEPTANCE"
+        and str(atomic.get("to_version") or "") == str(app_version)
+        and hold.get("active") is True
+        and str(hold.get("release_version") or "") == str(app_version)
+        and status in {"required", "blocked"}
+    )
+    return ok, atomic, hold
 
 
 def _parse_expected_sha(text: str) -> str | None:
@@ -354,19 +369,21 @@ def clearup_auto_gate(
     root = Path(project_root).resolve()
     accepted, atomic = _release_accepted(root, app_version)
     hold_ok, hold = _hold_released(root)
+    pre_acceptance, pre_atomic, pre_hold = _pre_acceptance_phase(root, app_version)
+    if pre_acceptance:
+        atomic, hold = pre_atomic, pre_hold
+    release_phase_ok = bool((accepted and hold_ok) or pre_acceptance)
     approval = _approval_ok(root)
     blockers: list[str] = []
     if not approval:
         blockers.append("user_approval")
-    if not accepted:
-        blockers.append("release_not_accepted")
-    if not hold_ok:
-        blockers.append("release_hold_not_released")
+    if not release_phase_ok:
+        blockers.append("release_phase_not_safe")
 
     # The quarantine destination is a release prerequisite.  Prove it before
     # hashing Crash Recovery or any CLEARUP candidate so a permission problem
     # fails quickly and never after minutes of expensive NAS reads.
-    if approval and accepted and hold_ok:
+    if approval and release_phase_ok:
         clearup_destination = _clearup_destination_gate(root)
         if not clearup_destination.get("ok"):
             blockers.append("clearup_root_not_ready")
@@ -376,7 +393,7 @@ def clearup_auto_gate(
     # 32.4.38+ uses the current-release canonical project+NAS CR pair as the
     # authoritative prerequisite. Older releases preserve the historical
     # practical-acceptance gate for backward compatibility.
-    if approval and accepted and hold_ok and clearup_destination.get("ok"):
+    if approval and release_phase_ok and clearup_destination.get("ok"):
         if _requires_current_release_cr(str(app_version)):
             current_cr = _current_release_cr_gate(root, app_version=str(app_version))
             cr = dict(current_cr)
@@ -390,13 +407,13 @@ def clearup_auto_gate(
             current_cr = {"ok": True, "reason": "legacy_release_gate", "fingerprint": None}
             if not cr.get("ok"):
                 blockers.append("crash_recovery_not_verified")
-    elif approval and accepted and hold_ok:
+    elif approval and release_phase_ok:
         cr = {"ok": False, "reason": "deferred_until_clearup_root_ready"}
         current_cr = {"ok": False, "reason": "deferred_until_clearup_root_ready", "fingerprint": None}
     else:
         cr = {"ok": False, "reason": "deferred_until_release_acceptance"}
         current_cr = {"ok": False, "reason": "deferred_until_release_acceptance", "fingerprint": None}
-        if not accepted or not approval or not hold_ok:
+        if not release_phase_ok or not approval:
             blockers.append("crash_recovery_not_verified")
     return {
         "ready": not blockers,
@@ -405,6 +422,8 @@ def clearup_auto_gate(
         "user_approval": approval,
         "atomic": atomic,
         "release_hold": hold,
+        "pre_acceptance": pre_acceptance,
+        "release_phase_ok": release_phase_ok,
         "clearup_destination": clearup_destination,
         "crash_recovery": cr,
         "current_release_cr": current_cr,
@@ -482,6 +501,7 @@ def run_approved_clearup_once(
             deadline_monotonic=deadline_monotonic,
             progress_callback=progress_callback,
             started_monotonic=started_monotonic,
+            pre_acceptance=bool(gate.get("pre_acceptance")),
         )
         return {**result, "gate": gate, "plan_id": stale_plan_id}
     except RuntimeError as exc:
@@ -523,6 +543,7 @@ def run_approved_clearup_once(
         deadline_monotonic=deadline_monotonic,
         progress_callback=progress_callback,
         started_monotonic=started_monotonic,
+        pre_acceptance=bool(gate.get("pre_acceptance")),
     )
     return {
         **result,

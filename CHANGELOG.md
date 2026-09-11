@@ -1,3 +1,13 @@
+## 32.4.39 — four-core runtime closure repair
+
+- Reparatie beperkt tot vier bewezen kernoorzaken: watcher recreategrens, Native MCP runtime truth, canonical roadmap persistence en CLEARUP/acceptance-deadlock.
+- Geen cosmetische gevolgfixes: Conversation Intake, CR/hygiene en stale tasks worden pas na live 32.4.39 opnieuw beoordeeld.
+- Watchercontract v3 maakt containerconfig expliciet en genereert bij mismatch een exact releasegebonden recreate-request; geen generieke Docker-executor.
+- Native MCP runtimebewijs verhuist naar schrijfbare systeem-evidence, gebruikt fingerprint v2 en omvat ook het Projectmanager-tool-schema.
+- Canonical roadmap truth is uitsluitend persistente diskwaarheid; read-only migratie kan geen in-memory runtimewaarheid meer worden.
+- CLEARUP mag begrensd in exact dezelfde LIVE_ACCEPTANCE-release vóór final acceptance draaien, maar alleen met actuele CR-fingerprint en no-delete/hard-move-contract.
+- Productieplaatsing en watcher/native-MCP restart blijven expliciet beschermd; live bewijs volgt pas na installatie.
+
 ## 32.4.38 — autonomous 32.4 live-closure / CLEARUP truth
 
 - Recognizes compact `vXX draait` signals as Projectmanager live-acceptance intent.

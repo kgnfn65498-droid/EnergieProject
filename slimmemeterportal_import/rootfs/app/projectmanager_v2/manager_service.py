@@ -625,6 +625,13 @@ class ManagerService:
             '- CLEARUP-quarantaine is herstelhistorie en geen structurele schuld; CR-retentiequarantaine wordt uitgesloten van volgende project-CR snapshots.',
             '- 32.4 gebruikt een eigen closure-health; geplande ngrok-security mag de 32.4-closure niet kunstmatig ORANGE houden.',
             '- Lokale CR-bridge requests worden exact eenmaal geconsumeerd; een fout schrijft eerst matching RED-evidence zodat geen herhaalde backup-loop of stille timeout ontstaat.',
+            '## Ontwikkelproceslessen 32.4.39',
+            '- Een watcher-code-reexec kan nooit een ontbrekende Docker-mount toevoegen; containerconfigwijzigingen vereisen een exact releasegebonden recreatecontract plus live inspect-readback.',
+            '- Native MCP runtimebewijs omvat ook het Projectmanager-toolschema en wordt door de werkelijk geladen runtime naar de schrijfbare systeem-evidence geschreven; diskbron alleen is geen runtimebewijs.',
+            '- Canonieke roadmap-truth is uitsluitend persistente diskwaarheid; een mislukte migratiewrite mag nooit als tijdelijke in-memory canonical truth naar RuntimeV2 worden gereconcilieerd.',
+            '- CLEARUP en release-acceptance mogen geen circulaire gates vormen: actuele CR-fingerprint + exact dezelfde LIVE_ACCEPTANCE-release mogen bounded no-delete CLEARUP uitvoeren vóór atomic ACCEPTED.',
+            '- Bij veel gevolgproblemen wordt eerst de kleinste bewezen root-causecluster volledig gerepareerd; downstream signalen worden daarna live opnieuw gemeten in plaats van vooraf met losse patches te worden gemaskeerd.',
+            '- ChatGPT/app-onderbrekingen veranderen de technische waarheid niet: ontwikkelwerk wordt in kleine write+readback bewijsblokken vastgelegd en hervat vanaf het laatste bewezen blok.',
             '- Een lege ProjectManagerV2 staging-hoofdmap is geen cleanup-schuld; alleen resterende kinderen tellen. Verificatie-scratch zoals `.testfiles*.txt` hoort niet in een release-artifact.',
         ])
         return [

@@ -1,5 +1,10 @@
 # Roadmap v10.x
 
+## 32.4 kernreparatie — 32.4.39
+- Scope bewust beperkt tot vier bewezen kernoorzaken; gevolgproblemen worden na live 32.4.39 opnieuw gemeten en niet vooraf als opgelost geclaimd.
+- Kern: watcher recreategrens, Native MCP runtime truth, canonical roadmap persistence en CLEARUP/acceptance-deadlock.
+- 32.4-serie blijft open totdat live bewijs bepaalt welke resterende punten werkelijk nog bestaan.
+
 ## 32.4 closurestatus — 32.4.38
 - 32.4.38 sluit de resterende autonomie/CLEARUP-truth: `vXX draait` triggert live acceptance, actuele CRs gaan vóór CLEARUP, quarantaine telt niet als schuld, KB/roadmap worden door PM bijgewerkt.
 - Canonieke gate `32-4-closure-live` moet live GREEN/DONE zijn vóór ngrok-security.

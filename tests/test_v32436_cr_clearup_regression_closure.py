@@ -330,10 +330,10 @@ def test_native_mcp_hotfix_is_bounded_to_five_known_targets_and_no_restart():
 def test_32436_release_identity_is_consistent():
     import release_test_contract as contract
 
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.38'
-    assert contract.CURRENT_RELEASE == '32.4.38'
-    assert contract.CURRENT_PM_VERSION == '2.0.0-rc25'
-    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc25'
-    assert 'version: "32.4.38"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.4.38"' in (APP / 'main.py').read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.4.38"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.39'
+    assert contract.CURRENT_RELEASE == '32.4.39'
+    assert contract.CURRENT_PM_VERSION == '2.0.0-rc26'
+    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc26'
+    assert 'version: "32.4.39"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert 'APP_VERSION = "32.4.39"' in (APP / 'main.py').read_text(encoding='utf-8')
+    assert 'TARGET_RELEASE_VERSION = "32.4.39"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')

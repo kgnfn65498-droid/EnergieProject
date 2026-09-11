@@ -12,7 +12,7 @@ from pathlib import Path
 
 REQUEST = Path('Inbox/native_mcp_runtime/reload_request.json')
 RESULT = Path('Inbox/native_mcp_runtime/reload_result.json')
-RUNTIME_MARKER = Path('Inbox/native_mcp_runtime/runtime_fingerprint.json')
+RUNTIME_MARKER = Path('Data/03_Systeem/Projectmanager/RuntimeEvidence/native_mcp_runtime_fingerprint.json')
 SOCKET_PATH = '/var/run/docker.sock'
 CONTAINER = 'energie-filesystem-mcp'
 
@@ -74,7 +74,7 @@ def run(root: Path | str, *, wait_seconds: float = 60.0) -> dict:
     while time.monotonic() < deadline:
         try:
             marker = json.loads(marker_path.read_text(encoding='utf-8'))
-            if marker.get('schema') == 'energie_native_mcp_runtime_v1':
+            if marker.get('schema') == 'energie_native_mcp_runtime_v2':
                 actual = str(marker.get('fingerprint') or '')
         except (OSError, json.JSONDecodeError, UnicodeError):
             actual = ''

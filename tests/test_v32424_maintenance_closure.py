@@ -70,7 +70,7 @@ def test_non_mutating_core_acceptance_never_calls_month_workflow(monkeypatch, tm
     assert cert['test_type'] == 'non_mutating_core_safety'
 
 
-def test_roadmap_migration_permission_denied_returns_runtime_spec(monkeypatch, tmp_path):
+def test_roadmap_migration_permission_denied_fails_closed_without_runtime_spec(monkeypatch, tmp_path):
     module_path = PM / 'canonical_roadmap_migration.py'
     spec = importlib.util.spec_from_file_location('migration_v32424_permission', module_path)
     module = importlib.util.module_from_spec(spec)
@@ -103,9 +103,9 @@ def test_roadmap_migration_permission_denied_returns_runtime_spec(monkeypatch, t
     monkeypatch.setattr(module, 'atomic_write_json', denied)
     result = module.migrate_canonical_roadmap(path)
 
-    assert result['status'] == 'migrated_read_only'
+    assert result['status'] == 'persistence_required'
     assert result['persistence_required'] is True
-    assert result['spec']['migration_release'] == '32.4.38'
+    assert 'spec' not in result
     assert path.read_text(encoding='utf-8') == json.dumps(original)
 
 

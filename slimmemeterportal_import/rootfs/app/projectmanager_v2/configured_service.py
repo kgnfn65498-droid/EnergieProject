@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 from approved_action_store import ApprovedActionStore
-from canonical_roadmap_migration import migrate_canonical_roadmap
 from command_store import CommandStore
 from handoff_queue import HandoffQueue
 from manager_service import ManagerService
@@ -27,13 +26,10 @@ class ConfiguredManagerService(ManagerService):
         self._canonical_roadmap_path = Path(getattr(config, 'canonical_roadmap_path', '') or '') if getattr(config, 'canonical_roadmap_path', '') else None
 
     def _load_canonical_roadmap(self):
+        # Canonical truth is always persisted disk truth. Runtime code never
+        # reconciles an in-memory migration that failed to persist.
         if self._canonical_roadmap_path is None or not self._canonical_roadmap_path.is_file():
             return None
-        migration = migrate_canonical_roadmap(self._canonical_roadmap_path)
-        if migration.get('status') in {'invalid', 'unsupported'}:
-            return None
-        if migration.get('status') == 'migrated_read_only' and isinstance(migration.get('spec'), dict):
-            return migration['spec']
         try:
             value = json.loads(self._canonical_roadmap_path.read_text(encoding='utf-8'))
         except (OSError, json.JSONDecodeError):

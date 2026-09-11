@@ -83,7 +83,7 @@ def test_auto_clearup_delegates_apply_to_watcher_bridge(tmp_path: Path, monkeypa
     def forbidden_direct_apply(*args, **kwargs):
         raise AssertionError("HA runtime mag CLEARUP hard-renames niet meer direct uitvoeren")
 
-    def fake_bridge(root, plan, *, run_id, deadline_monotonic, progress_callback, started_monotonic):
+    def fake_bridge(root, plan, *, run_id, deadline_monotonic, progress_callback, started_monotonic, pre_acceptance=False):
         called["root"] = root
         called["plan_id"] = plan["plan_id"]
         called["run_id"] = run_id
@@ -225,6 +225,6 @@ def test_watcher_wires_clearup_move_request_in_python_container_without_root_chm
 
 
 def test_32433_release_identity_is_consistent():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.38"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.39"
     main = (APP / "main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.38"' in main
+    assert 'APP_VERSION = "32.4.39"' in main

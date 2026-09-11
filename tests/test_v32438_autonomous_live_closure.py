@@ -40,8 +40,8 @@ def _write_nas_cr(root: Path, version: str):
 
 
 def test_release_identity_is_32438_and_pm_rc25():
-    assert (ROOT/'VERSIE.txt').read_text().strip() == '32.4.38'
-    assert (PM/'VERSION.txt').read_text().strip() == '2.0.0-rc25'
+    assert (ROOT/'VERSIE.txt').read_text().strip() == '32.4.39'
+    assert (PM/'VERSION.txt').read_text().strip() == '2.0.0-rc26'
 
 
 def test_short_running_signal_is_projectmanager_intent():
@@ -107,7 +107,7 @@ def test_kb_sync_contains_recent_32436_32437_32438_lessons():
 
 def test_canonical_roadmap_has_live_324_closure_before_ngrok():
     source=(PM/'canonical_roadmap_migration.py').read_text()
-    assert "TARGET_RELEASE = '32.4.38'" in source
+    assert "TARGET_RELEASE = '32.4.39'" in source
     assert "'32-4-closure-live'" in source
     assert "'depends_on': ['32-4-closure-live']" in source
 
@@ -142,7 +142,7 @@ def test_post_release_autonomy_queues_only_needed_fixed_actions():
     base['project_crash_recovery_set']='ORANGE'
     assert next_action(base, clearup_done=False)=='CREATE_PROJECT_CR'
     base['watcher_container_contract']='RED'
-    assert next_action(base, clearup_done=False)=='BLOCKED_WATCHER_RECREATE'
+    assert next_action(base, clearup_done=False)=='REQUEST_WATCHER_RECREATE'
 
 
 def test_project_cr_fixed_request_executor_exists_and_is_narrow():

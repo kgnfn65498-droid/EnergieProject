@@ -63,7 +63,7 @@ rmdir "$INBOX/.watcher.lock" 2>/dev/null || true
   -e ENERGIE_WATCH_INTERVAL=5 \
   -e ENERGIE_ZIP_STABLE_POLLS=3 \
   -e ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS=30 \
-  -e ENERGIE_WATCHER_CONTAINER_CONTRACT=2 \
+  -e ENERGIE_WATCHER_CONTAINER_CONTRACT=3 \
   -e ENERGIE_BACKUP_RETENTION=999 \
   -e ENERGIE_PROCESSED_RETENTION=999 \
   -v "$ROOT:/energy" \
@@ -95,7 +95,7 @@ if [ "$CONTRACT_READY" -ne 1 ]; then
   "$DOCKER" logs "$CONTAINER_NAME" 2>&1 | tail -n 50 >&2 || true
   exit 1
 fi
-echo "OK: watcher container-contract v2 is GREEN"
+echo "OK: watcher container-contract v3 is GREEN"
 
 CAPABILITY_READY=0
 N=0

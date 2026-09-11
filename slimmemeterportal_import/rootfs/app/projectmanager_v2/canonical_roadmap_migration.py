@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
 
 from persistence import atomic_write_json
 
-TARGET_RELEASE = '32.4.38'
+TARGET_RELEASE = '32.4.39'
 EXPECTED_SCHEMA = 'energie_projectmanager_canonical_roadmap_v3'
 BASE_KEYS = {
     'conversation-intake', 'proactive-pm', 'nomad-next', 'ngrok-assessment',
@@ -101,7 +102,7 @@ def migrate_canonical_roadmap(path: Path | str) -> dict:
     migrated = deepcopy(current)
     migrated.update({
         'approved_at': '2026-09-11', 'approved_by': 'Peter',
-        'source': 'conversation_2026-09-11_32.4.38_autonomous_closure',
+        'source': 'conversation_2026-09-11_32.4.39_core_closure',
         'principle': '32.4 eerst live sluiten; daarna ngrok-security, Voice Mode, nieuwe-chat handover en pas daarna 32.5/Cowork.',
         'migration_release': TARGET_RELEASE,
         'required_gates_before_32_5': list(REQUIRED_GATES),
@@ -117,7 +118,39 @@ def migrate_canonical_roadmap(path: Path | str) -> dict:
     migrated['safety'] = safety
     try:
         atomic_write_json(target, migrated)
-    except PermissionError as exc:
-        return {'status':'migrated_read_only','path':str(target),'release':TARGET_RELEASE,
-                'persistence_required':True,'reason':f'{type(exc).__name__}: {exc}','spec':migrated}
-    return {'status':'migrated','path':str(target),'release':TARGET_RELEASE,'spec':migrated}
+    except OSError as exc:
+        return {
+            'status': 'persistence_required', 'path': str(target), 'release': TARGET_RELEASE,
+            'persistence_required': True, 'reason': f'{type(exc).__name__}: {exc}',
+        }
+    try:
+        persisted = json.loads(target.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {
+            'status': 'persistence_verification_failed', 'path': str(target),
+            'release': TARGET_RELEASE, 'reason': f'{type(exc).__name__}: {exc}',
+        }
+    if persisted != migrated:
+        return {
+            'status': 'persistence_verification_failed', 'path': str(target),
+            'release': TARGET_RELEASE, 'reason': 'disk_readback_differs_from_migrated_spec',
+        }
+    raw = json.dumps(persisted, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    return {
+        'status': 'migrated', 'path': str(target), 'release': TARGET_RELEASE,
+        'sha256': hashlib.sha256(raw).hexdigest(),
+    }
+
+
+def main() -> int:
+    import argparse
+    parser = argparse.ArgumentParser(description='Persist and verify the approved canonical roadmap migration')
+    parser.add_argument('--path', required=True)
+    args = parser.parse_args()
+    result = migrate_canonical_roadmap(Path(args.path))
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    return 0 if result.get('status') in {'migrated', 'already_current'} else 3
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

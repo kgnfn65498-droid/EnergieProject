@@ -38,7 +38,7 @@ def evaluate(checks: list[dict[str, Any]], *, clearup: dict[str, Any] | None, re
 
 def next_action(check_status: dict[str, str], *, clearup_done: bool) -> str:
     if check_status.get('watcher_container_contract') != 'GREEN':
-        return 'BLOCKED_WATCHER_RECREATE'
+        return 'REQUEST_WATCHER_RECREATE'
     if check_status.get('native_mcp_runtime') != 'GREEN':
         return 'REQUEST_NATIVE_MCP_RELOAD'
     if check_status.get('project_crash_recovery_set') != 'GREEN':

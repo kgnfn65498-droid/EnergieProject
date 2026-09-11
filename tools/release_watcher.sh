@@ -54,10 +54,14 @@ PROJECT_CR_LOCAL_TIMEOUT="${ENERGIE_PROJECT_CR_LOCAL_TIMEOUT_SECONDS:-1200}"
 WATCHER_CONTRACT_HELPER="$PROJECT/tools/watcher_container_contract.py"
 WATCHER_CONTRACT_MARKER="$INBOX/watcher_container_contract.json"
 NATIVE_MCP_GUARD="$PROJECT/tools/native_mcp_runtime_guard.py"
+NATIVE_MCP_RUNTIME_CONTRACT_HOTFIX="$PROJECT/tools/native_mcp_runtime_contract_hotfix.py"
 NATIVE_MCP_RELOAD_EXECUTOR="$PROJECT/tools/native_mcp_reload_executor.py"
 NATIVE_MCP_RELOAD_REQUEST="$INBOX/native_mcp_runtime/reload_request.json"
 NATIVE_MCP_RELOAD_RESULT="$INBOX/native_mcp_runtime/reload_result.json"
 POST_RELEASE_MODE_HELPER="$PROJECT/tools/post_release_mode_transition.py"
+CANONICAL_ROADMAP_MIGRATION="$PROJECT/slimmemeterportal_import/rootfs/app/projectmanager_v2/canonical_roadmap_migration.py"
+CANONICAL_ROADMAP="$ROOT/Data/03_Systeem/Projectmanager/Roadmap/canonical_roadmap_v3.json"
+CANONICAL_ROADMAP_MIGRATION_STATE="$INBOX/logs/canonical_roadmap_migration_32.4.39.json"
 HEARTBEAT_STALE_SECONDS="${ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS:-30}"
 MODE_GATE_TIMEOUT="${ENERGIE_MODE_GATE_TIMEOUT_SECONDS:-5}"
 MAINTENANCE_HELPER_TIMEOUT="${ENERGIE_MAINTENANCE_HELPER_TIMEOUT_SECONDS:-20}"
@@ -261,10 +265,21 @@ process_watcher_container_contract(){
   [ -f "$WATCHER_CONTRACT_HELPER" ] || { log "FOUT: watcher contract helper ontbreekt"; return 1; }
   command -v python3 >/dev/null 2>&1 || return 1
   rc=0
-  python3 "$WATCHER_CONTRACT_HELPER" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
+  python3 "$WATCHER_CONTRACT_HELPER" --root "$ROOT" --request-recreate >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
   [ "$rc" -eq 0 ] && { log "Watcher container-contract = GREEN"; return 0; }
   [ "$rc" -eq 3 ] && { log "Watcher container-contract = RECREATE_REQUIRED"; return 1; }
   log "FOUT: watcher container-contract probe rc=$rc"
+  return 1
+}
+
+process_native_mcp_runtime_contract_hotfix(){
+  [ -f "$NATIVE_MCP_RUNTIME_CONTRACT_HOTFIX" ] || { log "FOUT: native MCP runtime-contract hotfix ontbreekt"; return 1; }
+  command -v python3 >/dev/null 2>&1 || return 1
+  if python3 "$NATIVE_MCP_RUNTIME_CONTRACT_HOTFIX" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1; then
+    log "Native MCP runtime-contract source = GREEN"
+    return 0
+  fi
+  log "FOUT: Native MCP runtime-contract hotfix = RED"
   return 1
 }
 
@@ -290,6 +305,19 @@ process_native_mcp_reload(){
   if [ -f "$NATIVE_MCP_RELOAD_RESULT" ]; then rm -f "$NATIVE_MCP_RELOAD_REQUEST" 2>/dev/null || true; fi
   [ "$rc" -eq 0 ] && { log "Native MCP beschermde reload = GREEN"; return 0; }
   log "FOUT: native MCP beschermde reload rc=$rc"
+  return 1
+}
+
+process_canonical_roadmap_migration(){
+  [ -f "$CANONICAL_ROADMAP_MIGRATION" ] || { log "FOUT: canonical roadmap migration helper ontbreekt"; return 1; }
+  [ -f "$CANONICAL_ROADMAP" ] || { log "FOUT: canonical roadmap bron ontbreekt"; return 1; }
+  command -v python3 >/dev/null 2>&1 || return 1
+  TMP_STATE="$CANONICAL_ROADMAP_MIGRATION_STATE.tmp.$$"
+  rc=0
+  run_bounded 20 python3 "$CANONICAL_ROADMAP_MIGRATION" --path "$CANONICAL_ROADMAP" > "$TMP_STATE" 2>&1 || rc=$?
+  mv "$TMP_STATE" "$CANONICAL_ROADMAP_MIGRATION_STATE"
+  [ "$rc" -eq 0 ] && { log "Canonical roadmap persist+readback = GREEN"; return 0; }
+  log "FOUT: canonical roadmap migration/persistence rc=$rc"
   return 1
 }
 
@@ -479,6 +507,8 @@ fi
 touch_heartbeat
 log "Release watcher gestart; interval=${INTERVAL}s"
 
+if ! process_canonical_roadmap_migration; then mark_startup_degraded "canonical-roadmap-persistence"; fi
+
 if ! process_post_release_maintenance_transition; then mark_startup_degraded "post-release-mode-transition"; fi
 
 if process_mcp_guard_hotfix; then
@@ -498,6 +528,8 @@ if process_watcher_container_contract; then
 else
   mark_startup_degraded "watcher-container-recreate-required"
 fi
+
+if ! process_native_mcp_runtime_contract_hotfix; then mark_startup_degraded "native-mcp-runtime-contract"; fi
 
 if process_native_mcp_runtime_guard; then
   log "Native MCP runtime startupcontrole = OK"
