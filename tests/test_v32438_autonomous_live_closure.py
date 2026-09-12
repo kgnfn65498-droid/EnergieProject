@@ -40,8 +40,8 @@ def _write_nas_cr(root: Path, version: str):
 
 
 def test_release_identity_is_32438_and_pm_rc25():
-    assert (ROOT/'VERSIE.txt').read_text().strip() == '32.4.41'
-    assert (PM/'VERSION.txt').read_text().strip() == '2.0.0-rc28'
+    assert (ROOT/'VERSIE.txt').read_text().strip() == '32.4.42'
+    assert (PM/'VERSION.txt').read_text().strip() == '2.0.0-rc29'
 
 
 def test_short_running_signal_is_projectmanager_intent():

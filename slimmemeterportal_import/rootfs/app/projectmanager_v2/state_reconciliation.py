@@ -102,7 +102,11 @@ def _is_release_build_task(task):
     if task.get('build_contract_required') is True or _release_tuple(metadata.get('release_version')):
         return True
     text = ' '.join(str(task.get(field) or '') for field in ('title', 'goal')).lower()
-    return 'build' in text
+    if 'build' in text:
+        return True
+    # Narrow legacy migration: pre-contract release-ingress continuation tasks
+    # are release work, but ordinary tasks containing only a version number are not.
+    return bool(re.search(r'\brelease[- ]ingress\b', text))
 
 
 class StateReconciler:

@@ -1,3 +1,17 @@
+# Testinstructies v32.4.42 — Projectmanager technische closure
+
+1. Gerichte TDD voor: PM/project-close scheiding, stale taakreconciliatie, pending-command telling, Native MCP releasebinding, korte JA/AKKOORD, handover/ledger en buildcontract.
+2. Controleer dat Crash Recovery/CLEARUP niet automatisch als actuele PM-taak/opdracht wordt gestart zolang deze fase uitgesteld is.
+3. Draai daarna alle relevante historische 32.4 regressies en vervolgens volledige pytest.
+4. Compileer alle Pythonbestanden en valideer alle shellscripts met `sh -n`.
+5. Bouw uitsluitend met de bestaande canonieke release-artifact builder; geen alternatieve buildroute.
+6. Verifieer ZIP CRC, path-safety, MANIFEST.sha256 en SHA256SUMS.json.
+7. Pak exact de finale ZIP schoon uit en herhaal regressies, compile, shellsyntax en manifestcontrole.
+8. Pas daarna leveren voor de bestaande `ZIP → Incoming/Home Assistant → watcher` route.
+9. Live: controleer PM-identiteit, watcher/control-plane, Native MCP fingerprint, taak/progress/timing, JA/AKKOORD en nieuwe-chat `verder` end-to-end.
+
+---
+
 # Testinstructies v32.4.41 — dedicated control-plane closure
 
 1. Gerichte 32.4.41 TDD: control-plane allowlist/approval binding, runtime-first native MCP, chat approval ingress, progress/timing, CR-inclusie, Inbox/Develop/CLEARUP en audit-tellers.

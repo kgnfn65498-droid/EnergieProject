@@ -172,7 +172,14 @@ class HandoverSnapshotService:
         }
 
     def _select_items(self, payload: dict, statuses: set[str], *, max_items=20) -> list[dict]:
-        items = payload.get('items', []) if isinstance(payload.get('items'), list) else []
+        if isinstance(payload.get('items'), list):
+            items = payload.get('items', [])
+        elif isinstance(payload.get('tasks'), list):
+            # TaskStore's canonical collection key is `tasks`; handover must not
+            # silently drop the active task merely because other queues use `items`.
+            items = payload.get('tasks', [])
+        else:
+            items = []
         result = []
         for item in items:
             if not isinstance(item, dict):
@@ -193,7 +200,7 @@ class HandoverSnapshotService:
             f"- Release: {snapshot['release_version']}",
             f"- Projectmanager: {snapshot['pm_version']}",
             f"- Modus: {snapshot['mode']}",
-            f"- Voortgang: {progress.get('step_label', '')} ({progress.get('percentage', '')}%)",
+            f"- Voortgang: {progress.get('step_label', '')} ({progress.get('progress_percent', progress.get('percentage', ''))}%)",
             f"- Volgende stap: {snapshot.get('next_step', '')}",
             '',
         ]
@@ -221,6 +228,25 @@ class HandoverSnapshotService:
             ] + ['']
         if snapshot.get('binding_context'):
             lines += ['## Bindende context'] + [f"- {item.get('text', '')}" for item in snapshot['binding_context']] + ['']
+        development_context = snapshot.get('development_context') if isinstance(snapshot.get('development_context'), dict) else {}
+        development_contract = snapshot.get('development_build_contract') if isinstance(snapshot.get('development_build_contract'), dict) else {}
+        if development_context:
+            lines += [
+                '## Ontwikkelcontext',
+                f"- Actieve context: {development_context.get('active_context', '')}",
+                f"- Manifest: {development_context.get('manifest', '')}",
+                f"- Ledger: {development_context.get('ledger', '')}",
+                f"- Live overdracht primair: {development_context.get('live_handover_primary', False)}",
+                '',
+            ]
+        if development_contract:
+            lines += [
+                '## Development Build Contract',
+                f"- Contractversie: {development_contract.get('contract_version', '')}",
+            ]
+            for rule in development_contract.get('process_rules', []) if isinstance(development_contract.get('process_rules'), list) else []:
+                lines.append(f"- Regel: {rule}")
+            lines.append('')
         lines += [
             '## Hervatten',
             f"Ga verder met: {snapshot.get('next_step', '')}",
@@ -360,6 +386,8 @@ class HandoverSnapshotService:
             'binding_context': self._binding_context(intake),
             'release_truth': release_truth,
             'test_evidence': test_evidence,
+            'development_context': redact(status.get('development_context', {})) if isinstance(status.get('development_context'), dict) else {},
+            'development_build_contract': redact(status.get('development_build_contract', {})) if isinstance(status.get('development_build_contract'), dict) else {},
             'unfinished': unfinished[:40],
         }
         snapshot = redact(snapshot)

@@ -142,6 +142,27 @@ class ProtectedActionExecutor:
         if decision.get('status') != 'APPROVED' or decision.get('approved_by') != 'Peter' or decision.get('kind') != 'PRODUCTION_RESTART':
             raise RuntimeError('Peter PRODUCTION_RESTART approval missing')
 
+        command_id = str(command.get('id') or '').strip()
+        decision_id = str(decision.get('id') or '').strip()
+        if str(action.get('command_id') or '').strip() != command_id or str(action.get('decision_id') or '').strip() != decision_id:
+            raise RuntimeError('native MCP approved action command/decision koppeling mismatch')
+        if str(command.get('approval_decision_id') or '').strip() != decision_id:
+            raise RuntimeError('native MCP command hoort niet bij goedgekeurde beslissing')
+        context = decision.get('context') if isinstance(decision.get('context'), dict) else {}
+        if str(context.get('command_id') or '').strip() != command_id or str(context.get('intent') or '').strip() != 'native_mcp_reload':
+            raise RuntimeError('native MCP beslissing hoort niet bij actuele opdracht')
+        command_release = str(command.get('release_version') or '').strip()
+        context_release = str(context.get('release_version') or '').strip()
+        version_path = self.project_root / 'App/VERSIE.txt'
+        try:
+            live_release = version_path.read_text(encoding='utf-8').strip()
+        except OSError as exc:
+            raise RuntimeError('actuele release niet leesbaar voor native MCP reload') from exc
+        if not command_release or command_release != live_release:
+            raise RuntimeError(f'native MCP opdracht hoort niet bij actuele release: command={command_release or "<leeg>"} live={live_release or "<leeg>"}')
+        if context_release and context_release != live_release:
+            raise RuntimeError(f'native MCP beslissing hoort niet bij actuele release: decision={context_release} live={live_release}')
+
         request_id = hashlib.sha256(str(action['id']).encode('utf-8')).hexdigest()[:32]
         guard_path = self.native_mcp_runtime_root / 'runtime_guard.json'
         guard = self._read_json_object(guard_path)
@@ -175,6 +196,9 @@ class ProtectedActionExecutor:
                 proof.get('schema') == 'energie_native_mcp_reload_result_v1'
                 and proof.get('status') == 'GREEN' and proof.get('ok') is True
                 and proof.get('container') == 'energie-filesystem-mcp'
+                and str(proof.get('decision_id') or '').strip() == decision_id
+                and str(proof.get('command_id') or '').strip() == command_id
+                and str(proof.get('release_version') or '').strip() == live_release
                 and str(proof.get('expected_fingerprint') or '').lower() == expected
                 and str(proof.get('runtime_fingerprint') or '').lower() == expected
                 and proof.get('restart_performed') is True
@@ -197,7 +221,9 @@ class ProtectedActionExecutor:
             'request_id': request_id,
             'action': 'native_mcp_reload',
             'approved_by': 'Peter',
-            'decision_id': decision['id'],
+            'decision_id': decision_id,
+            'command_id': command_id,
+            'release_version': live_release,
             'expected_fingerprint': expected,
         }
         target = self.control_plane_request_root / 'native_mcp_reload.json'

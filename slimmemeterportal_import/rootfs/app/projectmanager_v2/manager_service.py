@@ -184,6 +184,7 @@ class ManagerService:
         self.handover.save(handover_payload)
 
         document_results = self._sync_managed_documents(status)
+        document_results.extend(self._sync_development_context_documents(status))
         truth_result = self._reconcile_document_truth(status)
         status['runtime_truth'] = {
             'strategy': truth_result.get('strategy'),
@@ -530,6 +531,63 @@ class ManagerService:
             else:
                 self.audit.write('notification.delivery_failed', actor='projectmanager', result='deferred', details={'reason': result.get('reason')})
         return deliveries
+
+    def _sync_development_context_documents(self, status: dict):
+        """Persist the already-canonical development context/ledger paths.
+
+        These paths are referenced by Projectmanager handover and must therefore
+        exist as durable project truth, not only as chat context.
+        """
+        root = (
+            Path(self.config.project_root)
+            / 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons'
+        )
+        release = str((status.get('release') or {}).get('version') or 'NOG_TE_CONTROLEREN')
+        contract = status.get('development_build_contract') if isinstance(status.get('development_build_contract'), dict) else {}
+        contract_version = str(contract.get('contract_version') or 'NOG_TE_CONTROLEREN')
+        rules = [str(value).strip() for value in (contract.get('process_rules') or []) if str(value).strip()]
+        rules_text = '\n'.join(f'- `{rule}`' for rule in rules) or '- geen machineleesbare procesregels beschikbaar'
+
+        active = '\n'.join([
+            '## Actieve ontwikkelcontext',
+            f'- Release: **{release}**',
+            f'- Development Build Contract: **{contract_version}**',
+            '- Deze context is bindend vóór iedere ontwikkelactie en bij iedere nieuwe-chat-overdracht.',
+            '- Gebruik de bestaande EnergieProject-architectuur en ontwikkelroute; geen nieuwe ontwikkelroute of infrastructuur zonder expliciete opdracht of bewezen architectuurnoodzaak.',
+            '- Als de exacte vorige geverifieerde ZIP niet beschikbaar is: altijd eerst Peter om die ZIP vragen.',
+            '- Geen GitHub, losse bronreconstructie of productieboom als vervangende buildbasis.',
+            '- Standaard releasepad: **ZIP → Incoming/Home Assistant → watcher → live controle**.',
+            '- Hoofdoorzaak eerst; daarna TDD RED → GREEN en volledige hertest.',
+        ])
+        manifest = '\n'.join([
+            '## Ontwikkelmanifest',
+            '- Actieve context: `00_ACTIVE_DEVELOPMENT_CONTEXT.md`',
+            '- Bindende ledger: `01_UNIFIED_DEVELOPMENT_LEDGER.md`',
+            '- Nieuwe-chat-overdracht moet actuele taak, stap, werkstand, open beslissingen, Development Build Contract en deze ledger meenemen.',
+            '- Productieplaatsing en architectuurwijzigingen blijven expliciet beschermd.',
+            '- Crash Recovery/CLEARUP mag als aparte projectafsluiting worden uitgesteld zonder PM-technische gereedheid te vervalsen.',
+        ])
+        ledger = '\n'.join([
+            '## Unified Development Ledger — bindende regels',
+            f'- Actuele release: **{release}**',
+            f'- Contractversie: **{contract_version}**',
+            '- Geen nieuwe ontwikkelroute bedenken wanneer de bestaande route voldoet.',
+            '- Exacte vorige geverifieerde release-ZIP is verplicht als buildbasis.',
+            '- Ontbreekt die ZIP: vraag Peter er altijd direct om; bouw niet verder op een vervangende bron.',
+            '- Geen GitHub of reconstructie als vervangende buildbasis.',
+            '- Hoofdoorzaak → RED-test → reparatie → GREEN-test → volledige regressie → exacte ZIP → verse extractcontrole.',
+            '- Release-installatie blijft: ZIP → Incoming/Home Assistant → watcher → live controle.',
+            '- Tussentijdse bevindingen/checkpoints en overdracht moeten voldoende zijn om na onderbreking zonder herontwerp verder te gaan.',
+            '- Bij een nieuwe chat worden deze ledger, actieve context en het Development Build Contract vóór ontwikkelwerk gelezen/toegepast.',
+            '',
+            '### Machineleesbare Development Build Contract-regels',
+            rules_text,
+        ])
+        return [
+            self.document_sync.update(root / '00_ACTIVE_DEVELOPMENT_CONTEXT.md', 'PROJECTMANAGER_V2_DEVELOPMENT_CONTEXT', active, placement='top'),
+            self.document_sync.update(root / '00_DEVELOPMENT_MANIFEST.md', 'PROJECTMANAGER_V2_DEVELOPMENT_MANIFEST', manifest, placement='top'),
+            self.document_sync.update(root / '01_UNIFIED_DEVELOPMENT_LEDGER.md', 'PROJECTMANAGER_V2_DEVELOPMENT_LEDGER', ledger, placement='top'),
+        ]
 
     def _sync_managed_documents(self, status: dict):
         kb_dir = Path(self.config.reports_root) / 'KnowledgeBase'

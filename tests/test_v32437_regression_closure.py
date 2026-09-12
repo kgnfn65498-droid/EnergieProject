@@ -17,8 +17,8 @@ for p in (str(ROOT), str(APP), str(PM), str(TOOLS)):
 
 
 def test_release_identity_is_32437_and_pm_rc24():
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.41'
-    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc28'
+    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.42'
+    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc29'
 
 
 def test_watcher_contract_fails_closed_without_socket(tmp_path):
@@ -275,6 +275,8 @@ def test_protected_reload_does_not_overwrite_different_pending_request(tmp_path)
         def open_items(self): return []
 
     root = tmp_path / 'EnergieProject'
+    (root / 'App').mkdir(parents=True)
+    (root / 'App/VERSIE.txt').write_text('32.4.42\n')
     guard = root / 'Inbox/native_mcp_runtime/runtime_guard.json'
     guard.parent.mkdir(parents=True)
     guard.write_text(json.dumps({
@@ -284,9 +286,12 @@ def test_protected_reload_does_not_overwrite_different_pending_request(tmp_path)
     pending = guard.parent / 'reload_request.json'
     pending.write_text(json.dumps({'schema': 'energie_native_mcp_reload_request_v1', 'request_id': 'd' * 32}))
     ex = ProtectedActionExecutor(root, Dummy(), Dummy(), Dummy())
-    action = {'id': 'new-action'}
-    command = {}
-    decision = {'id': 'decision', 'status': 'APPROVED', 'approved_by': 'Peter', 'kind': 'PRODUCTION_RESTART'}
+    action = {'id': 'new-action', 'command_id': 'cmd', 'decision_id': 'decision'}
+    command = {'id': 'cmd', 'intent': 'native_mcp_reload', 'release_version': '32.4.42', 'approval_decision_id': 'decision'}
+    decision = {
+        'id': 'decision', 'status': 'APPROVED', 'approved_by': 'Peter', 'kind': 'PRODUCTION_RESTART',
+        'context': {'command_id': 'cmd', 'intent': 'native_mcp_reload', 'release_version': '32.4.42'},
+    }
     with pytest.raises(RuntimeError, match='pending'):
         ex._queue_native_mcp_reload(action, command, decision)
     assert json.loads(pending.read_text())['request_id'] == 'd' * 32
@@ -373,14 +378,19 @@ def test_protected_reload_stays_pending_until_matching_green_result(tmp_path):
         def get(self, item_id): return decision
 
     root = tmp_path / 'EnergieProject'
+    (root / 'App').mkdir(parents=True)
+    (root / 'App/VERSIE.txt').write_text('32.4.42\n')
     runtime = root / 'Inbox/native_mcp_runtime'
     runtime.mkdir(parents=True)
     runtime.joinpath('runtime_guard.json').write_text(json.dumps({
         'status':'RELOAD_REQUIRED','reload_required':True,'expected_fingerprint':'e'*64,
     }))
     action = {'id':'action-1','action':'native_mcp_reload','command_id':'cmd-1','decision_id':'dec-1'}
-    command = {'id':'cmd-1','intent':'native_mcp_reload'}
-    decision = {'id':'dec-1','status':'APPROVED','approved_by':'Peter','kind':'PRODUCTION_RESTART'}
+    command = {'id':'cmd-1','intent':'native_mcp_reload','release_version':'32.4.42','approval_decision_id':'dec-1'}
+    decision = {
+        'id':'dec-1','status':'APPROVED','approved_by':'Peter','kind':'PRODUCTION_RESTART',
+        'context': {'command_id':'cmd-1','intent':'native_mcp_reload','release_version':'32.4.42'},
+    }
     actions=Store(); commands=Commands(); decisions=Decisions()
     ex=ProtectedActionExecutor(root, actions, commands, decisions)
     pending=ex.run_once()
@@ -395,6 +405,7 @@ def test_protected_reload_stays_pending_until_matching_green_result(tmp_path):
         'schema':'energie_native_mcp_reload_result_v1','request_id':request['request_id'],
         'status':'GREEN','ok':True,'container':'energie-filesystem-mcp',
         'expected_fingerprint':'e'*64,'runtime_fingerprint':'e'*64,'restart_performed':True,
+        'decision_id':'dec-1','command_id':'cmd-1','release_version':'32.4.42',
     }))
     final=ex.run_once()
     assert final[0]['restart_performed'] is True
@@ -444,10 +455,15 @@ def test_protected_reload_can_finalize_after_runtime_guard_already_green(tmp_pat
         def get(self, item_id): return decision
 
     root=tmp_path/'EnergieProject'
+    (root/'App').mkdir(parents=True)
+    (root/'App/VERSIE.txt').write_text('32.4.42\n')
     runtime=root/'Inbox/native_mcp_runtime'; runtime.mkdir(parents=True)
     action={'id':'action-green','action':'native_mcp_reload','command_id':'cmd','decision_id':'dec'}
-    command={'id':'cmd','intent':'native_mcp_reload'}
-    decision={'id':'dec','status':'APPROVED','approved_by':'Peter','kind':'PRODUCTION_RESTART'}
+    command={'id':'cmd','intent':'native_mcp_reload','release_version':'32.4.42','approval_decision_id':'dec'}
+    decision={
+        'id':'dec','status':'APPROVED','approved_by':'Peter','kind':'PRODUCTION_RESTART',
+        'context': {'command_id':'cmd','intent':'native_mcp_reload','release_version':'32.4.42'},
+    }
     request_id=hashlib.sha256(action['id'].encode()).hexdigest()[:32]
     fingerprint='f'*64
     runtime.joinpath('runtime_guard.json').write_text(json.dumps({

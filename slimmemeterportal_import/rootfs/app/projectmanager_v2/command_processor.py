@@ -176,12 +176,24 @@ class CommandProcessor:
         if action in {'production_deploy', 'native_mcp_reload', 'watcher_recreate'}:
             if self.approved_actions is None:
                 raise RuntimeError('approved action store unavailable; fail closed')
+            mode_request = None
+            requested_mode = None
+            if action == 'production_deploy':
+                # Deployment approval is already explicit; selecting DEVELOPMENT
+                # is an operational PM mode choice, not a second approval gate.
+                requested_mode = 'DEVELOPMENT'
+                mode_request = self._request_mode(
+                    'DEVELOPMENT',
+                    reason=item.get('text') or 'approved release publication requires release ingress',
+                    source='approved_decision',
+                    confirmed_by_user=False,
+                )
             approved_action = self.approved_actions.add(
                 decision=approval,
                 command=item,
                 action=action,
             )
-            return {
+            result = {
                 'ok': True,
                 'executed': False,
                 'approved_continuation': True,
@@ -193,6 +205,10 @@ class CommandProcessor:
                 'approval_decision_id': approval['id'],
                 'approved_action': approved_action,
             }
+            if requested_mode:
+                result['requested_mode'] = requested_mode
+                result['mode_request'] = mode_request
+            return result
         raise RuntimeError(f'unsupported protected continuation: {action}')
 
     def process_next(self):

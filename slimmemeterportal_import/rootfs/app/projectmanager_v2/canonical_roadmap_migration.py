@@ -7,7 +7,7 @@ from pathlib import Path
 
 from persistence import atomic_write_json
 
-TARGET_RELEASE = '32.4.41'
+TARGET_RELEASE = '32.4.42'
 EXPECTED_SCHEMA = 'energie_projectmanager_canonical_roadmap_v3'
 BASE_KEYS = {
     'conversation-intake', 'proactive-pm', 'nomad-next', 'ngrok-assessment',

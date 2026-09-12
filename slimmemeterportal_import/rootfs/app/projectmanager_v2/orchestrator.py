@@ -1,5 +1,6 @@
 import json
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 
 from approval_ingress import ApprovalIngressConsumer
@@ -74,6 +75,7 @@ class ProjectmanagerRuntime:
             )
 
         mode_bridge = ModeBridge(config.mode_command_path) if getattr(config, 'mode_command_path', '') else None
+        self.mode_bridge = mode_bridge
         if project_cr_service is None:
             project_cr_service = ConfiguredProjectCrService(config.project_root)
         if nas_container_cr_service is None:
@@ -191,7 +193,15 @@ class ProjectmanagerRuntime:
         clearup_path = Path(self.config.project_root) / 'Inbox/logs/project_clearup_runtime.json'
         clearup = load_json(clearup_path, default={}) or {}
         closure = evaluate_324_closure(checks, clearup=clearup, release_version=release_version)
-        action = next_324_action(by_name, clearup_done=(str(clearup.get('status') or '') in {'completed','already_completed','no_action'} and str(clearup.get('release_version') or '') == release_version))
+        action = next_324_action(
+            by_name,
+            clearup_done=(
+                str(clearup.get('status') or '') in {'completed','already_completed','no_action'}
+                and str(clearup.get('release_version') or '') == release_version
+            ),
+            project_close_deferred=True,
+        )
+        closure['project_close_deferred'] = closure.get('project_close_status') != 'GREEN'
         closure['next_action'] = action
         try:
             if closure.get('status') == 'GREEN':
@@ -205,27 +215,56 @@ class ProjectmanagerRuntime:
             closure['automation'] = self._queue_324_action_once('watcher_recreate', release_version)
         elif closure.get('status') != 'GREEN' and action == 'REQUEST_NATIVE_MCP_RELOAD':
             closure['automation'] = self._queue_324_action_once('native_mcp_reload', release_version)
-        elif closure.get('status') != 'GREEN' and action == 'CREATE_PROJECT_CR':
-            closure['automation'] = self._queue_324_action_once('project_cr_create', release_version)
-        elif closure.get('status') != 'GREEN' and action == 'CREATE_NAS_CR':
-            closure['automation'] = self._queue_324_action_once('nas_container_cr_create', release_version)
         atomic_write_json(self.root / 'state' / 'series_32_4_live_closure.json', closure)
         return closure
 
 
     def _sync_324_closure_task(self, closure, status):
-        if not isinstance(closure, dict): return
-        release = str(closure.get('release_version') or ((status.get('release') or {}).get('version') or '')).strip()
-        if not release: return
-        marker_title = f'{release} live closure'; active = self.base.tasks.active()
-        if closure.get('status') == 'GREEN':
-            if active and active.get('title') == marker_title:
-                self.base.tasks.progress(active['id'], step=6, steps_total=6, next_action='')
-                gates = {name: True for name in ('code_ready','tests_green','functional_validation_green','kb_updated','roadmap_updated','handover_updated','release_ready','no_blockers')}; self.base.tasks.complete(active['id'], gates)
+        if not isinstance(closure, dict):
             return
-        if active is None: active = self.base.tasks.start(marker_title, 'Autonoom alle live 32.4 closure-gates runtime-first afronden.', mode='MAINTENANCE', steps_total=6, priority=1)
-        if active.get('title') != marker_title: return
-        mapping={'REQUEST_WATCHER_RECREATE':(1,'Watcher contract v3 recreëren en live bewijzen'),'REQUEST_NATIVE_MCP_RELOAD':(2,'Native MCP reload + fingerprint readback'),'CREATE_PROJECT_CR':(3,'Actuele EnergieProject Crash Recovery set maken/verifiëren'),'CREATE_NAS_CR':(4,'Actuele NAS Container Crash Recovery set maken/verifiëren'),'RUN_CLEARUP':(5,'CLEARUP/hygiene no-delete closure uitvoeren'),'COMPLETE':(6,'Finale release hold/atomic acceptance verifiëren')}; step,next_action=mapping.get(str(closure.get('next_action') or ''),(1,str(closure.get('next_action') or '32.4 live closure vervolgen'))); self.base.tasks.progress(active['id'], step=step, steps_total=6, next_action=next_action)
+        release = str(closure.get('release_version') or ((status.get('release') or {}).get('version') or '')).strip()
+        if not release:
+            return
+        marker_title = f'{release} Projectmanager technische closure'
+        active = self.base.tasks.active()
+        if closure.get('pm_status') == 'GREEN':
+            if active and active.get('title') == marker_title:
+                self.base.tasks.progress(active['id'], step=2, steps_total=2, next_action='')
+                gates = {
+                    name: True for name in (
+                        'code_ready','tests_green','functional_validation_green','kb_updated',
+                        'roadmap_updated','handover_updated','release_ready','no_blockers'
+                    )
+                }
+                self.base.tasks.complete(active['id'], gates)
+            return
+        if active is None:
+            active = self.base.tasks.start(
+                marker_title,
+                'Autonoom alleen de technische Projectmanager-gates runtime-first afronden; Crash Recovery/CLEARUP blijven uitgesteld.',
+                mode='MAINTENANCE',
+                steps_total=2,
+                priority=1,
+                build_metadata={
+                    'thinking_level': 'HOOG',
+                    'release_version': release,
+                    'estimated_total_seconds': 2700,
+                    'estimated_test_verification_seconds': 900,
+                    'step_estimates_seconds': [900, 1800],
+                    'original_estimate_recorded_at': datetime.now(timezone.utc).isoformat(),
+                },
+            )
+        if active.get('title') != marker_title:
+            return
+        mapping = {
+            'REQUEST_WATCHER_RECREATE': (1, 'Watcher contract v3 recreëren en live bewijzen'),
+            'REQUEST_NATIVE_MCP_RELOAD': (2, 'Native MCP reload + fingerprint readback'),
+        }
+        step, next_action = mapping.get(
+            str(closure.get('next_action') or ''),
+            (1, str(closure.get('next_action') or 'Projectmanager technische closure vervolgen')),
+        )
+        self.base.tasks.progress(active['id'], step=step, steps_total=2, next_action=next_action)
 
     def _release_validation_snapshot(self):
         path = self.release_validation_path
@@ -239,8 +278,46 @@ class ProjectmanagerRuntime:
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             return {'_source': str(path), 'error': f'{type(exc).__name__}: {exc}'}
 
+    def _auto_route_release_ingress(self, runtime_snapshot: dict) -> dict:
+        """Use the existing operational mode bridge when one release is waiting.
+
+        The watcher remains fail-closed outside DEVELOPMENT; Projectmanager only
+        selects the already-defined operational mode. Ambiguous inbox state never
+        causes an automatic mode change.
+        """
+        release_chain = runtime_snapshot.get('release_chain') if isinstance(runtime_snapshot, dict) else {}
+        release_chain = release_chain if isinstance(release_chain, dict) else {}
+        incoming = release_chain.get('incoming') if isinstance(release_chain.get('incoming'), dict) else {}
+        operating_mode = runtime_snapshot.get('operating_mode') if isinstance(runtime_snapshot, dict) else {}
+        operating_mode = operating_mode if isinstance(operating_mode, dict) else {}
+        try:
+            count = int(incoming.get('count') or 0)
+        except (TypeError, ValueError):
+            count = 0
+        mode = str(operating_mode.get('effective_mode') or '').strip().upper()
+        if count <= 0:
+            return {'status': 'NO_RELEASE_WAITING', 'requested_mode': None}
+        if count != 1:
+            return {'status': 'BLOCKED_AMBIGUOUS', 'requested_mode': None, 'incoming_count': count}
+        if mode == 'DEVELOPMENT':
+            return {'status': 'ALREADY_DEVELOPMENT', 'requested_mode': 'DEVELOPMENT'}
+        if self.mode_bridge is None:
+            return {'status': 'BLOCKED_MODE_BRIDGE_UNAVAILABLE', 'requested_mode': None}
+        request = self.mode_bridge.request_base_mode(
+            'DEVELOPMENT',
+            reason='exactly one release ZIP waiting in Incoming',
+            issued_by='projectmanager',
+            confirmed_by_user=False,
+        )
+        return {
+            'status': 'REQUESTED',
+            'requested_mode': 'DEVELOPMENT',
+            'incoming_count': 1,
+            'mode_request': request,
+        }
+
     def handles_conversation(self, text: str) -> bool:
-        return self.conversation.handles(text)
+        return self.conversation.handles(text) or self.conversation.handles_followup(text)
 
     def handle_conversation(self, **kwargs):
         with self._operation_lock:
@@ -302,6 +379,7 @@ class ProjectmanagerRuntime:
         processed = self.processor.process_all(max_items=50)
         protected_results = self.protected_executor.run_once(max_items=5)
         runtime_snapshot = self.base.runtime_collector.collect()
+        release_ingress_mode = self._auto_route_release_ingress(runtime_snapshot)
         release_validation = self._release_validation_snapshot()
         issues = getattr(self.base, 'issues', None)
         issue_repairs = collect_issue_repair_evidence(
@@ -321,6 +399,7 @@ class ProjectmanagerRuntime:
         status['ingress_results'] = ingress_results[-20:]
         status['processed_commands'] = len(processed)
         status['protected_executor_results'] = protected_results[-20:]
+        status['release_ingress_mode_route'] = release_ingress_mode
         if processed:
             status['command_results'] = processed[-20:]
         status['interrupted_commands'] = len(self.commands.by_status('INTERRUPTED'))

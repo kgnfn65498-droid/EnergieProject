@@ -1,3 +1,13 @@
+## 32.4.42 — Projectmanager technische closure, overdracht en ontwikkelregels
+
+- Scheidt Projectmanager-technische gereedheid van uitgestelde projectafsluiting zoals Crash Recovery/CLEARUP.
+- Herstelt taak/progresswaarheid, gelijke pending-command telling en volledige Development Build Contract-metadata.
+- Bindt Native MCP reload hard aan actuele release, command en beslissing via de bestaande control-plane.
+- Laat korte `JA`/`AKKOORD` alleen werken voor exact één geldige open Projectmanager-goedkeuring; geen dubbele beslissing.
+- Nieuwe-chat-overdracht draagt development context, ledgerverwijzing en buildcontract mee en toont het echte voortgangspercentage.
+- Harde ontwikkelregel: ontbreekt de exacte vorige geverifieerde ZIP, dan altijd Peter om die ZIP vragen; geen GitHub/reconstructie als buildbasis.
+- Crash Recovery/CLEARUP blijven bewust uitgesteld totdat Peter die projectafsluitfase hervat.
+
 ## 32.4.41 — dedicated control-plane, exact chat approval en hygiene closure
 
 - Dedicated `energie-control-plane` wordt de enige begrensde Docker-socket route voor watcher recreate en Native MCP reload.

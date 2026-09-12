@@ -17,10 +17,12 @@ _ACTION_KINDS = {
 }
 _VALID_STATUSES = {'PENDING', 'CONFIRMED', 'EXPIRED', 'INVALIDATED'}
 _EXPLICIT_CONFIRMATION = (
+    re.compile(r'^\s*(?:ja|akkoord)\s*[.!]?\s*$', re.IGNORECASE),
     re.compile(r'\bja\b.*\bvoer\b.*\buit\b', re.IGNORECASE),
     re.compile(r'\bbevestig\w*\b.*\bdefinitief\b.*\bvoer\b.*\buit\b', re.IGNORECASE),
     re.compile(r'\bvoer\b.*\bdefinitief\b.*\buit\b', re.IGNORECASE),
 )
+_SHORT_FOLLOWUP = re.compile(r'^\s*(?:ja|akkoord)\s*[.!]?\s*$', re.IGNORECASE)
 
 
 def _utc(value=None):
@@ -98,6 +100,49 @@ class ConversationApprovalCoordinator:
             details=redact(details),
         )
 
+    def handles_followup(self, text: str) -> bool:
+        """Accept a short approval token only when exactly one live challenge exists."""
+        if not _SHORT_FOLLOWUP.fullmatch(str(text or '')):
+            return False
+        return len(self.pending()) == 1
+
+    def _existing_pending_binding(self, *, action: str, parameters: dict):
+        """Reuse one exact canonical pending decision/command; never guess between several."""
+        kind = _ACTION_KINDS[action]
+        version = str(parameters.get('version') or '').strip()
+        matches = []
+        for decision in self.decisions.pending():
+            if decision.get('kind') != kind:
+                continue
+            context = decision.get('context') if isinstance(decision.get('context'), dict) else {}
+            if str(context.get('intent') or '').strip() != action:
+                continue
+            context_version = str(context.get('release_version') or '').strip()
+            if version and context_version and context_version != version:
+                continue
+            command_id = str(context.get('command_id') or '').strip()
+            command = None
+            if self.commands is not None:
+                if not command_id:
+                    continue
+                try:
+                    command = self.commands.get(command_id)
+                except KeyError:
+                    continue
+                if command.get('intent') != action:
+                    continue
+                if command.get('status') != 'WAITING_APPROVAL':
+                    continue
+                if command.get('approval_decision_id') != decision.get('id'):
+                    continue
+                command_version = str(command.get('release_version') or '').strip()
+                if version and command_version and command_version != version:
+                    continue
+            matches.append((dict(decision), dict(command) if isinstance(command, dict) else None))
+        if len(matches) > 1:
+            raise ValueError('meerdere passende PENDING Projectmanager-beslissingen; expliciete keuze vereist')
+        return matches[0] if matches else (None, None)
+
     def request(self, *, action: str, parameters: dict, source_channel: str, now=None):
         action = str(action or '').strip()
         if action not in _ACTION_KINDS:
@@ -135,39 +180,43 @@ class ConversationApprovalCoordinator:
             subject = f"de architectuurwijziging voor {target or version or 'het opgegeven doel'}"
         prompt = f'Ik ga {subject} uitvoeren. Wil je dit nu definitief uitvoeren?'
 
-        decision = self.decisions.request(
-            _ACTION_KINDS[action],
-            prompt,
-            fingerprint=f'conversation-protected:{signature}',
-            context={
-                'source_channel': source_channel,
-                'action': action,
-                'parameters': parameters,
-                'signature': signature,
-                'two_step_confirmation_required': True,
-            },
-        )
-        command_id = ''
-        if self.commands is not None:
-            command_payload = {
-                'intent': action,
-                'source': f'conversation:{source_channel}',
-                'text': prompt,
-                'title': prompt,
-                'goal': prompt,
-                'ingress_id': f'conversation-protected:{signature}',
-                'release_version': version,
-                'target': target,
-            }
-            for key in ('artifact_path', 'artifact_sha256', 'verification_report', 'next_action', 'steps_total', 'priority'):
-                if parameters.get(key) not in (None, ''):
-                    command_payload[key] = parameters.get(key)
-            command = self.commands.enqueue(command_payload)
-            if command.get('status') == 'PENDING':
-                command = self.commands.wait_for_approval(command['id'], decision_id=decision['id'])
-            elif command.get('status') == 'WAITING_APPROVAL' and not command.get('approval_decision_id'):
-                command = self.commands.wait_for_approval(command['id'], decision_id=decision['id'])
-            command_id = str(command.get('id') or '')
+        decision, command = self._existing_pending_binding(action=action, parameters=parameters)
+        if decision is None:
+            decision = self.decisions.request(
+                _ACTION_KINDS[action],
+                prompt,
+                fingerprint=f'conversation-protected:{signature}',
+                context={
+                    'source_channel': source_channel,
+                    'action': action,
+                    'intent': action,
+                    'parameters': parameters,
+                    'release_version': version,
+                    'signature': signature,
+                    'two_step_confirmation_required': True,
+                },
+            )
+            command = None
+            if self.commands is not None:
+                command_payload = {
+                    'intent': action,
+                    'source': f'conversation:{source_channel}',
+                    'text': prompt,
+                    'title': prompt,
+                    'goal': prompt,
+                    'ingress_id': f'conversation-protected:{signature}',
+                    'release_version': version,
+                    'target': target,
+                }
+                for key in ('artifact_path', 'artifact_sha256', 'verification_report', 'next_action', 'steps_total', 'priority'):
+                    if parameters.get(key) not in (None, ''):
+                        command_payload[key] = parameters.get(key)
+                command = self.commands.enqueue(command_payload)
+                if command.get('status') == 'PENDING':
+                    command = self.commands.wait_for_approval(command['id'], decision_id=decision['id'])
+                elif command.get('status') == 'WAITING_APPROVAL' and not command.get('approval_decision_id'):
+                    command = self.commands.wait_for_approval(command['id'], decision_id=decision['id'])
+        command_id = str((command or {}).get('id') or '')
         item = {
             'id': uuid4().hex,
             'decision_id': decision['id'],

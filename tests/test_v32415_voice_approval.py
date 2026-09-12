@@ -79,12 +79,12 @@ def test_typed_second_confirmation_is_equally_valid(tmp_path):
     assert decisions.get(challenge['decision_id'])['status'] == 'APPROVED'
 
 
-def test_plain_yes_is_not_explicit_second_confirmation(tmp_path):
+def test_plain_yes_is_valid_only_for_bound_pending_challenge(tmp_path):
     coordinator, decisions = _coordinator(tmp_path)
     challenge = _request(coordinator)['challenge']
     result = coordinator.confirm(challenge['id'], 'ja', source_channel='voice')
-    assert result['status'] == 'confirmation_required'
-    assert decisions.get(challenge['decision_id'])['status'] == 'PENDING'
+    assert result['status'] == 'approved'
+    assert decisions.get(challenge['decision_id'])['status'] == 'APPROVED'
 
 
 def test_parameter_change_invalidates_challenge_and_does_not_approve(tmp_path):

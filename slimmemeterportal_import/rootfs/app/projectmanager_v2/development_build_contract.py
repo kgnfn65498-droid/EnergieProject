@@ -1,7 +1,7 @@
 import json
 import re
 
-CONTRACT_VERSION = '2026-09-11.v2'
+CONTRACT_VERSION = '2026-09-11.v3'
 VALID_THINKING_LEVELS = {'MIDDEL', 'HOOG'}
 REQUIRED_BUILD_METADATA = (
     'thinking_level',
@@ -41,6 +41,9 @@ def canonical_contract():
             'closed_cold_lessons_hot_checks_cold',
             'efficient_targeted_tests_then_one_exact_artifact_final_audit',
             'live_handover_is_primary_new_chat_truth',
+            'exact_previous_verified_zip_required',
+            'ask_peter_for_exact_zip_if_unavailable',
+            'no_github_or_reconstruction_as_build_basis',
         ],
     }
 

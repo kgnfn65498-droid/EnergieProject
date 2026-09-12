@@ -13,6 +13,7 @@ from secret_guard import contains_secret_text
 
 _SPEECH_CHANNELS = {'voice', 'speech', 'dictation', 'nomad'}
 _CONFIRM_PATTERNS = (
+    r'^\s*(?:ja|akkoord)\s*[.!]?\s*$',
     r'^\s*ja\s*,?\s*voer\s+(?:het\s+)?uit[.!]?\s*$',
     r'^\s*ja\s*,?\s*definitief\s+(?:uitvoeren|doen)[.!]?\s*$',
     r'^\s*voer\s+(?:het\s+)?definitief\s+uit[.!]?\s*$',
@@ -24,6 +25,7 @@ _STATUS_PATTERNS = (
     r'\bwatcher\b.*\bstatus\b', r'\brollback\b.*\bstatus\b',
 )
 _ROADMAP_OR_TASK_QUERY = re.compile(r'\b(?:roadmap|taak|taken|action[ -]?item)\b', re.IGNORECASE)
+_RESUME_ONLY = re.compile(r'^\s*verder[.!]?\s*$', re.IGNORECASE)
 _KB_QUERY = re.compile(r'\b(?:knowledge base|kennisbank)\b', re.IGNORECASE)
 _DEICTIC_BLOCKER = re.compile(r'\b(?:die|deze)\s+blocker\b', re.IGNORECASE)
 _VERSION = re.compile(r'\b\d+\.\d+(?:\.\d+)?\b')
@@ -81,7 +83,15 @@ class ProjectmanagerConversationRuntime:
     @staticmethod
     def handles(text: str) -> bool:
         value = str(text or '').strip()
-        return bool(value) and (is_new_chat_intent(value) or protected_action_kind(value) is not None or _matches(value, _PM_INTENT_PATTERNS))
+        return bool(value) and (
+            is_new_chat_intent(value)
+            or _RESUME_ONLY.match(value) is not None
+            or protected_action_kind(value) is not None
+            or _matches(value, _PM_INTENT_PATTERNS)
+        )
+
+    def handles_followup(self, text: str) -> bool:
+        return self.approval.handles_followup(text)
 
     def _load_status(self) -> dict:
         try:
@@ -306,7 +316,7 @@ class ProjectmanagerConversationRuntime:
 
         status = self._load_status()
 
-        if is_new_chat_intent(text):
+        if is_new_chat_intent(text) or _RESUME_ONLY.match(text) is not None:
             snapshot = self.handover.create(
                 source_channel=source_channel,
                 trigger_text=text,

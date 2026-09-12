@@ -76,6 +76,8 @@ def test_32441_protected_executor_routes_watcher_and_native_to_control_plane_not
 
 def test_32441_native_runtime_already_green_never_requests_second_restart(tmp_path):
     root = tmp_path / 'project'
+    (root / 'App').mkdir(parents=True)
+    (root / 'App/VERSIE.txt').write_text('32.4.42\n')
     runtime = root / 'Inbox/native_mcp_runtime'
     runtime.mkdir(parents=True)
     fp = 'a' * 64
@@ -85,8 +87,9 @@ def test_32441_native_runtime_already_green_never_requests_second_restart(tmp_pa
         'expected_fingerprint': fp, 'runtime_fingerprint': fp,
     })
     action = {'id': 'action1', 'action': 'native_mcp_reload', 'command_id': 'cmd1', 'decision_id': 'dec1'}
-    command = {'id': 'cmd1', 'intent': 'native_mcp_reload'}
-    decision = {'id': 'dec1', 'status': 'APPROVED', 'approved_by': 'Peter', 'kind': 'PRODUCTION_RESTART'}
+    command = {'id': 'cmd1', 'intent': 'native_mcp_reload', 'release_version': '32.4.42', 'approval_decision_id': 'dec1'}
+    decision = {'id': 'dec1', 'status': 'APPROVED', 'approved_by': 'Peter', 'kind': 'PRODUCTION_RESTART',
+                'context': {'command_id': 'cmd1', 'intent': 'native_mcp_reload', 'release_version': '32.4.42'}}
     ex = ProtectedActionExecutor(root, _Store(), _Store(command), _Store(decision))
     result = ex._queue_native_mcp_reload(action, command, decision)
     assert result['ok'] is True
@@ -98,12 +101,15 @@ def test_32441_native_runtime_already_green_never_requests_second_restart(tmp_pa
 
 def test_32441_control_plane_request_is_exact_decision_bound(tmp_path):
     root = tmp_path / 'project'
+    (root / 'App').mkdir(parents=True)
+    (root / 'App/VERSIE.txt').write_text('32.4.42\n')
     guard = root / 'Inbox/native_mcp_runtime/runtime_guard.json'
     fp = 'b' * 64
     _write(guard, {'status':'RELOAD_REQUIRED','reload_required':True,'expected_fingerprint':fp})
     action = {'id': 'action2', 'action': 'native_mcp_reload', 'command_id': 'cmd2', 'decision_id': 'dec2'}
-    command = {'id': 'cmd2', 'intent': 'native_mcp_reload'}
-    decision = {'id': 'dec2', 'status': 'APPROVED', 'approved_by': 'Peter', 'kind': 'PRODUCTION_RESTART'}
+    command = {'id': 'cmd2', 'intent': 'native_mcp_reload', 'release_version': '32.4.42', 'approval_decision_id': 'dec2'}
+    decision = {'id': 'dec2', 'status': 'APPROVED', 'approved_by': 'Peter', 'kind': 'PRODUCTION_RESTART',
+                'context': {'command_id': 'cmd2', 'intent': 'native_mcp_reload', 'release_version': '32.4.42'}}
     ex = ProtectedActionExecutor(root, _Store(), _Store(command), _Store(decision))
     result = ex._queue_native_mcp_reload(action, command, decision)
     req = json.loads(Path(result['request_path']).read_text())
@@ -113,6 +119,8 @@ def test_32441_control_plane_request_is_exact_decision_bound(tmp_path):
         'action':'native_mcp_reload',
         'approved_by':'Peter',
         'decision_id':'dec2',
+        'command_id':'cmd2',
+        'release_version':'32.4.42',
         'expected_fingerprint':fp,
     }
     assert 'control_plane/requests/native_mcp_reload.json' in result['request_path'].replace('\\','/')
@@ -311,8 +319,8 @@ def test_32441_release_audit_badge_counts_true_rounds_not_versions():
 
 
 def test_32441_release_identity():
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.41'
-    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc28'
+    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.42'
+    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc29'
 
 
 def test_32441_control_plane_source_sync_is_exact_atomic_and_no_delete(tmp_path):

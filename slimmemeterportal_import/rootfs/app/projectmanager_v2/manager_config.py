@@ -41,7 +41,7 @@ class ManagerConfig:
             input_root=os.getenv('PM_INPUT_ROOT', '/input'),
             recovery_root=os.getenv('PM_RECOVERY_ROOT', '/recovery'),
             reports_root=os.getenv('PM_REPORTS_ROOT', '/reports'),
-            interval_seconds=max(60, int(os.getenv('PM_INTERVAL_SECONDS', '300'))),
+            interval_seconds=max(60, int(os.getenv('PM_INTERVAL_SECONDS', '60'))),
             timezone=os.getenv('PM_TIMEZONE', 'Europe/Amsterdam'),
             ha_base_url=os.getenv('HOME_ASSISTANT_URL', os.getenv('HA_BASE_URL', '')),
             ha_token=os.getenv('HOME_ASSISTANT_TOKEN', os.getenv('HA_TOKEN', '')),

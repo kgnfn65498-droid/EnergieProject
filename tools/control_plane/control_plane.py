@@ -165,6 +165,8 @@ def load_control_plane_native_request(inbox: Path, approved_queue: Path):
     if request.get('approved_by') != 'Peter':
         raise RuntimeError('control-plane native MCP actor ongeldig')
     decision_id = str(request.get('decision_id') or '').strip()
+    command_id = str(request.get('command_id') or '').strip()
+    release_version = str(request.get('release_version') or '').strip()
     request_id = str(request.get('request_id') or '').lower()
     expected = str(request.get('expected_fingerprint') or '').lower()
     if len(request_id) != 32 or any(ch not in '0123456789abcdef' for ch in request_id):
@@ -173,7 +175,13 @@ def load_control_plane_native_request(inbox: Path, approved_queue: Path):
         raise RuntimeError('control-plane native MCP fingerprint ongeldig')
     if not decision_id:
         raise RuntimeError('control-plane native MCP decision_id ontbreekt')
+    if not command_id:
+        raise RuntimeError('control-plane native MCP command_id ontbreekt')
+    if not release_version:
+        raise RuntimeError('control-plane native MCP release_version ontbreekt')
     approval = find_live_approval(approved_queue, 'native_mcp_reload', decision_id=decision_id)
+    if str(approval.get('command_id') or '').strip() != command_id:
+        raise RuntimeError('control-plane native MCP command/approval mismatch')
     return request, approval
 
 def watcher_create_payload(host_project_root: str) -> dict:
@@ -325,6 +333,9 @@ class ControlPlane:
 
     def reload_native_mcp(self) -> dict:
         request, approval = load_control_plane_native_request(self.inbox, self.approved_queue)
+        live_version = self.version_path.read_text(encoding='utf-8').strip()
+        if str(request.get('release_version') or '').strip() != live_version:
+            raise RuntimeError('control-plane native MCP request hoort niet bij actuele live release')
         self.docker.ping()
         if self.docker.inspect_container(MCP_CONTAINER) is None:
             raise RuntimeError('energie-filesystem-mcp ontbreekt')
@@ -344,6 +355,9 @@ class ControlPlane:
             'runtime_fingerprint': str(proof.get('fingerprint') or '').lower(),
             'restart_performed': True,
             'approval_action_id': approval['id'],
+            'decision_id': request['decision_id'],
+            'command_id': request['command_id'],
+            'release_version': request['release_version'],
         }
         _atomic_json(self.result_root / 'results' / 'native_mcp_reload.json', result)
         _atomic_json(self.inbox / 'native_mcp_runtime' / 'reload_result.json', result)

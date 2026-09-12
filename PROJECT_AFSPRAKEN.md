@@ -202,3 +202,13 @@
 - Development artefacts onder Inbox horen canoniek in `Inbox/Develop`; losse dev/temp/staging-rootitems worden alleen via no-delete CLEARUP-quarantaine afgehandeld.
 - Iedere release-audit toont per concrete fout/acceptanceklasse een statusbol plus het aantal echte gerichte reparatierondes; N>=3 zonder groen vereist architectuurreview in plaats van symptoompatch #4.
 
+## Buildbasis-ZIP en overdracht vanaf 32.4.42
+
+- Voor iedere volgende EnergieProject-build is de exacte vorige, volledig geverifieerde release-ZIP de verplichte buildbasis.
+- Is die ZIP niet direct beschikbaar in de actieve ontwikkelchat/werkruimte, dan wordt **altijd eerst Peter om die ZIP gevraagd**.
+- GitHub, losse bronbestanden, reconstructie, productiecopy of een alternatieve buildroot mogen niet als vervangende buildbasis worden gebruikt.
+- De aangeleverde ZIP wordt vóór ontwikkeling gecontroleerd op release-identiteit, ZIP-integriteit en bekende SHA256 wanneer die in de overdracht staat.
+- De automatische nieuwe-chat-overdracht draagt naast actuele taak/status ook `development_context`, het Development Build Contract en de ledgerverwijzing `01_UNIFIED_DEVELOPMENT_LEDGER.md` mee.
+- Een nieuwe chat mag pas ontwikkelen nadat deze bindende context is ingelezen; een chatwissel mag de architectuur, ontwikkelroute of platformbeperkingen niet resetten.
+- Crash Recovery/CLEARUP mag als aparte projectafsluitfase worden uitgesteld zonder de technische Projectmanager-status rood te maken of automatisch als huidige PM-taak te worden gestart.
+

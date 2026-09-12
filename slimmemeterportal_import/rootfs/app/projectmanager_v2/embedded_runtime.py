@@ -1,7 +1,7 @@
 import logging
 
 
-def run_embedded(stop_event, *, runtime, interval_seconds=300, on_failure=None, on_success=None):
+def run_embedded(stop_event, *, runtime, interval_seconds=60, on_failure=None, on_success=None):
     """Run PM cycles inside the existing Energie add-on process.
 
     Ordinary PM exceptions never own or terminate the primary app. Unexpected
