@@ -1,3 +1,12 @@
+## 32.4.45 — Native MCP runtime identity en klok-onafhankelijke coordinatie
+
+- Native MCP runtime-fingerprint gaat naar contract v3 en omvat alleen code die daadwerkelijk door het Native-MCP-proces wordt geladen; gewone Projectmanager-wijzigingen veroorzaken daardoor geen valse containerreload meer.
+- Een echte wijziging aan Native-MCP-bron blijft fail-closed en vereist nog steeds de bestaande exact releasegebonden beschermde restart-route.
+- Runtime evidence blijft uitsluitend schrijven via `/system/Projectmanager/RuntimeEvidence`; `/project` blijft read-only.
+- Finale PM-coordinatie gebruikt vanaf 32.4.45 cycle-generation + FINAL provenance als autoritatieve samenhang; een structureel scheeflopende NAS-wandklok maakt dezelfde finale cyclus niet meer onterecht RED.
+- Wall-clock timestamps blijven schema-/diagnostische evidence en niet-gecoordineerde stale runtime blijft fail-closed.
+- Exacte geverifieerde 32.4.44 ZIP SHA256 `0dc1312b75afd6bdf281c8fe881c765e3bcda658339418366e8cad2459e34df0` is de enige buildbasis.
+
 ## 32.4.44 — ingress- en runtime-closure hardening
 
 - Native MCP runtime-marker is uitsluitend v2 en schrijft via de bestaande schrijfbare `/system`-route; de oude import-time v1-writer naar read-only `/project` wordt verwijderd.

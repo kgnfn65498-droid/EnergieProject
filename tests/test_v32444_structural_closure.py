@@ -181,10 +181,8 @@ def test_32444_exact_uploaded_32443_basis_is_recorded():
 def test_32444_release_identity_is_coherent():
     import release_test_contract as contract
 
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.44'
-    assert 'version: "32.4.44"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.4.44"' in (APP / 'main.py').read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.4.44"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
-    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc31'
-    assert contract.CURRENT_RELEASE == '32.4.44'
-    assert contract.CURRENT_PM_VERSION == '2.0.0-rc31'
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_RELEASE
+    assert f'version: "{contract.CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert f'APP_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / 'main.py').read_text(encoding='utf-8')
+    assert f'TARGET_RELEASE_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
+    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_PM_VERSION

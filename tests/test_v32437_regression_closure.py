@@ -73,7 +73,7 @@ def test_native_mcp_runtime_guard_detects_missing_or_stale_marker(tmp_path, monk
     assert stale['status'] == 'RELOAD_REQUIRED'
 
     marker.write_text(json.dumps({
-        'schema': 'energie_native_mcp_runtime_v2', 'fingerprint': expected, 'targets': targets,
+        'schema': 'energie_native_mcp_runtime_v3', 'fingerprint': expected, 'targets': targets,
     }))
     green = guard.probe(root)
     assert green['status'] == 'GREEN'

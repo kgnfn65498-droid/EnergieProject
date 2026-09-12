@@ -1,14 +1,19 @@
-# Testinstructies v32.4.44 — structurele release-closure
+# Testinstructies v32.4.45 — Native MCP runtime-closure
 
 Minimale acceptatie vóór ZIP-uitgifte:
 
-1. 32.4.44 regressies eerst RED gezien en daarna GREEN.
-2. Native-MCP CR-hotfix verwijdert de oude v1 `/project/Inbox/...` writer en injecteert hem niet opnieuw.
-3. Stale control-plane request van vorige release wordt veilig gearchiveerd; same-release conflict blijft fail-closed.
-4. Finale heartbeat wordt vlak vóór self-audit ververst.
-5. Stale MAINTENANCE closure-taak wordt door nieuwere autoritatieve release gesupersedeerd.
-6. Project CR -> NAS CR -> CLEARUP closure-sequentie is autonoom en deterministisch.
-7. Alle reguliere tests in batches GREEN; bekende skips blijven expliciet.
-8. Release ZIP fresh-extract, CRC, member-safety, manifest en SHA256SUMS volledig verifiëren.
-9. Kritieke 32.4.44 + 32.4.43/42/41 regressies op fresh extract nogmaals uitvoeren.
+1. 32.4.45 Native-MCP regressies eerst RED gezien en daarna GREEN.
+2. Native-MCP runtime-marker gebruikt contract v3, schrijft via `/system/Projectmanager/RuntimeEvidence` en hash alleen daadwerkelijk geladen Native-MCP-code.
+3. Een wijziging in uitsluitend Projectmanager-bron verandert de Native-MCP expected fingerprint niet; een wijziging in geladen Native-MCP-bron doet dat wel.
+4. `/project` blijft read-only; geen fingerprintwriter of runtime-evidence write naar `/project/Inbox/...`.
+5. Finale PM-coordinatie gebruikt cycle-generation + FINAL provenance en mag niet uitsluitend door bekende NAS wall-clock skew RED worden.
+6. Niet-gecoordineerde of structureel stale runtime blijft fail-closed.
+7. Incoming -> Processing -> watcher/installatie -> runtime-validatie -> ACCEPTED blijft de enige releaseketen.
+8. Alle reguliere tests GREEN; bekende skips blijven expliciet.
+9. Release ZIP fresh-extract, CRC, member-safety, manifest en SHA256SUMS volledig verifiëren.
 10. Productie blijft ongewijzigd tijdens de build/verificatie.
+
+Historische vaste acceptatie-afspraken die behouden blijven:
+- Gebruik GEEN Home Assistant Terminal.
+- Gebruik GEEN handmatige Git-commit of Git-push.
+- EPEX juli 2026 is gedeeltelijk; brondekking loopt in de historische testset tot 2026-07-29.

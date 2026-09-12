@@ -225,6 +225,6 @@ def test_watcher_wires_clearup_move_request_in_python_container_without_root_chm
 
 
 def test_32433_release_identity_is_consistent():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.44"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.45"
     main = (APP / "main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.44"' in main
+    assert 'APP_VERSION = "32.4.45"' in main

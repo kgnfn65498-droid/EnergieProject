@@ -10,7 +10,7 @@ from pathlib import Path
 
 MARKER_REL = Path("Data/03_Systeem/Projectmanager/RuntimeEvidence/native_mcp_runtime_fingerprint.json")
 STATE_REL = Path("Inbox/native_mcp_runtime/runtime_guard.json")
-SCHEMA = "energie_native_mcp_runtime_v2"
+SCHEMA = "energie_native_mcp_runtime_v3"
 
 def _runtime_module(root: Path):
     path = root / "Infra/Docker/native-mcp/runtime_fingerprint.py"

@@ -64,13 +64,13 @@ def test_watcher_red_is_actionable_request_not_dead_end():
     assert 'ENERGIE_WATCHER_CONTAINER_CONTRACT=3' in bootstrap
 
 
-def test_native_mcp_runtime_truth_v2_is_system_writable_and_schema_scoped():
+def test_native_mcp_runtime_truth_is_system_writable_and_schema_scoped():
     guard = (TOOLS / 'native_mcp_runtime_guard.py').read_text()
     hotfix = (TOOLS / 'native_mcp_runtime_contract_hotfix.py').read_text()
     reload_executor = (TOOLS / 'native_mcp_reload_executor.py').read_text()
     marker = 'Data/03_Systeem/Projectmanager/RuntimeEvidence/native_mcp_runtime_fingerprint.json'
     assert marker in guard and marker in reload_executor
-    assert 'energie_native_mcp_runtime_v2' in guard and 'energie_native_mcp_runtime_v2' in reload_executor
+    assert 'energie_native_mcp_runtime_v3' in guard and 'energie_native_mcp_runtime_v3' in reload_executor
     assert 'tools_projectmanager.py' in hotfix
     for field in ('source_channel', 'source_ref', 'occurred_at', 'classification_hint'):
         assert field in hotfix

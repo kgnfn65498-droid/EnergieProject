@@ -74,7 +74,7 @@ def run(root: Path | str, *, wait_seconds: float = 60.0) -> dict:
     while time.monotonic() < deadline:
         try:
             marker = json.loads(marker_path.read_text(encoding='utf-8'))
-            if marker.get('schema') == 'energie_native_mcp_runtime_v2':
+            if marker.get('schema') in {'energie_native_mcp_runtime_v2', 'energie_native_mcp_runtime_v3'}:
                 actual = str(marker.get('fingerprint') or '')
         except (OSError, json.JSONDecodeError, UnicodeError):
             actual = ''

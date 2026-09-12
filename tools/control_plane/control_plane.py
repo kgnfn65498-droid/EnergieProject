@@ -343,7 +343,7 @@ class ControlPlane:
         expected = request['expected_fingerprint'].lower()
         proof = self._wait_json(
             self.runtime_evidence / 'native_mcp_runtime_fingerprint.json',
-            lambda v: v.get('schema') == 'energie_native_mcp_runtime_v2' and str(v.get('fingerprint') or '').lower() == expected,
+            lambda v: v.get('schema') in {'energie_native_mcp_runtime_v2', 'energie_native_mcp_runtime_v3'} and str(v.get('fingerprint') or '').lower() == expected,
             90.0,
         )
         result = {

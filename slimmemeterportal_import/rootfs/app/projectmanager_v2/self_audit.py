@@ -94,6 +94,18 @@ class SelfAuditor:
         status = self._json('status/current.json')
         heartbeat = self._json('heartbeat/manager.json')
         handover = self._json('handover/current.json')
+        release_for_clock = self.running_release_version or (((status or {}).get('release') or {}).get('version'))
+        coordinated_clock_independent = False
+        if _release_at_least(release_for_clock, '32.4.45') and require_coordination and status is not None and heartbeat is not None and handover is not None:
+            generation = str(status.get('cycle_generation') or '').strip()
+            if generation:
+                coordinated_clock_independent = all(
+                    str(payload.get('cycle_generation') or '').strip() == generation
+                    and isinstance(payload.get('provenance'), dict)
+                    and payload.get('provenance', {}).get('generation') == generation
+                    and payload.get('provenance', {}).get('phase') == 'FINAL'
+                    for payload in (status, heartbeat, handover)
+                )
         if status is None:
             invalid.append({'path': 'status/current.json', 'reason': 'invalid_json_or_schema'})
         if heartbeat is None:
@@ -121,7 +133,7 @@ class SelfAuditor:
             fresh = self._fresh(status.get('updated_at'), now)
             if fresh is None:
                 invalid.append({'path': 'status/current.json', 'reason': 'invalid_updated_at'})
-            elif not fresh:
+            elif not fresh and not coordinated_clock_independent:
                 invalid.append({'path': 'status/current.json', 'reason': 'stale'})
             release_info = status.get('release') or {}
             release = release_info.get('version')
@@ -178,7 +190,7 @@ class SelfAuditor:
             fresh = self._fresh(heartbeat.get('heartbeat_at'), now)
             if fresh is None:
                 invalid.append({'path': 'heartbeat/manager.json', 'reason': 'invalid_heartbeat_at'})
-            elif not fresh:
+            elif not fresh and not coordinated_clock_independent:
                 invalid.append({'path': 'heartbeat/manager.json', 'reason': 'stale'})
             if status and heartbeat.get('mode') != status.get('mode'):
                 invalid.append({'path': 'heartbeat/manager.json', 'reason': 'mode_mismatch'})
