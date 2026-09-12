@@ -67,6 +67,23 @@ def collect_issue_repair_evidence(runtime_root, issues) -> dict[str, dict]:
                 }
             continue
 
+        if fingerprint == 'commands:interrupted_after_restart':
+            queue_path = root / 'commands/queue.json'
+            try:
+                queue_payload = json.loads(queue_path.read_text(encoding='utf-8'))
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                queue_payload = None
+            items = queue_payload.get('items', []) if isinstance(queue_payload, dict) else None
+            if isinstance(items, list) and not any(
+                isinstance(item, dict) and item.get('status') == 'INTERRUPTED' for item in items
+            ):
+                repairs[issue['id']] = {
+                    'reason': 'command queue contains no INTERRUPTED commands after restart reconciliation',
+                    'evidence_refs': [str(queue_path)],
+                    'repair_class': 'interrupted_command_queue_drained',
+                }
+            continue
+
         if fingerprint.startswith('handoff_result_ingress:') and 'cannot complete from PAUSED' in reason:
             match = _later_receipt(
                 handoff_receipts,

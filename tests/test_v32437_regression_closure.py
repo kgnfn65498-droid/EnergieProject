@@ -306,10 +306,10 @@ def test_watcher_clears_stale_reload_result_before_executor():
 
 def test_hotfix_postcheck_requires_quarantine_and_runtime_fingerprint_contracts():
     source = (TOOLS / 'cr_standard_native_mcp_hotfix.py').read_text()
-    post = source[source.index('# Contract-level assertions'):]
-    assert "'CRRetentionQuarantine' in crash" in post
-    assert "'energie_native_mcp_runtime_v1' in tools" in post
-    assert "'CRRetentionQuarantine' in retention" in post
+    assert "'CRRetentionQuarantine' in crash" in source
+    assert "'energie_native_mcp_runtime_v1' not in tools" in source
+    assert 'native_runtime_legacy_writer_absent' in source
+    assert "'CRRetentionQuarantine' in retention" in source
 
 
 def test_native_hotfix_transforms_436_crash_source_to_quarantine_and_compiles():
@@ -328,8 +328,8 @@ def test_native_hotfix_transforms_436_tools_source_to_runtime_marker_and_compile
 
     source = '''from __future__ import annotations\nfrom pathlib import Path\nfrom typing import Any\nretention=1,\nPATHS = RecoveryPaths(\n    project_root=PROJECT_ROOT,\n    report_root=REPORT_ROOT,\n    recovery_root=RECOVERY_ROOT,\n)\n'''
     transformed = hotfix._tools_recovery(source)
-    assert 'energie_native_mcp_runtime_v1' in transformed
-    assert 'runtime_fingerprint.json' in transformed
+    assert 'energie_native_mcp_runtime_v1' not in transformed
+    assert 'Inbox/native_mcp_runtime/runtime_fingerprint.json' not in transformed
     compile(transformed, 'tools_recovery.py', 'exec')
 
 

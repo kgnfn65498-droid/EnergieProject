@@ -1,9 +1,14 @@
-# Installatie — EnergieProject 32.4.43
+# Installatie — EnergieProject 32.4.44
 
-32.4.43 gebruikt uitsluitend de bestaande veilige releaseketen. Plaats pas na expliciete productiegoedkeuring de volledig geverifieerde `EnergieProject_v32.4.43.zip` via Home Assistant/QNAP `Incoming`; de bestaande watcher verwerkt de release en de live acceptance bepaalt daarna of de release werkelijk sluit.
+32.4.44 gebruikt uitsluitend de bestaande releaseketen. Plaats de volledig geverifieerde `EnergieProject_v32.4.44.zip` pas na expliciete productiegoedkeuring in de canonieke Incoming-route.
 
-Geen Terminal-, sudo-, GitHub-build- of alternatieve publicatieroute.
+De watcher moet de ZIP zelfstandig verwerken. Definitie van succesvolle live acceptatie:
 
-## Bouwbasis
+1. Incoming en Processing eindigen leeg zonder stuck release of installer lock.
+2. NAS en Home Assistant rapporteren 32.4.44.
+3. Native MCP expected/runtime fingerprint zijn identiek en `reload_required=false`.
+4. Projectmanager self-audit is GREEN met een verse FINAL heartbeat.
+5. Atomic state eindigt op `ACCEPTED`.
+6. Geen handmatige `rm`, chmod, atomic accept of alternatieve publicatieroute is nodig.
 
-32.4.43 is gebouwd vanaf exact de geverifieerde 32.4.42-ZIP met SHA256 `a5cf6a3135580df504a1a70b71708b477ba247141d8262585c4f544423b2f9fc`. Bij een volgende build blijft de exacte vorige geverifieerde ZIP verplicht.
+Buildbasis: exacte geverifieerde 32.4.43 ZIP, SHA-256 `f1a4352a78ea2daf10359603fc4bd94c68b1f50d9f19694848adbb4ac28c54ec`.

@@ -1,17 +1,24 @@
-# EnergieProject 32.4.43
+# EnergieProject 32.4.44
 
-32.4.43 is de structurele stabilisatiebuild voor Projectmanager V2. De release sluit de bewezen runtime-contractfouten uit 32.4.42: cross-runtime permissions, stale releasecommands, split project-close state, PM-cycle provenance, statische document-sync, approval truth en health-semantiek.
+32.4.44 is de structurele reparatiebuild na de live-audit van 32.4.43. De prioriteit is dat de bestaande releaseketen `Incoming -> watcher -> runtime -> self-audit -> ACCEPTED` niet opnieuw handmatig hoeft te worden gerepareerd.
 
-De bestaande architectuur en releaseketen blijven leidend: **ZIP → Incoming/Home Assistant → watcher → live controle**. Er is geen alternatieve GitHub- of reconstructieroute als buildbasis.
+## Hoofdreparaties
 
-## Veiligheidsgrenzen
+- Native MCP runtime-fingerprint heeft één eigenaar: `runtime_fingerprint.py` v2 schrijft uitsluitend via de schrijfbare `/system`-mount. De oude v1 import-time writer naar read-only `/project` wordt uit de CR-hotfix verwijderd.
+- Een oude control-plane `native_mcp_reload` request van een vorige release wordt alleen bij een aantoonbaar geldige stale releasebinding veilig gearchiveerd; conflicten binnen dezelfde release blijven fail-closed.
+- Finale Projectmanager-coördinatie ververst de heartbeat vlak vóór self-audit, zodat een lange cyclus geen foutieve `stale heartbeat` RED veroorzaakt.
+- Oude MAINTENANCE closure-taken worden door autoritatieve nieuwere runtime/atomic state gesupersedeerd.
+- Het historische `commands:interrupted_after_restart` issue wordt alleen gesloten wanneer de canonieke command queue aantoonbaar geen `INTERRUPTED` commands meer bevat.
+- De bestaande autonome closure-volgorde blijft: actuele Project CR -> NAS Container CR -> CLEARUP -> closure GREEN.
 
-- Productieplaatsing vereist expliciete goedkeuring.
-- Protected restarts/deploys blijven approval-bound.
-- CR/CLEARUP-mutaties zijn alleen toegestaan bij exact current `project_close=REQUESTED`.
-- `DEFERRED`, ontbrekende of stale project-close state is fail-closed.
-- Geen directe delete voor CR-retentie/CLEARUP; quarantine-first/no-delete blijft leidend.
+## Buildbasis
 
-## Bouwbasis
+Exact de door Peter aangeleverde en opnieuw geverifieerde `EnergieProject_v32.4.43.zip`:
 
-Exact geverifieerde `EnergieProject_v32.4.42.zip`, SHA256 `a5cf6a3135580df504a1a70b71708b477ba247141d8262585c4f544423b2f9fc`. Zie `docs/32.4.43-build-basis.json`.
+`f1a4352a78ea2daf10359603fc4bd94c68b1f50d9f19694848adbb4ac28c54ec`
+
+Zie `docs/32.4.44-build-basis.json`.
+
+## Governance
+
+Geen alternatieve releaseweg, geen reconstructie vanaf productie en geen automatische productieplaatsing. De ZIP wordt eerst geïsoleerd gebouwd en geverifieerd; productieplaatsing blijft een aparte expliciete handeling.

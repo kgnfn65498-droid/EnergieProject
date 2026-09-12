@@ -506,6 +506,7 @@ class ProjectmanagerRuntime:
         return status
 
     def _finalize_coordination_audit(self, status: dict, *, now=None):
+        audit_now = now or datetime.now(timezone.utc)
         checks = [
             dict(item) for item in ((status.get('health') or {}).get('checks') or [])
             if item.get('name') != 'projectmanager_self_audit'
@@ -527,19 +528,18 @@ class ProjectmanagerRuntime:
             heartbeat['mode'] = status.get('mode', 'USER')
             heartbeat['cycle_generation'] = generation
             heartbeat['provenance'] = provenance
-            if now is not None:
-                heartbeat['heartbeat_at'] = now.isoformat()
+            heartbeat['heartbeat_at'] = audit_now.isoformat()
             atomic_write_json(heartbeat_path, heartbeat)
             self._refresh_coordination(status)
 
-            audit = self.base.self_auditor.run(now=now, require_coordination=True)
+            audit = self.base.self_auditor.run(now=audit_now, require_coordination=True)
             status['self_audit'] = audit
             status['health'] = summarize_health_with_self_audit(checks, audit)
             atomic_write_json(self.root / 'self_audit' / 'current.json', audit)
 
             reconcile_audit = getattr(self.base, '_reconcile_self_audit_outcome', None)
             if callable(reconcile_audit):
-                reconcile_audit(audit, now=now)
+                reconcile_audit(audit, now=audit_now)
             issues = getattr(self.base, 'issues', None)
             status['open_issues'] = issues.open_items() if issues is not None else status.get('open_issues', [])
 
@@ -561,7 +561,7 @@ class ProjectmanagerRuntime:
 
         # A bounded third pass is enough to absorb issue reconciliation. If the
         # audit still oscillates, expose that as RED instead of looping forever.
-        final_audit = self.base.self_auditor.run(now=now, require_coordination=True)
+        final_audit = self.base.self_auditor.run(now=audit_now, require_coordination=True)
         if final_audit.get('status') != status.get('self_audit', {}).get('status'):
             final_audit = dict(final_audit)
             final_audit.setdefault('invalid', []).append({

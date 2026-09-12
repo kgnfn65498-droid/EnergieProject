@@ -1,20 +1,7 @@
-# Nieuwe-chat overdracht — EnergieProject 32.4.43
+# Nieuwe-chat overdracht — EnergieProject 32.4.44
 
-Actuele ontwikkellijn: 32.4.43 runtime-contract closure, gebouwd vanaf de exact geverifieerde 32.4.42-ZIP.
+32.4.44 is gebouwd vanaf exact `EnergieProject_v32.4.43.zip` met SHA-256 `f1a4352a78ea2daf10359603fc4bd94c68b1f50d9f19694848adbb4ac28c54ec`.
 
-## Wat 32.4.43 structureel oplost
+Harde release-eis: Incoming moet volledig autonoom doorlopen tot runtime/self-audit/atomic ACCEPTED zonder handmatige noodroute. Native MCP gebruikt alleen de v2 runtime marker via `/system`; oude cross-release control-plane requests worden veilig gearchiveerd. Finale PM heartbeat wordt vlak vóór self-audit ververst en stale closure-taken worden releasegebonden gereconcilieerd.
 
-- control-plane shared mailboxes en cross-UID permissions;
-- release-owned CR commands zonder stale side effects;
-- één fail-closed project-close state voor CR/CLEARUP;
-- één FINAL cycle-generation voor status/heartbeat/handover/self-audit;
-- statische KB-sync mag kritieke PM-finalisatie niet meer blokkeren;
-- canonical DecisionQueue is approval truth;
-- workflowhealth en Projectmanager/releasehealth zijn gescheiden;
-- CR-hotfix geeft predicate-voor-predicate bewijs.
-
-## Werkwijze
-
-Audit/root cause → TDD RED → GREEN → relevante regressie → volledige test → canonieke ZIP → fresh-extract audit → kritieke tests herhalen. Productie blijft beschermd en vereist expliciete goedkeuring.
-
-Nieuwe chat: lees RuntimeV2-handover, Development Build Contract en Unified Development Ledger vóór ontwikkelwerk.
+Productieplaatsing en architectuurwijzigingen blijven beschermd en vereisen expliciete toestemming.

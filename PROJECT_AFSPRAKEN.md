@@ -222,3 +222,12 @@
 - Approval UI gebruikt de canonieke DecisionQueue, niet een mogelijk achterlopende statussnapshot.
 - Workflowgezondheid is niet hetzelfde als systeem-/releasegezondheid; beide worden apart benoemd.
 
+
+## 32.4.44 structurele Incoming/runtime closure
+
+- Incoming is pas definitief opgelost wanneer de bestaande route zonder Terminal/noodgrepen tot ACCEPTED doorloopt.
+- Native MCP runtime-evidence mag nooit naar de read-only `/project` mount schrijven; runtime marker ownership ligt bij v2 via `/system/Projectmanager/RuntimeEvidence`.
+- Stale protected requests mogen alleen releasegebonden en fail-closed worden gearchiveerd; same-release conflicten blijven blokkeren.
+- Finale PM heartbeat/self-audit gebruikt actuele FINAL-cycle tijd en mag niet door een lange cyclus kunstmatig stale worden.
+- Release-owned closure-taken en commands van oudere releases moeten automatisch worden gesupersedeerd op hard runtime/atomic bewijs.
+- 32.4.44 wordt uitsluitend gebouwd vanaf de exacte geverifieerde 32.4.43 ZIP.

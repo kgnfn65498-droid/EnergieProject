@@ -160,46 +160,25 @@ def _apply_retention(crash_root: Path, retention: int):
 
 def _tools_recovery(text: str) -> str:
     text = _replace(text, 'retention=3,', 'retention=1,', 'tools_recovery max-1', count=2)
-    if 'energie_native_mcp_runtime_v1' in text:
-        return text
-    text = _replace(
-        text,
-        'from pathlib import Path\nfrom typing import Any\n',
-        'from pathlib import Path\nfrom typing import Any\nimport hashlib\nimport json\nimport os\nfrom datetime import datetime, timezone\n',
-        'native MCP runtime fingerprint imports',
-    )
-    anchor = """PATHS = RecoveryPaths(
-    project_root=PROJECT_ROOT,
-    report_root=REPORT_ROOT,
-    recovery_root=RECOVERY_ROOT,
-)
-"""
-    marker = anchor + """
-
-def _write_native_mcp_runtime_fingerprint() -> None:
-    digest = hashlib.sha256()
-    for name in (\"crash_recovery.py\", \"tools_recovery.py\"):
-        path = Path(__file__).with_name(name)
-        digest.update(name.encode(\"utf-8\") + b\"\\0\")
-        digest.update(hashlib.sha256(path.read_bytes()).digest())
-    target = PROJECT_ROOT / \"Inbox/native_mcp_runtime/runtime_fingerprint.json\"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temp = target.with_name(target.name + f\".tmp-{os.getpid()}\")
-    payload = {
-        \"schema\": \"energie_native_mcp_runtime_v1\",
-        \"fingerprint\": digest.hexdigest(),
-        \"loaded_at\": datetime.now(timezone.utc).isoformat(),
-    }
-    try:
-        temp.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + \"\\n\", encoding=\"utf-8\")
-        os.replace(temp, target)
-    finally:
-        temp.unlink(missing_ok=True)
-
-
-_write_native_mcp_runtime_fingerprint()
-"""
-    text = _replace(text, anchor, marker, 'native MCP runtime fingerprint marker')
+    # 32.4.44: runtime fingerprint ownership belongs exclusively to
+    # runtime_fingerprint.py (v2), which writes through the writable /system mount.
+    # Remove the historical v1 import-time writer because it targets /project,
+    # which is intentionally read-only in energie-filesystem-mcp.
+    marker = 'def _write_native_mcp_runtime_fingerprint() -> None:'
+    if marker in text or 'energie_native_mcp_runtime_v1' in text:
+        block_start = text.find('\ndef _write_native_mcp_runtime_fingerprint() -> None:')
+        if block_start < 0:
+            block_start = text.find(marker)
+        if block_start < 0:
+            raise RuntimeError('legacy native MCP runtime writer marker mismatch')
+        call = '\n_write_native_mcp_runtime_fingerprint()'
+        call_at = text.find(call, block_start)
+        if call_at < 0:
+            raise RuntimeError('legacy native MCP runtime writer call ontbreekt')
+        block_end = call_at + len(call)
+        while block_end < len(text) and text[block_end] in '\r\n':
+            block_end += 1
+        text = text[:block_start] + '\n' + text[block_end:]
     return text
 
 def _nas_builder(text: str) -> str:
@@ -338,7 +317,7 @@ def _contract_predicates(root: Path | str) -> dict[str, bool]:
         'nas_runtime_version_in_name': '${VERSION} CR NAS Containers' in builder,
         'nas_retention_max1_marker': 'NAS_CR_RETENTION_MAX1_OK' in builder and 'NAS_CR_RETENTION_MAX1_OK' in retention,
         'nas_quarantine_first': 'CRRetentionQuarantine' in retention and 'delete_performed=false' in retention,
-        'native_runtime_fingerprint_present': 'energie_native_mcp_runtime_v1' in tools,
+        'native_runtime_legacy_writer_absent': 'energie_native_mcp_runtime_v1' not in tools and 'Inbox/native_mcp_runtime/runtime_fingerprint.json' not in tools,
         'native_test_retention_max1': 'retention=1,' in native_test and 'list_crash_recovery_backups(recovery)["count"], 1' in native_test,
     }
 
@@ -398,7 +377,7 @@ def apply(root: Path) -> dict:
         # Contract-level assertions after all bounded edits. Every predicate is
         # named in evidence so a future RED points to the exact broken contract.
         # Backward-readable definitions: 'CRRetentionQuarantine' in crash;
-        # 'energie_native_mcp_runtime_v1' in tools; 'CRRetentionQuarantine' in retention.
+        # legacy v1 runtime writer absent from tools; 'CRRetentionQuarantine' in retention.
         predicates = _contract_predicates(root)
         failed_predicates = [name for name, ok in predicates.items() if ok is not True]
         if failed_predicates:

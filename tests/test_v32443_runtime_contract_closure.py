@@ -311,7 +311,7 @@ def test_32443_cr_hotfix_reports_every_postcheck_predicate(tmp_path):
     fixture = tmp_path/'project'
     payloads = {
         hotfix.TARGETS[0]: '''RETENTION_DEFAULT = 1\ndef a(retention: int = 1,): pass\ndef b(retention: int = 1,): pass\nbase_stem = f"{_local_file_stamp()} {version} {CRASH_NAME_SUFFIX}"\nCRRetentionQuarantine\nretention_delete_performed\n''',
-        hotfix.TARGETS[1]: 'energie_native_mcp_runtime_v1\n',
+        hotfix.TARGETS[1]: 'from pathlib import Path\n',
         hotfix.TARGETS[2]: '${VERSION} CR NAS Containers\nNAS_CR_RETENTION_MAX1_OK\n',
         hotfix.TARGETS[3]: 'NAS_CR_RETENTION_MAX1_OK\nCRRetentionQuarantine\ndelete_performed=false\n',
         hotfix.TARGETS[4]: 'retention=1,\nlist_crash_recovery_backups(recovery)["count"], 1\n',
@@ -324,16 +324,16 @@ def test_32443_cr_hotfix_reports_every_postcheck_predicate(tmp_path):
     expected = {
         'project_retention_max1', 'project_runtime_version_in_name', 'project_quarantine_first',
         'nas_runtime_version_in_name', 'nas_retention_max1_marker', 'nas_quarantine_first',
-        'native_runtime_fingerprint_present', 'native_test_retention_max1',
+        'native_runtime_legacy_writer_absent', 'native_test_retention_max1',
     }
     assert expected <= set(predicates)
     assert all(predicates[name] for name in expected)
 
     # Failure injection proves evidence identifies the exact broken predicate.
-    (fixture/hotfix.TARGETS[1]).write_text('runtime marker missing\n', encoding='utf-8')
+    (fixture/hotfix.TARGETS[1]).write_text('energie_native_mcp_runtime_v1\nInbox/native_mcp_runtime/runtime_fingerprint.json\n', encoding='utf-8')
     broken = hotfix._contract_predicates(fixture)
-    assert broken['native_runtime_fingerprint_present'] is False
-    assert all(broken[name] for name in expected - {'native_runtime_fingerprint_present'})
+    assert broken['native_runtime_legacy_writer_absent'] is False
+    assert all(broken[name] for name in expected - {'native_runtime_legacy_writer_absent'})
 
 
 
@@ -346,11 +346,11 @@ def test_32443_health_surfaces_are_explicitly_scoped():
 
 
 def test_32443_release_identity_target_after_implementation():
-    # RED on 32.4.42; GREEN only after candidate identity is intentionally bumped.
-    assert (ROOT/'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.43'
-    assert 'version: "32.4.43"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.4.43"' in (APP/'main.py').read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.4.43"' in (APP/'mode_entrypoint.py').read_text(encoding='utf-8')
+    # Historical closure test follows the current candidate identity.
+    assert (ROOT/'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.44'
+    assert 'version: "32.4.44"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert 'APP_VERSION = "32.4.44"' in (APP/'main.py').read_text(encoding='utf-8')
+    assert 'TARGET_RELEASE_VERSION = "32.4.44"' in (APP/'mode_entrypoint.py').read_text(encoding='utf-8')
 
 
 def _runtime_for_32443_closure(tmp_path):

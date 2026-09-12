@@ -109,6 +109,15 @@ def _is_release_build_task(task):
     return bool(re.search(r'\brelease[- ]ingress\b', text))
 
 
+def _is_technical_closure_task(task):
+    title = str(task.get('title') or '').strip().lower()
+    return (
+        task.get('mode') == 'MAINTENANCE'
+        and 'projectmanager technische closure' in title
+        and _task_release(task)[1] is not None
+    )
+
+
 class StateReconciler:
     def __init__(self, tasks, decisions, commands, handoffs, issues, audit=None):
         self.tasks = tasks
@@ -236,7 +245,11 @@ class StateReconciler:
         atomic_state = str(atomic.get('state') or atomic_raw.get('state') or '')
         atomic_to = str(atomic_raw.get('to_version') or '')
         refs = _clean_refs([release.get('source'), atomic.get('source')])
-        if task_tuple and live_tuple and task.get('mode') == 'DEVELOPMENT' and _is_release_build_task(task) and refs:
+        release_owned_task = (
+            (task.get('mode') == 'DEVELOPMENT' and _is_release_build_task(task))
+            or _is_technical_closure_task(task)
+        )
+        if task_tuple and live_tuple and release_owned_task and refs:
             installed_newer = live_tuple > task_tuple
             same_release_installed = live_tuple == task_tuple and atomic_to == task_release and atomic_state in {'LIVE_ACCEPTANCE', 'ACCEPTED'}
             if installed_newer or same_release_installed:

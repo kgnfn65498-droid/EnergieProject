@@ -229,7 +229,30 @@ class ProtectedActionExecutor:
         target = self.control_plane_request_root / 'native_mcp_reload.json'
         pending = self._read_json_object(target)
         if pending is not None and pending != payload:
-            raise RuntimeError('control-plane native MCP pending request conflicteert')
+            pending_release = str(pending.get('release_version') or '').strip()
+            pending_request_id = str(pending.get('request_id') or '').strip().lower()
+            stale_shape_ok = (
+                pending.get('schema') == 'energie_control_plane_request_v1'
+                and pending.get('action') == 'native_mcp_reload'
+                and pending_release
+                and len(pending_request_id) == 32
+                and all(ch in '0123456789abcdef' for ch in pending_request_id)
+            )
+            if not stale_shape_ok or pending_release == live_release:
+                raise RuntimeError('control-plane native MCP pending request conflicteert')
+            archive_root = self.project_root / 'Inbox/control_plane/archive'
+            archive_root.mkdir(parents=True, exist_ok=True)
+            archive = archive_root / f'native_mcp_reload.{pending_release}.{pending_request_id}.json'
+            if archive.is_symlink():
+                raise RuntimeError('onveilig control-plane archivepad')
+            if archive.exists():
+                archived = self._read_json_object(archive)
+                if archived != pending:
+                    raise RuntimeError('control-plane stale request archiveconflict')
+                target.unlink()
+            else:
+                os.replace(target, archive)
+            pending = None
         if pending is None:
             self._atomic_json(target, payload)
         return {

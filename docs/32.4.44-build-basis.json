@@ -1,0 +1,12 @@
+{
+  "artifact_name": "EnergieProject_v32.4.43.zip",
+  "artifact_sha256": "f1a4352a78ea2daf10359603fc4bd94c68b1f50d9f19694848adbb4ac28c54ec",
+  "live_atomic_state": "ACCEPTED",
+  "live_to_version": "32.4.43",
+  "manifest_files_verified": 423,
+  "previous_release": "32.4.43",
+  "schema": "energie_release_build_basis_v1",
+  "source": "user_uploaded_exact_previous_verified_zip",
+  "target_release": "32.4.44",
+  "verified_against_live_atomic_swap": true
+}

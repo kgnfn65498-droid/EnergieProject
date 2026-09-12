@@ -18,15 +18,15 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "91121103370934b868d7d874d9cad65f46d90c0a0394d332086a404cdad366be"
+      "sha256": "4a243cf252d7a05acf35a64913a781a083320064afd0c123e2a1da9cb2eed479"
     },
     {
       "path": "INSTALL.md",
-      "sha256": "f47ce54e982307217802c115b00af420cbd3ff8cb246795bca178a4f8966e0c7"
+      "sha256": "9cbc5e3433eb72ccd0c324f89222a908ee975f60c06693cfa20e23fe810cb0b0"
     },
     {
       "path": "NEXT_CHAT_V7.md",
-      "sha256": "e00717eaa5ef3dfed0087b33ab59620c28a4bf4d59290ed932520e0adb86fdc8"
+      "sha256": "fdaaa7043c7f7da3e93b4770fe32daa6992c2743414c3361aa2d20eff9417fc3"
     },
     {
       "path": "NOODHERSTEL.md",
@@ -34,11 +34,11 @@
     },
     {
       "path": "PROJECT_AFSPRAKEN.md",
-      "sha256": "e321e41b19423a0e3283a41df76f5df1e80b6f86b4eb6f7584673169b11926f0"
+      "sha256": "4400b99d7b54a7df736c0946451bb44d48fbad362d8de1f34ceec40465120a72"
     },
     {
       "path": "README.md",
-      "sha256": "531b5452aadff13c457b0230554641dbe1deb01972696503047ffdb284dbea99"
+      "sha256": "0e02411dbd8208f90c99e38a9ff2911b0dffa6e551253dc3b9f49e4ff3350031"
     },
     {
       "path": "ROADMAP_V10.md",
@@ -46,11 +46,11 @@
     },
     {
       "path": "TESTINSTRUCTIES.md",
-      "sha256": "bbc2ecae3790d742b8f25fc9c74aa18e01b04728854e79bddac8c74bc5273349"
+      "sha256": "eebee73a4a2ea0428c237582927d841dfedb5c4cb2fff15aaf3f0c6a4d5929d9"
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "5d41b0cc3a3f75c09176ebcd1161ffaf7b009a67ff5d892d48d3615614fec1f1"
+      "sha256": "2eb78e44bf5743cfd61290b8eeb86acb610cc68c788b001d4c3753419699f3a8"
     },
     {
       "path": "docs/32.4.37-regression-closure.md",
@@ -59,6 +59,10 @@
     {
       "path": "docs/32.4.43-build-basis.json",
       "sha256": "eb5263647ceeefceeb0650e21284256ca37446430f66cc4339ae0b718efd6cab"
+    },
+    {
+      "path": "docs/32.4.44-build-basis.json",
+      "sha256": "ac51ebbd31d4c9689a7d9f5247ecbd055d153fd3e54751558c3b38b58d4ba805"
     },
     {
       "path": "docs/superpowers/plans/2026-08-17-energie-assistant-ha-conversation.md",
@@ -178,7 +182,7 @@
     },
     {
       "path": "release_test_contract.py",
-      "sha256": "0f81f67e0035ddb68e81a9a6d71411a25e8a8b3fb0af43abd2bbb5d2ce14bc4f"
+      "sha256": "7415867db3a962104e92e3806630150320dbc2de03446900ce15c6564fd18651"
     },
     {
       "path": "repository.yaml",
@@ -186,7 +190,7 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "e8d214e1e29a7c0c19bae44e3650b12529ca0e34139278c8a09ec41476749919"
+      "sha256": "de5f95a80dafa6f62e82786e395260335e5e9fdbeb1329bec8fdc80d278e20a9"
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -202,7 +206,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "431b3d9c22242814b7a8ada8ac0604e9532367437f84e828368f8f5d556441ba"
+      "sha256": "fdfcb9ab29b4f6d8fe82e36741c19091036667b9fb21bad6b00a86a948085bcf"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -250,11 +254,11 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "2c159e509de55be28e784d01cf1c5bc0f6a17d8629c17be63df17ed30f285b2f"
+      "sha256": "53c60f512ba31a58d23ce1b5b28a2bb530b89b6fd45111a790fc2eab20be80ec"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
-      "sha256": "dac68ba9364c50c65c1c23ccc844107b0a66ad2926b1bd1483ca40dd8facbd4b"
+      "sha256": "34d4c7db816752bd60385916c97cc62e19c8d25dc10c4a27da3f143488105d52"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/month_closure_truth.py",
@@ -310,7 +314,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/VERSION.txt",
-      "sha256": "1144926c47363fa62c7c3f08b6ea88d0167ca6f7582245eb7689f14f11a58d90"
+      "sha256": "26310de3fa03eced5061323d2159118b50c0c8a1564eef611a6099494d6fcf5e"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/acceptance.py",
@@ -450,7 +454,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/issue_repair_evidence.py",
-      "sha256": "82d846e1e04343097e36db58fee9b95fe44a9027626d07761b89113897c70d74"
+      "sha256": "8a4f6e3d5d42537982e13c3276946a512a0b9fd12af8b667cb4a592cb44ef4e3"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/issue_store.py",
@@ -526,7 +530,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/orchestrator.py",
-      "sha256": "77ff217001b8170c6e9e89d70b7c405140e28f80a4a59375bd597fba383af1ce"
+      "sha256": "e436996d558a948720bad161bb95e803c7ef3f1e0c2b3899ebec2b80448651a6"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/persistence.py",
@@ -566,7 +570,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/protected_action_executor.py",
-      "sha256": "9895e2bf6800989e922b3c2afc46f4671febd79d09d43c1b525b5becc31f8375"
+      "sha256": "d9d981327ab149e1a00b492f3a5baf3756f531898801cc3a6d1878d44f59a745"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/reconciler.py",
@@ -622,7 +626,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/state_reconciliation.py",
-      "sha256": "6e1afa3b385f143952108b333a8621ec636905b5c8d5726cf1d4b5c8de4f39af"
+      "sha256": "8d8bf2b5075c49b9584362e3fdc9f1a77a82b6c3ba414ad882290e0b2ba99011"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/task_engine.py",
@@ -1414,7 +1418,7 @@
     },
     {
       "path": "tests/test_v32423_release_identity.py",
-      "sha256": "6086355737d295637b456fbac3871cfea19a1ab78543d39aec883fae3ed4b008"
+      "sha256": "46132418fde5d07c33c836ea11e11e83e100173cdaa089df59fc54928cc0b27d"
     },
     {
       "path": "tests/test_v32423_roadmap_semantics.py",
@@ -1434,7 +1438,7 @@
     },
     {
       "path": "tests/test_v32425_release_identity.py",
-      "sha256": "a00ed59472cd552b65beb604499802b8737d3228965968343acdd93515e406d5"
+      "sha256": "9a12febff8fa707f5ebaa904fd07701d091d2652c6bf5a024b973e86cfe6b047"
     },
     {
       "path": "tests/test_v32426_clearup_indexing.py",
@@ -1442,7 +1446,7 @@
     },
     {
       "path": "tests/test_v32426_release_identity.py",
-      "sha256": "19b777df686172c1132cb8a848e5ff685a2f5a1f6611dfff08d5d69c0b65a220"
+      "sha256": "86a01153a0287f791d42264b93c5a8bf38d1873f3db9d8a5cecf583282a1fef6"
     },
     {
       "path": "tests/test_v32427_clearup_hash_efficiency.py",
@@ -1454,7 +1458,7 @@
     },
     {
       "path": "tests/test_v32428_release_identity.py",
-      "sha256": "f3ddceb59f7c383c4ac7acdd7ae9021314fe4733b0cf5d2ba0785311139e8a79"
+      "sha256": "c59d2374be9efe690a096476414d64d6dfef76da4314d082ed8ea492d3c793cd"
     },
     {
       "path": "tests/test_v32429_clearup_observability_timeout.py",
@@ -1462,7 +1466,7 @@
     },
     {
       "path": "tests/test_v32429_release_identity.py",
-      "sha256": "7f1102c97aefbe174a63f095602949ee8b931af38b36da1c19f4b2063c1c02d6"
+      "sha256": "fd679c4636f6a0d4918c8b461f15c96e8a0b2e90b08d2f6340e2a41d684c0bd3"
     },
     {
       "path": "tests/test_v3242_projectmanager_repair.py",
@@ -1470,7 +1474,7 @@
     },
     {
       "path": "tests/test_v32430_clearup_checkpoint_surface.py",
-      "sha256": "61f9fa4e1f2e28c0422743f6a4656484b94b72ec5d1f6f01e3b8d132e6654800"
+      "sha256": "2fdaf47d011002c8d2655681067acbbc5b9983cc68bc6d0a44d1686fb4ef7ffb"
     },
     {
       "path": "tests/test_v32430_release_packaging_failed_retention.py",
@@ -1478,15 +1482,15 @@
     },
     {
       "path": "tests/test_v32431_clearup_unreadable_candidate.py",
-      "sha256": "8d7236072ce258d62cd5d2110a2a4b386b8eb11518060466d7ae98deb67854c4"
+      "sha256": "921c904eda33b6d321c64ff082237c83a0638a5af60fd498ab810f37017237df"
     },
     {
       "path": "tests/test_v32432_clearup_root_bootstrap.py",
-      "sha256": "ddc30f16911b7c0a961b15c1e10f10308095be0b05f54d34206bb254993eb567"
+      "sha256": "5fa95900acb214d676caa30f449f0fd3a7fb87304c48df8a45b1e83a22979dde"
     },
     {
       "path": "tests/test_v32433_clearup_watcher_move_bridge.py",
-      "sha256": "bf54f3bc921533c29cfe612e459f34af08f5bca180b9a8ee5ea5d3ff783c1fb4"
+      "sha256": "b6d3878531e096236d62ea0c8cd2a8b5d43aae6356f05b64d1dc4265729c019b"
     },
     {
       "path": "tests/test_v32434_approved_maintenance_transition.py",
@@ -1502,11 +1506,11 @@
     },
     {
       "path": "tests/test_v32436_cr_clearup_regression_closure.py",
-      "sha256": "a118715d4281f386e73f8304e69bf041219a4b2dc76cd428693d19156dd90349"
+      "sha256": "63d05441bd7ef45d99f6a335dafe5f8b0c431d7b51be402002d0115e884054d1"
     },
     {
       "path": "tests/test_v32437_regression_closure.py",
-      "sha256": "6d66b3191f0bddbbfa49c2ff86c7a1b8afd3f48cc3c441eb218404ac83a86ea9"
+      "sha256": "7cdbe2e6f3d6ba3901f2baac47de80ecc34eba0bb93d0de52639af8559aebb4b"
     },
     {
       "path": "tests/test_v32438_autonomous_live_closure.py",
@@ -1534,7 +1538,11 @@
     },
     {
       "path": "tests/test_v32443_runtime_contract_closure.py",
-      "sha256": "94c27993f11df482a026c574e1272e01c61d55a7a3b86fe44d955a9d40650c46"
+      "sha256": "c086cd401c4c817004b113e7530ff8f471ad735727acacf805077efaf4c0ac0a"
+    },
+    {
+      "path": "tests/test_v32444_structural_closure.py",
+      "sha256": "6f671c13b15814e1c122eb69b97a92f1c90f9210e6a72783f1ce4677f3574740"
     },
     {
       "path": "tests/test_v3244_docker_engine_tls_client.py",
@@ -1610,11 +1618,11 @@
     },
     {
       "path": "tools/control_plane_source_sync.py",
-      "sha256": "0d35951a10edffefe09b138029fbd17b62fe0760b25df1b9515a29dfbcb7fcd1"
+      "sha256": "8b83e5bcd7aa98a4b52a5b42f0428c7c4a97dc5b3e92bb366a413d5aa8918ab7"
     },
     {
       "path": "tools/cr_standard_native_mcp_hotfix.py",
-      "sha256": "a64091d8f41946713a6f5a9fbe2fa92598868927a7489ab311fbc9f3952efb6c"
+      "sha256": "c4a07fe9e2aeebeec3a25fb94b8fc01b33907bb8f2ec107135bbc7206cd77a6c"
     },
     {
       "path": "tools/crash_recovery_cleanup.py",
