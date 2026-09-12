@@ -1,4 +1,10 @@
-# Testinstructies v32.4.46 — control-plane archive + chatapproval closure
+# Testinstructies v32.4.47 — autonome releasegebonden Native-MCP self-heal
+
+1. TDD RED aantonen: exact releasegebonden self-heal authorizer ontbreekt en integratie in PM-runtime ontbreekt.
+2. GREEN: standing policy geldt uitsluitend voor `projectmanager_auto` `native_mcp_reload` van de actuele release.
+3. Fail-closed: atomic moet `ACCEPTED` zijn, release-hold vrij/ok, runtime_guard moet exact `RELOAD_REQUIRED` zijn en remote/generieke restarts blijven onbevoegd.
+4. Verifieer dat de bestaande DecisionQueue → CommandProcessor → ApprovedActionStore → protected executor → control-plane route behouden blijft.
+5. Volledige regressie gesegmenteerd uitvoeren, daarna exacte ZIP bouwen en vanuit verse extractie de kritieke regressies opnieuw uitvoeren.
 
 Minimale acceptatie vóór ZIP-uitgifte:
 

@@ -379,9 +379,22 @@ class ControlPlane:
         native_request = self.inbox / 'control_plane' / 'requests' / 'native_mcp_reload.json'
         if native_request.is_file() and not native_request.is_symlink():
             try:
-                request_id = str(_load_json(native_request).get('request_id') or '')
+                request = _load_json(native_request)
+                request_id = str(request.get('request_id') or '')
                 native_result = self.result_root / 'results' / 'native_mcp_reload.json'
-                if not already_completed(native_result, request_id):
+                request_release = str(request.get('release_version') or '').strip()
+                live_release = self.version_path.read_text(encoding='utf-8').strip()
+                if request_release and request_release != live_release:
+                    # A request from a previous release is inert. Do not let it
+                    # generate fresh approval errors for the current release.
+                    # Preserve any prior GREEN proof, but remove stale RED/noise.
+                    try:
+                        prior = _load_json(native_result)
+                    except Exception:
+                        prior = None
+                    if not (isinstance(prior, dict) and prior.get('status') == 'GREEN' and prior.get('ok') is True):
+                        native_result.unlink(missing_ok=True)
+                elif not already_completed(native_result, request_id):
                     results.append(self.reload_native_mcp())
             except RuntimeError as exc:
                 _atomic_json(self.result_root / 'results' / 'native_mcp_reload.json', {

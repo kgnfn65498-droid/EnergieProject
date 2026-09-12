@@ -20,6 +20,7 @@ from handover import build_handover
 from handover_snapshot import HandoverSnapshotService
 from health_engine import summarize_health_with_self_audit
 from mode_bridge import ModeBridge
+from native_mcp_self_heal import NativeMcpSelfHealAuthorizer
 from nas_container_cr_service import ConfiguredNasContainerCrService
 from project_cr_service import ConfiguredProjectCrService
 from project_close_state import write_project_close
@@ -120,6 +121,12 @@ class ProjectmanagerRuntime:
         self.protected_executor = ProtectedActionExecutor(
             config.project_root,
             self.approved_actions,
+            self.commands,
+            self.base.decisions,
+            audit=self.base.audit,
+        )
+        self.native_mcp_self_heal = NativeMcpSelfHealAuthorizer(
+            config.project_root,
             self.commands,
             self.base.decisions,
             audit=self.base.audit,
@@ -458,6 +465,7 @@ class ProjectmanagerRuntime:
                 details={'active_release': active_release, 'command_ids': [item.get('id') for item in superseded_release_commands]},
             )
 
+        self_heal_authorization = self.native_mcp_self_heal.run_once()
         processed = self.processor.process_all(max_items=50)
         protected_results = self.protected_executor.run_once(max_items=5)
         runtime_snapshot = self.base.runtime_collector.collect()
@@ -488,6 +496,7 @@ class ProjectmanagerRuntime:
         status['approval_ingress_results'] = approval_results[-20:]
         status['ingress_results'] = ingress_results[-20:]
         status['processed_commands'] = len(processed)
+        status['native_mcp_self_heal_authorization'] = self_heal_authorization
         status['superseded_release_commands'] = superseded_release_commands[-20:]
         status['protected_executor_results'] = protected_results[-20:]
         status['release_ingress_mode_route'] = release_ingress_mode

@@ -22,7 +22,7 @@ from operating_mode_auto_release import automatic_release_hold_daemon as automat
 from projectmanager_v2_entrypoint import start_projectmanager_v2
 from projectmanager_v2.projectmanager_web import install_projectmanager_web
 
-TARGET_RELEASE_VERSION = "32.4.46"
+TARGET_RELEASE_VERSION = "32.4.47"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 

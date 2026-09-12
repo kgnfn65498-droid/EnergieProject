@@ -1,3 +1,12 @@
+## 32.4.47 — autonome releasegebonden Native-MCP self-heal
+
+- Alleen de canonieke `projectmanager_auto` Native-MCP reload voor de exact actuele, reeds `ACCEPTED` release kan via Peters expliciete standing policy automatisch worden goedgekeurd.
+- Vereist daarnaast: release-hold vrij en `validation_status=ok`, exacte releasebinding en `runtime_guard=RELOAD_REQUIRED` met afwijkende geldige fingerprint.
+- Generieke productie-restarts, remote MCP-commands, watcher-recreate, deploys en architectuurwijzigingen blijven beschermd en fail-closed.
+- De normale DecisionQueue → CommandProcessor → ApprovedActionStore → protected executor → control-plane keten blijft intact; er is geen tweede restart-route toegevoegd.
+- Native-MCP self-heal-resultaat wordt zichtbaar in de canonieke Projectmanager-status.
+- PM versie: 2.0.0-rc34.
+
 ## 32.4.46 — control-plane archive + chatapproval closure
 
 - Native MCP stale-request archivering verhuist van de niet-schrijfbare `Inbox/control_plane/archive` naar de begrensde schrijfbare systeemlocatie `Data/03_Systeem/Projectmanager/RuntimeEvidence/control_plane_archive`.
