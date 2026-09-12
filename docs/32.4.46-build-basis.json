@@ -1,0 +1,9 @@
+{
+  "artifact_sha256": "8d18c7ec891ae2a1352dc3914f7607d3f3adb828f9f5c9da043c2fd51ce8958f",
+  "live_atomic_state": "ACCEPTED",
+  "live_release_version": "32.4.45",
+  "manifest_files_verified": 428,
+  "previous_release": "32.4.45",
+  "target_release": "32.4.46",
+  "verified_against_live_atomic_swap": true
+}

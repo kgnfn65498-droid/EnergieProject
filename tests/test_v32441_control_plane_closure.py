@@ -160,6 +160,7 @@ def test_32441_chat_approval_hotfix_adds_exact_pending_decision_ingress_only(tmp
     assert 'APPROVAL_INGRESS_ROOT' in source
     assert 'decisions_needed' in source
     assert 'PM_REMOTE_APPROVAL_ENABLED' in source
+    assert 'PM_APPROVAL_TOOL_VERSION=2026-09-12.v3' in source
     fn = source[source.index('def projectmanager_submit_approval('):source.index('def projectmanager_submit_approval(')+5000]
     assert "item.get('status') == 'PENDING'" in source
     assert 'approved_by' in fn and "'Peter'" in fn

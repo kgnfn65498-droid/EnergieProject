@@ -1,3 +1,11 @@
+## 32.4.46 — control-plane archive + chatapproval closure
+
+- Native MCP stale-request archivering verhuist van de niet-schrijfbare `Inbox/control_plane/archive` naar de begrensde schrijfbare systeemlocatie `Data/03_Systeem/Projectmanager/RuntimeEvidence/control_plane_archive`.
+- Stale requests van vorige releases blijven exact gevalideerd, conflict-detecterend en fail-closed; geen handmatige `rm` meer nodig.
+- De bestaande exacte ChatGPT/Voice/Nomad ApprovalIngress-route wordt naar contract v3 gebracht zonder de fail-closed edge-beveiliging te verzwakken; Home Assistant blijft fallback zolang de externe MCP-edge niet aantoonbaar beveiligd is.
+- Remote approval muteert RuntimeV2 niet en voert nooit zelf de protected action uit: exact decision-id, expliciete Peter-tekst, beveiligde edge-enable en lokale consumer/executor blijven verplicht.
+- Exacte geverifieerde 32.4.45 ZIP SHA256 `8d18c7ec891ae2a1352dc3914f7607d3f3adb828f9f5c9da043c2fd51ce8958f` is de enige buildbasis.
+
 ## 32.4.45 — Native MCP runtime identity en klok-onafhankelijke coordinatie
 
 - Native MCP runtime-fingerprint gaat naar contract v3 en omvat alleen code die daadwerkelijk door het Native-MCP-proces wordt geladen; gewone Projectmanager-wijzigingen veroorzaken daardoor geen valse containerreload meer.

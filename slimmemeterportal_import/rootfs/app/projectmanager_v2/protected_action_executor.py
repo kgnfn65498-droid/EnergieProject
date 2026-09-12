@@ -26,6 +26,7 @@ class ProtectedActionExecutor:
         self.native_mcp_runtime_root = (self.project_root / 'Inbox/native_mcp_runtime').resolve()
         self.control_plane_request_root = (self.project_root / 'Inbox/control_plane/requests').resolve()
         self.control_plane_result_root = (self.project_root / 'Inbox/control_plane/results').resolve()
+        self.control_plane_archive_root = (self.project_root / 'Data/03_Systeem/Projectmanager/RuntimeEvidence/control_plane_archive').resolve()
 
     @staticmethod
     def _sha256(path: Path):
@@ -240,8 +241,10 @@ class ProtectedActionExecutor:
             )
             if not stale_shape_ok or pending_release == live_release:
                 raise RuntimeError('control-plane native MCP pending request conflicteert')
-            archive_root = self.project_root / 'Inbox/control_plane/archive'
+            archive_root = self.control_plane_archive_root
             archive_root.mkdir(parents=True, exist_ok=True)
+            if archive_root.is_symlink() or not self._inside(archive_root, (self.project_root / 'Data/03_Systeem/Projectmanager/RuntimeEvidence').resolve()):
+                raise RuntimeError('onveilig control-plane archive-root')
             archive = archive_root / f'native_mcp_reload.{pending_release}.{pending_request_id}.json'
             if archive.is_symlink():
                 raise RuntimeError('onveilig control-plane archivepad')

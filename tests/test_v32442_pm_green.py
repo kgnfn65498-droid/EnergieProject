@@ -287,7 +287,7 @@ def test_32442_orchestrator_routes_plain_followup_and_defers_cr_auto_queue():
 
 def test_32442_native_hotfix_replaces_older_approval_tool_instead_of_accepting_presence():
     source = (TOOLS / "native_mcp_runtime_contract_hotfix.py").read_text(encoding="utf-8")
-    assert "PM_APPROVAL_TOOL_VERSION=2026-09-11.v2" in source
+    assert "PM_APPROVAL_TOOL_VERSION=2026-09-12.v3" in source
     assert "approval_tool_upgraded" in source
 
 

@@ -1,8 +1,8 @@
-# Testinstructies v32.4.45 — Native MCP runtime-closure
+# Testinstructies v32.4.46 — control-plane archive + chatapproval closure
 
 Minimale acceptatie vóór ZIP-uitgifte:
 
-1. 32.4.45 Native-MCP regressies eerst RED gezien en daarna GREEN.
+1. 32.4.46 control-plane archive- en chatapproval-regressies eerst RED gezien en daarna GREEN.
 2. Native-MCP runtime-marker gebruikt contract v3, schrijft via `/system/Projectmanager/RuntimeEvidence` en hash alleen daadwerkelijk geladen Native-MCP-code.
 3. Een wijziging in uitsluitend Projectmanager-bron verandert de Native-MCP expected fingerprint niet; een wijziging in geladen Native-MCP-bron doet dat wel.
 4. `/project` blijft read-only; geen fingerprintwriter of runtime-evidence write naar `/project/Inbox/...`.
