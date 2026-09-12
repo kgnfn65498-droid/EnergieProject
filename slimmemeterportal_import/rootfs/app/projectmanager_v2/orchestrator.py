@@ -2,6 +2,7 @@ import json
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 from approval_ingress import ApprovalIngressConsumer
 from approved_action_store import ApprovedActionStore
@@ -21,6 +22,7 @@ from health_engine import summarize_health_with_self_audit
 from mode_bridge import ModeBridge
 from nas_container_cr_service import ConfiguredNasContainerCrService
 from project_cr_service import ConfiguredProjectCrService
+from project_close_state import write_project_close
 from series_324_live_closure import evaluate as evaluate_324_closure, next_action as next_324_action
 from persistence import atomic_write_json, load_json
 from protected_action_executor import ProtectedActionExecutor
@@ -93,6 +95,7 @@ class ProjectmanagerRuntime:
             project_cr_service=self.project_cr_service,
             nas_container_cr_service=self.nas_container_cr_service,
             conversation_intake=self.conversation_intake,
+            project_root=config.project_root,
         )
         ingress_root = getattr(config, 'command_ingress_root', '') or ''
         self.ingress = CommandIngressConsumer(
@@ -168,6 +171,14 @@ class ProjectmanagerRuntime:
         # immediately after execution decides whether another attempt is needed.
         if matching and matching[-1].get('status') == 'DONE':
             return {'status':'already_done','intent':intent}
+        if matching and matching[-1].get('status') in {'FAILED', 'CANCELLED'}:
+            previous = matching[-1]
+            return {
+                'status': 'previous_terminal_block',
+                'intent': intent,
+                'previous_status': previous.get('status'),
+                'previous_command_id': previous.get('id'),
+            }
         command = self.commands.enqueue({
             'intent': intent, 'source':'projectmanager_auto',
             'text': f'32.4 live closure: {intent}',
@@ -185,24 +196,74 @@ class ProjectmanagerRuntime:
                 release_version = (Path(self.config.project_root) / 'App/VERSIE.txt').read_text(encoding='utf-8').strip()
             except OSError:
                 return {'status':'NOT_APPLICABLE','reason':'release_version_unavailable'}
-        parts = tuple(int(x) for x in release_version.split('.') if x.isdigit())
+        try:
+            parts = tuple(int(x) for x in release_version.split('.'))
+        except ValueError:
+            return {'status':'NOT_APPLICABLE','reason':'release_version_invalid','release_version':release_version}
         if parts < (32,4,38):
             return {'status':'NOT_APPLICABLE','release_version':release_version}
+
         checks = [dict(item) for item in ((status.get('health') or {}).get('checks') or [])]
         by_name = {str(item.get('name')):str(item.get('status')) for item in checks}
         clearup_path = Path(self.config.project_root) / 'Inbox/logs/project_clearup_runtime.json'
         clearup = load_json(clearup_path, default={}) or {}
+        clearup_done = bool(
+            str(clearup.get('status') or '') in {'completed','already_completed','no_action'}
+            and str(clearup.get('release_version') or '') == release_version
+        )
         closure = evaluate_324_closure(checks, clearup=clearup, release_version=release_version)
+
+        # One current-release truth controls project-close side effects. Technical
+        # runtime repair may continue while DEFERRED, but CR/CLEARUP only runs
+        # after the technical PM gates are GREEN and the project close is still
+        # incomplete. Once complete, return to DEFERRED to prevent repeats.
+        if closure.get('pm_status') != 'GREEN':
+            desired_state = 'DEFERRED'
+            close_reason = 'pm_technical_gates_not_green'
+        elif closure.get('project_close_status') == 'GREEN':
+            desired_state = 'DEFERRED'
+            close_reason = 'project_close_complete'
+        else:
+            desired_state = 'REQUESTED'
+            close_reason = 'project_close_incomplete'
+        try:
+            close_state = write_project_close(
+                self.config.project_root,
+                release_version=release_version,
+                state=desired_state,
+                reason=close_reason,
+                source='projectmanager_series_32_4_closure',
+            )
+            close_state_error = ''
+        except Exception as exc:
+            close_state = {
+                'state': 'DEFERRED', 'current': False, 'release_version': release_version,
+                'reason': 'project_close_state_write_failed',
+            }
+            close_state_error = f'{type(exc).__name__}: {exc}'
+            self._open_issue(
+                'project_close:state_write_failed',
+                severity='RED',
+                title='Project-close state kon niet veilig worden vastgelegd',
+                details={'release_version': release_version, 'error': close_state_error},
+            )
+
+        project_close_deferred = not (
+            close_state.get('current') is True and close_state.get('state') == 'REQUESTED'
+        )
+        # 32.4.42 hardcoded project_close_deferred=True. 32.4.43 replaces
+        # that split truth with the current shared project-close state.
         action = next_324_action(
             by_name,
-            clearup_done=(
-                str(clearup.get('status') or '') in {'completed','already_completed','no_action'}
-                and str(clearup.get('release_version') or '') == release_version
-            ),
-            project_close_deferred=True,
+            clearup_done=clearup_done,
+            project_close_deferred=project_close_deferred,
         )
-        closure['project_close_deferred'] = closure.get('project_close_status') != 'GREEN'
+        closure['project_close_state'] = close_state
+        closure['project_close_deferred'] = project_close_deferred
+        if close_state_error:
+            closure['project_close_state_error'] = close_state_error
         closure['next_action'] = action
+
         try:
             if closure.get('status') == 'GREEN':
                 self.roadmap.mark_acceptance('32-4-closure-live', 'LIVE_PROVEN', evidence_refs=[str(clearup_path)], carry_forward=[])
@@ -211,10 +272,18 @@ class ProjectmanagerRuntime:
                 self.roadmap.mark_acceptance('32-4-closure-live', 'LIVE_REQUIRED', carry_forward=list(closure.get('failed_or_missing') or []))
         except (KeyError, ValueError):
             pass
+
         if closure.get('status') != 'GREEN' and action == 'REQUEST_WATCHER_RECREATE':
             closure['automation'] = self._queue_324_action_once('watcher_recreate', release_version)
         elif closure.get('status') != 'GREEN' and action == 'REQUEST_NATIVE_MCP_RELOAD':
             closure['automation'] = self._queue_324_action_once('native_mcp_reload', release_version)
+        elif not project_close_deferred and action == 'CREATE_PROJECT_CR':
+            closure['automation'] = self._queue_324_action_once("project_cr_create", release_version)
+        elif not project_close_deferred and action == 'CREATE_NAS_CR':
+            closure['automation'] = self._queue_324_action_once("nas_container_cr_create", release_version)
+        elif not project_close_deferred and action == 'RUN_CLEARUP':
+            closure['automation'] = {'status':'requested_by_shared_state','intent':'project_clearup'}
+
         atomic_write_json(self.root / 'state' / 'series_32_4_live_closure.json', closure)
         return closure
 
@@ -376,6 +445,19 @@ class ProjectmanagerRuntime:
                     details={'reason': result.get('reason')},
                 )
 
+        try:
+            active_release = (Path(self.config.project_root) / 'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+        except OSError:
+            active_release = ''
+        superseded_release_commands = self.commands.supersede_stale_release_commands(active_release) if active_release else []
+        if superseded_release_commands:
+            self.base.audit.write(
+                'command.release_owner.reconciled',
+                actor='projectmanager',
+                result='safe',
+                details={'active_release': active_release, 'command_ids': [item.get('id') for item in superseded_release_commands]},
+            )
+
         processed = self.processor.process_all(max_items=50)
         protected_results = self.protected_executor.run_once(max_items=5)
         runtime_snapshot = self.base.runtime_collector.collect()
@@ -392,12 +474,21 @@ class ProjectmanagerRuntime:
             now=now,
             issue_repairs=issue_repairs,
         )
-        status = dict(self.base.run_once(now=now))
+        previous_defer_current = bool(getattr(self.base, 'defer_current_publication', False))
+        self.base.defer_current_publication = True
+        try:
+            status = dict(self.base.run_once(now=now))
+        finally:
+            self.base.defer_current_publication = previous_defer_current
+        cycle_generation = uuid4().hex
+        status['cycle_generation'] = cycle_generation
+        status['provenance'] = {'generation': cycle_generation, 'phase': 'FINAL'}
         status['manager'] = {'version': _read_manager_version(getattr(self.config, 'manager_app_root', ''))}
         status['handoff_result_ingress_results'] = handoff_results[-20:]
         status['approval_ingress_results'] = approval_results[-20:]
         status['ingress_results'] = ingress_results[-20:]
         status['processed_commands'] = len(processed)
+        status['superseded_release_commands'] = superseded_release_commands[-20:]
         status['protected_executor_results'] = protected_results[-20:]
         status['release_ingress_mode_route'] = release_ingress_mode
         if processed:
@@ -419,48 +510,75 @@ class ProjectmanagerRuntime:
             dict(item) for item in ((status.get('health') or {}).get('checks') or [])
             if item.get('name') != 'projectmanager_self_audit'
         ]
-        audit = self.base.self_auditor.run(now=now, require_coordination=True)
-        status['self_audit'] = audit
-        status['health'] = summarize_health_with_self_audit(checks, audit)
-        issues = getattr(self.base, 'issues', None)
-        status['open_issues'] = issues.open_items() if issues is not None else status.get('open_issues', [])
-        atomic_write_json(self.root / 'self_audit' / 'current.json', audit)
-
+        generation = str(status.get('cycle_generation') or '').strip()
+        if not generation:
+            raise RuntimeError('cycle_generation ontbreekt vóór finale Projectmanager-audit')
+        provenance = {'generation': generation, 'phase': 'FINAL'}
+        status['provenance'] = provenance
         heartbeat_path = self.root / 'heartbeat' / 'manager.json'
+
+        # Bounded stabilization: every published artifact keeps the exact same
+        # generation.  We audit only after status, handover and heartbeat are all
+        # written as FINAL, eliminating the previous write-order race.
+        previous_signature = None
+        for _attempt in range(3):
+            heartbeat = load_json(heartbeat_path, default={}) or {}
+            heartbeat['health'] = (status.get('health') or {}).get('status', 'RED')
+            heartbeat['mode'] = status.get('mode', 'USER')
+            heartbeat['cycle_generation'] = generation
+            heartbeat['provenance'] = provenance
+            if now is not None:
+                heartbeat['heartbeat_at'] = now.isoformat()
+            atomic_write_json(heartbeat_path, heartbeat)
+            self._refresh_coordination(status)
+
+            audit = self.base.self_auditor.run(now=now, require_coordination=True)
+            status['self_audit'] = audit
+            status['health'] = summarize_health_with_self_audit(checks, audit)
+            atomic_write_json(self.root / 'self_audit' / 'current.json', audit)
+
+            reconcile_audit = getattr(self.base, '_reconcile_self_audit_outcome', None)
+            if callable(reconcile_audit):
+                reconcile_audit(audit, now=now)
+            issues = getattr(self.base, 'issues', None)
+            status['open_issues'] = issues.open_items() if issues is not None else status.get('open_issues', [])
+
+            heartbeat['health'] = status['health']['status']
+            heartbeat['cycle_generation'] = generation
+            heartbeat['provenance'] = provenance
+            atomic_write_json(heartbeat_path, heartbeat)
+            self._refresh_coordination(status)
+
+            signature = (
+                audit.get('status'),
+                json.dumps(audit.get('invalid') or [], ensure_ascii=False, sort_keys=True),
+                json.dumps(audit.get('warnings') or [], ensure_ascii=False, sort_keys=True),
+                status['health']['status'],
+            )
+            if signature == previous_signature:
+                return
+            previous_signature = signature
+
+        # A bounded third pass is enough to absorb issue reconciliation. If the
+        # audit still oscillates, expose that as RED instead of looping forever.
+        final_audit = self.base.self_auditor.run(now=now, require_coordination=True)
+        if final_audit.get('status') != status.get('self_audit', {}).get('status'):
+            final_audit = dict(final_audit)
+            final_audit.setdefault('invalid', []).append({
+                'path': 'self_audit/current.json', 'reason': 'final_audit_not_stable_within_bound',
+            })
+            final_audit['status'] = 'RED'
+        status['self_audit'] = final_audit
+        status['health'] = summarize_health_with_self_audit(checks, final_audit)
+        atomic_write_json(self.root / 'self_audit' / 'current.json', final_audit)
         heartbeat = load_json(heartbeat_path, default={}) or {}
-        heartbeat['health'] = status['health']['status']
-        heartbeat['mode'] = status.get('mode', 'USER')
-        if now is not None:
-            heartbeat['heartbeat_at'] = now.isoformat()
+        heartbeat.update({
+            'health': status['health']['status'], 'mode': status.get('mode', 'USER'),
+            'cycle_generation': generation, 'provenance': provenance,
+        })
         atomic_write_json(heartbeat_path, heartbeat)
         self._refresh_coordination(status)
 
-        # Audit once more against the files just written. This second pass is
-        # the authoritative final state, not the preliminary ManagerService audit.
-        final_audit = self.base.self_auditor.run(now=now, require_coordination=True)
-        if final_audit != audit:
-            status['self_audit'] = final_audit
-            status['health'] = summarize_health_with_self_audit(checks, final_audit)
-            atomic_write_json(self.root / 'self_audit' / 'current.json', final_audit)
-            heartbeat['health'] = status['health']['status']
-            atomic_write_json(heartbeat_path, heartbeat)
-            self._refresh_coordination(status)
-
-        # Route the authoritative final audit through the same issue/alert policy
-        # as ordinary RED health checks, then refresh both status and handover so
-        # the newly-opened/resolved audit issue cannot create coordination drift.
-        authoritative_audit = status.get('self_audit') or final_audit
-        reconcile_audit = getattr(self.base, '_reconcile_self_audit_outcome', None)
-        if callable(reconcile_audit):
-            reconcile_audit(authoritative_audit, now=now)
-            self._refresh_coordination(status)
-            routed_audit = self.base.self_auditor.run(now=now, require_coordination=True)
-            status['self_audit'] = routed_audit
-            status['health'] = summarize_health_with_self_audit(checks, routed_audit)
-            atomic_write_json(self.root / 'self_audit' / 'current.json', routed_audit)
-            heartbeat['health'] = status['health']['status']
-            atomic_write_json(heartbeat_path, heartbeat)
-            self._refresh_coordination(status)
 
     def _refresh_coordination(self, status: dict):
         current_mode = self.base.mode.get()
@@ -478,7 +596,14 @@ class ProjectmanagerRuntime:
         status['canonical_roadmap'] = self.roadmap.canonical_metadata()
         status['acceptance_matrix'] = self.roadmap.acceptance_summary()
         status['development_efficiency'] = (status.get('progress') or {}).get('development_efficiency') or {}
-        status['development_context'] = {'active_context':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_ACTIVE_DEVELOPMENT_CONTEXT.md','manifest':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_DEVELOPMENT_MANIFEST.md','ledger':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/01_UNIFIED_DEVELOPMENT_LEDGER.md','live_handover_primary':True}
+        status['development_context'] = {
+            'runtime_truth': 'Inbox/projectmanager_v2/RuntimeV2/development_context/current.json',
+            'runtime_truth_primary': True,
+            'active_context':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_ACTIVE_DEVELOPMENT_CONTEXT.md',
+            'manifest':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_DEVELOPMENT_MANIFEST.md',
+            'ledger':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/01_UNIFIED_DEVELOPMENT_LEDGER.md',
+            'live_handover_primary':True,
+        }
         status['conversation_intake'] = self.conversation_intake.summary()
         issues = getattr(self.base, 'issues', None)
         status['open_issues'] = issues.open_items() if issues is not None else status.get('open_issues', [])
@@ -506,4 +631,6 @@ class ProjectmanagerRuntime:
         handover['development_context'] = status.get('development_context', {})
         handover['conversation_intake'] = status.get('conversation_intake', {})
         handover['state_reconciliation'] = status.get('state_reconciliation', {})
+        handover['cycle_generation'] = status.get('cycle_generation')
+        handover['provenance'] = status.get('provenance', {})
         atomic_write_json(self.root / 'handover' / 'current.json', handover)

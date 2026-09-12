@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from project_clearup import ClearupExecutionTimeout, apply_clearup_plan, build_clearup_plan
+from project_close_state import load_project_close
 
 APPROVAL_RELATIVE = Path("Data/03_Systeem/Projectmanager/State/32_4_25_scope_cleanup_and_history_repair_20260909.md")
 MAX_CR_AGE_SECONDS = 30 * 86400
@@ -367,6 +368,42 @@ def clearup_auto_gate(
     started_monotonic: float | None = None,
 ) -> dict[str, Any]:
     root = Path(project_root).resolve()
+    try:
+        release_parts = tuple(int(part) for part in str(app_version).split('.'))
+    except ValueError:
+        release_parts = ()
+    requires_project_close_state = bool(release_parts and release_parts >= (32, 4, 43))
+    project_close = (
+        load_project_close(root, active_release=str(app_version))
+        if requires_project_close_state
+        else {
+            "schema": "legacy_pre_project_close_state",
+            "release_version": str(app_version),
+            "state": "REQUESTED",
+            "reason": "legacy_release_compatibility",
+            "current": True,
+        }
+    )
+    if requires_project_close_state and (project_close.get("state") != "REQUESTED" or project_close.get("current") is not True):
+        return {
+            "ready": False,
+            "blockers": ["project_close_deferred"],
+            "app_version": str(app_version),
+            "project_close": project_close,
+            "user_approval": False,
+            "atomic": {},
+            "release_hold": {},
+            "pre_acceptance": False,
+            "release_phase_ok": False,
+            "clearup_destination": {
+                "ok": False,
+                "reason": "deferred_by_project_close_state",
+                "path": str(root / "CLEARUP"),
+            },
+            "crash_recovery": {"ok": False, "reason": "deferred_by_project_close_state"},
+            "current_release_cr": {"ok": False, "reason": "deferred_by_project_close_state", "fingerprint": None},
+            "prerequisite_fingerprint": None,
+        }
     accepted, atomic = _release_accepted(root, app_version)
     hold_ok, hold = _hold_released(root)
     pre_acceptance, pre_atomic, pre_hold = _pre_acceptance_phase(root, app_version)
@@ -419,6 +456,7 @@ def clearup_auto_gate(
         "ready": not blockers,
         "blockers": blockers,
         "app_version": str(app_version),
+        "project_close": project_close,
         "user_approval": approval,
         "atomic": atomic,
         "release_hold": hold,

@@ -212,3 +212,13 @@
 - Een nieuwe chat mag pas ontwikkelen nadat deze bindende context is ingelezen; een chatwissel mag de architectuur, ontwikkelroute of platformbeperkingen niet resetten.
 - Crash Recovery/CLEARUP mag als aparte projectafsluitfase worden uitgesteld zonder de technische Projectmanager-status rood te maken of automatisch als huidige PM-taak te worden gestart.
 
+## 32.4.43 runtime-contract closure
+
+- Release-owned CR/NAS-CR commands zijn verplicht exact aan de actieve release gebonden; stale/missing ownership wordt SUPERSEDED vóór side effects.
+- Projectafsluiting heeft één canonieke state: `DEFERRED` of `REQUESTED`; alleen exact current `REQUESTED` mag CR/CLEARUP-mutaties starten.
+- Kritieke PM runtime-truth staat in RuntimeV2. Statische Knowledge Base-sync is best-effort en mag de PM-cycle niet laten crashen.
+- Status, heartbeat, handover en self-audit delen één `cycle_generation` en FINAL provenance.
+- Shared IPC-mappen die door verschillende containers worden gebruikt moeten door de owner vooraf worden aangemaakt en met echte cross-identity write/readback worden getest.
+- Approval UI gebruikt de canonieke DecisionQueue, niet een mogelijk achterlopende statussnapshot.
+- Workflowgezondheid is niet hetzelfde als systeem-/releasegezondheid; beide worden apart benoemd.
+

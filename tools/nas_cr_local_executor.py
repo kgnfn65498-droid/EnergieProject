@@ -53,13 +53,17 @@ def _load_request(root: Path) -> dict[str, Any]:
         raise RuntimeError('NAS CR request is geen geldige JSON') from exc
     if not isinstance(value, dict):
         raise RuntimeError('NAS CR request moet een object zijn')
-    allowed = {'schema', 'request_id', 'operation', 'expected_runtime_version', 'created_at'}
-    if set(value) != allowed:
-        raise RuntimeError('NAS CR request bevat onverwachte velden')
+    allowed = {'schema', 'request_id', 'operation', 'expected_runtime_version', 'created_at', 'command_id'}
+    required = {'schema', 'request_id', 'operation', 'expected_runtime_version', 'created_at'}
+    if not required <= set(value) or set(value) - allowed:
+        raise RuntimeError('NAS CR request bevat ontbrekende of onverwachte velden')
     if value.get('schema') != REQUEST_SCHEMA or value.get('operation') != OPERATION:
         raise RuntimeError('NAS CR request schema/operation ongeldig')
     if not REQUEST_ID.fullmatch(str(value.get('request_id') or '')):
         raise RuntimeError('NAS CR request_id ongeldig')
+    command_id = str(value.get('command_id') or '').strip()
+    if command_id and not REQUEST_ID.fullmatch(command_id):
+        raise RuntimeError('NAS CR command_id ongeldig')
     expected = str(value.get('expected_runtime_version') or '')
     if not VERSION.fullmatch(expected):
         raise RuntimeError('NAS CR verwachte runtimeversie ongeldig')
@@ -74,9 +78,26 @@ def execute(root: Path) -> dict[str, Any]:
     request_path, result_path = _fixed_paths(root)
     request: dict[str, Any] | None = None
     request_id = ''
+    command_id = ''
     try:
+        # Preserve only validated correlation identifiers for RED evidence even
+        # when the stricter request validator rejects a later field (for example
+        # a stale release). This keeps the original executor error diagnosable.
+        if _regular_file(request_path):
+            try:
+                raw_request = json.loads(request_path.read_text(encoding='utf-8'))
+            except (OSError, json.JSONDecodeError):
+                raw_request = None
+            if isinstance(raw_request, dict):
+                raw_request_id = str(raw_request.get('request_id') or '')
+                raw_command_id = str(raw_request.get('command_id') or '')
+                if REQUEST_ID.fullmatch(raw_request_id):
+                    request_id = raw_request_id
+                if REQUEST_ID.fullmatch(raw_command_id):
+                    command_id = raw_command_id
         request = _load_request(root)
         request_id = str(request['request_id'])
+        command_id = str(request.get('command_id') or '')
         pm = root / 'App' / 'slimmemeterportal_import' / 'rootfs' / 'app' / 'projectmanager_v2'
         if not pm.is_dir():
             raise RuntimeError('ProjectmanagerV2 bronmap ontbreekt')
@@ -93,6 +114,7 @@ def execute(root: Path) -> dict[str, Any]:
         payload = {
             'schema': RESULT_SCHEMA,
             'request_id': request_id,
+            'command_id': command_id,
             'status': 'GREEN',
             'ok': True,
             'version': expected,
@@ -111,6 +133,7 @@ def execute(root: Path) -> dict[str, Any]:
         payload = {
             'schema': RESULT_SCHEMA,
             'request_id': request_id,
+            'command_id': command_id,
             'status': 'RED',
             'ok': False,
             'production_containers_changed': None,

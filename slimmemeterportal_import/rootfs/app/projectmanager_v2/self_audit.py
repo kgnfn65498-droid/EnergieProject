@@ -6,7 +6,7 @@ from pathlib import Path
 from decision_queue import VALID_STATUSES as DECISION_QUEUE_VALID_STATUSES
 from task_engine import VALID_TASK_STATUSES
 from roadmap_regie import RoadmapRegie
-from development_build_contract import evaluate_build_contract
+from development_build_contract import CONTRACT_VERSION, evaluate_build_contract
 
 VALID_MODES = {'USER', 'DEVELOPMENT', 'MAINTENANCE'}
 VALID_HEALTH = {'GREEN', 'ORANGE', 'RED'}
@@ -14,7 +14,7 @@ VALID_TASK = set(VALID_TASK_STATUSES)
 VALID_DECISION = set(DECISION_QUEUE_VALID_STATUSES)
 VALID_COMMAND = {
     'PENDING', 'PROCESSING', 'WAITING_APPROVAL', 'APPROVED_READY',
-    'APPROVED_WAITING_EXECUTOR', 'INTERRUPTED', 'DONE', 'FAILED', 'CANCELLED',
+    'APPROVED_WAITING_EXECUTOR', 'INTERRUPTED', 'DONE', 'FAILED', 'CANCELLED', 'SUPERSEDED',
 }
 VALID_HANDOFF = {'OPEN', 'DONE', 'BLOCKED', 'CANCELLED'}
 VALID_APPROVED_ACTION = {'APPROVED_AWAITING_SAFETY_OR_EXECUTOR', 'DONE', 'CANCELLED', 'FAILED'}
@@ -167,7 +167,7 @@ class SelfAuditor:
                         'reason': 'build_contract_noncompliant',
                         'missing': list(contract.get('missing') or []),
                     })
-                if contract.get('contract_version') != '2026-09-11.v2':
+                if contract.get('contract_version') != CONTRACT_VERSION:
                     invalid.append({'path': 'status/current.json', 'reason': 'development_build_contract_version_mismatch'})
 
         if heartbeat is not None:
@@ -194,6 +194,23 @@ class SelfAuditor:
             s_release = ((status or {}).get('release') or {}).get('version')
             if status and h_release != s_release:
                 invalid.append({'path': 'handover/current.json', 'reason': 'release_mismatch'})
+
+        release_for_generation = self.running_release_version or (((status or {}).get('release') or {}).get('version'))
+        generation_required = _release_at_least(release_for_generation, '32.4.43')
+        if generation_required and require_coordination and status is not None and heartbeat is not None and handover is not None:
+            generation = str(status.get('cycle_generation') or '').strip()
+            provenance = status.get('provenance') if isinstance(status.get('provenance'), dict) else {}
+            if not generation:
+                invalid.append({'path': 'status/current.json', 'reason': 'cycle_generation_missing'})
+            if provenance.get('generation') != generation or provenance.get('phase') != 'FINAL':
+                invalid.append({'path': 'status/current.json', 'reason': 'final_provenance_invalid'})
+            for rel, payload in (('heartbeat/manager.json', heartbeat), ('handover/current.json', handover)):
+                other_generation = str(payload.get('cycle_generation') or '').strip()
+                other_provenance = payload.get('provenance') if isinstance(payload.get('provenance'), dict) else {}
+                if other_generation != generation:
+                    invalid.append({'path': rel, 'reason': 'cycle_generation_mismatch'})
+                if other_provenance.get('generation') != generation or other_provenance.get('phase') != 'FINAL':
+                    invalid.append({'path': rel, 'reason': 'final_provenance_invalid'})
 
         if require_coordination and status is not None and handover is not None:
             coordination_v2 = _release_at_least(
@@ -362,6 +379,8 @@ class SelfAuditor:
 
         result_status = 'RED' if invalid else ('ORANGE' if warnings else 'GREEN')
         status_updated_at = status.get('updated_at') if isinstance(status, dict) else None
+        cycle_generation = str((status or {}).get('cycle_generation') or '').strip() or None
+        provenance = (status or {}).get('provenance') if isinstance((status or {}).get('provenance'), dict) else {}
         return {
             'status': result_status,
             'missing': missing,
@@ -369,4 +388,6 @@ class SelfAuditor:
             'warnings': warnings,
             'required_files': list(REQUIRED_RUNTIME_FILES),
             'status_updated_at': status_updated_at,
+            'cycle_generation': cycle_generation,
+            'provenance': dict(provenance),
         }

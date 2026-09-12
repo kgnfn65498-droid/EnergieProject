@@ -621,11 +621,15 @@ class ConfiguredNasContainerCrService:
             return None
         return value if isinstance(value, dict) else None
 
-    def create(self) -> dict[str, Any]:
+    def create(self, *, command_id: str = '', expected_release: str = '') -> dict[str, Any]:
         version_path = self.project_root / 'App' / 'VERSIE.txt'
         version = version_path.read_text(encoding='utf-8').strip()
         if not version or any(ch not in '0123456789.' for ch in version):
             raise RuntimeError('Actuele runtimeversie ontbreekt of is ongeldig')
+        expected = str(expected_release or '').strip()
+        if expected and expected != version:
+            raise RuntimeError(f'NAS Container CR release mismatch: command={expected} actief={version}')
+        command = str(command_id or '').strip()
         self.bridge_root.mkdir(parents=True, exist_ok=True)
         if self.request_path.is_symlink() or self.result_path.is_symlink():
             raise RuntimeError('Onveilige NAS Container CR bridge-path')
@@ -637,6 +641,8 @@ class ConfiguredNasContainerCrService:
             'expected_runtime_version': version,
             'created_at': datetime.now(TZ).isoformat(),
         }
+        if command:
+            request['command_id'] = command
         _atomic_text(self.request_path, json.dumps(request, ensure_ascii=False, sort_keys=True) + '\n')
 
         deadline = time.monotonic() + self.timeout_seconds
@@ -647,6 +653,8 @@ class ConfiguredNasContainerCrService:
                 continue
             if result.get('schema') != self.RESULT_SCHEMA:
                 raise RuntimeError('NAS Container CR lokaal resultaat heeft ongeldig schema')
+            if command and result.get('command_id') != command:
+                raise RuntimeError('NAS Container CR lokaal resultaat heeft verkeerde command-id')
             if result.get('version') != version:
                 raise RuntimeError('NAS Container CR lokaal resultaat heeft verkeerde runtimeversie')
             if not (result.get('status') == 'GREEN' and result.get('ok') is True):

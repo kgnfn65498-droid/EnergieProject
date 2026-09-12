@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -317,13 +318,65 @@ def _validate(path: Path, text: str) -> None:
             raise RuntimeError(f'shellsyntax RED voor {path.name}: {completed.stderr.strip()}')
 
 
+def _contract_predicates(root: Path | str) -> dict[str, bool]:
+    root = Path(root).resolve()
+    def read(rel: str) -> str:
+        path = root / rel
+        if not path.is_file() or path.is_symlink():
+            return ''
+        return path.read_text(encoding='utf-8', errors='replace')
+
+    crash = read(TARGETS[0])
+    tools = read(TARGETS[1])
+    builder = read(TARGETS[2])
+    retention = read(TARGETS[3])
+    native_test = read(TARGETS[4])
+    return {
+        'project_retention_max1': 'RETENTION_DEFAULT = 1' in crash and crash.count('retention: int = 1,') >= 2,
+        'project_runtime_version_in_name': 'base_stem = f"{_local_file_stamp()} {version} {CRASH_NAME_SUFFIX}"' in crash,
+        'project_quarantine_first': 'CRRetentionQuarantine' in crash and 'retention_delete_performed' in crash,
+        'nas_runtime_version_in_name': '${VERSION} CR NAS Containers' in builder,
+        'nas_retention_max1_marker': 'NAS_CR_RETENTION_MAX1_OK' in builder and 'NAS_CR_RETENTION_MAX1_OK' in retention,
+        'nas_quarantine_first': 'CRRetentionQuarantine' in retention and 'delete_performed=false' in retention,
+        'native_runtime_fingerprint_present': 'energie_native_mcp_runtime_v1' in tools,
+        'native_test_retention_max1': 'retention=1,' in native_test and 'list_crash_recovery_backups(recovery)["count"], 1' in native_test,
+    }
+
+
+def _preflight_transforms(root: Path) -> list[dict[str, str]]:
+    """Transform exact live source in memory and prove syntax before writes."""
+    evidence = []
+    for rel in TARGETS:
+        target = root / rel
+        if not target.is_file() or target.is_symlink():
+            raise RuntimeError(f'begrensd native-MCP doel ontbreekt/onveilig: {rel}')
+        old = target.read_text(encoding='utf-8')
+        new = TRANSFORMS[rel](old)
+        if target.suffix == '.py':
+            compile(new, str(target), 'exec')
+        elif target.suffix == '.sh':
+            check = subprocess.run(['sh', '-n'], input=new, capture_output=True, text=True, check=False)
+            if check.returncode != 0:
+                raise RuntimeError(f'preflight shellsyntax RED voor {target.name}: {check.stderr.strip()}')
+        evidence.append({
+            'path': rel,
+            'source_sha256': hashlib.sha256(old.encode('utf-8')).hexdigest(),
+            'transformed_sha256': hashlib.sha256(new.encode('utf-8')).hexdigest(),
+            'transform_idempotent': str(new == old).lower(),
+        })
+    return evidence
+
+
 def apply(root: Path) -> dict:
     root = Path(root).resolve()
     backup_root = root / BACKUP_ROOT
     result_path = root / RESULT_REL
     changes: list[dict[str, str]] = []
     changed_paths: list[Path] = []
+    preflight: list[dict[str, str]] = []
+    predicates: dict[str, bool] = {}
     try:
+        preflight = _preflight_transforms(root)
         for rel in TARGETS:
             target = root / rel
             if not target.is_file() or target.is_symlink():
@@ -342,30 +395,23 @@ def apply(root: Path) -> dict:
             changed_paths.append(target)
             changes.append({'path': rel, 'status': 'changed', 'backup': str(backup.relative_to(root))})
 
-        # Contract-level assertions after all bounded edits.
-        crash = (root / TARGETS[0]).read_text(encoding='utf-8')
-        tools = (root / TARGETS[1]).read_text(encoding='utf-8')
-        builder = (root / TARGETS[2]).read_text(encoding='utf-8')
-        retention = (root / TARGETS[3]).read_text(encoding='utf-8')
-        required = (
-            'RETENTION_DEFAULT = 1' in crash,
-            ' CR EnergieProject' in crash,
-            'CRRetentionQuarantine' in crash,
-            'retention=1,' in tools,
-            'energie_native_mcp_runtime_v1' in tools,
-            '${VERSION} CR NAS Containers' in builder,
-            'NAS_CR_RETENTION_MAX1_OK' in builder,
-            ' CR NAS Containers' in retention,
-            'CRRetentionQuarantine' in retention,
-        )
-        if not all(required):
-            raise RuntimeError('native-MCP CR standaard postcheck RED')
+        # Contract-level assertions after all bounded edits. Every predicate is
+        # named in evidence so a future RED points to the exact broken contract.
+        # Backward-readable definitions: 'CRRetentionQuarantine' in crash;
+        # 'energie_native_mcp_runtime_v1' in tools; 'CRRetentionQuarantine' in retention.
+        predicates = _contract_predicates(root)
+        failed_predicates = [name for name, ok in predicates.items() if ok is not True]
+        if failed_predicates:
+            raise RuntimeError('native-MCP CR standaard postcheck RED: ' + ','.join(failed_predicates))
         result = {
             'schema': 'energie_cr_standard_native_mcp_hotfix_v32438',
             'status': 'GREEN',
             'ok': True,
             'targets': list(TARGETS),
             'changes': changes,
+            'source_transform_preflight': preflight,
+            'predicates': predicates,
+            'failed_predicates': [],
             'mcp_restart_required': any(str(path).endswith(('crash_recovery.py', 'tools_recovery.py')) for path in changed_paths),
             'restart_performed': False,
             'finished_at': datetime.now(timezone.utc).isoformat(),
@@ -383,6 +429,9 @@ def apply(root: Path) -> dict:
             'ok': False,
             'error': str(exc),
             'changes': changes,
+            'source_transform_preflight': preflight,
+            'predicates': _contract_predicates(root),
+            'failed_predicates': [name for name, ok in _contract_predicates(root).items() if ok is not True],
             'mcp_restart_required': False,
             'restart_performed': False,
             'finished_at': datetime.now(timezone.utc).isoformat(),

@@ -64,17 +64,30 @@ def _approval_root(project_root) -> Path:
 
 
 def _read_pending(project_root) -> list[dict[str, Any]]:
-    path = _runtime_root(project_root) / 'status' / 'current.json'
+    # 32.4.43: the DecisionQueue file is canonical. status/current.json is a
+    # rendered snapshot and may lag one manager write; approval must never use
+    # that lagging copy as authority.
+    path = _runtime_root(project_root) / 'decisions' / 'queue.json'
     try:
         data = json.loads(path.read_text(encoding='utf-8'))
     except (OSError, json.JSONDecodeError):
         return []
-    if not isinstance(data, dict):
+    if not isinstance(data, dict) or not isinstance(data.get('items', []), list):
         return []
     return [
-        item for item in data.get('decisions_needed', [])
+        dict(item) for item in data.get('items', [])
         if isinstance(item, dict) and item.get('status') == 'PENDING' and item.get('id')
     ]
+
+
+def _pending_decision_meta(project_root) -> dict[str, Any]:
+    pending = _read_pending(project_root)
+    latest = max((str(item.get('updated_at') or '') for item in pending), default='')
+    return {
+        'pending_count': len(pending),
+        'latest_updated_at': latest,
+        'source': str(_runtime_root(project_root) / 'decisions' / 'queue.json'),
+    }
 
 
 def _read_status(project_root) -> dict[str, Any]:
@@ -84,6 +97,37 @@ def _read_status(project_root) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def render_projectmanager_health(project_root) -> str:
+    # PM/release health is deliberately separate from workflow health.
+    status = _read_status(project_root)
+    health = status.get('health') if isinstance(status.get('health'), dict) else {}
+    checks = health.get('checks') if isinstance(health.get('checks'), list) else []
+    overall = str(health.get('status') or 'NOG_TE_CONTROLEREN').upper()
+    release = status.get('release') if isinstance(status.get('release'), dict) else {}
+    version = str(release.get('version') or release.get('ha_runtime_version') or 'NOG_TE_CONTROLEREN')
+    relevant = []
+    for item in checks:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get('name') or '')
+        check_status = str(item.get('status') or '').upper()
+        if check_status != 'GREEN' or name.startswith('release_') or name in {
+            'native_mcp_runtime', 'watcher_container_contract', 'projectmanager_self_audit',
+        }:
+            relevant.append((name or 'onbekend', check_status or 'NOG_TE_CONTROLEREN', str(item.get('reason') or '')))
+    border = {'GREEN': '#2e7d32', 'ORANGE': '#d18b00', 'RED': '#b3261e'}.get(overall, '#6b7280')
+    rows = ''.join(
+        '<li><strong>' + html.escape(name) + '</strong>: ' + html.escape(state)
+        + (' — ' + html.escape(reason) if reason else '') + '</li>'
+        for name, state, reason in relevant[:20]
+    ) or '<li>Geen niet-groene Projectmanager/releasechecks.</li>'
+    return f'''<section id="pmv2-system-health" style="margin:16px 0;padding:14px;border:2px solid {border};border-radius:10px">
+<h3>Projectmanager — systeem- en releasegezondheid</h3>
+<p><strong>{html.escape(overall)}</strong> — release {html.escape(version)}</p>
+<ul>{rows}</ul>
+</section>'''
 
 
 def render_projectmanager_progress(project_root) -> str:
@@ -283,6 +327,7 @@ def render_projectmanager_decisions(project_root) -> str:
     decisions = _read_pending(project_root)
     if not decisions:
         return ''
+    meta = _pending_decision_meta(project_root)
     cards = []
     for item in decisions[:10]:
         decision_id = html.escape(str(item.get('id')), quote=True)
@@ -303,8 +348,12 @@ def render_projectmanager_decisions(project_root) -> str:
 <button type="submit">Afwijzen</button>
 </form>
 </div>''')
+    meta_html = (
+        f'<p style="font-size:0.9em">Canonieke DecisionQueue · open: {int(meta.get("pending_count") or 0)}'
+        f' · laatste wijziging: {html.escape(str(meta.get("latest_updated_at") or "-"))}</p>'
+    )
     return ('<section id="pmv2-decisions" style="margin:16px 0;padding:14px;border:2px solid #d18b00;border-radius:10px">'
-            '<h3>Projectmanager — beslissing nodig</h3>' + ''.join(cards) + '</section>')
+            '<h3>Projectmanager — beslissing nodig</h3>' + meta_html + ''.join(cards) + '</section>')
 
 
 def render_nas_container_cr_setup(project_root, *, private_root: Path | str = DEFAULT_PRIVATE_ROOT) -> str:
@@ -418,7 +467,8 @@ def install_projectmanager_web(
         def wrapped_html_page(*args, **kwargs):
             page = raw_html_page(*args, **kwargs)
             card = (
-                render_projectmanager_progress(root)
+                render_projectmanager_health(root)
+                + render_projectmanager_progress(root)
                 + render_projectmanager_decisions(root)
                 + render_nas_container_cr_setup(root)
             )

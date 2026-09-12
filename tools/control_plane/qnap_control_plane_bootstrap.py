@@ -1,8 +1,59 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 from pathlib import Path
+import os
+import sys
 import control_plane as cp
 QNAP_PHYSICAL_PROJECT_ROOT = "/share/CACHEDEV1_DATA/AI Projecten/EnergieProject"
+
+
+def _ensure_control_plane_mailboxes(inbox: Path) -> dict:
+    """Precreate shared producer/consumer mailboxes with live-equivalent rights.
+
+    The PM and control-plane run under different container identities. 32.4.41
+    incorrectly relied on the PM being able to mkdir below a 0755 directory
+    owned by the control-plane identity. The control-plane now owns bootstrap of
+    this shared IPC boundary and proves write/readback before its main loop.
+    """
+    inbox = Path(inbox)
+    root = inbox / 'control_plane'
+    paths = (root, root / 'requests', root / 'results')
+    for path in paths:
+        if path.is_symlink():
+            raise RuntimeError(f'onveilige control-plane mailbox symlink: {path}')
+        if path.exists() and not path.is_dir():
+            raise RuntimeError(f'control-plane mailbox is geen directory: {path}')
+        path.mkdir(parents=True, exist_ok=True)
+        os.chmod(path, 0o777)
+        if path.stat().st_mode & 0o777 != 0o777:
+            raise RuntimeError(f'control-plane mailbox mode readback mismatch: {path}')
+
+    probe = root / 'requests' / f'.control_plane_write_probe.{os.getpid()}'
+    try:
+        fd = os.open(str(probe), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            handle.write('control-plane shared mailbox write probe\n')
+            handle.flush()
+            os.fsync(handle.fileno())
+        if probe.read_text(encoding='utf-8') != 'control-plane shared mailbox write probe\n':
+            raise RuntimeError('control-plane mailbox write/readback mismatch')
+    finally:
+        try:
+            probe.unlink(missing_ok=True)
+        except OSError:
+            pass
+    return {'root': str(root), 'requests': str(root/'requests'), 'results': str(root/'results'), 'mode': '0777'}
+
+
+def _argv_value(flag: str, default: str) -> str:
+    try:
+        index = sys.argv.index(flag)
+    except ValueError:
+        return default
+    if index + 1 >= len(sys.argv):
+        return default
+    return str(sys.argv[index + 1])
+
 
 def qnap_watcher_create_payload(host_project_root: str) -> dict:
     host_root = str(host_project_root).rstrip("/")
@@ -77,4 +128,5 @@ def qnap_load_bootstrap_watcher_request(inbox: Path, approved_queue: Path, versi
 cp.watcher_create_payload = qnap_watcher_create_payload
 cp.load_bootstrap_watcher_request = qnap_load_bootstrap_watcher_request
 if __name__ == "__main__":
+    _ensure_control_plane_mailboxes(Path(_argv_value('--inbox', '/energy-inbox')))
     raise SystemExit(cp.main())

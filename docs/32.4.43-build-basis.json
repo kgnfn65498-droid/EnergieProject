@@ -1,0 +1,11 @@
+{
+  "schema": "energie_release_build_basis_v1",
+  "target_release": "32.4.43",
+  "previous_release": "32.4.42",
+  "artifact_name": "EnergieProject_v32.4.42.zip",
+  "artifact_sha256": "a5cf6a3135580df504a1a70b71708b477ba247141d8262585c4f544423b2f9fc",
+  "verified_against_live_atomic_swap": true,
+  "manifest_files_verified": 419,
+  "zip_member_count": 421,
+  "source_policy": "exact_previous_verified_zip_required"
+}

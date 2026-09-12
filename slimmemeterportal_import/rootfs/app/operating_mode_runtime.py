@@ -580,6 +580,20 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
                 False,
                 "projectmanager self-audit provenance mismatch versus current PM status",
             )
+        if _numeric_release(app_version) >= (32, 4, 43):
+            status_generation = str(status_payload.get('cycle_generation') or '').strip()
+            audit_generation = str(payload.get('cycle_generation') or '').strip()
+            status_provenance = status_payload.get('provenance') if isinstance(status_payload.get('provenance'), dict) else {}
+            audit_provenance = payload.get('provenance') if isinstance(payload.get('provenance'), dict) else {}
+            if not status_generation or audit_generation != status_generation:
+                return _validation_check(False, "projectmanager self-audit generation mismatch versus current PM status")
+            if (
+                status_provenance.get('generation') != status_generation
+                or status_provenance.get('phase') != 'FINAL'
+                or audit_provenance.get('generation') != status_generation
+                or audit_provenance.get('phase') != 'FINAL'
+            ):
+                return _validation_check(False, "projectmanager self-audit final provenance invalid")
     elif audit_mtime < status_mtime:
         return _validation_check(False, "projectmanager self-audit stale versus current PM status")
     return _validation_check(

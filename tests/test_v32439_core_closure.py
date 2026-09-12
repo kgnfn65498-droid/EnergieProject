@@ -35,11 +35,12 @@ def _old_canonical():
 
 
 def test_32439_four_core_scope_identity():
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.42'
-    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc29'
-    assert 'version: "32.4.42"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text()
-    assert 'APP_VERSION = "32.4.42"' in (APP / 'main.py').read_text()
-    assert 'TARGET_RELEASE_VERSION = "32.4.42"' in (APP / 'mode_entrypoint.py').read_text()
+    import release_test_contract as contract
+    assert (ROOT / 'VERSIE.txt').read_text().strip() == contract.CURRENT_RELEASE
+    assert (PM / 'VERSION.txt').read_text().strip() == contract.CURRENT_PM_VERSION
+    assert f'version: "{contract.CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text()
+    assert f'APP_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / 'main.py').read_text()
+    assert f'TARGET_RELEASE_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / 'mode_entrypoint.py').read_text()
 
 
 def test_watcher_red_is_actionable_request_not_dead_end():

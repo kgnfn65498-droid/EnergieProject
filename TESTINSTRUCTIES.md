@@ -1,3 +1,22 @@
+# Testinstructies v32.4.43 — runtime-contract closure
+
+## Verplicht vóór kandidaatlevering
+
+1. Nieuwe 32.4.43 regressies GREEN, inclusief echte cross-UID mailboxtest.
+2. Relevante 32.4.36–32.4.42 regressies GREEN.
+3. Volledige App-tests GREEN.
+4. Canonieke release-ZIP bouwen en vers uitpakken.
+5. Manifest/SHA/member/path/symlink/junk/release-identiteit controleren.
+6. Op fresh extract de 32.4.43 kritieke tests minimaal tweemaal uitvoeren.
+7. Failure injection: stale command, DEFERRED project-close, generation mismatch, approval snapshot drift en CR-predicate failure.
+8. Verschillen met exact 32.4.42 inventariseren; alleen verklaarde wijzigingen toegestaan.
+9. Bewijs dat embedded PM tijdens de cycle geen voorlopige current status/handover/heartbeat/self-audit publiceert; alleen FINAL generatie mag current worden.
+10. Injecteer FAILED/CANCELLED closure-actions en bewijs dat ze niet automatisch in een tight retry-loop terugkomen.
+11. Injecteer CR-executorfouten en bewijs dat RED-resultaat request-id én geldige command-id behoudt naast de oorspronkelijke fout.
+12. Injecteer current-release CR-commands met ontbrekende, stale en DEFERRED project-close state: project- en NAS-CR mogen geen side effects uitvoeren; exact current REQUESTED blijft toegestaan.
+
+---
+
 # Testinstructies v32.4.42 — Projectmanager technische closure
 
 1. Gerichte TDD voor: PM/project-close scheiding, stale taakreconciliatie, pending-command telling, Native MCP releasebinding, korte JA/AKKOORD, handover/ledger en buildcontract.

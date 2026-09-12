@@ -40,16 +40,22 @@ class ConfiguredProjectCrService:
         except (OSError,json.JSONDecodeError): return None
         return value if isinstance(value,dict) else None
 
-    def create(self) -> dict[str, Any]:
+    def create(self, *, command_id: str = '', expected_release: str = '') -> dict[str, Any]:
         version=(self.project_root/'App/VERSIE.txt').read_text(encoding='utf-8').strip()
         if not version or any(ch not in '0123456789.' for ch in version):
             raise RuntimeError('actuele runtimeversie ontbreekt of is ongeldig')
+        expected = str(expected_release or '').strip()
+        if expected and expected != version:
+            raise RuntimeError(f'EnergieProject CR release mismatch: command={expected} actief={version}')
+        command = str(command_id or '').strip()
         self.bridge_root.mkdir(parents=True,exist_ok=True)
         if self.request_path.is_symlink() or self.result_path.is_symlink():
             raise RuntimeError('onveilige EnergieProject CR bridge-path')
         request_id=secrets.token_hex(16)
         request={'schema':self.REQUEST_SCHEMA,'request_id':request_id,'operation':self.OPERATION,
                  'expected_runtime_version':version,'created_at':datetime.now(timezone.utc).isoformat()}
+        if command:
+            request['command_id'] = command
         _atomic_text(self.request_path,json.dumps(request,ensure_ascii=False,sort_keys=True)+'\n')
         deadline=time.monotonic()+self.timeout_seconds
         while time.monotonic()<deadline:
@@ -58,6 +64,8 @@ class ConfiguredProjectCrService:
                 time.sleep(self.poll_seconds); continue
             if result.get('schema')!=self.RESULT_SCHEMA or result.get('version')!=version:
                 raise RuntimeError('EnergieProject CR lokaal resultaat ongeldig')
+            if command and result.get('command_id') != command:
+                raise RuntimeError('EnergieProject CR lokaal resultaat command-id mismatch')
             if not (result.get('status')=='GREEN' and result.get('ok') is True and result.get('deep_verified') is True):
                 raise RuntimeError(str(result.get('error') or 'EnergieProject CR lokale executor rapporteert RED'))
             return result

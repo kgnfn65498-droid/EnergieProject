@@ -33,6 +33,9 @@ def execute(root: Path) -> dict:
         req=json.loads(request_path.read_text(encoding='utf-8'))
         if req.get('schema')!=REQUEST_SCHEMA or req.get('operation')!=OPERATION or not REQUEST_ID.fullmatch(str(req.get('request_id') or '')):
             raise RuntimeError('ongeldig EnergieProject CR request')
+        command_id = str(req.get('command_id') or '').strip()
+        if command_id and not REQUEST_ID.fullmatch(command_id):
+            raise RuntimeError('ongeldig EnergieProject CR command_id')
         version=(root/'App/VERSIE.txt').read_text(encoding='utf-8').strip()
         if req.get('expected_runtime_version')!=version: raise RuntimeError('runtimeversie gewijzigd sinds request')
         native=root/'Infra/Docker/native-mcp'
@@ -52,6 +55,8 @@ def execute(root: Path) -> dict:
                 'deep_verified':True,'verified_files':verify.get('verified_files'),'retention':1,
                 'retention_quarantined':created.get('retention_quarantined',[]),'delete_performed':False,
                 'finished_at':datetime.now(timezone.utc).isoformat()}
+        if command_id:
+            result['command_id'] = command_id
         _write(result_path,result); return result
     except Exception as exc:
         result={
@@ -63,6 +68,9 @@ def execute(root: Path) -> dict:
             'error':str(exc),
             'finished_at':datetime.now(timezone.utc).isoformat(),
         }
+        failed_command_id = str(req.get('command_id') or '').strip() if isinstance(req, dict) else ''
+        if REQUEST_ID.fullmatch(failed_command_id):
+            result['command_id'] = failed_command_id
         try:
             _write(result_path,result)
         except Exception:

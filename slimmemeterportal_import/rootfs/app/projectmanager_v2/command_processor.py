@@ -4,7 +4,7 @@ from development_build_contract import build_metadata_from_command
 
 
 class CommandProcessor:
-    def __init__(self, commands, decisions, mode_store, task_store, *, audit=None, mode_bridge=None, approved_actions=None, project_cr_service=None, nas_container_cr_service=None, conversation_intake=None):
+    def __init__(self, commands, decisions, mode_store, task_store, *, audit=None, mode_bridge=None, approved_actions=None, project_cr_service=None, nas_container_cr_service=None, conversation_intake=None, project_root=None):
         self.commands = commands
         self.decisions = decisions
         self.mode = mode_store
@@ -15,6 +15,50 @@ class CommandProcessor:
         self.project_cr_service = project_cr_service
         self.nas_container_cr_service = nas_container_cr_service
         self.conversation_intake = conversation_intake
+        self.project_root = project_root
+
+    def _active_release(self):
+        if not self.project_root:
+            return ''
+        from pathlib import Path
+        try:
+            return (Path(self.project_root) / 'App' / 'VERSIE.txt').read_text(encoding='utf-8').strip()
+        except OSError:
+            return ''
+
+    def _guard_release_owned_closure(self, item, action):
+        if action not in {'project_cr_create', 'nas_container_cr_create'}:
+            return None
+        active = self._active_release()
+        # Backwards-compatible standalone/unit callers without a project root
+        # have no release authority and keep the historical behavior. The real
+        # embedded runtime always provides project_root and is strict.
+        if not active:
+            return None
+        owned = str(item.get('release_version') or '').strip()
+        if owned == active and owned:
+            # A queued command can outlive the REQUESTED state that created it.
+            # Recheck the shared gate at execution, before either CR service can
+            # write a request or start a backup. Historical releases predate it.
+            try:
+                release_parts = tuple(int(part) for part in active.split('.'))
+            except ValueError:
+                raise RuntimeError('project_close_deferred: active release is invalid')
+            if release_parts >= (32, 4, 43):
+                from project_close_state import load_project_close
+                close = load_project_close(self.project_root, active_release=active)
+                if close.get('current') is not True or close.get('state') != 'REQUESTED':
+                    raise RuntimeError('project_close_deferred: current REQUESTED state required before CR execution')
+            return None
+        superseded = self.commands.supersede(
+            item['id'],
+            reason='release_owner_mismatch_or_missing',
+            active_release=active,
+        )
+        self._audit('command.release_superseded', superseded, {
+            'owned_release': owned, 'active_release': active, 'side_effect_executed': False,
+        })
+        return superseded
 
     def _request_mode(self, mode: str, *, reason: str, source: str, confirmed_by_user: bool=False):
         if self.mode_bridge is not None:
@@ -221,6 +265,9 @@ class CommandProcessor:
                 raise RuntimeError(f"blocked: {plan.get('reason', 'unknown_intent_fail_closed')}")
 
             action = plan.get('action')
+            superseded = self._guard_release_owned_closure(item, action)
+            if superseded is not None:
+                return superseded
             if (
                 item.get('source') == 'mcp_remote'
                 and action in {'mode_development', 'mode_maintenance'}
@@ -306,7 +353,12 @@ class CommandProcessor:
             elif action == 'project_cr_create':
                 if self.project_cr_service is None:
                     raise RuntimeError('EnergieProject CR service is niet geconfigureerd; fail closed')
-                result = dict(self.project_cr_service.create() or {})
+                if self.project_root:
+                    result = dict(self.project_cr_service.create(
+                        command_id=item['id'], expected_release=str(item.get('release_version') or ''),
+                    ) or {})
+                else:
+                    result = dict(self.project_cr_service.create() or {})
                 if result.get('ok') is not True or result.get('status') != 'GREEN' or result.get('deep_verified') is not True:
                     raise RuntimeError('EnergieProject CR service gaf geen GREEN deep-verified resultaat')
                 result['executed'] = True
@@ -314,7 +366,12 @@ class CommandProcessor:
             elif action == 'nas_container_cr_create':
                 if self.nas_container_cr_service is None:
                     raise RuntimeError('NAS Container CR service is niet geconfigureerd; fail closed')
-                result = dict(self.nas_container_cr_service.create() or {})
+                if self.project_root:
+                    result = dict(self.nas_container_cr_service.create(
+                        command_id=item['id'], expected_release=str(item.get('release_version') or ''),
+                    ) or {})
+                else:
+                    result = dict(self.nas_container_cr_service.create() or {})
                 if result.get('ok') is not True or result.get('status') != 'GREEN':
                     raise RuntimeError('NAS Container CR service gaf geen GREEN resultaat')
                 if result.get('production_containers_changed') is not False:

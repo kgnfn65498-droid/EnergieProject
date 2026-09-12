@@ -7,7 +7,7 @@ from secret_guard import redact
 
 COMMAND_STATUSES = {
     'PENDING', 'PROCESSING', 'WAITING_APPROVAL', 'APPROVED_READY',
-    'APPROVED_WAITING_EXECUTOR', 'INTERRUPTED', 'DONE', 'FAILED', 'CANCELLED',
+    'APPROVED_WAITING_EXECUTOR', 'INTERRUPTED', 'DONE', 'FAILED', 'CANCELLED', 'SUPERSEDED',
 }
 PENDING_STATUSES = {
     'PENDING', 'PROCESSING', 'WAITING_APPROVAL', 'APPROVED_READY',
@@ -77,6 +77,45 @@ class CommandStore:
 
     def cancel(self, item_id: str, *, reason: str):
         return self._finish(item_id, 'CANCELLED', cancellation_reason=reason)
+
+    def supersede(self, item_id: str, *, reason: str, active_release: str = ''):
+        return self._finish(
+            item_id,
+            'SUPERSEDED',
+            superseded_reason=str(reason or 'stale_release_owned_command'),
+            superseded_for_release=str(active_release or ''),
+        )
+
+    def supersede_stale_release_commands(
+        self,
+        active_release: str,
+        *,
+        intents=('project_cr_create', 'nas_container_cr_create'),
+    ):
+        """Supersede stale release-owned closure commands before side effects.
+
+        These commands are never rebound to the new release. Missing release
+        ownership is also stale/fail-closed for closure side effects.
+        """
+        active = str(active_release or '').strip()
+        wanted = set(intents or ())
+        data = self._load()
+        changed = []
+        now = datetime.now(timezone.utc).isoformat()
+        for item in data.get('items', []):
+            if item.get('intent') not in wanted or item.get('status') not in PENDING_STATUSES:
+                continue
+            owned = str(item.get('release_version') or '').strip()
+            if owned == active and owned:
+                continue
+            item['status'] = 'SUPERSEDED'
+            item['superseded_reason'] = 'release_owner_mismatch_or_missing'
+            item['superseded_for_release'] = active
+            item['updated_at'] = now
+            changed.append(dict(item))
+        if changed:
+            self._save(data)
+        return changed
 
     def recover_interrupted(self):
         data = self._load()

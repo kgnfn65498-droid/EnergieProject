@@ -319,8 +319,9 @@ def test_32441_release_audit_badge_counts_true_rounds_not_versions():
 
 
 def test_32441_release_identity():
-    assert (ROOT / 'VERSIE.txt').read_text().strip() == '32.4.42'
-    assert (PM / 'VERSION.txt').read_text().strip() == '2.0.0-rc29'
+    import release_test_contract as contract
+    assert (ROOT / 'VERSIE.txt').read_text().strip() == contract.CURRENT_RELEASE
+    assert (PM / 'VERSION.txt').read_text().strip() == contract.CURRENT_PM_VERSION
 
 
 def test_32441_control_plane_source_sync_is_exact_atomic_and_no_delete(tmp_path):

@@ -1,13 +1,9 @@
-# Installatie — EnergieProject 32.4.42
+# Installatie — EnergieProject 32.4.43
 
-## Normale releaseflow
+32.4.43 gebruikt uitsluitend de bestaande veilige releaseketen. Plaats pas na expliciete productiegoedkeuring de volledig geverifieerde `EnergieProject_v32.4.43.zip` via Home Assistant/QNAP `Incoming`; de bestaande watcher verwerkt de release en de live acceptance bepaalt daarna of de release werkelijk sluit.
 
-32.4.42 gebruikt uitsluitend de bestaande veilige releaseketen. De geverifieerde `EnergieProject_v32.4.42.zip` gaat via Home Assistant/QNAP `Incoming`, waarna de bestaande watcher de release verwerkt. Geen Terminal-, sudo-, GitHub-build- of alternatieve publicatieroute.
+Geen Terminal-, sudo-, GitHub-build- of alternatieve publicatieroute.
 
-## Buildbasis
+## Bouwbasis
 
-32.4.42 is gebouwd vanaf de exact geverifieerde 32.4.41-ZIP met SHA256 `5e8ccebb98eb269a688e7c8b67971956bfc63d2151d3024d630eabf120b170ff`. Als bij een volgende build de exacte vorige ZIP niet beschikbaar is, moet eerst Peter om die ZIP worden gevraagd; niet reconstrueren of een andere bron als bouwbasis nemen.
-
-## Live controle na installatie
-
-Eerst Projectmanager-technische closure bewijzen: identiteit, watcher/control-plane, Native MCP runtime, taak/progress/timing, chat/spraak-goedkeuring en nieuwe-chat-overdracht. Crash Recovery/CLEARUP zijn bewust een aparte, later te hervatten projectafsluitfase.
+32.4.43 is gebouwd vanaf exact de geverifieerde 32.4.42-ZIP met SHA256 `a5cf6a3135580df504a1a70b71708b477ba247141d8262585c4f544423b2f9fc`. Bij een volgende build blijft de exacte vorige geverifieerde ZIP verplicht.

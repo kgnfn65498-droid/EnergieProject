@@ -101,12 +101,13 @@ class ManagerService:
             'state', 'status', 'heartbeat', 'handover', 'audit', 'audit/archive',
             'notifications/outbox', 'notifications/outbox/delivered', 'opportunities',
             'snapshots', 'snapshots/archive', 'self_audit', 'issues', 'market',
-            'decisions', 'locks', 'commands', 'roadmap', 'intake', 'handoffs', 'approved_actions', 'quarantine', 'logs/archive',
+            'decisions', 'locks', 'commands', 'roadmap', 'intake', 'handoffs', 'approved_actions', 'quarantine', 'logs/archive', 'development_context',
         ):
             (self.root / name).mkdir(parents=True, exist_ok=True)
 
     def run_once(self, *, now=None) -> dict:
         now = now or datetime.now(timezone.utc)
+        publish_current = not bool(getattr(self, 'defer_current_publication', False))
         self.audit.write('manager.run.started', actor='projectmanager', result='started')
         runtime = self.runtime_collector.collect()
         self._reconcile_mode(runtime)
@@ -158,7 +159,8 @@ class ManagerService:
             'roadmap_selection': roadmap_selection,
             'next_action': (active_task or {}).get('next_action'),
         }
-        atomic_write_json(self.root / 'status' / 'current.json', status)
+        if publish_current:
+            atomic_write_json(self.root / 'status' / 'current.json', status)
         atomic_write_json(self.root / 'snapshots' / 'current_runtime.json', {
             'observed_at': now.isoformat(),
             'runtime': runtime,
@@ -181,16 +183,51 @@ class ManagerService:
         )
         handover_payload['open_issues'] = status['open_issues']
         handover_payload['research_handoffs_due'] = status['research_handoffs_due']
-        self.handover.save(handover_payload)
+        if publish_current:
+            self.handover.save(handover_payload)
 
-        document_results = self._sync_managed_documents(status)
-        document_results.extend(self._sync_development_context_documents(status))
-        truth_result = self._reconcile_document_truth(status)
+        document_sync = self._sync_documents_best_effort(status)
+        document_results = list(document_sync.get('results') or [])
+        status['document_sync'] = document_sync
+        if document_sync.get('status') != 'GREEN':
+            checks.append({
+                'name': 'projectmanager_document_sync',
+                'status': 'ORANGE',
+                'reason': 'static_document_sync_degraded',
+                'details': {'errors': list(document_sync.get('errors') or [])},
+            })
+            status['health'] = summarize_health(checks)
+        try:
+            truth_result = self._reconcile_document_truth(status)
+        except Exception as exc:
+            truth_result = {
+                'strategy': 'runtime_first',
+                'unresolved_stale_current_claims': [],
+                'superseded_stale_current_claims': [],
+                'provenance': {'runtime_context': str(self.root / 'development_context' / 'current.json')},
+                'status': 'ORANGE',
+                'error': f'{type(exc).__name__}: {exc}',
+            }
+            checks.append({
+                'name': 'projectmanager_document_truth',
+                'status': 'ORANGE',
+                'reason': 'static_document_truth_unavailable',
+                'details': {'error': truth_result['error']},
+            })
+            status['health'] = summarize_health(checks)
+            if getattr(self, 'issues', None) is not None:
+                self.issues.open(
+                    'document_truth:static_read_failed',
+                    severity='ORANGE',
+                    title='Statische documentwaarheid tijdelijk niet leesbaar',
+                    details={'error': truth_result['error']},
+                )
         status['runtime_truth'] = {
             'strategy': truth_result.get('strategy'),
             'unresolved_stale_claims': len(truth_result.get('unresolved_stale_current_claims', [])),
             'superseded_stale_claims': len(truth_result.get('superseded_stale_current_claims', [])),
             'provenance': truth_result.get('provenance', {}),
+            'status': truth_result.get('status', 'GREEN'),
         }
         atomic_write_json(self.root / 'state' / 'runtime_truth.json', truth_result)
 
@@ -202,15 +239,16 @@ class ManagerService:
             'service': 'energie-projectmanager-v2',
             'state': 'waiting',
             'heartbeat_at': now.isoformat(),
-            'health': health['status'],
+            'health': (status.get('health') or health)['status'],
             'mode': status['mode'],
             'pending_decisions': len(pending_decisions),
             'pending_notifications': len(self.outbox.pending()),
         }
-        atomic_write_json(self.root / 'heartbeat' / 'manager.json', heartbeat)
+        if publish_current:
+            atomic_write_json(self.root / 'heartbeat' / 'manager.json', heartbeat)
         self.audit.write('manager.run', actor='projectmanager', result='ok', details={
-            'health': health['status'],
-            'attention_count': health['attention_count'],
+            'health': (status.get('health') or health)['status'],
+            'attention_count': (status.get('health') or health).get('attention_count', health.get('attention_count', 0)),
             'mode': status['mode'],
             'delivery_count': len(deliveries),
             'market_event_count': len(market_events),
@@ -219,6 +257,15 @@ class ManagerService:
             'runtime_truth_unresolved': len(truth_result.get('unresolved_stale_current_claims', [])),
             'retention_deleted': len(retention_result.get('deleted', [])),
         })
+        if not publish_current:
+            # Embedded ProjectmanagerRuntime publishes status/handover/heartbeat/
+            # self-audit only after all coordination fields share one FINAL
+            # generation. Keep the previous FINAL current files intact here.
+            status['open_issues'] = self.issues.open_items()
+            if self.outbox.pending():
+                self._dispatch_outbox()
+            return status
+
         self_audit = self.self_auditor.run(now=now)
         atomic_write_json(self.root / 'self_audit' / 'current.json', self_audit)
         self._reconcile_self_audit_outcome(self_audit, now=now)
@@ -531,6 +578,65 @@ class ManagerService:
             else:
                 self.audit.write('notification.delivery_failed', actor='projectmanager', result='deferred', details={'reason': result.get('reason')})
         return deliveries
+
+    def _sync_documents_best_effort(self, status: dict):
+        """Keep critical PM finalization independent from static KB permissions.
+
+        Runtime development context is written inside RuntimeV2 first. Static
+        Knowledge Base/Development_Lessons synchronization is supporting truth:
+        each writer is isolated and a failure becomes explicit ORANGE evidence
+        rather than aborting the manager cycle.
+        """
+        contract = status.get('development_build_contract') if isinstance(status.get('development_build_contract'), dict) else {}
+        runtime_context = {
+            'schema': 'energie_pmv2_runtime_development_context_v1',
+            'release_version': str((status.get('release') or {}).get('version') or ''),
+            'contract_version': str(contract.get('contract_version') or ''),
+            'process_rules': list(contract.get('process_rules') or []),
+            'static_paths': {
+                'active_context': 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_ACTIVE_DEVELOPMENT_CONTEXT.md',
+                'manifest': 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_DEVELOPMENT_MANIFEST.md',
+                'ledger': 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/01_UNIFIED_DEVELOPMENT_LEDGER.md',
+            },
+            'runtime_truth_primary': True,
+        }
+        atomic_write_json(self.root / 'development_context' / 'current.json', runtime_context)
+        results = []
+        errors = []
+        for name, writer in (
+            ('managed_documents', self._sync_managed_documents),
+            ('development_lessons', self._sync_development_context_documents),
+        ):
+            try:
+                value = writer(status)
+                if isinstance(value, list):
+                    results.extend(value)
+            except Exception as exc:
+                errors.append({
+                    'writer': name,
+                    'error': f'{type(exc).__name__}: {exc}',
+                })
+        issues = getattr(self, 'issues', None)
+        fingerprint = 'document_sync:static_kb'
+        if errors:
+            if issues is not None:
+                issues.open(
+                    fingerprint,
+                    severity='ORANGE',
+                    title='Statische Projectmanager-documentatie kon niet volledig synchroniseren',
+                    details={'errors': errors[:10]},
+                )
+        elif issues is not None:
+            issues.resolve_fingerprint(
+                fingerprint,
+                resolution='runtime context and static document synchronization succeeded',
+            )
+        return {
+            'status': 'ORANGE' if errors else 'GREEN',
+            'results': results,
+            'errors': errors,
+            'runtime_context': str(self.root / 'development_context' / 'current.json'),
+        }
 
     def _sync_development_context_documents(self, status: dict):
         """Persist the already-canonical development context/ledger paths.

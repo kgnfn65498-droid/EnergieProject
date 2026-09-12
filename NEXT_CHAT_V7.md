@@ -1,26 +1,20 @@
-# Nieuwe-chat overdracht — EnergieProject 32.4.42
+# Nieuwe-chat overdracht — EnergieProject 32.4.43
 
-Actuele ontwikkellijn: 32.4.42 Projectmanager technische closure, gebouwd vanaf de exact geverifieerde 32.4.41-ZIP.
+Actuele ontwikkellijn: 32.4.43 runtime-contract closure, gebouwd vanaf de exact geverifieerde 32.4.42-ZIP.
 
-## Bindende werkwijze
+## Wat 32.4.43 structureel oplost
 
-- Eerst actuele overdracht/status lezen vóór ontwikkelen.
-- Bestaande architectuur en releaseflow hergebruiken; geen nieuwe weg bedenken.
-- Hoofdoorzaak eerst; TDD RED→GREEN; daarna volledige hertest.
-- Als de exacte vorige geverifieerde release-ZIP niet beschikbaar is: **altijd Peter om die ZIP vragen**.
-- GitHub, losse bronreconstructie of een alternatieve buildroot mag niet als vervangende buildbasis worden gebruikt.
-- Productieplaatsing en productie-restarts blijven expliciet beschermd.
-- Geen gebruikers-Terminal/sudo als normale ontwikkelstap.
-- Handover moet actuele taak, stap, werkstand, open beslissingen, Development Build Contract en `01_UNIFIED_DEVELOPMENT_LEDGER.md`-context bevatten.
+- control-plane shared mailboxes en cross-UID permissions;
+- release-owned CR commands zonder stale side effects;
+- één fail-closed project-close state voor CR/CLEARUP;
+- één FINAL cycle-generation voor status/heartbeat/handover/self-audit;
+- statische KB-sync mag kritieke PM-finalisatie niet meer blokkeren;
+- canonical DecisionQueue is approval truth;
+- workflowhealth en Projectmanager/releasehealth zijn gescheiden;
+- CR-hotfix geeft predicate-voor-predicate bewijs.
 
-## 32.4.42 doel
+## Werkwijze
 
-Projectmanager eerst technisch groen:
-1. Native MCP exact releasegebonden via bestaande control-plane;
-2. taak/progress/werkstand/timing consistent;
-3. `JA`/`AKKOORD` werkt alleen voor exact één geldige open beslissing;
-4. nieuwe chat kan met `verder` vanaf de actuele PM-waarheid en ontwikkelregels hervatten.
+Audit/root cause → TDD RED → GREEN → relevante regressie → volledige test → canonieke ZIP → fresh-extract audit → kritieke tests herhalen. Productie blijft beschermd en vereist expliciete goedkeuring.
 
-Crash Recovery/CLEARUP zijn bewust uitgesteld en mogen de technische PM-status niet rood houden of automatisch als huidige PM-taak worden gestart.
-
-Na echte live controle van 32.4.42 volgt pas de afgesproken vervolgfase.
+Nieuwe chat: lees RuntimeV2-handover, Development Build Contract en Unified Development Ledger vóór ontwikkelwerk.

@@ -292,11 +292,12 @@ def test_32442_native_hotfix_replaces_older_approval_tool_instead_of_accepting_p
 
 
 def test_32442_release_identity():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.42"
-    assert (PM / "VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc29"
-    assert 'version: "32.4.42"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.42"' in (APP / "main.py").read_text(encoding="utf-8")
-    assert 'TARGET_RELEASE_VERSION = "32.4.42"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
+    import release_test_contract as contract
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == contract.CURRENT_RELEASE
+    assert (PM / "VERSION.txt").read_text(encoding="utf-8").strip() == contract.CURRENT_PM_VERSION
+    assert f'version: "{contract.CURRENT_RELEASE}"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
+    assert f'APP_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / "main.py").read_text(encoding="utf-8")
+    assert f'TARGET_RELEASE_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
 
 
 def test_32442_incoming_single_release_autoroutes_existing_mode_to_development():

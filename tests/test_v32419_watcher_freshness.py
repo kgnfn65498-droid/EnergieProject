@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -70,20 +71,20 @@ def _watcher_functions_text():
 
 
 def test_mode_gate_denial_rc3_is_not_misreported_as_timeout(tmp_path):
-    gate = tmp_path / 'gate.py'
+    gate = tmp_path / 'gate with spaces.py'
     gate.write_text('raise SystemExit(3)\n', encoding='utf-8')
     functions = _watcher_functions_text()
-    script = f'''\nBOUNDED_TERM_GRACE_SECONDS=0\nMODE_GATE_TIMEOUT=2\nMODE_GATE={gate!s}\nROOT={tmp_path!s}\nlog(){{ printf "%s\\n" "$*"; }}\n{functions}\nmode_allows release_ingress\nrc=$?\nprintf "FINAL_RC=%s\\n" "$rc"\nexit 0\n'''
+    script = f'''\nBOUNDED_TERM_GRACE_SECONDS=0\nMODE_GATE_TIMEOUT=2\nMODE_GATE={shlex.quote(str(gate))}\nROOT={shlex.quote(str(tmp_path))}\nlog(){{ printf "%s\\n" "$*"; }}\n{functions}\nmode_allows release_ingress\nrc=$?\nprintf "FINAL_RC=%s\\n" "$rc"\nexit 0\n'''
     proc = subprocess.run(['sh', '-c', script], text=True, capture_output=True, check=False)
     assert 'timeout/fout' not in proc.stdout
     assert 'FINAL_RC=1' in proc.stdout
 
 
 def test_mode_gate_real_error_preserves_nonzero_return_code_in_log(tmp_path):
-    gate = tmp_path / 'gate.py'
+    gate = tmp_path / 'gate with spaces.py'
     gate.write_text('raise SystemExit(7)\n', encoding='utf-8')
     functions = _watcher_functions_text()
-    script = f'''\nBOUNDED_TERM_GRACE_SECONDS=0\nMODE_GATE_TIMEOUT=2\nMODE_GATE={gate!s}\nROOT={tmp_path!s}\nlog(){{ printf "%s\\n" "$*"; }}\n{functions}\nmode_allows release_ingress\nrc=$?\nprintf "FINAL_RC=%s\\n" "$rc"\nexit 0\n'''
+    script = f'''\nBOUNDED_TERM_GRACE_SECONDS=0\nMODE_GATE_TIMEOUT=2\nMODE_GATE={shlex.quote(str(gate))}\nROOT={shlex.quote(str(tmp_path))}\nlog(){{ printf "%s\\n" "$*"; }}\n{functions}\nmode_allows release_ingress\nrc=$?\nprintf "FINAL_RC=%s\\n" "$rc"\nexit 0\n'''
     proc = subprocess.run(['sh', '-c', script], text=True, capture_output=True, check=False)
     assert 'rc=7' in proc.stdout
     assert 'rc=0' not in proc.stdout

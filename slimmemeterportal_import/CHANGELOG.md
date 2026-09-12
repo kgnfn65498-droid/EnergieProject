@@ -1,10 +1,10 @@
 # Changelog
 
-## 32.4.42 — Projectmanager green closure
+## 32.4.43 — runtime-contract closure
 
-- PM-technische status los van uitgestelde CR/CLEARUP-projectafsluiting.
-- Exact releasegebonden Native MCP control-plane reload.
-- Korte JA/AKKOORD follow-up zonder dubbele canonieke beslissing.
-- Nieuwe-chat-overdracht inclusief ledger/development contract en juiste voortgang.
-- Automatische DEVELOPMENT-routering wanneer exact één release in Incoming wacht.
-- Exacte vorige ZIP verplicht als buildbasis; bij ontbreken eerst Peter vragen.
+- FINAL cycle-generation voor status, heartbeat, handover en self-audit.
+- Release-owned CR commands en één gedeelde project-close state.
+- Cross-runtime control-plane mailbox bootstrap met echte readback.
+- Canonieke approval DecisionQueue en gescheiden workflow/PM-health.
+- Statische document-sync kan de Projectmanager-cycle niet meer afbreken.
+- Native-MCP CR-hotfix geeft per contractpredicate expliciet bewijs.

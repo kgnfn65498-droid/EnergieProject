@@ -1,3 +1,19 @@
+## 32.4.43 — runtime-contract closure en structurele stabilisatie
+
+- Herstelt de cross-runtime control-plane mailboxgrens structureel en test schrijven onder een andere Linux UID/GID.
+- Bindt project- en NAS-CR commands aan exact de actieve release; stale of ongescope commands worden SUPERSEDED vóór side effects.
+- Controleert ook bij uitvoering van reeds klaargezette CR-commands opnieuw de actuele project-close state; ontbrekend, stale of DEFERRED blokkeert vóór de CR-service wordt gestart.
+- Introduceert één fail-closed project-close truth: DEFERRED voorkomt CR/CLEARUP-mutaties; REQUESTED staat uitsluitend current-release projectafsluiting toe.
+- Maakt statische Knowledge Base-sync best-effort: RuntimeV2 blijft kritieke waarheid en een permissionfout breekt de PM-cycle niet meer af.
+- Bindt status, heartbeat, handover en self-audit aan één FINAL cycle-generation/provenance en verwijdert de oude write-order race.
+- Publiceert in embedded runtime geen voorlopige `status/current.json` meer: alleen de volledig gecoördineerde FINAL-generatie wordt canonieke current truth.
+- Voorkomt tight-loop herhaling na FAILED/CANCELLED closure-actions; een terminale actie blijft geblokkeerd tot een nieuwe expliciete aanleiding.
+- Self-audit valideert de actuele Development Build Contract-versie uit één bron en accepteert contract v3 zonder verouderde hardcoded v2-check.
+- CR-executors behouden request/command-correlatie ook in RED-resultaten, zodat de oorspronkelijke fout diagnoseerbaar blijft.
+- Approval UI leest uitsluitend de canonieke DecisionQueue; workflowgezondheid en PM/releasegezondheid worden expliciet gescheiden.
+- CR native-MCP hotfix voert vóór writes een begrensde transform-preflight uit en rapporteert elke contractpredicate afzonderlijk.
+- Bouwbasis is exact de geverifieerde 32.4.42 ZIP SHA256 `a5cf6a3135580df504a1a70b71708b477ba247141d8262585c4f544423b2f9fc`.
+
 ## 32.4.42 — Projectmanager technische closure, overdracht en ontwikkelregels
 
 - Scheidt Projectmanager-technische gereedheid van uitgestelde projectafsluiting zoals Crash Recovery/CLEARUP.

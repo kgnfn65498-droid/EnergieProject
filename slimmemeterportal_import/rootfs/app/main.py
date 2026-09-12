@@ -83,7 +83,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 25 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.42"
+APP_VERSION = "32.4.43"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -16540,6 +16540,8 @@ def health_dashboard(options: Options | None = None) -> dict[str, Any]:
     score = round((sum(weights.get(c["status"], 0.0) for c in checks) / len(checks)) * 100) if checks else 0
     return {
         "version": APP_VERSION,
+        "scope": "workflow",
+        "label": "Workflowgezondheid",
         "generated_at": datetime.now(TZ).isoformat(),
         "score": score,
         "status": "ok" if score == 100 else ("pending" if score >= 90 else "warning"),
@@ -19437,8 +19439,8 @@ a{{color:#0277bd}} .button-link{{display:inline-block;background:#546e7a;color:#
 <p><a id="download-workflow-log" href="download-workflow-log?month={esc(last_run.get('month') or '')}">Download workflowlog</a></p>
 </div>
 
-<div class="card"><h2>Gezondheidsdashboard</h2>
-<div class="controls"><div><div class="score" id="health-score">{health_score}%</div><p class="hint">Systeemgezondheid: normale wachtstatussen tijdens versiecertificering zijn geen fout; echte storingen wegen zwaar.</p></div><ul class="source-list" id="health-checks">{health_rows}</ul></div>
+<div class="card"><h2>Workflowgezondheid</h2>
+<div class="controls"><div><div class="score" id="health-score">{health_score}%</div><p class="hint">Gezondheid van de SlimmeMeterPortal- en maandworkflow. Projectmanager-, release- en systeemgezondheid staan apart in het Projectmanager-blok.</p></div><ul class="source-list" id="health-checks">{health_rows}</ul></div>
 </div>
 
 <div class="card"><details class="compact-details"><summary>Live workflowlog</summary>
@@ -22098,14 +22100,17 @@ def main() -> None:
 
                 blockers = list((result.get("gate") or {}).get("blockers") or [])
                 waiting_for_prerequisites = any(blocker in blockers for blocker in (
+                    "project_close_deferred",
                     "release_not_accepted", "release_hold_not_released", "current_release_cr_not_verified",
                     "crash_recovery_not_verified",
                 ))
                 if waiting_for_prerequisites:
                     if blockers != last_blockers:
-                        LOGGER.info("Project CLEARUP wacht op prerequisites: %s", blockers)
+                        LOGGER.info("Project CLEARUP wacht fail-closed op project-close/prerequisites: %s", blockers)
                         last_blockers = blockers
-                    STOP.wait(15.0)
+                    # DEFERRED only rechecks the tiny shared state gate; it does
+                    # not hash backups, create requests or probe CLEARUP paths.
+                    STOP.wait(60.0 if "project_close_deferred" in blockers else 15.0)
                     continue
 
                 payload = {
