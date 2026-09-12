@@ -149,8 +149,8 @@ def test_32445_exact_32444_build_basis_is_recorded():
 
 def test_32445_release_identity_is_coherent():
     import release_test_contract as contract
-    assert contract.CURRENT_RELEASE == '32.4.47'
-    assert contract.CURRENT_PM_VERSION == '2.0.0-rc34'
+    assert contract.CURRENT_RELEASE == '32.4.48'
+    assert contract.CURRENT_PM_VERSION == '2.0.0-rc35'
     assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_RELEASE
     assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_PM_VERSION
     assert f'version: "{contract.CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')

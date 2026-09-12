@@ -97,13 +97,13 @@ def test_apply_leaves_unreadable_review_in_place_and_moves_other_candidate(tmp_p
 
 
 def test_32431_release_identity_and_cross_chat_platform_rule():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.47"
-    assert 'version: "32.4.47"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.48"
+    assert 'version: "32.4.48"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = (APP / "main.py").read_text(encoding="utf-8")
     mode = (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
     agreements = (ROOT / "PROJECT_AFSPRAKEN.md").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.47"' in main
-    assert 'TARGET_RELEASE_VERSION = "32.4.47"' in mode
+    assert 'APP_VERSION = "32.4.48"' in main
+    assert 'TARGET_RELEASE_VERSION = "32.4.48"' in mode
     assert 'PRODUCTION_CORE_REVISION = "9.4-core3"' in main
     assert "nieuwe chat" in agreements.lower()
     assert "python3" in agreements.lower()

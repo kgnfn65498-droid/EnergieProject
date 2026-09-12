@@ -1,5 +1,6 @@
 # Changelog
 
-## 32.4.47
-- Exact releasegebonden Native-MCP self-heal kan na een volledig ACCEPTED release automatisch de bestaande canonical approval/executor-keten doorlopen op basis van Peters standing policy.
-- Alleen `projectmanager_auto` Native-MCP reloads voor de actuele release vallen binnen deze scope; alle andere protected actions blijven expliciet beveiligd.
+## 32.4.48
+- Repareert de cross-runtime archive-permission van Native-MCP reloads via de schrijfbare PM RuntimeV2-root.
+- Reconcileert stale releasegebonden Native-MCP decisions en oude versiegebonden PM-taken automatisch.
+- Self-audit blokkeert semantisch stale active-task/release combinaties.

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -55,6 +56,46 @@ def _release_at_least(value, minimum):
     except ValueError:
         return False
     return len(current) == 3 and len(floor) == 3 and current >= floor
+
+
+def _release_tuple(value):
+    try:
+        parts = tuple(int(part) for part in str(value or '').strip().split('.'))
+    except ValueError:
+        return None
+    return parts if len(parts) == 3 else None
+
+
+def _active_task_release(task):
+    if not isinstance(task, dict):
+        return None
+    metadata = task.get('build_metadata') if isinstance(task.get('build_metadata'), dict) else {}
+    for value in (metadata.get('release_version'), task.get('release_version')):
+        if _release_tuple(value):
+            return str(value)
+    for field in ('title', 'goal', 'next_action'):
+        match = re.search(r'(?<![0-9])([0-9]+\.[0-9]+\.[0-9]+)(?![0-9])', str(task.get(field) or ''))
+        if match and _release_tuple(match.group(1)):
+            return match.group(1)
+    return None
+
+
+def release_task_semantic_guard(status, running_release_version=None):
+    task = status.get('active_task') if isinstance(status, dict) and isinstance(status.get('active_task'), dict) else None
+    if not task or task.get('status') in {'DONE', 'SUPERSEDED'}:
+        return None
+    task_release = _active_task_release(task)
+    runtime_release = str(running_release_version or ((status.get('release') or {}).get('version')) or '').strip()
+    task_tuple = _release_tuple(task_release)
+    runtime_tuple = _release_tuple(runtime_release)
+    if task_tuple and runtime_tuple and task_tuple < runtime_tuple:
+        return {
+            'path': 'status/current.json',
+            'reason': 'active_task_release_older_than_runtime',
+            'task_release': task_release,
+            'runtime_release': runtime_release,
+        }
+    return None
 
 
 class SelfAuditor:
@@ -170,6 +211,9 @@ class SelfAuditor:
 
 
         if status is not None:
+            semantic_task_issue = release_task_semantic_guard(status, self.running_release_version)
+            if semantic_task_issue is not None:
+                invalid.append(semantic_task_issue)
             active_task = status.get('active_task') if isinstance(status.get('active_task'), dict) else None
             if active_task and active_task.get('build_contract_required') is True:
                 contract = status.get('development_build_contract') if isinstance(status.get('development_build_contract'), dict) else evaluate_build_contract(active_task, status.get('progress'))

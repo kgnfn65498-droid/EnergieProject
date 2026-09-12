@@ -46,7 +46,7 @@ def test_32446_stale_native_reload_archives_under_writable_system_runtime_eviden
     current = json.loads(stale.read_text(encoding='utf-8'))
     assert result['restart_queued'] is True
     assert current['release_version'] == '32.4.46'
-    archive_root = project / 'Data/03_Systeem/Projectmanager/RuntimeEvidence/control_plane_archive'
+    archive_root = project / 'Inbox/projectmanager_v2/RuntimeV2/control_plane_archive'
     archives = list(archive_root.glob('native_mcp_reload.32.4.45.*.json'))
     assert len(archives) == 1
     assert json.loads(archives[0].read_text(encoding='utf-8'))['request_id'] == '1' * 32

@@ -58,7 +58,7 @@ def test_32444_native_reload_archives_stale_previous_release_request(tmp_path):
     current = json.loads(stale.read_text(encoding='utf-8'))
     assert result['restart_queued'] is True
     assert current['release_version'] == '32.4.44'
-    archives = list((project / 'Data/03_Systeem/Projectmanager/RuntimeEvidence/control_plane_archive').glob('native_mcp_reload.32.4.43.*.json'))
+    archives = list((project / 'Inbox/projectmanager_v2/RuntimeV2/control_plane_archive').glob('native_mcp_reload.32.4.43.*.json'))
     assert len(archives) == 1
     archived = json.loads(archives[0].read_text(encoding='utf-8'))
     assert archived['request_id'] == '1' * 32

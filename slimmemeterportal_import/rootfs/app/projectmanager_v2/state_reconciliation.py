@@ -102,7 +102,9 @@ def _is_release_build_task(task):
     if task.get('build_contract_required') is True or _release_tuple(metadata.get('release_version')):
         return True
     text = ' '.join(str(task.get(field) or '') for field in ('title', 'goal')).lower()
-    if 'build' in text:
+    if 'build' in text or 'bouw' in text:
+        return True
+    if 'closure' in text and _task_release(task)[1] is not None:
         return True
     # Narrow legacy migration: pre-contract release-ingress continuation tasks
     # are release work, but ordinary tasks containing only a version number are not.
@@ -148,6 +150,28 @@ class StateReconciler:
             context = decision.get('context') or {}
             intent = str((command or {}).get('intent') or context.get('intent') or '').strip()
             if decision.get('kind') == 'PRODUCTION_RESTART' and intent == 'native_mcp_reload':
+                context_release = str(context.get('release_version') or '').strip()
+                command_release = str((command or {}).get('release_version') or '').strip()
+                live_release = str(((runtime or {}).get('release') or {}).get('version') or '').strip()
+                stale_release = command_release or context_release
+                refs = _clean_refs([
+                    ((runtime or {}).get('release') or {}).get('source'),
+                    (((runtime or {}).get('release_chain') or {}).get('atomic_swap') or {}).get('source'),
+                ])
+                if (
+                    stale_release and live_release and stale_release != live_release
+                    and _release_tuple(stale_release) and _release_tuple(live_release)
+                    and isinstance(command, dict)
+                    and command.get('status') == 'WAITING_APPROVAL'
+                    and command.get('approval_decision_id') == decision.get('id')
+                    and refs
+                ):
+                    return {
+                        'disposition': 'SUPERSEDED',
+                        'reason': f'native MCP restart belongs to stale release {stale_release}; live release is {live_release}',
+                        'evidence_refs': refs,
+                        'changed': True,
+                    }
                 green, refs = _native_mcp_green(runtime)
                 if green and refs and isinstance(command, dict) and command.get('status') == 'WAITING_APPROVAL' and command.get('approval_decision_id') == decision.get('id'):
                     return {

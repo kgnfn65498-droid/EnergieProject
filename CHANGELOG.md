@@ -1,3 +1,13 @@
+## 32.4.48 — definitieve 32.4 closure hardening
+
+- Native-MCP stale control-plane requests worden gearchiveerd onder de bewezen schrijfbare PM RuntimeV2-root in plaats van onder `Data/.../RuntimeEvidence`, zodat de protected executor geen cross-runtime mkdir-permission meer nodig heeft.
+- Oude releasegebonden Native-MCP restartbeslissingen worden automatisch gesupersedeerd zodra een nieuwere live release autoritatief is; de actuele GUI-beslissing blijft beschikbaar als backup/fallback.
+- Versioned DEVELOPMENT/closure-taken met een oudere release worden op basis van live runtime + atomic evidence automatisch gesupersedeerd, inclusief Nederlandstalige `bouw`/closure-taakvormen.
+- Self-audit krijgt een semantische release-task guard: een actieve taak voor een oudere release kan niet langer samen met een nieuwere runtime als GREEN worden gerapporteerd.
+- Geen nieuwe release-, restart- of approvalroute; bestaande fail-closed bindingen en Peters releasegebonden Native-MCP standing authorization blijven intact.
+- PM versie: 2.0.0-rc35.
+- Exacte geverifieerde 32.4.47 ZIP SHA256 `ab2f570934c8b375228478db7761704a763d0896d20924491541cef90b5435f9` is de enige buildbasis.
+
 ## 32.4.47 — autonome releasegebonden Native-MCP self-heal
 
 - Alleen de canonieke `projectmanager_auto` Native-MCP reload voor de exact actuele, reeds `ACCEPTED` release kan via Peters expliciete standing policy automatisch worden goedgekeurd.

@@ -3,5 +3,5 @@
 Historical test fixtures keep their historical version values. Tests that verify the
 currently built candidate import these constants instead of being rewritten per release.
 """
-CURRENT_RELEASE = "32.4.47"
-CURRENT_PM_VERSION = "2.0.0-rc34"
+CURRENT_RELEASE = "32.4.48"
+CURRENT_PM_VERSION = "2.0.0-rc35"
