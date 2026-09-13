@@ -30,8 +30,47 @@ if [ -z "$DOCKER" ]; then
 fi
 [ -n "$DOCKER" ] || { echo "FOUT: Docker CLI van Container Station niet gevonden" >&2; exit 1; }
 
-mkdir -p "$INBOX/incoming" "$INBOX/logs" "$INBOX/nas_container_cr_local"
-CAPABILITY_MARKER="$INBOX/nas_container_cr_local/capability.json"
+NAS_CR_LOCAL_DIR="$INBOX/nas_container_cr_local"
+NAS_CR_OPERATION_LOCK="$INBOX/.nas-container-cr.operation.lock"
+ensure_nas_cr_mailbox_contract(){
+  if [ -L "$NAS_CR_LOCAL_DIR" ]; then
+    echo "FOUT: NAS CR mailboxpad is een symlink" >&2
+    return 1
+  fi
+  if [ -e "$NAS_CR_LOCAL_DIR" ] && [ ! -d "$NAS_CR_LOCAL_DIR" ]; then
+    echo "FOUT: NAS CR mailboxpad bestaat maar is geen directory" >&2
+    return 1
+  fi
+  mkdir -p "$NAS_CR_LOCAL_DIR" || { echo "FOUT: NAS CR mailbox ontbreekt en kon niet worden aangemaakt" >&2; return 1; }
+  [ ! -L "$NAS_CR_LOCAL_DIR" ] && [ -d "$NAS_CR_LOCAL_DIR" ] || { echo "FOUT: NAS CR mailboxtype ongeldig na create" >&2; return 1; }
+  chmod 0777 "$NAS_CR_LOCAL_DIR" || { echo "FOUT: NAS CR mailboxcontract 0777 niet afdwingbaar" >&2; return 1; }
+  [ ! -L "$NAS_CR_LOCAL_DIR" ] && [ -d "$NAS_CR_LOCAL_DIR" ] || { echo "FOUT: NAS CR mailboxtype ongeldig na chmod" >&2; return 1; }
+  [ "$(stat -c '%a' "$NAS_CR_LOCAL_DIR" 2>/dev/null || true)" = "777" ] || { echo "FOUT: NAS CR mailboxcontract is niet 0777 na herstel" >&2; return 1; }
+  return 0
+}
+
+ensure_nas_cr_operation_lock_contract(){
+  if [ -L "$NAS_CR_OPERATION_LOCK" ]; then
+    echo "FOUT: NAS CR operation-lock is een symlink" >&2
+    return 1
+  fi
+  if [ -e "$NAS_CR_OPERATION_LOCK" ] && [ ! -f "$NAS_CR_OPERATION_LOCK" ]; then
+    echo "FOUT: NAS CR operation-lock bestaat maar is geen regulier bestand" >&2
+    return 1
+  fi
+  if [ ! -e "$NAS_CR_OPERATION_LOCK" ]; then
+    ( umask 000; : > "$NAS_CR_OPERATION_LOCK" ) || { echo "FOUT: NAS CR operation-lock kon niet worden aangemaakt" >&2; return 1; }
+  fi
+  [ ! -L "$NAS_CR_OPERATION_LOCK" ] && [ -f "$NAS_CR_OPERATION_LOCK" ] || { echo "FOUT: NAS CR operation-locktype ongeldig" >&2; return 1; }
+  chmod 0666 "$NAS_CR_OPERATION_LOCK" || { echo "FOUT: NAS CR operation-lock mode kon niet worden hersteld" >&2; return 1; }
+  [ ! -L "$NAS_CR_OPERATION_LOCK" ] && [ -f "$NAS_CR_OPERATION_LOCK" ] || { echo "FOUT: NAS CR operation-locktype ongeldig na chmod" >&2; return 1; }
+  [ "$(stat -c '%a' "$NAS_CR_OPERATION_LOCK" 2>/dev/null || true)" = "666" ] || { echo "FOUT: NAS CR operation-lock is niet 0666" >&2; return 1; }
+  return 0
+}
+mkdir -p "$INBOX/incoming" "$INBOX/logs"
+ensure_nas_cr_mailbox_contract || exit 1
+ensure_nas_cr_operation_lock_contract || exit 1
+CAPABILITY_MARKER="$NAS_CR_LOCAL_DIR/capability.json"
 CONTRACT_MARKER="$INBOX/watcher_container_contract.json"
 CONTRACT_HELPER="$ROOT/App/tools/watcher_container_contract.py"
 [ -f "$CONTRACT_HELPER" ] || { echo "FOUT: watcher container-contract helper ontbreekt" >&2; exit 1; }

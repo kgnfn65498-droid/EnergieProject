@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import tarfile
 import secrets
 import time
@@ -39,14 +40,20 @@ def _sha256_file(path: Path) -> str:
 
 def _atomic_text(path: Path, text: str, *, mode: int = 0o660) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_name(path.name + f'.tmp-{os.getpid()}')
-    fd = os.open(str(temp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+    token = secrets.token_hex(8)
+    temp = path.with_name(f'.{path.name}.tmp-{os.getpid()}-{token}')
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, 'O_NOFOLLOW'):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(str(temp), flags, mode)
     try:
+        os.fchmod(fd, mode)
         with os.fdopen(fd, 'w', encoding='utf-8') as handle:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp, path)
+        os.chmod(path, mode)
     finally:
         try:
             temp.unlink(missing_ok=True)
@@ -630,7 +637,14 @@ class ConfiguredNasContainerCrService:
         if expected and expected != version:
             raise RuntimeError(f'NAS Container CR release mismatch: command={expected} actief={version}')
         command = str(command_id or '').strip()
-        self.bridge_root.mkdir(parents=True, exist_ok=True)
+        # The watcher/bootstrap owns this cross-runtime mailbox.  The PM must
+        # never chmod/create it because the PM identity is deliberately not the
+        # directory owner in production.  Validate the owner-established
+        # contract and fail closed until the watcher has repaired any drift.
+        if self.bridge_root.is_symlink() or not self.bridge_root.is_dir():
+            raise RuntimeError('NAS Container CR bridge-directory ontbreekt of is onveilig')
+        if stat.S_IMODE(self.bridge_root.stat().st_mode) != 0o777:
+            raise RuntimeError('NAS Container CR bridge-directory voldoet niet aan mailboxcontract 0777')
         if self.request_path.is_symlink() or self.result_path.is_symlink():
             raise RuntimeError('Onveilige NAS Container CR bridge-path')
 
@@ -655,7 +669,7 @@ class ConfiguredNasContainerCrService:
             }
             if command:
                 request['command_id'] = command
-            _atomic_text(self.request_path, json.dumps(request, ensure_ascii=False, sort_keys=True) + '\n')
+            _atomic_text(self.request_path, json.dumps(request, ensure_ascii=False, sort_keys=True) + '\n', mode=0o644)
 
         result = self._load_json(self.result_path)
         if not result or result.get('request_id') != request_id:

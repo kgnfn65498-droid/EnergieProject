@@ -17,7 +17,7 @@ def test_32425_release_identity_and_core_boundary():
 
 
 def test_32425_current_release_contract_and_changelog():
-    assert contract.CURRENT_PM_VERSION == "2.0.0-rc39"
+    assert contract.CURRENT_PM_VERSION == "2.0.0-rc40"
     root_log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     addon_log = (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8")
     assert root_log.startswith(f"## {contract.CURRENT_RELEASE}")

@@ -61,11 +61,9 @@ def test_configured_service_uses_fixed_local_bridge_and_fails_closed_without_exe
     (project / 'App').mkdir(parents=True)
     (project / 'App/VERSIE.txt').write_text('32.4.36\n', encoding='utf-8')
     service = ConfiguredNasContainerCrService(project, timeout_seconds=0.1, poll_seconds=0.01)
-    with pytest.raises(RuntimeError, match='timeout'):
+    with pytest.raises(RuntimeError, match='bridge-directory ontbreekt of is onveilig'):
         service.create()
-    request = project / 'Inbox/nas_container_cr_local/request.json'
-    assert request.is_file()
-    assert 'nas_container_cr_create' in request.read_text(encoding='utf-8')
+    assert not (project / 'Inbox/nas_container_cr_local/request.json').exists()
 
 
 def test_embedded_config_legacy_tls_value_is_not_active_nas_cr_dependency(tmp_path):

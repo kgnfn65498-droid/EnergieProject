@@ -27,7 +27,9 @@ def _minimal_nas_project(tmp_path: Path, version: str = '32.4.36') -> Path:
     (root / 'App').mkdir(parents=True)
     (root / 'Infra/Docker').mkdir(parents=True)
     (root / 'Backups/NAS Container').mkdir(parents=True)
-    (root / 'Inbox/nas_container_cr_local').mkdir(parents=True)
+    bridge = root / 'Inbox/nas_container_cr_local'
+    bridge.mkdir(parents=True)
+    bridge.chmod(0o777)
     (root / 'App/VERSIE.txt').write_text(version + '\n', encoding='utf-8')
     (root / 'Infra/docker-compose.yml').write_text('services: {}\n', encoding='utf-8')
     (root / 'Infra/Docker/Energie.env').write_text('SECRET=test\n', encoding='utf-8')
@@ -186,7 +188,7 @@ def test_watcher_bootstrap_has_local_socket_hardening_and_minimum_fs_caps():
         '--network none', '--cap-drop ALL', '--security-opt no-new-privileges',
         '/var/run/docker.sock:/var/run/docker.sock',
         '--cap-add DAC_OVERRIDE', '--cap-add DAC_READ_SEARCH', '--cap-add FOWNER',
-        'nas_container_cr_local/capability.json',
+        'CAPABILITY_MARKER',
     ):
         assert token in source
     assert '--privileged' not in source
@@ -331,7 +333,7 @@ def test_32436_release_identity_is_consistent():
     import release_test_contract as contract
 
     assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_RELEASE
-    assert contract.CURRENT_PM_VERSION == '2.0.0-rc39'
+    assert contract.CURRENT_PM_VERSION == '2.0.0-rc40'
     assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_PM_VERSION
     assert f'version: "{contract.CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
     assert f'APP_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / 'main.py').read_text(encoding='utf-8')

@@ -143,6 +143,7 @@ def test_32443_nas_cr_bridge_binds_command_id_and_expected_release(tmp_path, mon
     (project / 'App/VERSIE.txt').write_text('32.4.43\n', encoding='utf-8')
     bridge = project / 'Inbox/nas_container_cr_local'
     bridge.mkdir(parents=True)
+    bridge.chmod(0o777)
     monkeypatch.setattr('nas_container_cr_service.secrets.token_hex', lambda _n: 'c'*32)
     _write(bridge / 'result.json', {
         'schema': 'energie_nas_container_cr_local_result_v1', 'request_id': 'c'*32,
@@ -600,6 +601,10 @@ def test_32443_nas_cr_executor_red_result_preserves_command_id(tmp_path):
     (root / 'App/VERSIE.txt').write_text('32.4.43\n', encoding='utf-8')
     bridge = root / 'Inbox/nas_container_cr_local'
     bridge.mkdir(parents=True)
+    bridge.chmod(0o777)
+    lock = root / 'Inbox/.nas-container-cr.operation.lock'
+    lock.touch()
+    lock.chmod(0o666)
     request_id, command_id = '3' * 32, '4' * 32
     _write(bridge / 'request.json', {
         'schema': tool.REQUEST_SCHEMA,

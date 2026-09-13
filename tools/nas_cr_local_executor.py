@@ -2,10 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import errno
+import fcntl
 import json
 import os
 import re
+import secrets
 import sys
+import stat
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -17,16 +22,23 @@ REQUEST_ID = re.compile(r'^[0-9a-f]{32}$')
 VERSION = re.compile(r'^\d+(?:\.\d+)+$')
 
 
-def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
+def _atomic_json(path: Path, payload: dict[str, Any], *, mode: int = 0o644) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_name(path.name + f'.tmp-{os.getpid()}')
+    token = secrets.token_hex(8)
+    temp = path.with_name(f'.{path.name}.tmp-{os.getpid()}-{token}')
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, 'O_NOFOLLOW'):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(str(temp), flags, mode)
     try:
-        with temp.open('w', encoding='utf-8') as handle:
+        os.fchmod(fd, mode)
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
             json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
             handle.write('\n')
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp, path)
+        os.chmod(path, mode)
     finally:
         try:
             temp.unlink(missing_ok=True)
@@ -73,9 +85,56 @@ def _load_request(root: Path) -> dict[str, Any]:
     return value
 
 
+
+@contextlib.contextmanager
+def _operation_lock(root: Path):
+    """Cross-watcher single-flight lock held outside the writable mailbox.
+
+    The watcher/bootstrap owns ``Inbox`` and pre-creates this permanent lock
+    inode.  Mailbox writers can therefore not unlink/rename the lock while an
+    executor is active.  Kernel flock survives watcher-shell restarts and is
+    released automatically when the executor exits/crashes.
+    """
+    root = Path(root)
+    lock = root / 'Inbox' / '.nas-container-cr.operation.lock'
+    if lock.is_symlink() or not lock.is_file():
+        raise OSError(errno.EINVAL, 'NAS CR operation lock ontbreekt of is onveilig', str(lock))
+    flags = os.O_RDWR
+    if hasattr(os, 'O_NOFOLLOW'):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(str(lock), flags)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise OSError(errno.EINVAL, 'NAS CR operation lock is not a regular file', str(lock))
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
+
 def execute(root: Path) -> dict[str, Any]:
     root = Path(root).resolve()
     request_path, result_path = _fixed_paths(root)
+    bridge = request_path.parent
+    with _operation_lock(root) as acquired:
+        if not acquired:
+            return {
+                'schema': RESULT_SCHEMA,
+                'status': 'ALREADY_RUNNING',
+                'ok': None,
+                'executed': False,
+            }
+        return _execute_locked(root, request_path, result_path)
+
+
+def _execute_locked(root: Path, request_path: Path, result_path: Path) -> dict[str, Any]:
     request: dict[str, Any] | None = None
     request_id = ''
     command_id = ''
@@ -158,7 +217,9 @@ def main() -> int:
     parser.add_argument('--root', required=True)
     args = parser.parse_args()
     try:
-        execute(Path(args.root))
+        result = execute(Path(args.root))
+        if result.get('status') == 'ALREADY_RUNNING':
+            print('NAS_CONTAINER_CR_LOCAL_ALREADY_RUNNING')
         return 0
     except Exception as exc:
         print(f'NAS_CONTAINER_CR_LOCAL_RED: {exc}', file=sys.stderr)

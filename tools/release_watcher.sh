@@ -40,6 +40,7 @@ MCP_GUARD_HOTFIX_RESULT="$INBOX/logs/mcp_system_path_guard_hotfix_v3231.json"
 CR_STANDARD_HOTFIX_HELPER="$PROJECT/tools/cr_standard_native_mcp_hotfix.py"
 CR_STANDARD_HOTFIX_RESULT="$INBOX/logs/cr_standard_native_mcp_hotfix_v32438.json"
 NAS_CR_LOCAL_DIR="$INBOX/nas_container_cr_local"
+NAS_CR_OPERATION_LOCK="$INBOX/.nas-container-cr.operation.lock"
 NAS_CR_LOCAL_REQUEST="$NAS_CR_LOCAL_DIR/request.json"
 NAS_CR_LOCAL_RESULT="$NAS_CR_LOCAL_DIR/result.json"
 NAS_CR_LOCAL_CAPABILITY="$NAS_CR_LOCAL_DIR/capability.json"
@@ -346,7 +347,8 @@ process_post_release_maintenance_transition(){
 }
 
 process_nas_cr_capability_probe(){
-  mkdir -p "$NAS_CR_LOCAL_DIR" || { log "FOUT: NAS CR capabilitymap niet maakbaar"; return 1; }
+  ensure_nas_cr_mailbox_contract || return 1
+  ensure_nas_cr_operation_lock_contract || return 1
   [ -f "$NAS_CR_LOCAL_PROBE" ] || { log "FOUT: NAS CR capability probe ontbreekt"; return 1; }
   command -v python3 >/dev/null 2>&1 || { log "FOUT: NAS CR capability probe vereist python3"; return 1; }
   if python3 "$NAS_CR_LOCAL_PROBE" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1; then
@@ -398,7 +400,45 @@ process_project_cr_local(){
   return 0
 }
 
+ensure_nas_cr_mailbox_contract(){
+  if [ -L "$NAS_CR_LOCAL_DIR" ]; then
+    log "FOUT: NAS CR mailboxpad is een symlink"
+    return 1
+  fi
+  if [ -e "$NAS_CR_LOCAL_DIR" ] && [ ! -d "$NAS_CR_LOCAL_DIR" ]; then
+    log "FOUT: NAS CR mailboxpad bestaat maar is geen directory"
+    return 1
+  fi
+  mkdir -p "$NAS_CR_LOCAL_DIR" || { log "FOUT: NAS CR mailbox ontbreekt en kon niet worden aangemaakt"; return 1; }
+  [ ! -L "$NAS_CR_LOCAL_DIR" ] && [ -d "$NAS_CR_LOCAL_DIR" ] || { log "FOUT: NAS CR mailboxtype ongeldig na create"; return 1; }
+  chmod 0777 "$NAS_CR_LOCAL_DIR" || { log "FOUT: NAS CR mailboxcontract 0777 kon niet worden hersteld"; return 1; }
+  [ ! -L "$NAS_CR_LOCAL_DIR" ] && [ -d "$NAS_CR_LOCAL_DIR" ] || { log "FOUT: NAS CR mailboxtype ongeldig na chmod"; return 1; }
+  [ "$(stat -c '%a' "$NAS_CR_LOCAL_DIR" 2>/dev/null || true)" = "777" ] || { log "FOUT: NAS CR mailboxcontract is niet 0777 na herstel"; return 1; }
+  return 0
+}
+
+ensure_nas_cr_operation_lock_contract(){
+  if [ -L "$NAS_CR_OPERATION_LOCK" ]; then
+    log "FOUT: NAS CR operation-lock is een symlink"
+    return 1
+  fi
+  if [ -e "$NAS_CR_OPERATION_LOCK" ] && [ ! -f "$NAS_CR_OPERATION_LOCK" ]; then
+    log "FOUT: NAS CR operation-lock bestaat maar is geen regulier bestand"
+    return 1
+  fi
+  if [ ! -e "$NAS_CR_OPERATION_LOCK" ]; then
+    ( umask 000; : > "$NAS_CR_OPERATION_LOCK" ) || { log "FOUT: NAS CR operation-lock kon niet worden aangemaakt"; return 1; }
+  fi
+  [ ! -L "$NAS_CR_OPERATION_LOCK" ] && [ -f "$NAS_CR_OPERATION_LOCK" ] || { log "FOUT: NAS CR operation-locktype ongeldig"; return 1; }
+  chmod 0666 "$NAS_CR_OPERATION_LOCK" || { log "FOUT: NAS CR operation-lock mode kon niet worden hersteld"; return 1; }
+  [ ! -L "$NAS_CR_OPERATION_LOCK" ] && [ -f "$NAS_CR_OPERATION_LOCK" ] || { log "FOUT: NAS CR operation-locktype ongeldig na chmod"; return 1; }
+  [ "$(stat -c '%a' "$NAS_CR_OPERATION_LOCK" 2>/dev/null || true)" = "666" ] || { log "FOUT: NAS CR operation-lock is niet 0666"; return 1; }
+  return 0
+}
+
 process_nas_container_cr_local(){
+  ensure_nas_cr_mailbox_contract || return 1
+  ensure_nas_cr_operation_lock_contract || return 1
   [ -f "$NAS_CR_LOCAL_REQUEST" ] || return 0
   if ! process_cr_standard_hotfix; then
     log "FOUT: NAS Container CR geweigerd omdat CR-standaardhotfix niet GREEN is"
@@ -591,6 +631,10 @@ fi
 
 while :; do
   touch_heartbeat
+
+  if ! process_post_release_maintenance_transition; then
+    write_status "MAINTENANCE_FAILED" "post-release-mode-transition-loop"
+  fi
 
   # Runtime truth is observational and must stay fresh in every operating mode.
   # Do not gate fingerprint reconciliation behind MAINTENANCE, otherwise a

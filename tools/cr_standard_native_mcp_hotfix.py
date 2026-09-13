@@ -194,17 +194,27 @@ def _crash_recovery_snapshot_v2(text: str) -> str:
         '    source_bytes = 0\n    transient_excluded = []\n\n    for root, dirnames, filenames',
         'CR snapshot transient inventory',
     )
-    text = _replace(
-        text,
-        '            if _excluded(rel):\n                continue\n            if p.is_symlink():',
-        '            if _excluded(rel):\n                continue\n'
+    filename_loop = '        for name in sorted(filenames):\n'
+    loop_at = text.find(filename_loop)
+    if loop_at < 0:
+        raise RuntimeError('CR snapshot filename-loop ontbreekt')
+    before = text[:loop_at]
+    after = text[loop_at:]
+    old_file_block = (
+        '            if _excluded(rel):\n'
+        '                continue\n'
+        '            if p.is_symlink():'
+    )
+    new_file_block = (
+        '            if _excluded(rel):\n'
+        '                continue\n'
         '            if _is_known_atomic_temp(rel):\n'
         '                transient_excluded.append({"path": rel.as_posix(), "reason": "known_atomic_temp_at_inventory"})\n'
         '                continue\n'
-        '            if p.is_symlink():',
-        'CR snapshot temp exclusion',
-        count=1,
+        '            if p.is_symlink():'
     )
+    after = _replace(after, old_file_block, new_file_block, 'CR snapshot filename temp exclusion', count=1)
+    text = before + after
     text = _replace(
         text,
         '        "source_bytes": source_bytes,\n    }',
