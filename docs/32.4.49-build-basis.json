@@ -1,0 +1,7 @@
+{
+  "basis_release": "32.4.48",
+  "basis_sha256": "716cd3bbcd0d3f48bd11898ead006fbe47cf7ab38b00c96e690f890b8fe827d0",
+  "target_release": "32.4.49",
+  "verified_against_live_atomic_swap": true,
+  "purpose": "Native MCP root-cause closure: live-acceptance self-heal deadlock plus PM build-contract self-audit false RED"
+}

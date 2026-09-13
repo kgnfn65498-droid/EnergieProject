@@ -1,3 +1,10 @@
+## 32.4.49 — Native MCP root-cause closure
+
+- Root-cause fix: exact release-bound Native MCP self-heal can run during `LIVE_ACCEPTANCE` only under policy v2 and only when every release safety check is GREEN except the Projectmanager self-audit blocker.
+- Self-audit fix: the static Development Build Contract definition is no longer misread as an evaluated failed result; compliance is recomputed from the active task/progress when needed.
+- Existing `ACCEPTED` self-heal behavior and generic protected-action boundaries remain unchanged.
+- Target identity: EnergieProject 32.4.49 / Projectmanager 2.0.0-rc36.
+
 ## 32.4.48 — definitieve 32.4 closure hardening
 
 - Native-MCP stale control-plane requests worden gearchiveerd onder de bewezen schrijfbare PM RuntimeV2-root in plaats van onder `Data/.../RuntimeEvidence`, zodat de protected executor geen cross-runtime mkdir-permission meer nodig heeft.

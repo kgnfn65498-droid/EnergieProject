@@ -216,7 +216,12 @@ class SelfAuditor:
                 invalid.append(semantic_task_issue)
             active_task = status.get('active_task') if isinstance(status.get('active_task'), dict) else None
             if active_task and active_task.get('build_contract_required') is True:
-                contract = status.get('development_build_contract') if isinstance(status.get('development_build_contract'), dict) else evaluate_build_contract(active_task, status.get('progress'))
+                published_contract = status.get('development_build_contract') if isinstance(status.get('development_build_contract'), dict) else {}
+                contract = (
+                    published_contract
+                    if 'compliant' in published_contract
+                    else evaluate_build_contract(active_task, status.get('progress'))
+                )
                 if contract.get('compliant') is not True:
                     invalid.append({
                         'path': 'status/current.json',

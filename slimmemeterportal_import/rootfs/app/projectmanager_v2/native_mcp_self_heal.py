@@ -2,16 +2,18 @@ import json
 from pathlib import Path
 
 
-POLICY_SCHEMA = 'energie_native_mcp_self_heal_policy_v1'
-POLICY_SCOPE = 'release_bound_native_mcp_self_reload_after_accepted_release'
+POLICY_SCHEMA_V1 = 'energie_native_mcp_self_heal_policy_v1'
+POLICY_SCOPE_V1 = 'release_bound_native_mcp_self_reload_after_accepted_release'
+POLICY_SCHEMA_V2 = 'energie_native_mcp_self_heal_policy_v2'
+POLICY_SCOPE_V2 = 'release_bound_native_mcp_self_reload_during_live_acceptance_or_accepted'
 
 
 class NativeMcpSelfHealAuthorizer:
     """Apply Peter's standing approval only to the exact release-bound Native MCP self-heal.
 
     This does not authorize arbitrary restarts. It only resolves the one canonical
-    projectmanager_auto native_mcp_reload decision for the currently accepted release,
-    after release validation is already green and the runtime guard proves reload is needed.
+    projectmanager_auto native_mcp_reload decision for the current release,
+    after exact release-bound safety conditions are proven and the runtime guard proves reload is needed.
     """
 
     def __init__(self, project_root, commands, decisions, *, audit=None):
@@ -45,34 +47,77 @@ class NativeMcpSelfHealAuthorizer:
         policy = self._json(self.policy_path)
         if not policy:
             return False
+        schema = policy.get('schema')
+        scope = policy.get('scope')
+        contract_ok = (
+            (schema == POLICY_SCHEMA_V1 and scope == POLICY_SCOPE_V1)
+            or (schema == POLICY_SCHEMA_V2 and scope == POLICY_SCOPE_V2)
+        )
         return (
-            policy.get('schema') == POLICY_SCHEMA
+            contract_ok
             and policy.get('enabled') is True
             and policy.get('approved_by') == 'Peter'
-            and policy.get('scope') == POLICY_SCOPE
             and 'native_mcp_reload' in (policy.get('authorized_for') or ['native_mcp_reload'])
         )
 
-    def _accepted_release(self):
+    @staticmethod
+    def _live_acceptance_hold_safe(hold):
+        if not isinstance(hold, dict):
+            return False
+        checks = hold.get('validation_checks')
+        if not isinstance(checks, dict):
+            return False
+        required_green = (
+            'version', 'web_runtime', 'state_io', 'automatic_runtime_idle',
+            'release_chain', 'production_certificate',
+        )
+        if any(not isinstance(checks.get(name), dict) or checks[name].get('ok') is not True for name in required_green):
+            return False
+        audit_check = checks.get('projectmanager_self_audit')
+        if not isinstance(audit_check, dict) or audit_check.get('ok') is not False:
+            return False
+        reasons = {str(item).strip() for item in (hold.get('reasons') or []) if str(item).strip()}
+        return reasons == {'projectmanager_self_audit'}
+
+    def _eligible_release(self):
         try:
             release = self.version_path.read_text(encoding='utf-8').strip()
         except OSError:
-            return None, 'live_release_unreadable'
+            return None, 'live_release_unreadable', None
         if not release:
-            return None, 'live_release_unreadable'
+            return None, 'live_release_unreadable', None
 
         atomic = self._json(self.atomic_path)
-        if not atomic or atomic.get('state') != 'ACCEPTED' or str(atomic.get('to_version') or '').strip() != release:
-            return None, 'release_not_accepted'
+        atomic_state = str((atomic or {}).get('state') or '').strip().upper()
+        if not atomic or str(atomic.get('to_version') or '').strip() != release:
+            return None, 'release_not_current_atomic_target', None
 
         hold = self._json(self.hold_path)
-        if (
-            not hold
-            or hold.get('active') is not False
-            or hold.get('validation_status') != 'ok'
-            or str(hold.get('release_version') or '').strip() != release
-        ):
-            return None, 'release_validation_not_green'
+        hold_release = str((hold or {}).get('release_version') or '').strip()
+        if atomic_state == 'ACCEPTED':
+            if (
+                not hold
+                or hold.get('active') is not False
+                or hold.get('validation_status') != 'ok'
+                or hold_release != release
+            ):
+                return None, 'release_validation_not_green', None
+            release_phase = 'ACCEPTED'
+        elif atomic_state == 'LIVE_ACCEPTANCE':
+            policy = self._json(self.policy_path) or {}
+            if not (policy.get('schema') == POLICY_SCHEMA_V2 and policy.get('scope') == POLICY_SCOPE_V2):
+                return None, 'release_not_accepted', None
+            if (
+                not hold
+                or hold.get('active') is not True
+                or hold.get('validation_status') not in {'required', 'blocked'}
+                or hold_release != release
+                or not self._live_acceptance_hold_safe(hold)
+            ):
+                return None, 'live_acceptance_not_safe_for_native_mcp_self_heal', None
+            release_phase = 'LIVE_ACCEPTANCE'
+        else:
+            return None, 'release_not_accepted', None
 
         guard = self._json(self.guard_path)
         expected = str((guard or {}).get('expected_fingerprint') or '').lower()
@@ -86,8 +131,8 @@ class NativeMcpSelfHealAuthorizer:
             or any(ch not in '0123456789abcdef' for ch in expected)
             or expected == runtime
         ):
-            return None, 'native_mcp_reload_not_required'
-        return release, None
+            return None, 'native_mcp_reload_not_required', None
+        return release, None, release_phase
 
     def _candidate(self, release):
         matches = []
@@ -123,7 +168,7 @@ class NativeMcpSelfHealAuthorizer:
         if not self._policy_enabled():
             return self._blocked('standing_policy_not_enabled')
 
-        release, reason = self._accepted_release()
+        release, reason, release_phase = self._eligible_release()
         if reason:
             return self._blocked(reason)
 
@@ -138,6 +183,7 @@ class NativeMcpSelfHealAuthorizer:
             'status': 'APPROVED',
             'reason': 'standing_policy_exact_release_bound_self_heal',
             'release_version': release,
+            'release_phase': release_phase,
             'decision_id': approved['id'],
             'command_id': ready['id'],
             'policy_path': str(self.policy_path),

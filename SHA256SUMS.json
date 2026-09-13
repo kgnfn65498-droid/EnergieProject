@@ -18,7 +18,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "b48aa691bb834c51afa5afb0d9e1f19d6a11e9a676ace7d3f0b0e49a7b2b9f81"
+      "sha256": "199317c4564b33c514c7a79ea21e9b7b9526f1f89ef4619dc36a5a323f330c47"
     },
     {
       "path": "INSTALL.md",
@@ -50,7 +50,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "566ed4390356990bef7749b44aa7c36fe634b418f2c66094b980a88b0532bf92"
+      "sha256": "015f894166ed7814ae52e11cd48658ed87fe0cd6415ca46761695d3c76b9ddef"
     },
     {
       "path": "docs/32.4.37-regression-closure.md",
@@ -77,8 +77,8 @@
       "sha256": "2371cdc120f92437bc918346c04fb4f8dc423e136638b7d187e054cd3b127e62"
     },
     {
-      "path": "docs/32.4.48-build-basis.json",
-      "sha256": "5a78d86a599e41b04136ea597044e28c7040e9cfc7643dd3575b5f584f65ba7b"
+      "path": "docs/32.4.49-build-basis.json",
+      "sha256": "4779ba918b048e61c33ac4efda0aaf431c65376b20123b295cba9b474ede8826"
     },
     {
       "path": "docs/superpowers/plans/2026-08-17-energie-assistant-ha-conversation.md",
@@ -202,7 +202,7 @@
     },
     {
       "path": "release_test_contract.py",
-      "sha256": "65ba6802cbcd747eb5c220f9ebd88a4d183a41034963cf8e4cef313cda892643"
+      "sha256": "3a92dddd2a6a4f89c6f35c2321e27a545f2ae1410bbfd9a328cb8428275aa2ae"
     },
     {
       "path": "repository.yaml",
@@ -210,7 +210,7 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "ff94016a4a8a3a027bc64b429706c3a69cd6ac011d15f2983686cbb1a4da0800"
+      "sha256": "0f2344beb4d594a87aaa52fa6dd91b0ab3aaf156e0fe57e404c5c60756fd2534"
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -226,7 +226,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "a0a2fb5330b3f43fea02e536c374d093e0e836ccc9749844ba6a9533dc5f43f1"
+      "sha256": "7ed05ee62ccee39b1a35ea1a62b393511f6082ecd78cdaa5c88289616de7b88c"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -274,11 +274,11 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "65d17ee00dd1ac98c2782a6f1b4b6a2033d1282a95d45663621bd089334ecba4"
+      "sha256": "cb5fb006456d6b1afce12119b2d22bd89a013aa99964d129d03dd63ac8d72f87"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
-      "sha256": "557c021e6f92d68575d4e927c5de98aec89d66544f1d279d5fb1cd5df26de41b"
+      "sha256": "45820def8fddaf39ebda38bcecd0ff0f141fba421be7c9fc89a78ef3fac2b736"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/month_closure_truth.py",
@@ -334,7 +334,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/VERSION.txt",
-      "sha256": "f12c0697af8d60a2cdd8c66332607a94e01f85715c260226a418153e4d43a7a6"
+      "sha256": "d658416fdfe336675ff0a6232f0fcc89cb1fd31305695ee3069061511503db0f"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/acceptance.py",
@@ -530,7 +530,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/native_mcp_self_heal.py",
-      "sha256": "f43cbd58548fd12c5022691cd23df7380f6b22f5570867cacfe341f2537736d1"
+      "sha256": "97fd124569da31199ef208088abc5edc4f9946186be589415a6249ac3883c946"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/notification_router.py",
@@ -634,7 +634,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/self_audit.py",
-      "sha256": "258bc39899cc4da20e3fb017494e8f75d9be656ab525fbb1bff1d4c492552910"
+      "sha256": "c9e53f96112cebc664ecfcd766c54bbdd0ce92fc0cadac90c192ecf48646d238"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/series_324_live_closure.py",
@@ -1442,7 +1442,7 @@
     },
     {
       "path": "tests/test_v32423_release_identity.py",
-      "sha256": "a4b3315760c5666b1c15fc6ef89a2cb86767f934e8e1ec8f44e89875da37865f"
+      "sha256": "a844f4bd58ed6bd9561d0553ac55e1997abf095b1041f4c1dc4a681fe9c0dbd7"
     },
     {
       "path": "tests/test_v32423_roadmap_semantics.py",
@@ -1462,7 +1462,7 @@
     },
     {
       "path": "tests/test_v32425_release_identity.py",
-      "sha256": "0d0e57419928afe91d68af10096be1bb0c1153af1c15e98c901412fda3042a42"
+      "sha256": "cd087fa1b4966603995631fee05709b8b225700a417d4e0993862b594d46e479"
     },
     {
       "path": "tests/test_v32426_clearup_indexing.py",
@@ -1470,7 +1470,7 @@
     },
     {
       "path": "tests/test_v32426_release_identity.py",
-      "sha256": "be646ba326898044a18eba8e29e813ab741b340d4c2dd13967294f2e4c8bab28"
+      "sha256": "34a1e6956db3212cd22808ed670047772a4cae12eb6796e0612f0a762df1af12"
     },
     {
       "path": "tests/test_v32427_clearup_hash_efficiency.py",
@@ -1482,7 +1482,7 @@
     },
     {
       "path": "tests/test_v32428_release_identity.py",
-      "sha256": "e6d0c5d88e9add01b72ed593392ca55d936ed5ea05e9dd0fe5214466965983a2"
+      "sha256": "846daca85b56379f56763ff9c81b6be0dd7fa2366b5805a229dd9f0803431dad"
     },
     {
       "path": "tests/test_v32429_clearup_observability_timeout.py",
@@ -1490,7 +1490,7 @@
     },
     {
       "path": "tests/test_v32429_release_identity.py",
-      "sha256": "14b870afb37e1ad90f49e293303c545096258381658466f826112b86813ada0c"
+      "sha256": "a5b79e58040e43c18017c46f03f0b5e6b5d72970ef663889706d2ef085cd3a23"
     },
     {
       "path": "tests/test_v3242_projectmanager_repair.py",
@@ -1498,7 +1498,7 @@
     },
     {
       "path": "tests/test_v32430_clearup_checkpoint_surface.py",
-      "sha256": "95dab2d2668db5a29cc0bbadaf58b430453e475590a820472f0df7901b557b3e"
+      "sha256": "d7f977994095d71e82e642270d8aafff47aaa77f4f11b5b86bda8ac67da048db"
     },
     {
       "path": "tests/test_v32430_release_packaging_failed_retention.py",
@@ -1506,15 +1506,15 @@
     },
     {
       "path": "tests/test_v32431_clearup_unreadable_candidate.py",
-      "sha256": "1188ae08a40310e984443ad4752d87651e9aedcdf20dd4ac6451c8d839d205b3"
+      "sha256": "1a12cea698eb8b7d89bc6d87eb436dd3575fca23c0956750772f11c0ed5b415f"
     },
     {
       "path": "tests/test_v32432_clearup_root_bootstrap.py",
-      "sha256": "a941dd8a1fe70e02080a6abb8ee0c894405303c23861fc8103a7baaec77cefe0"
+      "sha256": "b22bef560af9879e2b241a045f1821055c92ab2f86044dd4e6274586aad0a963"
     },
     {
       "path": "tests/test_v32433_clearup_watcher_move_bridge.py",
-      "sha256": "be102218bc0e83556406ae736f1c8d3ecade31272709532be648b358eb3e1aea"
+      "sha256": "5b9d395bff8bef916b5cda7bc2750a0bf268b4df732e7ca17aaeddc90f6bc637"
     },
     {
       "path": "tests/test_v32434_approved_maintenance_transition.py",
@@ -1530,7 +1530,7 @@
     },
     {
       "path": "tests/test_v32436_cr_clearup_regression_closure.py",
-      "sha256": "b7f194881ff6328f060cc2e03388171af218eadcc573761d69b331dd00922c89"
+      "sha256": "0028711941240ca9e4643f76bd9542993e3718aa1a88cf77c06c38abf323f0ec"
     },
     {
       "path": "tests/test_v32437_regression_closure.py",
@@ -1562,7 +1562,7 @@
     },
     {
       "path": "tests/test_v32443_runtime_contract_closure.py",
-      "sha256": "64926faca5a6f376804c61400c7ead45209a6fd528f411f03c11ee2ea63019b7"
+      "sha256": "b0c2576d50ad52f67cf476bb71c58b908e4bfc7e36c63fd79361555ed2d715d9"
     },
     {
       "path": "tests/test_v32444_structural_closure.py",
@@ -1570,7 +1570,7 @@
     },
     {
       "path": "tests/test_v32445_native_mcp_clock_independence.py",
-      "sha256": "9863ee3e7dc1570d35c79e35d838faa7a677aab0fb5017b2a40b55f59b2d024d"
+      "sha256": "6910b6574a87caaad842e23758e4d5d13a753aabab26b08f86664ad4f01e8af1"
     },
     {
       "path": "tests/test_v32446_control_plane_approval_closure.py",
@@ -1587,6 +1587,10 @@
     {
       "path": "tests/test_v32448_final_series_closure.py",
       "sha256": "1460ca44679b3a5c4daed4d4484e8e41b6c93b33ed99734682f8346f184ed883"
+    },
+    {
+      "path": "tests/test_v32449_native_mcp_rootcause_closure.py",
+      "sha256": "736b4a94ae7f8c91e767945dbe7636449c6e609498bbd1a80e88d4e1cdbb2d34"
     },
     {
       "path": "tests/test_v3244_docker_engine_tls_client.py",
