@@ -1,0 +1,8 @@
+{
+  "schema": "energie_release_build_basis_v1",
+  "source_artifact": "EnergieProject_v32.4.49.zip",
+  "source_sha256": "4fc7e57d92247fd46e980fe1b56ad8216e2549a7194c0c5553ad65d07a46b389",
+  "target_release": "32.4.50",
+  "projectmanager_version": "2.0.0-rc37",
+  "method": "exact previous verified ZIP extracted into isolated staging"
+}

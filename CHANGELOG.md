@@ -1,3 +1,10 @@
+## 32.4.50 — stale-task closure en runtime-truth hardening
+
+- Lost de live 32.4.49 self-audit blocker op door releasegebonden MAINTENANCE-taken (waaronder Native MCP guard refresh/live acceptance) automatisch te superseden zodra een nieuwere runtime aantoonbaar actief is.
+- Ververst de Native-MCP runtime guard in iedere watcher-loop, niet alleen achter de MAINTENANCE-gate, zodat succesvolle reloads niet opnieuw door stale runtime truth worden geblokkeerd.
+- Brengt de dedicated control-plane configuratie naar het canonieke `/share/Energie_NAS/EnergieProject`-pad en verwijdert CACHEDEV1-afhankelijkheid uit de releasebron.
+- Target identity: EnergieProject 32.4.50 / Projectmanager 2.0.0-rc37.
+
 ## 32.4.49 — Native MCP root-cause closure
 
 - Root-cause fix: exact release-bound Native MCP self-heal can run during `LIVE_ACCEPTANCE` only under policy v2 and only when every release safety check is GREEN except the Projectmanager self-audit blocker.

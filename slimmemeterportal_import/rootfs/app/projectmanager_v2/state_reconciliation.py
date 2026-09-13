@@ -111,13 +111,18 @@ def _is_release_build_task(task):
     return bool(re.search(r'\brelease[- ]ingress\b', text))
 
 
-def _is_technical_closure_task(task):
-    title = str(task.get('title') or '').strip().lower()
-    return (
-        task.get('mode') == 'MAINTENANCE'
-        and 'projectmanager technische closure' in title
-        and _task_release(task)[1] is not None
+def _is_release_bound_maintenance_task(task):
+    if task.get('mode') != 'MAINTENANCE' or _task_release(task)[1] is None:
+        return False
+    text = ' '.join(str(task.get(field) or '') for field in ('title', 'goal', 'next_action')).lower()
+    release_maintenance_markers = (
+        'projectmanager technische closure',
+        'native mcp guard refresh',
+        'native-mcp guard refresh',
+        'live acceptance',
+        'live-acceptance',
     )
+    return any(marker in text for marker in release_maintenance_markers)
 
 
 class StateReconciler:
@@ -271,7 +276,7 @@ class StateReconciler:
         refs = _clean_refs([release.get('source'), atomic.get('source')])
         release_owned_task = (
             (task.get('mode') == 'DEVELOPMENT' and _is_release_build_task(task))
-            or _is_technical_closure_task(task)
+            or _is_release_bound_maintenance_task(task)
         )
         if task_tuple and live_tuple and release_owned_task and refs:
             installed_newer = live_tuple > task_tuple

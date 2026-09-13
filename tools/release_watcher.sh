@@ -569,9 +569,13 @@ fi
 while :; do
   touch_heartbeat
 
+  # Runtime truth is observational and must stay fresh in every operating mode.
+  # Do not gate fingerprint reconciliation behind MAINTENANCE, otherwise a
+  # successful MCP reload can leave a stale RED guard that blocks acceptance.
+  process_native_mcp_runtime_guard || true
+
   if mode_allows maintenance_requests; then
     process_native_mcp_reload || true
-    process_native_mcp_runtime_guard || true
     process_project_cr_local || true
     process_nas_container_cr_local || true
     process_project_clearup_move || true

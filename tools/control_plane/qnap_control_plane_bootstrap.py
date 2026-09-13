@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 import sys
 import control_plane as cp
-QNAP_PHYSICAL_PROJECT_ROOT = "/share/CACHEDEV1_DATA/AI Projecten/EnergieProject"
+QNAP_PHYSICAL_PROJECT_ROOT = "/share/Energie_NAS/EnergieProject"
 
 
 def _ensure_control_plane_mailboxes(inbox: Path) -> dict:
