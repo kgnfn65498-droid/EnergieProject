@@ -18,7 +18,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "3442e0e23c364e517b2ca9734a8f9adc70071ce2bd30c00dadab9380c0fa449a"
+      "sha256": "0f71841276d850521d61ed73391d8439478f4a69e51dc842e722d53fd1c2827a"
     },
     {
       "path": "INSTALL.md",
@@ -50,7 +50,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "93acbd44f7827c33e80b157b83926c288668d6fccf69eddfeef96e4df1c296b5"
+      "sha256": "26111e48056a54246bcfc04b2eee0a1a513c8c5ba0654795ef2adb66990c3b08"
     },
     {
       "path": "docs/32.4.37-regression-closure.md",
@@ -210,7 +210,7 @@
     },
     {
       "path": "release_test_contract.py",
-      "sha256": "bce391d087256fc78b6cfd88249bf8a0593b56177f6b9364ad8c379b8330af4f"
+      "sha256": "01814b5cf9dd94d8e40d64a23158d17336bd85002568336dcd2b8bfe4a99333c"
     },
     {
       "path": "repository.yaml",
@@ -218,7 +218,7 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "8eab318f9f64b1ec1e3a4fbb87e759e176e59cf59334d19906b02177ce680eb6"
+      "sha256": "befc8478c8671a8a5edc492a64da242879084162d3fa1928ac9cf5f565c31174"
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -234,7 +234,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "af83c40ce0cb51db69b8c8b047d45c5b55d3e231aa34de8e8d7d026fb60636ae"
+      "sha256": "73fac416452e7e20842afad66f280c918b91f1e7a89260eed66cd40e972d940d"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -282,11 +282,11 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "67087d2b5d8991a556a0d1bdfc949288303a0b23547800be1313026ceb7f12ec"
+      "sha256": "4bdc01e08015ed284258391a1d05c9f1b75368cb656340e455b78de2cbb1099b"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
-      "sha256": "479e253dedd3017dc2d1b030a1da70653c2f115f03f3048de39063eb0a0f7dbf"
+      "sha256": "ec5ae84457d6d5b1f27006348918767bf74f8c58e638993fd09c5ea6ff623ee8"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/month_closure_truth.py",
@@ -342,7 +342,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/VERSION.txt",
-      "sha256": "1e1d8effd98e909dba38e267341c0a0b297eedd7329a8b7e93618bb8a3f89889"
+      "sha256": "a17667ace7abf637190464823a6d95f6165d8f94bd0d23fbef28e0a2c5fb44bc"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/acceptance.py",
@@ -586,7 +586,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/project_cr_service.py",
-      "sha256": "757c9b95977365b4ae78dfb4700db0b0600e78e34df2a6769af2f4feb3f592ca"
+      "sha256": "ae33a250344798c90314ff79bb5be0b955c237c40af2b38aee38f84a27ac18f5"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/project_hygiene.py",
@@ -1454,7 +1454,7 @@
     },
     {
       "path": "tests/test_v32423_release_identity.py",
-      "sha256": "b7794b8d6620570a025a22e181539ea1df7c43183835cbfce5ea3d17eada20f4"
+      "sha256": "59e4c1332d94f12e57b9a5f8e9df727b59193becea2cba31767a761f45ec85db"
     },
     {
       "path": "tests/test_v32423_roadmap_semantics.py",
@@ -1474,7 +1474,7 @@
     },
     {
       "path": "tests/test_v32425_release_identity.py",
-      "sha256": "3a8fc15505fe0bfb1eed509c3a83db50027d589724fa63d55ae9e86b6966a46c"
+      "sha256": "2a31d406f693e8177d4a484918a5c21b41ecdd123119d938a93851fe67c9c16a"
     },
     {
       "path": "tests/test_v32426_clearup_indexing.py",
@@ -1482,7 +1482,7 @@
     },
     {
       "path": "tests/test_v32426_release_identity.py",
-      "sha256": "9d81bcf6a230d1d4b2e177b7d19b451760425022616c4f0a24b91bb03fc8fea7"
+      "sha256": "db4ab2fba5d355e27d1bceceba57f30ed8f6275cbda07b1e32409854f43b3a8a"
     },
     {
       "path": "tests/test_v32427_clearup_hash_efficiency.py",
@@ -1494,7 +1494,7 @@
     },
     {
       "path": "tests/test_v32428_release_identity.py",
-      "sha256": "e10d11ced1a2c0606d0f78b77c64371a025c3687f502d835a41aca14463a9923"
+      "sha256": "77928146cecd86d0e55ec71649d59e6235c9267418e09cadfa3cc204019d65c9"
     },
     {
       "path": "tests/test_v32429_clearup_observability_timeout.py",
@@ -1502,7 +1502,7 @@
     },
     {
       "path": "tests/test_v32429_release_identity.py",
-      "sha256": "642fd677be1ee291984075e3a9227d648d36cd8ef9470034b29deeb30995c6e4"
+      "sha256": "61d768ca0e88feae935e331921c9d05c04646d15a49d13e5be0ef5bf3a97f0a0"
     },
     {
       "path": "tests/test_v3242_projectmanager_repair.py",
@@ -1542,7 +1542,7 @@
     },
     {
       "path": "tests/test_v32436_cr_clearup_regression_closure.py",
-      "sha256": "38bb00d72c0131af9762d1671132012b0ef5962f13e5c7ac35779edf9b03fa25"
+      "sha256": "d50e5f3542b5aac2997a67a34bf6e9937a1085cd6c46708ccd7bead0cc5ff2a6"
     },
     {
       "path": "tests/test_v32437_regression_closure.py",
@@ -1582,7 +1582,7 @@
     },
     {
       "path": "tests/test_v32445_native_mcp_clock_independence.py",
-      "sha256": "e1a5b1eb1307e4b51cb2a30289e15fc6e77d18ad11dc6273109b98fe01e86c17"
+      "sha256": "1b628780015343fac2b1873c6c5f53fb4e094fea44d9baada700566d0b69a9e2"
     },
     {
       "path": "tests/test_v32446_control_plane_approval_closure.py",
@@ -1642,7 +1642,11 @@
     },
     {
       "path": "tests/test_v32451_worker_liveness_and_handover.py",
-      "sha256": "634c3306129a871d158412e6e064c8232b81ba27eefdac610cea16aeb64a05dd"
+      "sha256": "2754306e76e821e52594a624568a6b2395bbc985412a7a224db63eac011db734"
+    },
+    {
+      "path": "tests/test_v32452_cr_closure.py",
+      "sha256": "ce1208baee59378ca81a539493319dea399855e482607f820f7d93bd82ee096d"
     },
     {
       "path": "tests/test_v3245_gui_startup_hotfix.py",
@@ -1694,7 +1698,7 @@
     },
     {
       "path": "tools/cr_standard_native_mcp_hotfix.py",
-      "sha256": "c4a07fe9e2aeebeec3a25fb94b8fc01b33907bb8f2ec107135bbc7206cd77a6c"
+      "sha256": "afb6c4261065779d8f0ae35e36147508e4df7d7eb278f8d50a1332c0ae263a29"
     },
     {
       "path": "tools/crash_recovery_cleanup.py",

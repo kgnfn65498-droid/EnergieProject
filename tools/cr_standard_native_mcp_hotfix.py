@@ -156,6 +156,118 @@ def _apply_retention(crash_root: Path, retention: int):
             '"retention_removed": [],\n            "retention_quarantined": quarantined,\n            "retention_delete_performed": False,',
             1,
         )
+    text = _crash_recovery_snapshot_v2(text)
+    return text
+
+def _crash_recovery_snapshot_v2(text: str) -> str:
+    # Make the live CR snapshot ignore only proven own atomic temp files.
+    if 'SNAPSHOT_POLICY = "energie_cr_snapshot_v2"' in text:
+        return text
+    required = ('def _excluded(', 'def _inventory(', 'def create_crash_recovery_backup(')
+    if not all(marker in text for marker in required):
+        return text
+    if 'import re\n' not in text:
+        text = _replace(text, 'import os\nimport shutil', 'import os\nimport re\nimport shutil', 'CR snapshot regex import')
+
+    excluded_block = (
+        'def _excluded(relative: PurePosixPath) -> bool:\n'
+        '    parts = relative.parts\n'
+        '    return (\n'
+        '        len(parts) >= 2\n'
+        '        and parts[0] == "Backups"\n'
+        '        and parts[1] in {CRASH_DIR_NAME, "CRRetentionQuarantine", "RestoreStaging", "_release_prepare"}\n'
+        '    )\n'
+    )
+    excluded_new = excluded_block + (
+        '\nSNAPSHOT_POLICY = "energie_cr_snapshot_v2"\n'
+        '_ATOMIC_TMP_RE = re.compile(r"^\\..+\\.tmp-\\d+(?:-[0-9a-f]+)?$")\n\n'
+        'def _is_known_atomic_temp(relative: PurePosixPath) -> bool:\n'
+        '    rel = relative.as_posix()\n'
+        '    return bool(_ATOMIC_TMP_RE.fullmatch(relative.name)) and (\n'
+        '        rel.startswith("Inbox/") or rel.startswith("Data/03_Systeem/")\n'
+        '    )\n'
+    )
+    text = _replace(text, excluded_block, excluded_new, 'CR snapshot temp policy')
+    text = _replace(
+        text,
+        '    source_bytes = 0\n\n    for root, dirnames, filenames',
+        '    source_bytes = 0\n    transient_excluded = []\n\n    for root, dirnames, filenames',
+        'CR snapshot transient inventory',
+    )
+    text = _replace(
+        text,
+        '            if _excluded(rel):\n                continue\n            if p.is_symlink():',
+        '            if _excluded(rel):\n                continue\n'
+        '            if _is_known_atomic_temp(rel):\n'
+        '                transient_excluded.append({"path": rel.as_posix(), "reason": "known_atomic_temp_at_inventory"})\n'
+        '                continue\n'
+        '            if p.is_symlink():',
+        'CR snapshot temp exclusion',
+        count=1,
+    )
+    text = _replace(
+        text,
+        '        "source_bytes": source_bytes,\n    }',
+        '        "source_bytes": source_bytes,\n        "transient_excluded": transient_excluded,\n    }',
+        'CR snapshot inventory evidence',
+    )
+    text = _replace(
+        text,
+        '    records = []\n\n    try:',
+        '    records = []\n'
+        '    transient_excluded = list(inventory.get("transient_excluded", []))\n'
+        '    transient_skipped = []\n'
+        '    inventory_started_at = datetime.now(timezone.utc).isoformat()\n\n'
+        '    try:',
+        'CR snapshot evidence state',
+    )
+    copy_old = (
+        '            size, mtime_ns, mode, digest = _copy_stable(src, dst)\n'
+        '            records.append({"path": item["path"], "size": size, "mtime_ns": mtime_ns,\n'
+        '                            "mode": mode, "sha256": digest})'
+    )
+    copy_new = (
+        '            try:\n'
+        '                size, mtime_ns, mode, digest = _copy_stable(src, dst)\n'
+        '            except FileNotFoundError as exc:\n'
+        '                rel = PurePosixPath(item["path"])\n'
+        '                if getattr(exc, "filename", None) not in (None, str(src)) or not _is_known_atomic_temp(rel):\n'
+        '                    raise\n'
+        '                transient_skipped.append({\n'
+        '                    "path": item["path"],\n'
+        '                    "reason": "known_atomic_temp_disappeared_after_inventory",\n'
+        '                    "phase": "copy",\n'
+        '                    "errno": "ENOENT",\n'
+        '                    "observed_at": datetime.now(timezone.utc).isoformat(),\n'
+        '                })\n'
+        '                continue\n'
+        '            records.append({"path": item["path"], "size": size, "mtime_ns": mtime_ns,\n'
+        '                            "mode": mode, "sha256": digest})'
+    )
+    text = _replace(text, copy_old, copy_new, 'CR snapshot copy race handling')
+    text = _replace(
+        text,
+        '            "schema": "energie_crash_recovery_v1",\n            "type": "EnergieProject_CRASH_RECOVERY",',
+        '            "schema": "energie_crash_recovery_v1",\n'
+        '            "snapshot_policy": SNAPSHOT_POLICY,\n'
+        '            "inventory_started_at": inventory_started_at,\n'
+        '            "transient_excluded": transient_excluded,\n'
+        '            "transient_skipped": transient_skipped,\n'
+        '            "transient_excluded_count": len(transient_excluded),\n'
+        '            "transient_skipped_count": len(transient_skipped),\n'
+        '            "type": "EnergieProject_CRASH_RECOVERY",',
+        'CR snapshot manifest evidence',
+    )
+    text = _replace(
+        text,
+        '            "retention_delete_performed": False,\n            "excluded": [',
+        '            "retention_delete_performed": False,\n'
+        '            "snapshot_policy": SNAPSHOT_POLICY,\n'
+        '            "transient_excluded": transient_excluded,\n'
+        '            "transient_skipped": transient_skipped,\n'
+        '            "excluded": [',
+        'CR snapshot result evidence',
+    )
     return text
 
 def _tools_recovery(text: str) -> str:
@@ -314,6 +426,7 @@ def _contract_predicates(root: Path | str) -> dict[str, bool]:
         'project_retention_max1': 'RETENTION_DEFAULT = 1' in crash and crash.count('retention: int = 1,') >= 2,
         'project_runtime_version_in_name': 'base_stem = f"{_local_file_stamp()} {version} {CRASH_NAME_SUFFIX}"' in crash,
         'project_quarantine_first': 'CRRetentionQuarantine' in crash and 'retention_delete_performed' in crash,
+        'project_snapshot_policy_v2': 'SNAPSHOT_POLICY = "energie_cr_snapshot_v2"' in crash and '_is_known_atomic_temp' in crash,
         'nas_runtime_version_in_name': '${VERSION} CR NAS Containers' in builder,
         'nas_retention_max1_marker': 'NAS_CR_RETENTION_MAX1_OK' in builder and 'NAS_CR_RETENTION_MAX1_OK' in retention,
         'nas_quarantine_first': 'CRRetentionQuarantine' in retention and 'delete_performed=false' in retention,

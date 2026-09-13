@@ -40,6 +40,33 @@ class ConfiguredProjectCrService:
         except (OSError,json.JSONDecodeError): return None
         return value if isinstance(value,dict) else None
 
+    def _worker_marker_active(self) -> bool:
+        marker=self.bridge_root/'project_cr_local_worker.pid'
+        return marker.is_file() and not marker.is_symlink() and bool(marker.read_text(encoding='utf-8',errors='ignore').strip())
+
+    def _archive_bridge_evidence(self, *, reason: str) -> None:
+        if self._worker_marker_active():
+            raise RuntimeError('EnergieProject CR bridge heeft actieve worker; fail-closed')
+        evidence=self.bridge_root/'evidence'
+        evidence.mkdir(parents=True,exist_ok=True)
+        stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+        token=secrets.token_hex(4)
+        for label,path in (('request',self.request_path),('result',self.result_path)):
+            if not path.is_file() or path.is_symlink():
+                continue
+            target=evidence/f'{stamp}-{label}-{reason}-{token}.json'
+            os.replace(path,target)
+
+    def _result_identity_valid(self, result: dict[str, Any], *, request_id: str, command: str, version: str) -> bool:
+        if result.get('schema') != self.RESULT_SCHEMA or result.get('operation') != self.OPERATION:
+            return False
+        if str(result.get('request_id') or '') != request_id or str(result.get('version') or '') != version:
+            return False
+        result_command=str(result.get('command_id') or '').strip()
+        if command and result_command != command:
+            return False
+        return True
+
     def create(self, *, command_id: str = '', expected_release: str = '', wait_for_result: bool = True) -> dict[str, Any]:
         version=(self.project_root/'App/VERSIE.txt').read_text(encoding='utf-8').strip()
         if not version or any(ch not in '0123456789.' for ch in version):
@@ -57,13 +84,27 @@ class ConfiguredProjectCrService:
             if request.get('schema') != self.REQUEST_SCHEMA or request.get('operation') != self.OPERATION:
                 raise RuntimeError('EnergieProject CR bridge is bezet door ongeldig request')
             if request.get('expected_runtime_version') != version:
-                raise RuntimeError('EnergieProject CR bridge bevat stale release-request')
-            existing_command = str(request.get('command_id') or '').strip()
-            if command and existing_command and existing_command != command:
-                raise RuntimeError('EnergieProject CR bridge is bezet door ander command')
+                self._archive_bridge_evidence(reason='stale-release')
+                request=None
+            else:
+                existing_command = str(request.get('command_id') or '').strip()
+                if command and existing_command and existing_command != command:
+                    raise RuntimeError('EnergieProject CR bridge is bezet door ander command')
+        if request:
             request_id = str(request.get('request_id') or '').strip()
+            if not request_id:
+                raise RuntimeError('EnergieProject CR bridge request-id ontbreekt')
         else:
             request_id=secrets.token_hex(16)
+            # Preserve an orphan result unless it already proves the exact
+            # identity of the request we are about to materialize. This keeps
+            # restart/idempotence compatibility without allowing stale evidence
+            # to satisfy a different request.
+            orphan=self._load(self.result_path)
+            if self.result_path.is_file() and not (
+                orphan and self._result_identity_valid(orphan, request_id=request_id, command=command, version=version)
+            ):
+                self._archive_bridge_evidence(reason='orphan-result')
             request={'schema':self.REQUEST_SCHEMA,'request_id':request_id,'operation':self.OPERATION,
                      'expected_runtime_version':version,'created_at':datetime.now(timezone.utc).isoformat()}
             if command:
@@ -86,10 +127,8 @@ class ConfiguredProjectCrService:
                 time.sleep(self.poll_seconds)
             else:
                 raise RuntimeError('EnergieProject CR lokale executor timeout; fail-closed')
-        if result.get('schema')!=self.RESULT_SCHEMA or result.get('version')!=version:
+        if not self._result_identity_valid(result, request_id=request_id, command=command, version=version):
             raise RuntimeError('EnergieProject CR lokaal resultaat ongeldig')
-        if command and result.get('command_id') != command:
-            raise RuntimeError('EnergieProject CR lokaal resultaat command-id mismatch')
         if not (result.get('status')=='GREEN' and result.get('ok') is True and result.get('deep_verified') is True):
             raise RuntimeError(str(result.get('error') or 'EnergieProject CR lokale executor rapporteert RED'))
         return result

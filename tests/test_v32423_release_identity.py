@@ -9,7 +9,7 @@ APP = ROOT / 'slimmemeterportal_import/rootfs/app'
 
 
 def test_v32423_release_and_pm_identity_are_synchronized():
-    assert CURRENT_PM_VERSION == '2.0.0-rc38'
+    assert CURRENT_PM_VERSION == '2.0.0-rc39'
     assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == CURRENT_RELEASE
     assert f'APP_VERSION = "{CURRENT_RELEASE}"' in (APP / 'main.py').read_text(encoding='utf-8')
     assert f'TARGET_RELEASE_VERSION = "{CURRENT_RELEASE}"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
