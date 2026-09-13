@@ -22,8 +22,29 @@ from operating_mode_auto_release import automatic_release_hold_daemon as automat
 from projectmanager_v2_entrypoint import start_projectmanager_v2
 from projectmanager_v2.projectmanager_web import install_projectmanager_web
 
-TARGET_RELEASE_VERSION = "32.4.50"
+TARGET_RELEASE_VERSION = "32.4.51"
 app.APP_VERSION = TARGET_RELEASE_VERSION
+
+_BACKGROUND_LOCK = threading.Lock()
+_HOLD_THREAD = None
+
+
+def _supervise_background_workers(root):
+    global _HOLD_THREAD
+    with _BACKGROUND_LOCK:
+        pm_thread = start_projectmanager_v2(app.STOP, root, TARGET_RELEASE_VERSION)
+        if _HOLD_THREAD is None or not _HOLD_THREAD.is_alive():
+            _HOLD_THREAD = threading.Thread(
+                target=automatic_release_hold_worker,
+                args=(app.STOP, app, root, TARGET_RELEASE_VERSION),
+                daemon=True,
+                name="release-hold-auto-validation",
+            )
+            _HOLD_THREAD.start()
+        return {
+            "projectmanager_alive": bool(pm_thread and pm_thread.is_alive()),
+            "release_hold_alive": bool(_HOLD_THREAD and _HOLD_THREAD.is_alive()),
+        }
 
 
 def start_operating_mode_runtime() -> None:
@@ -41,13 +62,7 @@ def start_operating_mode_runtime() -> None:
     # writes immutable ApprovalIngress envelopes only; it never mutates
     # RuntimeV2 directly.
     install_projectmanager_web(app, root)
-    start_projectmanager_v2(app.STOP, root, TARGET_RELEASE_VERSION)
-    threading.Thread(
-        target=automatic_release_hold_worker,
-        args=(app.STOP, app, root, TARGET_RELEASE_VERSION),
-        daemon=True,
-        name="release-hold-auto-validation",
-    ).start()
+    _supervise_background_workers(root)
     threading.Thread(
         target=crash_recovery_mode_worker,
         args=(app.STOP, app, root),
@@ -57,6 +72,7 @@ def start_operating_mode_runtime() -> None:
     threading.Thread(
         target=operating_mode_worker,
         args=(app.STOP, root, app),
+        kwargs={"lifecycle_tick": lambda: _supervise_background_workers(root)},
         daemon=True,
         name="operating-mode-reconcile",
     ).start()

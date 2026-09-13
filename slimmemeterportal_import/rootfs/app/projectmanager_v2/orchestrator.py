@@ -16,7 +16,7 @@ from configured_service import ConfiguredManagerService
 from handoff_queue import HandoffQueue
 from handoff_result_ingress import HandoffResultIngressConsumer
 from issue_repair_evidence import collect_issue_repair_evidence
-from handover import build_handover
+from handover import build_handover, cross_chat_contracts
 from handover_snapshot import HandoverSnapshotService
 from health_engine import summarize_health_with_self_audit
 from mode_bridge import ModeBridge
@@ -611,8 +611,15 @@ class ProjectmanagerRuntime:
             'active_context':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_ACTIVE_DEVELOPMENT_CONTEXT.md',
             'manifest':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_DEVELOPMENT_MANIFEST.md',
             'ledger':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/01_UNIFIED_DEVELOPMENT_LEDGER.md',
+            'requirements': [
+                'Data/03_Systeem/Projectmanager/Requirements/HARD_REQUIREMENT_RELEASE_AUDIT_RECURRENCE_BADGES.md',
+                'Data/03_Systeem/Projectmanager/Requirements/HARD_REQUIREMENT_LIVE_HANDOVER_NEW_CHAT.md',
+                'Data/03_Systeem/Projectmanager/Requirements/HARD_REQUIREMENT_CHATGPT_BUILDS_CODEX_RESEARCH_ONLY.md',
+                'Data/03_Systeem/Projectmanager/Requirements/HARD_REQUIREMENT_32451_COMPLETE_HANDOVER.md',
+            ],
             'live_handover_primary':True,
         }
+        status.update(cross_chat_contracts())
         status['conversation_intake'] = self.conversation_intake.summary()
         issues = getattr(self.base, 'issues', None)
         status['open_issues'] = issues.open_items() if issues is not None else status.get('open_issues', [])

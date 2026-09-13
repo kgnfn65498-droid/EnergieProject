@@ -6,6 +6,36 @@ from secret_guard import redact
 from development_build_contract import evaluate_build_contract, canonical_contract
 
 
+def cross_chat_contracts():
+    return {
+        'development_method': {
+            'builder': 'ChatGPT',
+            'codex_role': 'research_only',
+            'codex_default': 'Terra Medium',
+            'exact_previous_verified_zip_required': True,
+            'tdd_red_green_required': True,
+            'production_requires_explicit_approval': True,
+        },
+        'audit_contract': {
+            'format': 'point. status_badge recurrence_count — description',
+            'recurrence_counts_real_repair_rounds': True,
+            'architecture_review_required_from_failed_round': 3,
+        },
+        'new_chat_preflight': {
+            'manual_reexplanation_required': False,
+            'required_context': [
+                'active_development_context',
+                'development_manifest',
+                'unified_development_ledger',
+                'runtime_handover',
+                'requirements',
+                'relevant_incident_evidence',
+            ],
+            'short_commands_supported': ['verder', 'audit', 'bouw verder'],
+        },
+    }
+
+
 def build_handover(*, mode: dict, active_task: dict = None, release: dict = None, decisions=None, evidence=None, last_changes=None, progress=None):
     task = active_task or {}
     payload = {
@@ -31,6 +61,7 @@ def build_handover(*, mode: dict, active_task: dict = None, release: dict = None
         'decisions_needed': [item for item in (decisions or []) if item.get('status') == 'PENDING'],
         'pending_approval': next((item.get('kind') for item in (decisions or []) if item.get('status') == 'PENDING'), None),
         'development_build_contract': evaluate_build_contract(task, progress) if active_task and task.get('build_contract_required') is True else canonical_contract(),
+        **cross_chat_contracts(),
     }
     return redact(payload)
 

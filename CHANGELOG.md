@@ -1,3 +1,15 @@
+## 32.4.51 — lifecycle recovery, non-blocking CR en volledige handover
+
+- Live bootstrap-race gerepareerd: een tweede installer die de singleton-lock niet bezit, mag in EXIT-cleanup nooit de actieve lock van de eerste installer verwijderen; regressie reproduceert exact `installer is al actief` gevolgd door `installer context requires active installer lock`.
+- Projectmanager singleton-lock conflict stopt de worker niet meer permanent; bounded retry blijft actief en de periodieke operating-mode lifecycle bewaakt PM- en release-hold-workers.
+- Project-CR en NAS Container CR bridges worden non-blocking vanuit de PM-cyclus verwerkt; pending externe executors blokkeren geen volgende managercyclus meer.
+- De watcher voert zware Project-CR detached uit zodat een D-state/IO-hang de watcher-heartbeat en release-ingress niet meer kan bevriezen.
+- Release-health bevat expliciete Projectmanager driver-liveness zodat een oude GREEN self-audit geen stilgevallen closure-driver kan maskeren.
+- Nieuwe-chat handover draagt bindend de auditnotatie/recurrence-regels, exacte buildbasis, ChatGPT-bouw/Codex-onderzoek-rolverdeling en verplichte preflightcontext over.
+- Release recovery krijgt een begrensde canonieke `release_recover`-actie voor readback, stale bridge-reconciliatie, DEVELOPMENT-herstel en protected watcher-recreate-escalatie zonder alternatieve releaseroute.
+- Target identity: EnergieProject 32.4.51 / Projectmanager 2.0.0-rc38.
+- Buildbasis: exact geverifieerde 32.4.50 ZIP SHA256 `74a3d2bcb4eb72e72daa2b0461091f8c293ce706ac2d4cb853de9f1ab06f1eae`.
+
 ## 32.4.50 — stale-task closure en runtime-truth hardening
 
 - Lost de live 32.4.49 self-audit blocker op door releasegebonden MAINTENANCE-taken (waaronder Native MCP guard refresh/live acceptance) automatisch te superseden zodra een nieuwere runtime aantoonbaar actief is.

@@ -2,11 +2,47 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Iterable
+from datetime import datetime, timezone
+import json
+import os
+import tempfile
 
 from operating_mode_runtime import attempt_release_hold
 from release_validation_hold import load_release_hold
 
 DEFAULT_AUTO_RELEASE_RETRY_DELAYS = (1.0, 2.0, 4.0, 8.0, 15.0)
+
+
+def _write_release_hold_worker_state(
+    project_root: Path,
+    expected_version: str,
+    *,
+    status: str,
+    last_result: dict[str, Any] | None = None,
+) -> None:
+    path = project_root / "Inbox/operating_mode/release_hold_worker.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "energie_release_hold_worker_v1",
+        "heartbeat_at": datetime.now(timezone.utc).isoformat(),
+        "expected_version": str(expected_version),
+        "status": str(status),
+        "last_result": dict(last_result or {}),
+    }
+    fd, temp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, path)
+    finally:
+        try:
+            if os.path.exists(temp_name):
+                os.unlink(temp_name)
+        except OSError:
+            pass
 
 
 def automatic_release_hold_once(
@@ -68,6 +104,7 @@ def automatic_release_hold_daemon(
     """
     root = Path(project_root)
     last: dict[str, Any] = {"status": "not_attempted"}
+    _write_release_hold_worker_state(root, str(expected_version), status="starting", last_result=last)
     while True:
         last = automatic_release_hold_worker(
             stop_event,
@@ -76,7 +113,14 @@ def automatic_release_hold_daemon(
             str(expected_version),
             retry_delays=retry_delays,
         )
-        if last.get("status") in {"released", "already_released", "stopped"}:
+        worker_status = str(last.get("status") or "unknown")
+        _write_release_hold_worker_state(
+            root, str(expected_version), status=worker_status, last_result=last
+        )
+        if worker_status in {"released", "already_released", "stopped"}:
             return last
         if stop_event.wait(max(0.0, float(cycle_delay))):
+            _write_release_hold_worker_state(
+                root, str(expected_version), status="stopped", last_result=last
+            )
             return {"status": "stopped", "last": last}

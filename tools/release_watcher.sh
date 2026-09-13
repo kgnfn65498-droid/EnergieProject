@@ -51,6 +51,7 @@ PROJECT_CR_LOCAL_REQUEST="$PROJECT_CR_LOCAL_DIR/request.json"
 PROJECT_CR_LOCAL_RESULT="$PROJECT_CR_LOCAL_DIR/result.json"
 PROJECT_CR_LOCAL_EXECUTOR="$PROJECT/tools/project_cr_local_executor.py"
 PROJECT_CR_LOCAL_TIMEOUT="${ENERGIE_PROJECT_CR_LOCAL_TIMEOUT_SECONDS:-1200}"
+PROJECT_CR_LOCAL_WORKER_PID="$PROJECT_CR_LOCAL_DIR/project_cr_local_worker.pid"
 WATCHER_CONTRACT_HELPER="$PROJECT/tools/watcher_container_contract.py"
 WATCHER_CONTRACT_MARKER="$INBOX/watcher_container_contract.json"
 NATIVE_MCP_GUARD="$PROJECT/tools/native_mcp_runtime_guard.py"
@@ -357,7 +358,18 @@ process_nas_cr_capability_probe(){
 }
 
 process_project_cr_local(){
-  [ -f "$PROJECT_CR_LOCAL_REQUEST" ] || return 0
+  [ -f "$PROJECT_CR_LOCAL_REQUEST" ] || { rm -f "$PROJECT_CR_LOCAL_WORKER_PID" 2>/dev/null || true; return 0; }
+
+  if [ -f "$PROJECT_CR_LOCAL_WORKER_PID" ]; then
+    CR_PID="$(cat "$PROJECT_CR_LOCAL_WORKER_PID" 2>/dev/null || true)"
+    if [ -n "$CR_PID" ] && kill -0 "$CR_PID" 2>/dev/null; then
+      # A CR process may enter uninterruptible I/O. Never wait for it in the
+      # watcher main loop: heartbeat and release ingress must stay alive.
+      return 0
+    fi
+    rm -f "$PROJECT_CR_LOCAL_WORKER_PID" 2>/dev/null || true
+  fi
+
   if ! process_cr_standard_hotfix; then
     log "FOUT: EnergieProject CR geweigerd omdat CR-standaardhotfix niet GREEN is"
     return 1
@@ -368,11 +380,22 @@ process_project_cr_local(){
   fi
   [ -f "$PROJECT_CR_LOCAL_EXECUTOR" ] || { log "FOUT: EnergieProject CR lokale executor ontbreekt"; return 1; }
   command -v python3 >/dev/null 2>&1 || { log "FOUT: EnergieProject CR lokale executor vereist python3"; return 1; }
-  rc=0
-  run_bounded "$PROJECT_CR_LOCAL_TIMEOUT" python3 "$PROJECT_CR_LOCAL_EXECUTOR" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
-  [ "$rc" -eq 0 ] && { log "EnergieProject CR lokale executor = GREEN"; return 0; }
-  log "FOUT: EnergieProject CR lokale executor rc=$rc; resultaat blijft beschikbaar"
-  return "$rc"
+
+  (
+    rc=0
+    run_bounded "$PROJECT_CR_LOCAL_TIMEOUT" python3 "$PROJECT_CR_LOCAL_EXECUTOR" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
+    if [ "$rc" -eq 0 ]; then
+      log "EnergieProject CR lokale executor = GREEN"
+    else
+      log "FOUT: EnergieProject CR lokale executor rc=$rc; resultaat blijft beschikbaar"
+    fi
+    rm -f "$PROJECT_CR_LOCAL_WORKER_PID" 2>/dev/null || true
+  ) &
+  CR_PID=$!
+  printf '%s
+' "$CR_PID" > "$PROJECT_CR_LOCAL_WORKER_PID"
+  log "EnergieProject CR lokale executor detached gestart pid=$CR_PID"
+  return 0
 }
 
 process_nas_container_cr_local(){

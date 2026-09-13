@@ -621,7 +621,7 @@ class ConfiguredNasContainerCrService:
             return None
         return value if isinstance(value, dict) else None
 
-    def create(self, *, command_id: str = '', expected_release: str = '') -> dict[str, Any]:
+    def create(self, *, command_id: str = '', expected_release: str = '', wait_for_result: bool = True) -> dict[str, Any]:
         version_path = self.project_root / 'App' / 'VERSIE.txt'
         version = version_path.read_text(encoding='utf-8').strip()
         if not version or any(ch not in '0123456789.' for ch in version):
@@ -633,33 +633,54 @@ class ConfiguredNasContainerCrService:
         self.bridge_root.mkdir(parents=True, exist_ok=True)
         if self.request_path.is_symlink() or self.result_path.is_symlink():
             raise RuntimeError('Onveilige NAS Container CR bridge-path')
-        request_id = secrets.token_hex(16)
-        request = {
-            'schema': self.REQUEST_SCHEMA,
-            'request_id': request_id,
-            'operation': self.OPERATION,
-            'expected_runtime_version': version,
-            'created_at': datetime.now(TZ).isoformat(),
-        }
-        if command:
-            request['command_id'] = command
-        _atomic_text(self.request_path, json.dumps(request, ensure_ascii=False, sort_keys=True) + '\n')
 
-        deadline = time.monotonic() + self.timeout_seconds
-        while time.monotonic() < deadline:
-            result = self._load_json(self.result_path)
-            if not result or result.get('request_id') != request_id:
+        request = self._load_json(self.request_path)
+        if request:
+            if request.get('schema') != self.REQUEST_SCHEMA or request.get('operation') != self.OPERATION:
+                raise RuntimeError('NAS Container CR bridge is bezet door ongeldig request')
+            if request.get('expected_runtime_version') != version:
+                raise RuntimeError('NAS Container CR bridge bevat stale release-request')
+            existing_command = str(request.get('command_id') or '').strip()
+            if command and existing_command and existing_command != command:
+                raise RuntimeError('NAS Container CR bridge is bezet door ander command')
+            request_id = str(request.get('request_id') or '').strip()
+        else:
+            request_id = secrets.token_hex(16)
+            request = {
+                'schema': self.REQUEST_SCHEMA,
+                'request_id': request_id,
+                'operation': self.OPERATION,
+                'expected_runtime_version': version,
+                'created_at': datetime.now(TZ).isoformat(),
+            }
+            if command:
+                request['command_id'] = command
+            _atomic_text(self.request_path, json.dumps(request, ensure_ascii=False, sort_keys=True) + '\n')
+
+        result = self._load_json(self.result_path)
+        if not result or result.get('request_id') != request_id:
+            if not wait_for_result:
+                return {
+                    'status': 'PENDING', 'ok': None, 'request_id': request_id,
+                    'command_id': command or str(request.get('command_id') or ''),
+                    'version': version, 'executed': False,
+                }
+            deadline = time.monotonic() + self.timeout_seconds
+            while time.monotonic() < deadline:
+                result = self._load_json(self.result_path)
+                if result and result.get('request_id') == request_id:
+                    break
                 time.sleep(self.poll_seconds)
-                continue
-            if result.get('schema') != self.RESULT_SCHEMA:
-                raise RuntimeError('NAS Container CR lokaal resultaat heeft ongeldig schema')
-            if command and result.get('command_id') != command:
-                raise RuntimeError('NAS Container CR lokaal resultaat heeft verkeerde command-id')
-            if result.get('version') != version:
-                raise RuntimeError('NAS Container CR lokaal resultaat heeft verkeerde runtimeversie')
-            if not (result.get('status') == 'GREEN' and result.get('ok') is True):
-                raise RuntimeError(str(result.get('error') or 'NAS Container CR lokale executor rapporteert RED'))
-            if result.get('production_containers_changed') is not False:
-                raise RuntimeError('NAS Container CR kon onveranderde productiecontainers niet bewijzen')
-            return result
-        raise RuntimeError('NAS Container CR lokale executor timeout; fail-closed')
+            else:
+                raise RuntimeError('NAS Container CR lokale executor timeout; fail-closed')
+        if result.get('schema') != self.RESULT_SCHEMA:
+            raise RuntimeError('NAS Container CR lokaal resultaat heeft ongeldig schema')
+        if command and result.get('command_id') != command:
+            raise RuntimeError('NAS Container CR lokaal resultaat heeft verkeerde command-id')
+        if result.get('version') != version:
+            raise RuntimeError('NAS Container CR lokaal resultaat heeft verkeerde runtimeversie')
+        if not (result.get('status') == 'GREEN' and result.get('ok') is True):
+            raise RuntimeError(str(result.get('error') or 'NAS Container CR lokale executor rapporteert RED'))
+        if result.get('production_containers_changed') is not False:
+            raise RuntimeError('NAS Container CR kon onveranderde productiecontainers niet bewijzen')
+        return result

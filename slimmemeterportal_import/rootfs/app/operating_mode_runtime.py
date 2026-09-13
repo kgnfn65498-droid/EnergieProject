@@ -999,10 +999,18 @@ def operating_mode_worker(
     project_root: Path | str | None = None,
     app_module: Any = None,
     interval_seconds: float = 5.0,
+    lifecycle_tick: Any = None,
 ) -> None:
     root = Path(project_root) if project_root is not None else operating_mode_project_root()
     while not stop_event.wait(interval_seconds):
         operating_mode_tick(root, app_module=app_module)
+        if callable(lifecycle_tick):
+            try:
+                lifecycle_tick()
+            except Exception:
+                logger = getattr(app_module, 'LOGGER', None) if app_module is not None else None
+                if logger is not None and callable(getattr(logger, 'exception', None)):
+                    logger.exception('Background lifecycle supervision failed safely')
 
 
 def effective_options_for_mode(options: Any, state: ModeState) -> Any:

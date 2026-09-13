@@ -137,5 +137,9 @@ def test_auto_release_module_never_uses_emergency_release():
 def test_mode_entrypoint_starts_auto_release_worker_after_safety_layers():
     text = (APP_ROOT / "mode_entrypoint.py").read_text(encoding="utf-8")
     assert "automatic_release_hold_worker" in text
-    assert text.index("install_release_hold_guards(app, root)") < text.index("target=automatic_release_hold_worker")
-    assert text.index("install_mode_web(app, root)") < text.index("target=automatic_release_hold_worker")
+    startup = text.index("def start_operating_mode_runtime()")
+    supervise = text.index("_supervise_background_workers(root)", startup)
+    assert text.index("install_release_hold_guards(app, root)", startup) < supervise
+    assert text.index("install_mode_web(app, root)", startup) < supervise
+    helper = text[text.index("def _supervise_background_workers"):startup]
+    assert "target=automatic_release_hold_worker" in helper

@@ -350,15 +350,54 @@ class CommandProcessor:
                 result = {'ok': True, 'executed': True, 'intake': intake}
             elif action == 'admin_update':
                 result = {'ok': True, 'executed': True, 'admin_note': item.get('text') or ''}
+            elif action == 'release_recover':
+                if not self.project_root:
+                    raise RuntimeError('release_recover requires project_root')
+                from release_recovery import ReleaseRecoveryService
+                recovery = ReleaseRecoveryService(self.project_root).recover()
+                if recovery.get('needs_development'):
+                    recovery['mode_request'] = self._request_mode(
+                        'DEVELOPMENT',
+                        reason='release_recover: canonical release ingress herstellen',
+                        source=item.get('source') or 'projectmanager_auto',
+                        confirmed_by_user=False,
+                    )
+                if recovery.get('needs_watcher_recreate'):
+                    active_release = self._active_release()
+                    existing = [
+                        command for command in self.commands.all()
+                        if command.get('intent') == 'watcher_recreate'
+                        and command.get('status') in {'PENDING','PROCESSING','WAITING_APPROVAL','APPROVED_READY','APPROVED_WAITING_EXECUTOR'}
+                        and str(command.get('release_version') or '') == active_release
+                    ]
+                    if existing:
+                        recovery['watcher_recreate_command_id'] = existing[-1].get('id')
+                    else:
+                        queued = self.commands.enqueue({
+                            'intent': 'watcher_recreate',
+                            'source': 'projectmanager_auto',
+                            'text': 'release_recover: herstel exact de bestaande release-watcher via protected route',
+                            'release_version': active_release,
+                            'title': 'Release recovery watcher recreate',
+                            'goal': 'Herstel de canonieke watcher zonder alternatieve release-route.',
+                            'steps_total': 1,
+                            'priority': 1,
+                        })
+                        recovery['watcher_recreate_command_id'] = queued.get('id')
+                result = {'ok': True, 'executed': True, 'action': 'release_recover', 'recovery': recovery}
             elif action == 'project_cr_create':
                 if self.project_cr_service is None:
                     raise RuntimeError('EnergieProject CR service is niet geconfigureerd; fail closed')
                 if self.project_root:
                     result = dict(self.project_cr_service.create(
-                        command_id=item['id'], expected_release=str(item.get('release_version') or ''),
+                        command_id=item['id'], expected_release=str(item.get('release_version') or ''), wait_for_result=False,
                     ) or {})
                 else:
                     result = dict(self.project_cr_service.create() or {})
+                if result.get('status') == 'PENDING':
+                    pending = self.commands.requeue(item['id'], result=result)
+                    self._audit('command.external_executor_pending', pending, result)
+                    return pending
                 if result.get('ok') is not True or result.get('status') != 'GREEN' or result.get('deep_verified') is not True:
                     raise RuntimeError('EnergieProject CR service gaf geen GREEN deep-verified resultaat')
                 result['executed'] = True
@@ -368,10 +407,14 @@ class CommandProcessor:
                     raise RuntimeError('NAS Container CR service is niet geconfigureerd; fail closed')
                 if self.project_root:
                     result = dict(self.nas_container_cr_service.create(
-                        command_id=item['id'], expected_release=str(item.get('release_version') or ''),
+                        command_id=item['id'], expected_release=str(item.get('release_version') or ''), wait_for_result=False,
                     ) or {})
                 else:
                     result = dict(self.nas_container_cr_service.create() or {})
+                if result.get('status') == 'PENDING':
+                    pending = self.commands.requeue(item['id'], result=result)
+                    self._audit('command.external_executor_pending', pending, result)
+                    return pending
                 if result.get('ok') is not True or result.get('status') != 'GREEN':
                     raise RuntimeError('NAS Container CR service gaf geen GREEN resultaat')
                 if result.get('production_containers_changed') is not False:
@@ -397,6 +440,8 @@ class CommandProcessor:
             if result is None:
                 break
             results.append(result)
+            if result.get('status') == 'PENDING' and result.get('pending_reason') == 'external_executor_pending':
+                break
         return results
 
     def _audit(self, event_type, item, result):

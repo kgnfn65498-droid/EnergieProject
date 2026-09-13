@@ -388,6 +388,9 @@ class HandoverSnapshotService:
             'test_evidence': test_evidence,
             'development_context': redact(status.get('development_context', {})) if isinstance(status.get('development_context'), dict) else {},
             'development_build_contract': redact(status.get('development_build_contract', {})) if isinstance(status.get('development_build_contract'), dict) else {},
+            'development_method': redact(status.get('development_method', {})) if isinstance(status.get('development_method'), dict) else {},
+            'audit_contract': redact(status.get('audit_contract', {})) if isinstance(status.get('audit_contract'), dict) else {},
+            'new_chat_preflight': redact(status.get('new_chat_preflight', {})) if isinstance(status.get('new_chat_preflight'), dict) else {},
             'unfinished': unfinished[:40],
         }
         snapshot = redact(snapshot)

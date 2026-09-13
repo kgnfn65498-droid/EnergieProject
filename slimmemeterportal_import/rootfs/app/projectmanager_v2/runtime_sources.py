@@ -125,6 +125,76 @@ class RuntimeCollector:
             'reported_clock_delta_seconds': round(raw_age, 1),
         }
 
+
+    def _projectmanager_liveness(self, *, now):
+        runtime_root = self.project_root / 'Inbox/projectmanager_v2/RuntimeV2'
+        heartbeat_path = runtime_root / 'heartbeat/manager.json'
+        payload = self._read_json(heartbeat_path) or {}
+        value = payload.get('heartbeat_at')
+        heartbeat_at = None
+        if value:
+            try:
+                heartbeat_at = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+                if heartbeat_at.tzinfo is None:
+                    heartbeat_at = heartbeat_at.replace(tzinfo=timezone.utc)
+            except (TypeError, ValueError):
+                heartbeat_at = None
+        if heartbeat_at is None:
+            return {
+                'active': False,
+                'reason': 'manager_heartbeat_missing_or_invalid',
+                'heartbeat_path': str(heartbeat_path),
+                'heartbeat_age_seconds': None,
+            }
+        age = max(0.0, (now.astimezone(timezone.utc) - heartbeat_at.astimezone(timezone.utc)).total_seconds())
+        active = age <= 180.0
+        return {
+            'active': active,
+            'reason': 'manager_heartbeat_fresh' if active else 'manager_heartbeat_stale',
+            'heartbeat_path': str(heartbeat_path),
+            'heartbeat_age_seconds': round(age, 1),
+            'cycle_generation': payload.get('cycle_generation'),
+            'provenance': payload.get('provenance'),
+        }
+
+    def _release_hold_driver_liveness(self, *, now):
+        state_path = self.project_root / 'Inbox/operating_mode/release_hold_worker.json'
+        payload = self._read_json(state_path) or {}
+        value = payload.get('heartbeat_at')
+        heartbeat_at = None
+        if value:
+            try:
+                heartbeat_at = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+                if heartbeat_at.tzinfo is None:
+                    heartbeat_at = heartbeat_at.replace(tzinfo=timezone.utc)
+            except (TypeError, ValueError):
+                heartbeat_at = None
+        status = str(payload.get('status') or '').strip().lower()
+        settled = status in {'released', 'already_released'}
+        if heartbeat_at is None:
+            return {
+                'active': False,
+                'settled': settled,
+                'reason': 'release_hold_worker_missing_or_invalid',
+                'heartbeat_path': str(state_path),
+                'heartbeat_age_seconds': None,
+                'status': status or None,
+                'expected_version': payload.get('expected_version'),
+                'last_result': payload.get('last_result'),
+            }
+        age = max(0.0, (now.astimezone(timezone.utc) - heartbeat_at.astimezone(timezone.utc)).total_seconds())
+        active = age <= 180.0 and status not in {'stopped'}
+        return {
+            'active': active,
+            'settled': settled,
+            'reason': 'release_hold_worker_fresh' if active else ('release_hold_worker_settled' if settled else 'release_hold_worker_stale'),
+            'heartbeat_path': str(state_path),
+            'heartbeat_age_seconds': round(age, 1),
+            'status': status or None,
+            'expected_version': payload.get('expected_version'),
+            'last_result': payload.get('last_result'),
+        }
+
     @staticmethod
     def _zip_snapshot(directory, *, now, stale_after=None):
         root = Path(directory)
@@ -288,6 +358,8 @@ class RuntimeCollector:
             'release_chain': self._release_chain(now=now),
             'operating_mode': {'effective_mode': None, 'source': str(mode_path)},
             'native_mcp_runtime': native_guard,
+            'projectmanager_liveness': self._projectmanager_liveness(now=now),
+            'release_hold_driver_liveness': self._release_hold_driver_liveness(now=now),
         }
         if not version_path.is_file():
             result['release']['missing'] = True

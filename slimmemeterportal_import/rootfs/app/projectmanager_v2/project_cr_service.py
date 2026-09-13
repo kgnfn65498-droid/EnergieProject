@@ -40,7 +40,7 @@ class ConfiguredProjectCrService:
         except (OSError,json.JSONDecodeError): return None
         return value if isinstance(value,dict) else None
 
-    def create(self, *, command_id: str = '', expected_release: str = '') -> dict[str, Any]:
+    def create(self, *, command_id: str = '', expected_release: str = '', wait_for_result: bool = True) -> dict[str, Any]:
         version=(self.project_root/'App/VERSIE.txt').read_text(encoding='utf-8').strip()
         if not version or any(ch not in '0123456789.' for ch in version):
             raise RuntimeError('actuele runtimeversie ontbreekt of is ongeldig')
@@ -51,22 +51,45 @@ class ConfiguredProjectCrService:
         self.bridge_root.mkdir(parents=True,exist_ok=True)
         if self.request_path.is_symlink() or self.result_path.is_symlink():
             raise RuntimeError('onveilige EnergieProject CR bridge-path')
-        request_id=secrets.token_hex(16)
-        request={'schema':self.REQUEST_SCHEMA,'request_id':request_id,'operation':self.OPERATION,
-                 'expected_runtime_version':version,'created_at':datetime.now(timezone.utc).isoformat()}
-        if command:
-            request['command_id'] = command
-        _atomic_text(self.request_path,json.dumps(request,ensure_ascii=False,sort_keys=True)+'\n')
-        deadline=time.monotonic()+self.timeout_seconds
-        while time.monotonic()<deadline:
-            result=self._load(self.result_path)
-            if not result or result.get('request_id')!=request_id:
-                time.sleep(self.poll_seconds); continue
-            if result.get('schema')!=self.RESULT_SCHEMA or result.get('version')!=version:
-                raise RuntimeError('EnergieProject CR lokaal resultaat ongeldig')
-            if command and result.get('command_id') != command:
-                raise RuntimeError('EnergieProject CR lokaal resultaat command-id mismatch')
-            if not (result.get('status')=='GREEN' and result.get('ok') is True and result.get('deep_verified') is True):
-                raise RuntimeError(str(result.get('error') or 'EnergieProject CR lokale executor rapporteert RED'))
-            return result
-        raise RuntimeError('EnergieProject CR lokale executor timeout; fail-closed')
+
+        request = self._load(self.request_path)
+        if request:
+            if request.get('schema') != self.REQUEST_SCHEMA or request.get('operation') != self.OPERATION:
+                raise RuntimeError('EnergieProject CR bridge is bezet door ongeldig request')
+            if request.get('expected_runtime_version') != version:
+                raise RuntimeError('EnergieProject CR bridge bevat stale release-request')
+            existing_command = str(request.get('command_id') or '').strip()
+            if command and existing_command and existing_command != command:
+                raise RuntimeError('EnergieProject CR bridge is bezet door ander command')
+            request_id = str(request.get('request_id') or '').strip()
+        else:
+            request_id=secrets.token_hex(16)
+            request={'schema':self.REQUEST_SCHEMA,'request_id':request_id,'operation':self.OPERATION,
+                     'expected_runtime_version':version,'created_at':datetime.now(timezone.utc).isoformat()}
+            if command:
+                request['command_id'] = command
+            _atomic_text(self.request_path,json.dumps(request,ensure_ascii=False,sort_keys=True)+'\n')
+
+        result=self._load(self.result_path)
+        if not result or result.get('request_id') != request_id:
+            if not wait_for_result:
+                return {
+                    'status': 'PENDING', 'ok': None, 'request_id': request_id,
+                    'command_id': command or str(request.get('command_id') or ''),
+                    'version': version, 'executed': False,
+                }
+            deadline=time.monotonic()+self.timeout_seconds
+            while time.monotonic()<deadline:
+                result=self._load(self.result_path)
+                if result and result.get('request_id') == request_id:
+                    break
+                time.sleep(self.poll_seconds)
+            else:
+                raise RuntimeError('EnergieProject CR lokale executor timeout; fail-closed')
+        if result.get('schema')!=self.RESULT_SCHEMA or result.get('version')!=version:
+            raise RuntimeError('EnergieProject CR lokaal resultaat ongeldig')
+        if command and result.get('command_id') != command:
+            raise RuntimeError('EnergieProject CR lokaal resultaat command-id mismatch')
+        if not (result.get('status')=='GREEN' and result.get('ok') is True and result.get('deep_verified') is True):
+            raise RuntimeError(str(result.get('error') or 'EnergieProject CR lokale executor rapporteert RED'))
+        return result

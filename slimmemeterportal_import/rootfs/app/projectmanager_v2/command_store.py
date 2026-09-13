@@ -133,6 +133,9 @@ class CommandStore:
             self._save(data)
         return changed
 
+    def requeue(self, item_id: str, *, result: dict = None):
+        return self._finish(item_id, 'PENDING', result=result or {}, pending_reason='external_executor_pending')
+
     def complete(self, item_id: str, *, result: dict):
         return self._finish(item_id, 'DONE', result=result)
 

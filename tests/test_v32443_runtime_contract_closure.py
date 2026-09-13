@@ -347,10 +347,11 @@ def test_32443_health_surfaces_are_explicitly_scoped():
 
 def test_32443_release_identity_target_after_implementation():
     # Historical closure test follows the current candidate identity.
-    assert (ROOT/'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.50'
-    assert 'version: "32.4.50"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.4.50"' in (APP/'main.py').read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.4.50"' in (APP/'mode_entrypoint.py').read_text(encoding='utf-8')
+    import release_test_contract as contract
+    assert (ROOT/'VERSIE.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_RELEASE
+    assert f'version: "{contract.CURRENT_RELEASE}"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert f'APP_VERSION = "{contract.CURRENT_RELEASE}"' in (APP/'main.py').read_text(encoding='utf-8')
+    assert f'TARGET_RELEASE_VERSION = "{contract.CURRENT_RELEASE}"' in (APP/'mode_entrypoint.py').read_text(encoding='utf-8')
 
 
 def _runtime_for_32443_closure(tmp_path):

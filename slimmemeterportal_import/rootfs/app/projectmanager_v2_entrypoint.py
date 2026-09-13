@@ -133,8 +133,11 @@ def _worker(stop_event, project_root, running_release_version=''):
                 lock = FileLock(lock_path).acquire()
             except RuntimeError as exc:
                 if 'lock already held' in str(exc):
-                    logging.warning('Energie Projectmanager V2 niet dubbel gestart; singleton-lock is al bezet')
-                    return
+                    logging.warning('Energie Projectmanager V2 singleton-lock is bezet; bounded retry volgt')
+                    _notify_failure(config, 'projectmanager worker wacht op singleton-lock; retry actief')
+                    if stop_event.wait(5):
+                        return
+                    continue
                 raise
             try:
                 from orchestrator import ProjectmanagerRuntime

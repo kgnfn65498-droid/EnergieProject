@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import release_test_contract as contract
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "slimmemeterportal_import/rootfs/app"
@@ -97,13 +98,13 @@ def test_apply_leaves_unreadable_review_in_place_and_moves_other_candidate(tmp_p
 
 
 def test_32431_release_identity_and_cross_chat_platform_rule():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.50"
-    assert 'version: "32.4.50"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == contract.CURRENT_RELEASE
+    assert f'version: "{contract.CURRENT_RELEASE}"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     main = (APP / "main.py").read_text(encoding="utf-8")
     mode = (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
     agreements = (ROOT / "PROJECT_AFSPRAKEN.md").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.50"' in main
-    assert 'TARGET_RELEASE_VERSION = "32.4.50"' in mode
+    assert f'APP_VERSION = "{contract.CURRENT_RELEASE}"' in main
+    assert f'TARGET_RELEASE_VERSION = "{contract.CURRENT_RELEASE}"' in mode
     assert 'PRODUCTION_CORE_REVISION = "9.4-core3"' in main
     assert "nieuwe chat" in agreements.lower()
     assert "python3" in agreements.lower()

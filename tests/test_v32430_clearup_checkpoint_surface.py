@@ -1,6 +1,7 @@
 from pathlib import Path
 import importlib.util
 import sys
+import release_test_contract as contract
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / 'slimmemeterportal_import/rootfs/app'
@@ -40,7 +41,7 @@ def test_32430_runtime_checkpoint_is_observational_not_a_dependency(tmp_path: Pa
 
 
 def test_32430_release_identity_is_consistent():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.50'
-    assert 'version: "32.4.50"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
-    assert 'TARGET_RELEASE_VERSION = "32.4.50"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.4.50"' in MAIN.read_text(encoding='utf-8')
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_RELEASE
+    assert f'version: "{contract.CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
+    assert f'TARGET_RELEASE_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
+    assert f'APP_VERSION = "{contract.CURRENT_RELEASE}"' in MAIN.read_text(encoding='utf-8')

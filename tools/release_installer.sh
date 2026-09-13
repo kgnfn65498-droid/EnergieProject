@@ -57,6 +57,7 @@ GIT_AVAILABLE=0
 WORKTREE_REPLACED=0
 ATOMIC_SWAP_RUNNER=""
 ATOMIC_SWAP_ACTIVE=0
+INSTALLER_LOCK_ACQUIRED=0
 
 log(){ printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 WATCHER_PIDFILE="$INBOX/.watcher.pid"
@@ -78,7 +79,10 @@ cleanup(){
   [ -n "$STAGE" ] && rm -rf "$STAGE" 2>/dev/null || true
   [ -n "$ATOMIC_SWAP_RUNNER" ] && rm -f "$ATOMIC_SWAP_RUNNER" 2>/dev/null || true
   [ -n "$PREVIOUS_RELEASE_HOLD_BACKUP" ] && rm -f "$PREVIOUS_RELEASE_HOLD_BACKUP" 2>/dev/null || true
-  rmdir "$LOCK" 2>/dev/null || true
+  if [ "$INSTALLER_LOCK_ACQUIRED" -eq 1 ]; then
+    rmdir "$LOCK" 2>/dev/null || true
+    INSTALLER_LOCK_ACQUIRED=0
+  fi
 }
 
 zip_test(){
@@ -293,6 +297,7 @@ mkdir -p "$INCOMING" "$PROCESSING" "$PROCESSED" "$FAILED" "$LOGDIR" "$BACKUPS"
 chgrp everyone "$BACKUPS" 2>/dev/null || true
 chmod 2775 "$BACKUPS" || fail "Backups-map groepsbeheer instellen mislukt"
 mkdir "$LOCK" 2>/dev/null || { log "FOUT: installer is al actief"; exit 1; }
+INSTALLER_LOCK_ACQUIRED=1
 log "FASE 1/8: inboxcontrole"
 
 # Een processing-ZIP is niet automatisch verweesd. Een tweede watcher kan enkele

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+import release_test_contract as contract
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "slimmemeterportal_import/rootfs/app"
@@ -225,6 +226,6 @@ def test_watcher_wires_clearup_move_request_in_python_container_without_root_chm
 
 
 def test_32433_release_identity_is_consistent():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.50"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == contract.CURRENT_RELEASE
     main = (APP / "main.py").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.50"' in main
+    assert f'APP_VERSION = "{contract.CURRENT_RELEASE}"' in main
