@@ -37,6 +37,13 @@ def _closure_green(project: Path, release_version: str) -> bool:
 def apply(root: Path | str) -> dict:
     project = Path(root).resolve()
     marker_path = project / MARKER_REL
+    transition_path = project / 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json'
+    try:
+        transition = json.loads(transition_path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        transition = None
+    if isinstance(transition, dict) and str(transition.get('lifecycle_state') or '') not in {'COMPLETE','ROLLED_BACK','CANCELLED'}:
+        return {'status':'COORDINATOR_OWNED','changed':False,'generation_id':transition.get('generation_id'),'phase':transition.get('phase')}
     if not marker_path.is_file() or marker_path.is_symlink():
         return {'status': 'NO_REQUEST', 'changed': False}
     marker = json.loads(marker_path.read_text(encoding='utf-8'))

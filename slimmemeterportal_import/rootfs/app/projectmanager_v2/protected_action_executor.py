@@ -4,6 +4,7 @@ import os
 import shutil
 import time
 from pathlib import Path
+from transition_state_io import read_transition_state
 
 
 class ProtectedActionExecutor:
@@ -138,6 +139,27 @@ class ProtectedActionExecutor:
             return None
         data = json.loads(path.read_text(encoding='utf-8'))
         return data if isinstance(data, dict) else None
+
+
+    def _validate_transition_command(self, command, action_name):
+        if action_name not in {'native_mcp_reload','watcher_recreate'}:
+            return
+        transition_path = self.project_root / 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json'
+        transition = read_transition_state(transition_path, missing_ok=True)
+        if not transition or str(transition.get('lifecycle_state') or '') in {'COMPLETE','ROLLED_BACK','CANCELLED'}:
+            return
+        ticket = transition.get('current_ticket') if isinstance(transition.get('current_ticket'), dict) else {}
+        required = {
+            'transition_generation': transition.get('generation_id'),
+            'transition_phase': transition.get('phase'),
+            'transition_request_id': ticket.get('request_id'),
+            'transition_idempotency_key': ticket.get('idempotency_key'),
+            'executor_name': ticket.get('executor_name'),
+            'release_owner': transition.get('to_release'),
+        }
+        mismatched=[key for key,value in required.items() if not value or str(command.get(key) or '') != str(value)]
+        if mismatched:
+            raise RuntimeError('stale_or_unfenced_protected_action:' + ','.join(mismatched))
 
     def _queue_native_mcp_reload(self, action, command, decision):
         if decision.get('status') != 'APPROVED' or decision.get('approved_by') != 'Peter' or decision.get('kind') != 'PRODUCTION_RESTART':
@@ -327,6 +349,7 @@ class ProtectedActionExecutor:
             try:
                 command = self.commands.get(action['command_id'])
                 decision = self.decisions.get(action['decision_id'])
+                self._validate_transition_command(command, action.get('action'))
                 if action.get('action') == 'production_deploy':
                     artifact, artifact_sha, release_version, report_path = self._verify_release(command, decision)
                     target, published = self._publish_once(artifact)

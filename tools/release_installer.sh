@@ -382,6 +382,9 @@ chmod 660 "$BACKUP" || fail "pre-release backup groepsrechten instellen mislukt"
 log "Backup gevalideerd: $BACKUP"
 
 write_release_validation_hold || fail "release validation hold activeren mislukt"
+TRANSITION_PREPARE="$STAGE/tools/release_transition_prepare.py"
+[ -f "$TRANSITION_PREPARE" ] || fail "release transition prepare helper ontbreekt"
+PYTHONPATH="$STAGE/slimmemeterportal_import/rootfs/app/projectmanager_v2:$STAGE/slimmemeterportal_import/rootfs/app" python3 "$TRANSITION_PREPARE" --root "$ROOT" --from-release "$CURRENT_VERSION" --to-release "$NEW_VERSION" --previous-base-mode DEVELOPMENT >/dev/null || fail "TRANSITION_PREPARED schrijven mislukt"
 log "FASE 5/8: atomic App prepare-and-swap"
 if python3 "$ATOMIC_SWAP_RUNNER" prepare-and-swap \
     --root "$ROOT" \

@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from operating_modes import command_path
+from transition_state_io import read_transition_state
 from operating_mode_runtime import (
     attempt_emergency_release_hold,
     attempt_release_hold,
@@ -22,6 +23,16 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, path)
 
+
+
+def _active_release_transition(project_root: Path | str) -> dict[str, Any] | None:
+    path = Path(project_root) / "Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json"
+    payload = read_transition_state(path, missing_ok=True)
+    if not isinstance(payload, dict):
+        return None
+    if str(payload.get("lifecycle_state") or "").upper() in {"ACTIVE", "BLOCKED", "FAILED_SAFE"}:
+        return payload
+    return None
 
 def _supports_live_runtime(app_module: Any | None) -> bool:
     if app_module is None or not hasattr(app_module, "APP_VERSION"):
@@ -332,14 +343,22 @@ def install_mode_web(app_module: Any, project_root: Path | str) -> None:
                     app_module=live_app,
                 )
             elif endpoint == "validate-release-hold":
-                if live_app is None:
-                    raise RuntimeError("live runtime validation is unavailable")
-                result = attempt_release_hold(
-                    app_module,
-                    root,
-                    str(app_module.APP_VERSION),
-                    issued_by="projectmanager_gui",
-                )
+                transition = _active_release_transition(root)
+                if transition is not None:
+                    result = {
+                        "status": "coordinator_owned",
+                        "generation_id": transition.get("generation_id"),
+                        "phase": transition.get("phase"),
+                    }
+                else:
+                    if live_app is None:
+                        raise RuntimeError("live runtime validation is unavailable")
+                    result = attempt_release_hold(
+                        app_module,
+                        root,
+                        str(app_module.APP_VERSION),
+                        issued_by="projectmanager_gui",
+                    )
             else:
                 if live_app is None:
                     raise RuntimeError("live runtime validation is unavailable")

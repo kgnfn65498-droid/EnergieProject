@@ -392,9 +392,10 @@ def test_32443_project_close_requested_only_after_pm_technical_green(tmp_path):
     assert state['state'] == 'REQUESTED'
     assert state['release_version'] == '32.4.43'
     assert closure['project_close_deferred'] is False
-    assert closure['next_action'] == 'CREATE_PROJECT_CR'
+    assert closure['next_action'] == 'COORDINATOR_OWNS_TRANSITION'
+    assert closure['planner'] == 'read_only_projection'
     queued = runtime.commands.all()
-    assert [(item['intent'], item['release_version']) for item in queued] == [('project_cr_create','32.4.43')]
+    assert queued == []  # 32.4.54 coordinator owns executor queueing
 
 
 def test_32443_project_close_deferred_while_pm_technical_red(tmp_path):
@@ -410,7 +411,8 @@ def test_32443_project_close_deferred_while_pm_technical_red(tmp_path):
     state = json.loads((project/'Inbox/projectmanager_v2/RuntimeV2/state/project_close.json').read_text())
     assert state['state'] == 'DEFERRED'
     assert closure['project_close_deferred'] is True
-    assert closure['next_action'] == 'REQUEST_NATIVE_MCP_RELOAD'
+    assert closure['next_action'] == 'COORDINATOR_OWNS_TRANSITION'
+    assert closure['planner'] == 'read_only_projection'
     assert all(item['intent'] not in {'project_cr_create','nas_container_cr_create'} for item in runtime.commands.all())
 
 
@@ -511,26 +513,10 @@ def test_32443_orchestrator_enables_deferred_current_publication_for_base_cycle(
     assert 'self.base.run_once(now=now)' in source
 
 
-def test_32443_failed_or_cancelled_current_release_action_is_not_tight_loop_requeued(tmp_path):
-    runtime, _project = _runtime_for_32443_closure(tmp_path)
-    failed = runtime.commands.enqueue({
-        'intent':'project_cr_create','release_version':'32.4.43','source':'projectmanager_auto'
-    })
-    runtime.commands.fail(failed['id'], error='simulated failure')
-    result = runtime._queue_324_action_once('project_cr_create', '32.4.43')
-    assert result['status'] == 'previous_terminal_block'
-    assert result['previous_status'] == 'FAILED'
-    assert len([item for item in runtime.commands.all() if item.get('intent') == 'project_cr_create']) == 1
-
-    cancelled = runtime.commands.enqueue({
-        'intent':'native_mcp_reload','release_version':'32.4.43','source':'projectmanager_auto'
-    })
-    runtime.commands.cancel(cancelled['id'], reason='Peter rejected')
-    result2 = runtime._queue_324_action_once('native_mcp_reload', '32.4.43')
-    assert result2['status'] == 'previous_terminal_block'
-    assert result2['previous_status'] == 'CANCELLED'
-    assert len([item for item in runtime.commands.all() if item.get('intent') == 'native_mcp_reload']) == 1
-
+def test_32443_legacy_action_queue_is_removed_in_32454():
+    source = (PM / 'orchestrator.py').read_text(encoding='utf-8')
+    assert '_queue_324_action_once' not in source
+    assert "closure['planner'] = 'read_only_projection'" in source
 
 def test_32443_self_audit_accepts_current_development_build_contract_v3(tmp_path):
     from development_build_contract import evaluate_build_contract, CONTRACT_VERSION

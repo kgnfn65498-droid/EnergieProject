@@ -9,6 +9,7 @@ import tempfile
 
 from operating_mode_runtime import attempt_release_hold
 from release_validation_hold import load_release_hold
+from transition_state_io import read_transition_state, TransitionStateReadError
 
 DEFAULT_AUTO_RELEASE_RETRY_DELAYS = (1.0, 2.0, 4.0, 8.0, 15.0)
 
@@ -51,6 +52,15 @@ def automatic_release_hold_once(
     expected_version: str,
 ) -> dict[str, Any]:
     root = Path(project_root)
+    transition_path = root / "Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json"
+    try:
+        transition = read_transition_state(transition_path, missing_ok=True)
+    except TransitionStateReadError as exc:
+        return {"status": "transition_invalid", "fail_closed": True, "error": str(exc)}
+    if isinstance(transition, dict) and str(transition.get("to_release") or "") == str(expected_version) and str(transition.get("lifecycle_state") or "") not in {"COMPLETE", "ROLLED_BACK", "CANCELLED"}:
+        return {"status": "coordinator_owned", "generation_id": transition.get("generation_id"), "phase": transition.get("phase")}
+    if str(expected_version) >= "32.4.54" and not isinstance(transition, dict):
+        return {"status": "transition_missing", "fail_closed": True}
     # Closure is a two-state transaction (release hold + atomic journal).
     # Never stop merely because the hold is inactive: after a restart the
     # atomic journal may still require LIVE_ACCEPTANCE -> ACCEPTED recovery.

@@ -333,7 +333,7 @@ def test_32436_release_identity_is_consistent():
     import release_test_contract as contract
 
     assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_RELEASE
-    assert contract.CURRENT_PM_VERSION == '2.0.0-rc40'
+    assert contract.CURRENT_PM_VERSION == '2.0.0-rc41'
     assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_PM_VERSION
     assert f'version: "{contract.CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
     assert f'APP_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / 'main.py').read_text(encoding='utf-8')

@@ -46,18 +46,13 @@ def evaluate(checks: list[dict[str, Any]], *, clearup: dict[str, Any] | None, re
         'ngrok_excluded_until_next_roadmap_phase': True,
     }
 
-
+# Compatibility projection only. The transition coordinator is the sole planner;
+# this helper remains for historical tests/read models and never queues work.
 def next_action(check_status: dict[str, str], *, clearup_done: bool, project_close_deferred: bool = False) -> str:
-    if check_status.get('watcher_container_contract') != 'GREEN':
-        return 'REQUEST_WATCHER_RECREATE'
-    if check_status.get('native_mcp_runtime') != 'GREEN':
-        return 'REQUEST_NATIVE_MCP_RELOAD'
-    if project_close_deferred:
-        return 'DEFER_PROJECT_CLOSE'
-    if check_status.get('project_crash_recovery_set') != 'GREEN':
-        return 'CREATE_PROJECT_CR'
-    if check_status.get('nas_container_crash_recovery_retention') != 'GREEN':
-        return 'CREATE_NAS_CR'
-    if not clearup_done or check_status.get('project_structure_hygiene') != 'GREEN':
-        return 'RUN_CLEARUP'
+    if check_status.get('watcher_container_contract') != 'GREEN': return 'REQUEST_WATCHER_RECREATE'
+    if check_status.get('native_mcp_runtime') != 'GREEN': return 'REQUEST_NATIVE_MCP_RELOAD'
+    if project_close_deferred: return 'DEFER_PROJECT_CLOSE'
+    if check_status.get('project_crash_recovery_set') != 'GREEN': return 'CREATE_PROJECT_CR'
+    if check_status.get('nas_container_crash_recovery_retention') != 'GREEN': return 'CREATE_NAS_CR'
+    if not clearup_done or check_status.get('project_structure_hygiene') != 'GREEN': return 'RUN_CLEARUP'
     return 'COMPLETE'

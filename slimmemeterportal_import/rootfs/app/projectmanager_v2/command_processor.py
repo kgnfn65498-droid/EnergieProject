@@ -1,3 +1,4 @@
+from transition_state_io import read_transition_state
 from approval_gate import PROTECTED_ACTIONS, can_execute
 from command_gateway import plan_command
 from development_build_contract import build_metadata_from_command
@@ -59,6 +60,54 @@ class CommandProcessor:
             'owned_release': owned, 'active_release': active, 'side_effect_executed': False,
         })
         return superseded
+
+
+    def _guard_active_transition_mutation(self, item, action):
+        if not self.project_root:
+            return None
+        from pathlib import Path
+        path = Path(self.project_root) / 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json'
+        transition = read_transition_state(path, missing_ok=True)
+        if not isinstance(transition, dict):
+            return None
+        if str(transition.get('lifecycle_state') or '').upper() in {'COMPLETE', 'ROLLED_BACK', 'CANCELLED'}:
+            return None
+
+        # Read-only commands remain available while release mutation is fenced.
+        if action in {'read_status', 'read_energy', 'read_roadmap'}:
+            return None
+
+        # Release executors are allowed only with the exact current coordinator
+        # ticket; the detailed identity check is performed immediately after
+        # this general mutation gate by _guard_transition_ticket.
+        transition_actions = {'native_mcp_reload', 'watcher_recreate', 'project_cr_create', 'nas_container_cr_create'}
+        if action in transition_actions and str(item.get('transition_generation') or '') == str(transition.get('generation_id') or ''):
+            return None
+
+        raise RuntimeError('release_transition_active_normal_mutation_blocked')
+
+    def _guard_transition_ticket(self, item, action):
+        protected = {'native_mcp_reload', 'watcher_recreate', 'project_cr_create', 'nas_container_cr_create'}
+        if action not in protected or not self.project_root:
+            return None
+        from pathlib import Path
+        path = Path(self.project_root) / 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json'
+        transition = read_transition_state(path, missing_ok=True)
+        if not isinstance(transition, dict) or str(transition.get('lifecycle_state') or '') in {'COMPLETE','ROLLED_BACK','CANCELLED'}:
+            return None
+        ticket = transition.get('current_ticket') if isinstance(transition.get('current_ticket'), dict) else {}
+        required = {
+            'transition_generation': transition.get('generation_id'),
+            'transition_phase': transition.get('phase'),
+            'transition_request_id': ticket.get('request_id'),
+            'transition_idempotency_key': ticket.get('idempotency_key'),
+            'executor_name': ticket.get('executor_name'),
+            'release_owner': transition.get('to_release'),
+        }
+        mismatched = [key for key,value in required.items() if not value or str(item.get(key) or '') != str(value)]
+        if mismatched:
+            raise RuntimeError('release_transition_ticket_required:' + ','.join(mismatched))
+        return None
 
     def _request_mode(self, mode: str, *, reason: str, source: str, confirmed_by_user: bool=False):
         if self.mode_bridge is not None:
@@ -265,6 +314,8 @@ class CommandProcessor:
                 raise RuntimeError(f"blocked: {plan.get('reason', 'unknown_intent_fail_closed')}")
 
             action = plan.get('action')
+            self._guard_active_transition_mutation(item, action)
+            self._guard_transition_ticket(item, action)
             superseded = self._guard_release_owned_closure(item, action)
             if superseded is not None:
                 return superseded

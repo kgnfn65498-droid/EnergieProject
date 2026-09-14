@@ -62,6 +62,7 @@ NATIVE_MCP_RELOAD_EXECUTOR="$PROJECT/tools/native_mcp_reload_executor.py"
 NATIVE_MCP_RELOAD_REQUEST="$INBOX/native_mcp_runtime/reload_request.json"
 NATIVE_MCP_RELOAD_RESULT="$INBOX/native_mcp_runtime/reload_result.json"
 POST_RELEASE_MODE_HELPER="$PROJECT/tools/post_release_mode_transition.py"
+RELEASE_TRANSITION_BOOTSTRAP="$PROJECT/tools/release_transition_bootstrap.py"
 CANONICAL_ROADMAP_MIGRATION="$PROJECT/slimmemeterportal_import/rootfs/app/projectmanager_v2/canonical_roadmap_migration.py"
 CANONICAL_ROADMAP="$ROOT/Data/03_Systeem/Projectmanager/Roadmap/canonical_roadmap_v3.json"
 CANONICAL_ROADMAP_MIGRATION_STATE="$INBOX/logs/canonical_roadmap_migration_32.4.42.json"
@@ -573,6 +574,13 @@ mark_startup_degraded(){
   item="$1"
   if [ -n "$STARTUP_DEGRADED" ]; then STARTUP_DEGRADED="$STARTUP_DEGRADED,$item"; else STARTUP_DEGRADED="$item"; fi
 }
+if [ ! -f "$RELEASE_TRANSITION_BOOTSTRAP" ] || ! python3 "$RELEASE_TRANSITION_BOOTSTRAP" --root "$ROOT" >> "$LOGDIR/release_watcher.log" 2>&1; then
+  write_status "TRANSITION_BLOCKED" "release transition bootstrap/fence mismatch"
+  log "FOUT: release transition bootstrap faalde; maintenance side effects blijven dicht"
+  exit 1
+fi
+log "Release transition bootstrap/fence = OK"
+
 if [ -f "$CLEARUP_PREPARE" ] && sh "$CLEARUP_PREPARE" "$ROOT" >/dev/null 2>&1; then
   log "CLEARUP-root startup-preflight = OK"
 else

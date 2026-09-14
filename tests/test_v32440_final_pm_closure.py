@@ -170,12 +170,13 @@ def test_watcher_recreate_is_protected_and_exact_bounded_capability():
     assert result['contract']['docker_socket'] is True
 
 
-def test_orchestrator_queues_watcher_before_native_and_exports_handover_truth():
+def test_orchestrator_is_read_only_projection_and_transition_worker_owns_release_sequence():
     source = (PM_ROOT / 'orchestrator.py').read_text(encoding='utf-8')
-    assert "_queue_324_action_once('watcher_recreate', release_version)" in source
-    watcher_pos = source.index("_queue_324_action_once('watcher_recreate', release_version)")
-    native_pos = source.index("_queue_324_action_once('native_mcp_reload', release_version)")
-    assert watcher_pos < native_pos
+    worker = (PM_ROOT / 'release_transition_worker.py').read_text(encoding='utf-8')
+    assert "_queue_324_action_once('watcher_recreate', release_version)" not in source
+    assert "_queue_324_action_once('native_mcp_reload', release_version)" not in source
+    assert "release_transition_coordinator owns sequencing" in source
+    assert "QUEUE_NATIVE_MCP_RELOAD" in worker
     assert "handover['acceptance_matrix']" in source
     assert "handover['development_efficiency']" in source
     assert "handover['development_context']" in source

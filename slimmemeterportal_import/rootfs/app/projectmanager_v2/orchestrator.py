@@ -1,3 +1,5 @@
+# 32.4.54: legacy previous_terminal_block / project_close_deferred=True planner semantics are retired;
+# release_transition_coordinator owns sequencing. Kept as audit vocabulary only.
 import json
 import threading
 from datetime import datetime, timezone
@@ -24,7 +26,7 @@ from native_mcp_self_heal import NativeMcpSelfHealAuthorizer
 from nas_container_cr_service import ConfiguredNasContainerCrService
 from project_cr_service import ConfiguredProjectCrService
 from project_close_state import write_project_close
-from series_324_live_closure import evaluate as evaluate_324_closure, next_action as next_324_action
+from series_324_live_closure import evaluate as evaluate_324_closure
 from persistence import atomic_write_json, load_json
 from protected_action_executor import ProtectedActionExecutor
 from progress_truth import build_task_progress
@@ -169,33 +171,6 @@ class ProjectmanagerRuntime:
         if issues is not None:
             issues.open(fingerprint, severity=severity, title=title, details=details)
 
-    def _queue_324_action_once(self, intent: str, release_version: str):
-        active_statuses = {'PENDING','PROCESSING','WAITING_APPROVAL','APPROVED_READY','APPROVED_WAITING_EXECUTOR'}
-        matching = [item for item in self.commands.all() if item.get('intent') == intent and item.get('release_version') == release_version]
-        if any(item.get('status') in active_statuses for item in matching):
-            return {'status':'already_pending','intent':intent}
-        # A successful command is not repeated in the same manager cycle; health
-        # immediately after execution decides whether another attempt is needed.
-        if matching and matching[-1].get('status') == 'DONE':
-            return {'status':'already_done','intent':intent}
-        if matching and matching[-1].get('status') in {'FAILED', 'CANCELLED'}:
-            previous = matching[-1]
-            return {
-                'status': 'previous_terminal_block',
-                'intent': intent,
-                'previous_status': previous.get('status'),
-                'previous_command_id': previous.get('id'),
-            }
-        command = self.commands.enqueue({
-            'intent': intent, 'source':'projectmanager_auto',
-            'text': f'32.4 live closure: {intent}',
-            'release_version': release_version,
-            'title': f'32.4 live closure {intent}',
-            'goal': 'Autonoom afronden van de goedgekeurde 32.4 live acceptance.',
-            'steps_total': 1, 'priority': 1,
-        })
-        return {'status':'queued','intent':intent,'command_id':command.get('id')}
-
     def _reconcile_324_live_closure(self, status: dict):
         release_version = str(((status.get('release') or {}).get('installed_version') or (status.get('release') or {}).get('version') or '')).strip()
         if not release_version:
@@ -258,18 +233,12 @@ class ProjectmanagerRuntime:
         project_close_deferred = not (
             close_state.get('current') is True and close_state.get('state') == 'REQUESTED'
         )
-        # 32.4.42 hardcoded project_close_deferred=True. 32.4.43 replaces
-        # that split truth with the current shared project-close state.
-        action = next_324_action(
-            by_name,
-            clearup_done=clearup_done,
-            project_close_deferred=project_close_deferred,
-        )
         closure['project_close_state'] = close_state
         closure['project_close_deferred'] = project_close_deferred
         if close_state_error:
             closure['project_close_state_error'] = close_state_error
-        closure['next_action'] = action
+        closure['next_action'] = 'COORDINATOR_OWNS_TRANSITION' if closure.get('status') != 'GREEN' else 'COMPLETE'
+        closure['planner'] = 'read_only_projection'
 
         try:
             if closure.get('status') == 'GREEN':
@@ -279,17 +248,6 @@ class ProjectmanagerRuntime:
                 self.roadmap.mark_acceptance('32-4-closure-live', 'LIVE_REQUIRED', carry_forward=list(closure.get('failed_or_missing') or []))
         except (KeyError, ValueError):
             pass
-
-        if closure.get('status') != 'GREEN' and action == 'REQUEST_WATCHER_RECREATE':
-            closure['automation'] = self._queue_324_action_once('watcher_recreate', release_version)
-        elif closure.get('status') != 'GREEN' and action == 'REQUEST_NATIVE_MCP_RELOAD':
-            closure['automation'] = self._queue_324_action_once('native_mcp_reload', release_version)
-        elif not project_close_deferred and action == 'CREATE_PROJECT_CR':
-            closure['automation'] = self._queue_324_action_once("project_cr_create", release_version)
-        elif not project_close_deferred and action == 'CREATE_NAS_CR':
-            closure['automation'] = self._queue_324_action_once("nas_container_cr_create", release_version)
-        elif not project_close_deferred and action == 'RUN_CLEARUP':
-            closure['automation'] = {'status':'requested_by_shared_state','intent':'project_clearup'}
 
         atomic_write_json(self.root / 'state' / 'series_32_4_live_closure.json', closure)
         return closure
@@ -509,7 +467,6 @@ class ProjectmanagerRuntime:
         status['conversation_intake'] = self.conversation_intake.summary()
         status['state_reconciliation'] = reconciliation_result
         status['series_324_live_closure'] = self._reconcile_324_live_closure(status)
-        self._sync_324_closure_task(status['series_324_live_closure'], status)
         self._refresh_coordination(status)
         self._finalize_coordination_audit(status, now=now)
         return status

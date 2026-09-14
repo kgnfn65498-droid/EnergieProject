@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any, Iterable
+from transition_state_io import read_transition_state
 
 
 class Mode(str, Enum):
@@ -338,6 +339,17 @@ def end_temporary_mode(state: ModeState, transition_id: str) -> ModeState:
     )
 
 
+def _active_release_transition(project_root: Path | str) -> dict[str, Any] | None:
+    path = Path(project_root) / "Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json"
+    value = read_transition_state(path, missing_ok=True)
+    if not isinstance(value, dict):
+        return None
+    lifecycle = str(value.get("lifecycle_state") or "").upper()
+    if lifecycle in {"COMPLETE", "ROLLED_BACK", "CANCELLED"}:
+        return None
+    return value
+
+
 def process_mode_command(project_root: Path | str, now: Any = None) -> ModeState:
     del now
     state = load_mode_state(project_root)
@@ -354,6 +366,19 @@ def process_mode_command(project_root: Path | str, now: Any = None) -> ModeState
 
     if command.request_id == state.last_processed_request_id:
         return state
+
+    # Public/ordinary mode commands must be consumed but cannot mutate mode
+    # while one durable release transition owns the release lifecycle. This
+    # prevents a stale GUI/API command from applying later after restart.
+    if _active_release_transition(project_root) is not None:
+        updated = _add_drift(state, "release_transition_active_normal_mutation_blocked")
+        updated = replace(
+            updated,
+            last_processed_request_id=command.request_id,
+            reconciliation_status="required",
+        )
+        save_mode_state(project_root, updated)
+        return updated
 
     updated = state
     if command.action == "set_base":

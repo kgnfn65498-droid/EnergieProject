@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from persistence import atomic_write_json, atomic_write_text, load_json
 from secret_guard import contains_secret_text, redact
+from transition_state_io import read_transition_state, TransitionStateReadError
 
 
 _SCHEMA = 'energie_projectmanager_handover_snapshot_v1'
@@ -60,6 +61,12 @@ class HandoverSnapshotService:
 
     def _load_optional_dict(self, relative: str) -> dict:
         path = self.runtime_root / relative
+        if relative == 'release_transition/current.json':
+            try:
+                value = read_transition_state(path, missing_ok=True)
+            except TransitionStateReadError as exc:
+                raise RuntimeError(str(exc)) from exc
+            return value if isinstance(value, dict) else {}
         try:
             value = load_json(path, default={})
         except Exception:
@@ -320,6 +327,7 @@ class HandoverSnapshotService:
         intake = self._load_optional_dict('intake/items.json')
         self_audit = self._load_optional_dict('self_audit/current.json')
         runtime_snapshot = self._load_optional_dict('snapshots/current_runtime.json')
+        release_transition = self._load_optional_dict('release_transition/current.json')
 
         progress = redact(status.get('progress', {}))
         blockers = progress.get('blockers') if isinstance(progress.get('blockers'), list) else []
@@ -377,7 +385,8 @@ class HandoverSnapshotService:
             'mode': str(status.get('mode')),
             'roadmap': roadmap_summary,
             'progress': progress,
-            'next_step': str(status.get('next_action') or progress.get('next_action') or status.get('active_task', {}).get('next_action') or ''),
+            'next_step': str(release_transition.get('next_action') or status.get('next_action') or progress.get('next_action') or status.get('active_task', {}).get('next_action') or ''),
+            'release_transition': redact(release_transition),
             'blockers': redact(list(blockers)),
             'active_tasks': active_tasks,
             'open_approvals': open_approvals[:20],

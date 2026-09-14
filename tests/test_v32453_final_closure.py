@@ -476,7 +476,8 @@ def test_nas_cr_executor_single_flight_across_duplicate_watchers(tmp_path):
         '    def create(self):\n'
         '        marker=self.root/"Inbox/nas_container_cr_local/service-starts.txt"\n'
         '        with marker.open("a", encoding="utf-8") as h: h.write("start\\n")\n'
-        '        time.sleep(1.0)\n'
+        '        release=self.root/"Inbox/nas_container_cr_local/release-first"\n'
+        '        while not release.exists(): time.sleep(.01)\n'
         '        return {"version":"32.4.53","production_containers_changed":False,\n'
         '                "backup_dir":"Backups/NAS Container","zip":"x.zip",\n'
         '                "sha256_file":"x.zip.sha256","verify_file":"x VERIFY.txt",\n'
@@ -503,6 +504,7 @@ def test_nas_cr_executor_single_flight_across_duplicate_watchers(tmp_path):
     assert 'ALREADY_RUNNING' in second.stdout
     assert marker.read_text(encoding='utf-8').splitlines() == ['start']
     assert (bridge / 'request.json').is_file(), 'second executor must not consume active request'
+    (bridge / 'release-first').write_text('go\n', encoding='utf-8')
 
     out1, err1 = first.communicate(timeout=4)
     assert first.returncode == 0, err1
@@ -607,7 +609,8 @@ def test_nas_cr_duplicate_executor_stays_single_flight_when_mailbox_lock_inode_i
         '    def create(self):\n'
         '        marker=self.root/"Inbox/nas_container_cr_local/service-starts.txt"\n'
         '        with marker.open("a", encoding="utf-8") as h: h.write("start\\n")\n'
-        '        time.sleep(1.0)\n'
+        '        release=self.root/"Inbox/nas_container_cr_local/release-first"\n'
+        '        while not release.exists(): time.sleep(.01)\n'
         '        return {"version":"32.4.53","production_containers_changed":False,'
         '"backup_dir":"Backups/NAS Container","zip":"x.zip",'
         '"sha256_file":"x.zip.sha256","verify_file":"x VERIFY.txt",'
@@ -636,6 +639,7 @@ def test_nas_cr_duplicate_executor_stays_single_flight_when_mailbox_lock_inode_i
     assert second.returncode == 0, second.stderr
     assert 'ALREADY_RUNNING' in second.stdout
     assert marker.read_text(encoding='utf-8').splitlines() == ['start']
+    (bridge / 'release-first').write_text('go\n', encoding='utf-8')
 
     out1, err1 = first.communicate(timeout=4)
     assert first.returncode == 0, err1

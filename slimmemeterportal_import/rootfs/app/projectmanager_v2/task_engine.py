@@ -53,8 +53,10 @@ class TaskStore:
             if task.get('intake_fingerprint') == fingerprint:
                 return dict(task)
         now = datetime.now(timezone.utc).isoformat()
+        task_id = uuid4().hex
         task = {
-            'id': uuid4().hex, 'title': str(title), 'goal': str(goal),
+            'id': task_id, 'title': str(title), 'goal': str(goal),
+            'scope': 'GLOBAL', 'release_owner': None, 'lifecycle_class': 'USER', 'created_generation': task_id,
             'mode': str(mode), 'status': 'PAUSED', 'step': 1, 'steps_total': 1,
             'priority': int(priority), 'next_action': '', 'blockers': [],
             'changes': ['captured from conversation intake'], 'evidence_refs': [],
@@ -96,10 +98,15 @@ class TaskStore:
     def start(self, title: str, goal: str, *, mode: str, steps_total: int, priority: int = 2, build_metadata=None):
         data = self._load()
         now = datetime.now(timezone.utc).isoformat()
+        task_id = uuid4().hex
         task = {
-            'id': uuid4().hex,
+            'id': task_id,
             'title': title,
             'goal': goal,
+            'scope': 'GLOBAL',
+            'release_owner': None,
+            'lifecycle_class': 'USER',
+            'created_generation': task_id,
             'mode': mode,
             'status': 'ACTIVE',
             'step': 1,
