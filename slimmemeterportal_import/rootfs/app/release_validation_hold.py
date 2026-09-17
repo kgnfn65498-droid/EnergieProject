@@ -40,8 +40,16 @@ def _payload(state: ReleaseHoldState) -> dict[str, Any]:
 def _save(project_root: Path | str, state: ReleaseHoldState) -> ReleaseHoldState:
     path = hold_state_path(project_root)
     path.parent.mkdir(parents=True, exist_ok=True)
+    payload = _payload(state)
+    if path.is_file() and not path.is_symlink():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            existing = None
+        if existing == payload:
+            return state
     tmp = path.with_name(path.name + f".tmp.{os.getpid()}")
-    tmp.write_text(json.dumps(_payload(state), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, path)
     return state
 

@@ -39,6 +39,32 @@ def _mode_evidence(runtime, release_validation):
 
 
 
+def _watcher_green(runtime):
+    chain = (runtime or {}).get('release_chain')
+    if not isinstance(chain, dict):
+        return False, []
+    watcher = chain.get('watcher')
+    contract = chain.get('watcher_container_contract')
+    if not isinstance(watcher, dict) or not isinstance(contract, dict):
+        return False, []
+    try:
+        age = float(watcher.get('heartbeat_age_seconds'))
+        stale_after = float(watcher.get('stale_after_seconds'))
+        contract_version = int(contract.get('contract_version') or 0)
+    except (TypeError, ValueError):
+        return False, []
+    refs = _clean_refs([watcher.get('heartbeat_path'), contract.get('source')])
+    ok = (
+        watcher.get('active') is True
+        and age <= stale_after
+        and contract.get('status') == 'GREEN'
+        and contract.get('ready') is True
+        and contract_version >= 2
+        and len(refs) == 2
+    )
+    return ok, refs
+
+
 def _native_mcp_green(runtime):
     guard = (runtime or {}).get('native_mcp_runtime')
     if not isinstance(guard, dict):
@@ -182,6 +208,15 @@ class StateReconciler:
                     return {
                         'disposition': 'SUPERSEDED',
                         'reason': 'native MCP exact runtime fingerprint is already GREEN; restart no longer required',
+                        'evidence_refs': refs,
+                        'changed': True,
+                    }
+            if decision.get('kind') == 'PRODUCTION_RESTART' and intent == 'watcher_recreate':
+                green, refs = _watcher_green(runtime)
+                if green and isinstance(command, dict) and command.get('status') == 'WAITING_APPROVAL' and command.get('approval_decision_id') == decision.get('id'):
+                    return {
+                        'disposition': 'SUPERSEDED',
+                        'reason': 'release watcher and container contract are already GREEN; recreate no longer required',
                         'evidence_refs': refs,
                         'changed': True,
                     }

@@ -24,6 +24,8 @@ BACKUPS="$ROOT/Backups"
 BACKUP_RETENTION="${ENERGIE_BACKUP_RETENTION:-3}"
 PROCESSED_RETENTION="${ENERGIE_PROCESSED_RETENTION:-3}"
 LOCK="$INBOX/.installer.lock"
+INSTALLER_LOCK_OWNER="$LOCK/owner.json"
+INSTALLER_LOCK_HEARTBEAT="$LOCK/heartbeat"
 PROCESSING_STALE_SECONDS="${ENERGIE_PROCESSING_STALE_SECONDS:-600}"
 REQUIRED="README.md INSTALL.md CHANGELOG.md MANIFEST.sha256 SHA256SUMS.json repository.yaml VERSIE.txt"
 ZIP_HELPER="$PROJECT/tools/release_zip.py"
@@ -60,6 +62,15 @@ ATOMIC_SWAP_ACTIVE=0
 INSTALLER_LOCK_ACQUIRED=0
 
 log(){ printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
+refresh_installer_lock_heartbeat(){
+  [ "$INSTALLER_LOCK_ACQUIRED" -eq 1 ] || return 0
+  date +%s > "$INSTALLER_LOCK_HEARTBEAT"
+}
+write_installer_lock_owner(){
+  NOW_EPOCH="$(date +%s)"
+  printf '{"schema":"energie_installer_lock_owner_v1","pid":%s,"started_at_epoch":%s}\n' "$$" "$NOW_EPOCH" > "$INSTALLER_LOCK_OWNER"
+  printf '%s\n' "$NOW_EPOCH" > "$INSTALLER_LOCK_HEARTBEAT"
+}
 WATCHER_PIDFILE="$INBOX/.watcher.pid"
 schedule_watcher_refresh(){
   log "Watcher-refresh gepland; actieve watcher schakelt autonoom over op de nieuw geïnstalleerde release"
@@ -80,6 +91,7 @@ cleanup(){
   [ -n "$ATOMIC_SWAP_RUNNER" ] && rm -f "$ATOMIC_SWAP_RUNNER" 2>/dev/null || true
   [ -n "$PREVIOUS_RELEASE_HOLD_BACKUP" ] && rm -f "$PREVIOUS_RELEASE_HOLD_BACKUP" 2>/dev/null || true
   if [ "$INSTALLER_LOCK_ACQUIRED" -eq 1 ]; then
+    rm -f "$INSTALLER_LOCK_OWNER" "$INSTALLER_LOCK_HEARTBEAT" 2>/dev/null || true
     rmdir "$LOCK" 2>/dev/null || true
     INSTALLER_LOCK_ACQUIRED=0
   fi
@@ -289,6 +301,14 @@ fail(){
   exit 1
 }
 
+normalize_projectmanager_runtime_permissions(){
+  PM_RUNTIME="$ROOT/Inbox/projectmanager_v2/RuntimeV2"
+  [ -d "$PM_RUNTIME" ] || return 0
+  [ ! -L "$PM_RUNTIME" ] || fail "RuntimeV2 is een symlink; fail-closed"
+  find "$PM_RUNTIME" -type d -exec chmod 0777 {} + || fail "RuntimeV2 directoryrechten normaliseren mislukt"
+  find "$PM_RUNTIME" -type f -name "*.json" -exec chmod 0666 {} + || fail "RuntimeV2 JSON-rechten normaliseren mislukt"
+}
+
 trap 'cleanup' EXIT INT TERM
 
 mkdir -p "$INCOMING" "$PROCESSING" "$PROCESSED" "$FAILED" "$LOGDIR" "$BACKUPS"
@@ -298,25 +318,16 @@ chgrp everyone "$BACKUPS" 2>/dev/null || true
 chmod 2775 "$BACKUPS" || fail "Backups-map groepsbeheer instellen mislukt"
 mkdir "$LOCK" 2>/dev/null || { log "FOUT: installer is al actief"; exit 1; }
 INSTALLER_LOCK_ACQUIRED=1
+write_installer_lock_owner || fail "installer lock ownership schrijven mislukt"
 log "FASE 1/8: inboxcontrole"
+refresh_installer_lock_heartbeat
 
-# Een processing-ZIP is niet automatisch verweesd. Een tweede watcher kan enkele
-# seconden later starten terwijl de eerste installer de ZIP al heeft geclaimd.
-# Alleen duidelijk oude processing-ZIP's worden in quarantaine gezet.
-now_epoch="$(date +%s)"
+# Processing recovery has one owner: release_ingress_recovery.py in the watcher.
+# The installer only claims a clean Incoming item; it must never invent a second
+# orphan policy or move an ambiguous Processing item on its own.
 set -- "$PROCESSING"/*.zip
 if [ -e "$1" ]; then
-  for orphan in "$PROCESSING"/*.zip; do
-    [ -e "$orphan" ] || continue
-    modified_epoch="$(date -r "$orphan" +%s 2>/dev/null || echo "$now_epoch")"
-    age_seconds=$((now_epoch - modified_epoch))
-    if [ "$age_seconds" -ge "$PROCESSING_STALE_SECONDS" ]; then
-      log "HERSTEL: oude processing-ZIP (${age_seconds}s) naar failed: $(basename "$orphan")"
-      mv "$orphan" "$FAILED/" || fail "oude processing-ZIP kon niet naar failed"
-    else
-      log "WACHT: processing-ZIP is actief/recent (${age_seconds}s): $(basename "$orphan")"
-    fi
-  done
+  fail "processing bevat bestaande release-ZIP; herstel uitsluitend via watcher release-ingress recovery"
 fi
 
 set -- "$INCOMING"/*.zip
@@ -327,6 +338,7 @@ ZIP_WORK="$PROCESSING/$(basename "$ZIP")"
 mv "$ZIP" "$ZIP_WORK"
 log "Release gevonden: $(basename "$ZIP_WORK")"
 
+refresh_installer_lock_heartbeat
 log "FASE 2/8: ZIP- en releasevalidatie"
 zip_test "$ZIP_WORK" || fail "ZIP-integriteit ongeldig"
 LIST="$(zip_list "$ZIP_WORK")"
@@ -343,6 +355,7 @@ TARGET_PM_VERSION="$(tr -d '\r\n ' < "$STAGE/slimmemeterportal_import/rootfs/app
 ARTIFACT_SHA256="$(sha256sum "$ZIP_WORK" 2>/dev/null | awk '{print $1}')"
 [ -n "$ARTIFACT_SHA256" ] || fail "release artifact SHA256 kon niet worden bepaald"
 
+refresh_installer_lock_heartbeat
 log "FASE 3/8: huidige installatie controleren"
 cd "$PROJECT"
 CURRENT_VERSION="$(tr -d '\r\n ' < VERSIE.txt 2>/dev/null || true)"
@@ -372,6 +385,7 @@ command -v python3 >/dev/null 2>&1 || fail "python3 ontbreekt voor atomic swap e
 ATOMIC_SWAP_RUNNER="$(mktemp /tmp/energie-atomic-swap.XXXXXX.py)" || fail "atomic swap runner tempfile mislukt"
 cp "$ATOMIC_SWAP" "$ATOMIC_SWAP_RUNNER" || fail "atomic swap helper naar /tmp kopieren mislukt"
 
+refresh_installer_lock_heartbeat
 log "FASE 4/8: volledige herstelbackup maken"
 STAMP="$(date '+%Y%m%d-%H%M%S')"
 BACKUP="$BACKUPS/EnergieProject_pre_${NEW_VERSION}_${STAMP}.tar.gz"
@@ -384,7 +398,9 @@ log "Backup gevalideerd: $BACKUP"
 write_release_validation_hold || fail "release validation hold activeren mislukt"
 TRANSITION_PREPARE="$STAGE/tools/release_transition_prepare.py"
 [ -f "$TRANSITION_PREPARE" ] || fail "release transition prepare helper ontbreekt"
+normalize_projectmanager_runtime_permissions
 PYTHONPATH="$STAGE/slimmemeterportal_import/rootfs/app/projectmanager_v2:$STAGE/slimmemeterportal_import/rootfs/app" python3 "$TRANSITION_PREPARE" --root "$ROOT" --from-release "$CURRENT_VERSION" --to-release "$NEW_VERSION" --previous-base-mode DEVELOPMENT >/dev/null || fail "TRANSITION_PREPARED schrijven mislukt"
+refresh_installer_lock_heartbeat
 log "FASE 5/8: atomic App prepare-and-swap"
 if python3 "$ATOMIC_SWAP_RUNNER" prepare-and-swap \
     --root "$ROOT" \
@@ -402,6 +418,7 @@ fi
 cd "$PROJECT"
 if [ "$GIT_AVAILABLE" -eq 1 ]; then git config core.filemode false; fi
 
+refresh_installer_lock_heartbeat
 log "FASE 6/8: post-installatiecontroles"
 for f in $REQUIRED; do [ -f "$PROJECT/$f" ] || fail "post-installatiebestand ontbreekt: $f"; done
 (cd "$PROJECT" && sha256sum -c MANIFEST.sha256 >/dev/null) || fail "post-installatie SHA256-validatie mislukt"
@@ -419,6 +436,7 @@ else
   log "TESTSTATUS: vervangende controles ZIP/SHA256/verplichte bestanden/shellsyntax = OK"
 fi
 
+refresh_installer_lock_heartbeat
 log "FASE 7/8: publicatie-afhandeling"
 if [ "$GIT_AVAILABLE" -eq 1 ]; then
   git add -A
@@ -440,6 +458,7 @@ else
   log "Git-publicatie wordt na canonieke processed-archivering via het gevalideerde HA-publicatiecontract afgehandeld"
 fi
 
+refresh_installer_lock_heartbeat
 log "FASE 8/8: eindcontrole en archivering"
 [ "$(tr -d '\r\n ' < "$PROJECT/VERSIE.txt")" = "$NEW_VERSION" ] || fail "eindcontrole mislukt: geïnstalleerde versie wijkt af"
 if [ "$GIT_AVAILABLE" -eq 1 ]; then

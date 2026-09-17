@@ -28,6 +28,31 @@ class ModeBridge:
         self._atomic_write(payload)
         return payload
 
+    def request_transition_owned_temporary_maintenance(
+        self, *, generation_id: str, ticket_request_id: str, idempotency_key: str,
+        command_id: str, project_cr_request_id: str, release_owner: str,
+        approval_reference: str, confirmed_by_user: bool,
+    ) -> dict:
+        """Request the one fenced mode change consumed by the release coordinator."""
+        fence = {
+            'generation_id': generation_id, 'phase': 'PROJECT_CR',
+            'phase_status': 'WAITING_RESULT', 'lifecycle_state': 'ACTIVE',
+            'ticket_request_id': ticket_request_id, 'idempotency_key': idempotency_key,
+            'executor_name': 'project_cr_create', 'release_owner': release_owner,
+            'command_id': command_id, 'project_cr_request_id': project_cr_request_id,
+            'approval_reference': approval_reference,
+        }
+        if not confirmed_by_user or any(not str(value).strip() for value in fence.values()):
+            raise ValueError('complete explicit transition-owned maintenance approval is required')
+        payload = {
+            'schema_version': 1, 'request_id': f'transition-owned-{uuid4().hex[:12]}',
+            'action': 'transition_owned_temporary_maintenance',
+            'requested_mode': 'MAINTENANCE', 'issued_by': 'release_transition_recovery',
+            'confirmed_by_user': True, 'transition_fence': fence,
+        }
+        self._atomic_write(payload)
+        return payload
+
     def reconcile(self, *, reason: str='projectmanager reconciliation', issued_by: str='projectmanager') -> dict:
         payload={
             'schema_version':1,

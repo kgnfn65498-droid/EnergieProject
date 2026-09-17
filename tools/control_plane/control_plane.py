@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import http.client
 import json
 import os
 import socket
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
@@ -16,6 +18,21 @@ MCP_CONTAINER = 'energie-filesystem-mcp'
 WATCHER_IMAGE = 'python:3.12-slim'
 WATCHER_COMMAND = ['sh', '/energy/App/tools/release_watcher.sh']
 WATCHER_CAPS = ['DAC_OVERRIDE', 'DAC_READ_SEARCH', 'FOWNER']
+RUNTIME_FINGERPRINT_FILES = ('control_plane.py', 'qnap_control_plane_bootstrap.py')
+
+def _loaded_runtime_fingerprint() -> str:
+    root = Path(__file__).resolve().parent
+    digest = hashlib.sha256()
+    for name in RUNTIME_FINGERPRINT_FILES:
+        path = root / name
+        if not path.is_file() or path.is_symlink():
+            raise RuntimeError(f'control-plane runtime fingerprint source missing/unsafe: {name}')
+        digest.update(name.encode('utf-8') + b'\0')
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+# Captured at module import: mounted source may change while loaded code stays old.
+LOADED_RUNTIME_FINGERPRINT = _loaded_runtime_fingerprint()
 
 
 class _UnixHTTPConnection(http.client.HTTPConnection):
@@ -363,7 +380,19 @@ class ControlPlane:
         _atomic_json(self.inbox / 'native_mcp_runtime' / 'reload_result.json', result)
         return result
 
+    def _write_runtime_marker(self) -> None:
+        now = time.time()
+        _atomic_json(self.inbox / 'control_plane' / 'runtime.json', {
+            'schema': 'energie_control_plane_runtime_v1',
+            'loaded_fingerprint': LOADED_RUNTIME_FINGERPRINT,
+            'loaded_files': list(RUNTIME_FINGERPRINT_FILES),
+            'pid': os.getpid(),
+            'heartbeat_at_epoch': now,
+            'heartbeat_at': datetime.now(timezone.utc).isoformat(),
+        })
+
     def process_once(self):
+        self._write_runtime_marker()
         results = []
         watcher_request = self.inbox / 'watcher_recreate_request.json'
         if watcher_request.is_file() and not watcher_request.is_symlink():

@@ -27,6 +27,13 @@ def _json(path: Path):
 def _atomic(path: Path, data: dict):
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
+        parent_st = path.parent.lstat()
+    except OSError as exc:
+        raise TransitionBlocked(f'transition state parent unavailable: {path.parent}') from exc
+    if stat.S_ISLNK(parent_st.st_mode) or not stat.S_ISDIR(parent_st.st_mode):
+        raise TransitionBlocked(f'transition state parent is unsafe: {path.parent}')
+    os.chmod(path.parent, 0o777)
+    try:
         st=path.lstat()
     except FileNotFoundError:
         st=None
@@ -34,8 +41,10 @@ def _atomic(path: Path, data: dict):
         raise TransitionBlocked(f'transition state path is symlink: {path}')
     tmp=path.with_name(f'.{path.name}.tmp-{os.getpid()}-{secrets.token_hex(4)}')
     with tmp.open('x',encoding='utf-8') as h:
+        os.fchmod(h.fileno(), 0o666)
         json.dump(data,h,ensure_ascii=False,indent=2,sort_keys=True); h.write('\n'); h.flush(); os.fsync(h.fileno())
     os.replace(tmp,path)
+    os.chmod(path, 0o666)
 
 
 class ReleaseTransitionCoordinator:
@@ -45,6 +54,10 @@ class ReleaseTransitionCoordinator:
         self.path=self.runtime/'current.json'
         self.history=self.runtime/'history'
         self.lock_path=self.root/'Inbox/.release-transition.operation.lock'
+        self.runtime.mkdir(parents=True, exist_ok=True)
+        if self.runtime.is_symlink() or not self.runtime.is_dir():
+            raise TransitionBlocked('transition runtime directory is unsafe')
+        os.chmod(self.runtime, 0o777)
         self.lock_path.parent.mkdir(parents=True,exist_ok=True)
         self._ensure_lock_file()
 
@@ -194,6 +207,30 @@ class ReleaseTransitionCoordinator:
         state.setdefault('evidence_refs',[]).extend(result.get('evidence_refs') or [])
         return self._save(state,expected_revision=int(cur.get('revision',0)))
 
+    def recover_ticketless_nas_cr_not_performed(self, *, expected_generation: str, expected_revision: int, previous_request_id: str, readback: dict[str, Any]):
+        """Reactivate exactly one evidenced ticketless NAS_CR failure; never issue work."""
+        with self._lease():
+            cur = self.load() or {}
+            if cur.get('generation_id') != expected_generation:
+                raise InvalidTransitionResult('generation mismatch')
+            if int(cur.get('revision', 0)) != int(expected_revision):
+                raise StaleRevision('stale revision')
+            if (cur.get('lifecycle_state'), cur.get('phase'), cur.get('phase_status'), cur.get('blocker')) != ('BLOCKED', 'NAS_CR', 'RED', 'executor_side_effect_unknown'):
+                raise InvalidTransitionResult('not ticketless blocked NAS_CR state')
+            if 'current_ticket' not in cur or cur.get('current_ticket') is not None:
+                raise InvalidTransitionResult('ticketless recovery requires no current ticket')
+            if str(cur.get('to_release') or '') != '32.4.54':
+                raise InvalidTransitionResult('release owner mismatch')
+            attempt = (cur.get('attempts') or {}).get(previous_request_id)
+            if not isinstance(attempt, dict) or attempt.get('executor_name') != 'nas_container_cr_create' or attempt.get('reissue_allowed') is not True:
+                raise InvalidTransitionResult('attempt is not reissuable NAS_CR')
+            state_name = str(readback.get('state') or '').upper(); refs = readback.get('evidence_refs')
+            if state_name not in {'NOT_PERFORMED', 'ABSENT'} or not isinstance(refs, list) or not refs or not all(isinstance(x, str) and x for x in refs):
+                raise InvalidTransitionResult('NOT_PERFORMED evidence required')
+            state = dict(cur); state.update(lifecycle_state='ACTIVE', phase_status='PENDING', current_ticket=None, blocker='', next_action='bounded NAS_CR retry after NOT_PERFORMED evidence')
+            state.setdefault('evidence_refs', []).extend(refs)
+            return self._save_unlocked(state, expected_revision=expected_revision)
+
     def recover_waiting_result(self, request_id:str, *, readback:dict[str,Any]):
         cur=self.load() or {}; ticket=cur.get('current_ticket') or {}
         if ticket.get('request_id')!=request_id: raise InvalidTransitionResult('request mismatch')
@@ -201,7 +238,14 @@ class ReleaseTransitionCoordinator:
         if state_name in {'PROVEN','DONE'}:
             return self.accept_executor_result({**ticket,'status':'GREEN','side_effect_state':'PROVEN','evidence_refs':readback.get('evidence_refs') or []})
         if state_name in {'NOT_PERFORMED','ABSENT'}:
-            state=dict(cur); state['phase_status']='PENDING'; state['current_ticket']=None; state.setdefault('attempts',{}).setdefault(request_id,{})['reissue_allowed']=True
+            state=dict(cur)
+            state['lifecycle_state']='ACTIVE'
+            state['phase_status']='PENDING'
+            state['current_ticket']=None
+            state['blocker']=''
+            state['next_action']='retry executor after proven absence'
+            state.setdefault('attempts',{}).setdefault(request_id,{})['reissue_allowed']=True
+            state.setdefault('evidence_refs',[]).extend(readback.get('evidence_refs') or [])
             return self._save(state,expected_revision=int(cur.get('revision',0)))
         state=dict(cur); state['lifecycle_state']='BLOCKED'; state['phase_status']='RED'; state['blocker']='executor_side_effect_unknown'; state['next_action']='manual evidence required'
         state.setdefault('attempts',{}).setdefault(request_id,{})['reissue_allowed']=False

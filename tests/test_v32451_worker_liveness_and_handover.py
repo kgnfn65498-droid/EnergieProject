@@ -11,6 +11,14 @@ for path in (str(APP), str(PM)):
         sys.path.insert(0, path)
 
 
+
+def _watcher_capability(bridge, version):
+    bridge.joinpath('capability.json').write_text(json.dumps({
+        'schema':'energie_nas_container_cr_local_capability_v1','ready':True,'status':'GREEN','version':version,
+        'transport':'local_docker_unix_socket','bridge_mode':'0777','request_result_mode':'0644',
+        'mailbox_contract_owner':'watcher','operation_lock_exclusive':True,
+    }), encoding='utf-8')
+
 def _project_root(tmp_path, version='32.4.51'):
     (tmp_path / 'App').mkdir(parents=True)
     (tmp_path / 'App' / 'VERSIE.txt').write_text(version + '\n', encoding='utf-8')
@@ -38,6 +46,7 @@ def test_nas_cr_bridge_is_nonblocking_and_reports_pending(tmp_path):
     bridge = root / 'Inbox/nas_container_cr_local'
     bridge.mkdir(parents=True)
     bridge.chmod(0o777)
+    _watcher_capability(bridge, '32.4.51')
     service = ConfiguredNasContainerCrService(root, timeout_seconds=0.01, poll_seconds=0.001)
     result = service.create(command_id='b' * 32, expected_release='32.4.51', wait_for_result=False)
 
@@ -108,10 +117,10 @@ def test_handover_carries_cross_chat_build_and_audit_contract():
 
 
 def test_32451_release_identity():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.54'
-    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc41'
-    assert 'TARGET_RELEASE_VERSION = "32.4.54"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.4.54"' in (APP / 'main.py').read_text(encoding='utf-8')
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.55'
+    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc42'
+    assert 'TARGET_RELEASE_VERSION = "32.4.55"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
+    assert 'APP_VERSION = "32.4.55"' in (APP / 'main.py').read_text(encoding='utf-8')
 
 
 def test_release_health_fails_closed_when_pm_driver_liveness_is_stale():

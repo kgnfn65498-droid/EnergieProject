@@ -1,15 +1,16 @@
 # Changelog
 
-## 32.4.54 — generation-fenced release transition
+## 32.4.55 — autonomous release ingress recovery
 
-- Eén duurzame release-transition is nu de enige planner voor technische release-closure; oude 32.4-projecties zijn read-only.
-- Release ownership is expliciet en legacy release-taken worden hash-gebonden gereconcilieerd zonder GLOBAL taken op tekst te raken.
-- Hold, mode, command queue en protected executors zijn generation/phase/revision/ticket-afgeschermd; stale approvals en normale mutaties falen gesloten.
-- 32.4.53→32.4.54 gebruikt een fail-closed legacy hold+atomic bootstrap; volgende releases schrijven TRANSITION_PREPARED vóór de swap.
-- Crash/restart recovery herhaalt onbekende side effects niet blind; onzekere executorstatus blokkeert.
-- Handover projecteert de transition als centrale releasewaarheid en startup registreert echte monotone fase-timings.
-- Codex adversarial review hardening: alleen directe fase-opvolgers zijn toegestaan; executorresultaten vereisen exact phase/release_owner/revision-ticket.
-- Voltooide generations rollen lease-beschermd naar historie zodat 32.4.55 en later een nieuwe current generation kunnen starten.
-- Transition-lock bootstrap is lstat/O_NOFOLLOW fail-closed; dangling symlinks mogen geen doelbestand creëren.
-- Mode restore is een ticketed executor met readback en herstelt previous_base_mode; GUI hold-validatie muteert niet tijdens een actieve transition.
-- Target identity: EnergieProject 32.4.54 / Projectmanager 2.0.0-rc41.
+- Incoming herstelt identieke dubbele release-ZIPs deterministisch en blokkeert verschillende kandidaten fail-closed.
+- Orphan Processing wordt alleen na bewezen stale/absent installer-eigendom veilig teruggezet naar Incoming.
+- Installer-lock gebruikt owner + heartbeat; stale recovery verwijdert uitsluitend de strikt bekende lock-inhoud.
+- Stabiele corrupte ZIPs worden bounded naar `Inbox/failed/corrupt` gequarantaineerd in plaats van Incoming permanent te blokkeren.
+- Generation-fenced release-transition recovery en coherente FINAL Projectmanager-provenance blijven behouden.
+- RuntimeV2 cross-runtime state normaliseert directories naar 0777 en JSON-state naar 0666; symlinktargets falen gesloten.
+- Document-sync behoudt bestaande bestandsmodus zodat KB/status-documenten niet terugvallen naar 0600.
+- Incoming recovery gebruikt lstat-first voor installer-lock, owner en heartbeat; dangling symlinks blijven BLOCKED zonder requeue.
+- NAS Container CR Docker image-export gebruikt een 600s read-timeout voor de bewezen 500MB+ export.
+- CLEARUP herkent watcher-wrapped stale-plan fouten en voert maximaal drie verse dependency-audits uit binnen een 60-minuten fail-closed budget.
+- Release-transition workerfouten worden persistent vastgelegd en legacy ownership-migratie is idempotent.
+- Target identity: EnergieProject 32.4.55 / Projectmanager 2.0.0-rc42.

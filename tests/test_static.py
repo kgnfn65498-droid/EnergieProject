@@ -2659,12 +2659,14 @@ def test_v10511_watcher_uses_atomic_singleton_lock():
     assert source.index('mkdir "$WATCHER_LOCK"') < source.index("printf '%s\\n' \"$$\" > \"$PIDFILE\"")
 
 
-def test_v10511_recent_processing_zip_is_not_quarantined():
-    source = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    assert 'PROCESSING_STALE_SECONDS="${ENERGIE_PROCESSING_STALE_SECONDS:-600}"' in source
-    assert 'if [ "$age_seconds" -ge "$PROCESSING_STALE_SECONDS" ]; then' in source
-    assert 'WACHT: processing-ZIP is actief/recent' in source
-    assert 'HERSTEL: oude processing-ZIP' in source
+def test_v10511_processing_recovery_has_single_watcher_owner():
+    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    recovery = (ROOT / "tools/release_ingress_recovery.py").read_text(encoding="utf-8")
+    assert 'Processing recovery has one owner: release_ingress_recovery.py in the watcher.' in installer
+    assert 'processing bevat bestaande release-ZIP; herstel uitsluitend via watcher release-ingress recovery' in installer
+    assert 'HERSTEL: oude processing-ZIP' not in installer
+    assert 'REQUEUED_ORPHAN_PROCESSING' in recovery
+    assert 'RECOVERED_STALE_LOCK_AND_PROCESSING' in recovery
 
 
 def test_v10511_keeps_epex_10510_fix():
@@ -2715,7 +2717,11 @@ def test_v10515_watcher_gates_installer_on_zip_integrity():
     assert 'ZIP_MTIME="$(date -r "$ZIP_PATH" +%s' in source
     assert '"$ZIP_MTIME" = "$LAST_MTIME"' in source
     assert 'unzip -tqq "$ZIP_PATH"' in source
-    assert 'ZIP nog niet compleet/integer; blijft in incoming' in source
+    assert 'ZIP stabiel maar ongeldig; controleer stale-grens vóór quarantaine' in source
+    assert 'quarantine-corrupt --root "$ROOT"' in source
+    helper = (ROOT / "tools/release_ingress_recovery.py").read_text(encoding="utf-8")
+    assert "corrupt_candidate_not_stale" in helper
+    assert "Inbox/failed/corrupt" in helper
     assert source.index('unzip -tqq "$ZIP_PATH"') < source.index('if run_installer; then')
 
 def test_v10516_epex_status_semantics():

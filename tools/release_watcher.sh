@@ -27,6 +27,9 @@ STATUSFILE="$INBOX/latest_release_status.txt"
 HEARTBEAT="$INBOX/.watcher.heartbeat"
 HEARTBEAT_V2="$INBOX/watcher_heartbeat.v2"
 ZIP_HELPER_SOURCE="$PROJECT/tools/release_zip.py"
+INGRESS_RECOVERY_HELPER="$PROJECT/tools/release_ingress_recovery.py"
+RELEASE_PREFLIGHT="$PROJECT/tools/release_preflight.py"
+INGRESS_RECOVERY_STALE_SECONDS="${ENERGIE_INGRESS_RECOVERY_STALE_SECONDS:-600}"
 CRASH_CLEANUP_REQUEST="$INBOX/crash_recovery_cleanup_request.json"
 CRASH_CLEANUP_RESULT="$INBOX/crash_recovery_cleanup_result.json"
 CRASH_CLEANUP_HELPER="$PROJECT/tools/crash_recovery_cleanup.py"
@@ -98,6 +101,11 @@ log(){ printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOGDIR/re
 write_status(){
   STATUS=$1
   DETAIL=${2:-}
+  DESIRED_STATUS="$STATUS | $DETAIL"
+  if [ -f "$STATUSFILE" ] && [ ! -L "$STATUSFILE" ]; then
+    CURRENT_STATUS="$(sed 's/^[^|]*|[[:space:]]*//' "$STATUSFILE" 2>/dev/null || true)"
+    [ "$CURRENT_STATUS" = "$DESIRED_STATUS" ] && return 0
+  fi
   TMP_STATUS="$STATUSFILE.tmp.$$"
   printf '%s | %s | %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$STATUS" "$DETAIL" > "$TMP_STATUS"
   mv "$TMP_STATUS" "$STATUSFILE"
@@ -105,6 +113,13 @@ write_status(){
 run_bounded(){
   timeout_seconds=$1
   shift
+  if command -v timeout >/dev/null 2>&1; then
+    kill_after="${BOUNDED_TERM_GRACE_SECONDS:-1}"
+    case "$kill_after" in ''|*[!0-9]*) kill_after=1 ;; esac
+    [ "$kill_after" -ge 1 ] 2>/dev/null || kill_after=1
+    timeout -k "$kill_after" "$timeout_seconds" "$@"
+    return $?
+  fi
   "$@" &
   command_pid=$!
   (
@@ -153,6 +168,38 @@ zip_integrity_ok(){
   else
     unzip -tqq "$ZIP_PATH" >/dev/null 2>&1
   fi
+}
+
+reconcile_release_ingress(){
+  [ -f "$INGRESS_RECOVERY_HELPER" ] || { log "FOUT: release-ingress recovery helper ontbreekt"; return 1; }
+  command -v python3 >/dev/null 2>&1 || { log "FOUT: release-ingress recovery vereist python3"; return 1; }
+  rc=0
+  python3 "$INGRESS_RECOVERY_HELPER" reconcile --root "$ROOT" --stale-seconds "$INGRESS_RECOVERY_STALE_SECONDS" >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  [ "$rc" -eq 2 ] && { log "WACHT: release-ingress recovery blokkeert fail-closed"; return 2; }
+  log "FOUT: release-ingress recovery helper faalde rc=$rc"
+  return 1
+}
+
+quarantine_corrupt_release(){
+  ZIP_NAME=$1
+  rc=0
+  python3 "$INGRESS_RECOVERY_HELPER" quarantine-corrupt --root "$ROOT" --name "$ZIP_NAME" --stale-seconds "$INGRESS_RECOVERY_STALE_SECONDS" >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  [ "$rc" -eq 3 ] && return 3
+  return "$rc"
+}
+
+release_preflight_allows(){
+  CANDIDATE=$1
+  [ -f "$RELEASE_PREFLIGHT" ] || { log "FOUT: release preflight helper ontbreekt"; return 4; }
+  command -v python3 >/dev/null 2>&1 || { log "FOUT: release preflight vereist python3"; return 4; }
+  rc=0
+  run_bounded "$MAINTENANCE_HELPER_TIMEOUT" python3 "$RELEASE_PREFLIGHT" --root "$ROOT" --candidate "$CANDIDATE" >> "$LOGDIR/release_watcher.log" 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  [ "$rc" -eq 3 ] && return 3
+  log "FOUT: release preflight helper faalde rc=$rc"
+  return "$rc"
 }
 
 cleanup_processed_releases_on_start(){
@@ -535,6 +582,28 @@ case "${1:-run}" in
     echo "GESTOPT"; exit 0;;
   once)
     atomic_swap_allows_release_ingress || { log "WACHT: atomic swap blokkeert release-ingress"; exit 1; }
+    RECOVERY_RC=0
+    reconcile_release_ingress || RECOVERY_RC=$?
+    if [ "$RECOVERY_RC" -eq 2 ]; then
+      log "WACHT: release-ingress recovery blokkeert fail-closed"
+      exit 2
+    elif [ "$RECOVERY_RC" -ne 0 ]; then
+      log "FOUT: release-ingress recovery helper faalde rc=$RECOVERY_RC"
+      exit 1
+    fi
+    set -- "$INCOMING"/*.zip
+    if [ -e "$1" ]; then
+      [ "$#" -eq 1 ] || { log "WACHT: watcher once vereist exact één release na recovery"; exit 2; }
+      PREFLIGHT_RC=0
+      release_preflight_allows "$1" || PREFLIGHT_RC=$?
+      if [ "$PREFLIGHT_RC" -eq 3 ]; then
+        log "WACHT: release preflight blokkeert watcher once fail-closed"
+        exit 3
+      elif [ "$PREFLIGHT_RC" -ne 0 ]; then
+        log "FOUT: release preflight faalde in watcher once rc=$PREFLIGHT_RC"
+        exit "$PREFLIGHT_RC"
+      fi
+    fi
     run_installer; exit $?;;
   run) ;;
   *) echo "Gebruik: $0 [run|once|status|stop]" >&2; exit 2;;
@@ -658,6 +727,17 @@ while :; do
   fi
 
   if mode_allows release_ingress && atomic_swap_allows_release_ingress; then
+    RECOVERY_RC=0
+    reconcile_release_ingress || RECOVERY_RC=$?
+    if [ "$RECOVERY_RC" -eq 2 ]; then
+      write_status "BLOCKED" "release-ingress recovery conflict"
+      sleep "$INTERVAL"
+      continue
+    elif [ "$RECOVERY_RC" -ne 0 ]; then
+      write_status "MAINTENANCE_FAILED" "release-ingress recovery error"
+      sleep "$INTERVAL"
+      continue
+    fi
     set -- "$INCOMING"/*.zip
     if [ -e "$1" ]; then
       COUNT=$#
@@ -681,6 +761,18 @@ while :; do
         if [ "$STABLE_COUNT" -ge "$STABLE_POLLS" ]; then
           if zip_integrity_ok "$ZIP_PATH"; then
             log "ZIP stabiel en integraal na ${STABLE_COUNT} controles: $ZIP_NAME"
+            PREFLIGHT_RC=0
+            release_preflight_allows "$ZIP_PATH" || PREFLIGHT_RC=$?
+            if [ "$PREFLIGHT_RC" -eq 3 ]; then
+              log "WACHT: release preflight blokkeert fail-closed: $ZIP_NAME"
+              write_status "BLOCKED" "release preflight: $ZIP_NAME"
+              sleep "$INTERVAL"
+              continue
+            elif [ "$PREFLIGHT_RC" -ne 0 ]; then
+              write_status "MAINTENANCE_FAILED" "release preflight error: $ZIP_NAME"
+              sleep "$INTERVAL"
+              continue
+            fi
             write_status "PROCESSING" "$ZIP_NAME"
             if run_installer; then
               log "Automatische verwerking afgerond"
@@ -695,9 +787,24 @@ while :; do
             LAST_MTIME=""
             STABLE_COUNT=0
           else
-            log "ZIP nog niet compleet/integer; blijft in incoming: $ZIP_NAME"
-            write_status "COPYING" "$ZIP_NAME"
-            STABLE_COUNT=0
+            log "ZIP stabiel maar ongeldig; controleer stale-grens vóór quarantaine: $ZIP_NAME"
+            QUARANTINE_RC=0
+            quarantine_corrupt_release "$ZIP_NAME" || QUARANTINE_RC=$?
+            if [ "$QUARANTINE_RC" -eq 0 ]; then
+              write_status "FAILED" "$ZIP_NAME corrupt"
+              LAST_ZIP=""
+              LAST_SIZE=""
+              LAST_MTIME=""
+              STABLE_COUNT=0
+            elif [ "$QUARANTINE_RC" -eq 3 ]; then
+              log "WACHT: ZIP is nog jong; mogelijke onderbroken kopie blijft in Incoming: $ZIP_NAME"
+              write_status "COPYING" "$ZIP_NAME stalled/incomplete"
+              STABLE_COUNT=0
+            else
+              log "FOUT: corrupte ZIP kon niet veilig worden gequarantaineerd: $ZIP_NAME"
+              write_status "MAINTENANCE_FAILED" "$ZIP_NAME corrupt quarantine failed"
+              STABLE_COUNT=0
+            fi
           fi
         fi
       else

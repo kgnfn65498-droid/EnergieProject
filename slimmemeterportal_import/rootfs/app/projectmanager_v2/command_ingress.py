@@ -40,6 +40,7 @@ class CommandIngressConsumer:
     def consume(self, *, max_items=20):
         if self.directory is None or not self.directory.is_dir():
             return []
+        receipt_ledger_exists = self.receipt_path.is_file() and not self.receipt_path.is_symlink()
         receipts = self._receipts()
         results = []
         changed = False
@@ -54,7 +55,7 @@ class CommandIngressConsumer:
             receipts.setdefault('items', {})[ingress_id] = result
             changed = True
             results.append(result)
-        if changed:
+        if changed or not receipt_ledger_exists:
             self._save_receipts(receipts)
         return results
 

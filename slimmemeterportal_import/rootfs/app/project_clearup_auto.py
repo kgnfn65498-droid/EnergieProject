@@ -522,15 +522,46 @@ def run_approved_clearup_once(
     )
     if current_prerequisite_fingerprint:
         plan["prerequisite_fingerprint"] = current_prerequisite_fingerprint
-    if int(plan.get("clearup_count") or 0) == 0:
-        return {
+
+    stale_plan_ids: list[str] = []
+    max_stale_reaudits = 3
+    stale_error = "CLEARUP-plan is gewijzigd; nieuwe dependency-audit vereist."
+
+    def _stale_plan_error(exc: RuntimeError) -> bool:
+        message = str(exc)
+        return message == stale_error or message.endswith(f"RuntimeError: {stale_error}")
+
+    def _no_action_payload(current_plan: dict[str, Any]) -> dict[str, Any]:
+        payload = {
             "status": "no_action",
-            "review_count": int(plan.get("review_count") or 0),
-            "plan_id": plan.get("plan_id"),
+            "review_count": int(current_plan.get("review_count") or 0),
+            "plan_id": current_plan.get("plan_id"),
             "delete_performed": False,
             "gate": gate,
         }
-    stale_plan_id = plan.get("plan_id")
+        if stale_plan_ids:
+            payload.update({
+                "stale_plan_id": stale_plan_ids[0],
+                "stale_plan_ids": list(stale_plan_ids),
+                "replanned_after_stale": True,
+            })
+        return payload
+
+    def _completed_payload(result: dict[str, Any], plan_id: str | None) -> dict[str, Any]:
+        payload = {**result, "gate": gate, "plan_id": plan_id}
+        if stale_plan_ids:
+            payload.update({
+                "stale_plan_id": stale_plan_ids[0],
+                "stale_plan_ids": list(stale_plan_ids),
+                "replanned_after_stale": True,
+            })
+        return payload
+
+    # Route 1: apply the initial audited plan.  Keep this as a distinct watcher
+    # call so the pre-acceptance contract stays explicit for both routes.
+    plan_id = plan.get("plan_id")
+    if int(plan.get("clearup_count") or 0) == 0:
+        return _no_action_payload(plan)
     try:
         result = _apply_clearup_via_watcher(
             root,
@@ -541,53 +572,59 @@ def run_approved_clearup_once(
             started_monotonic=started_monotonic,
             pre_acceptance=bool(gate.get("pre_acceptance")),
         )
-        return {**result, "gate": gate, "plan_id": stale_plan_id}
+        return _completed_payload(result, plan_id)
     except RuntimeError as exc:
-        if str(exc) != "CLEARUP-plan is gewijzigd; nieuwe dependency-audit vereist.":
+        if not _stale_plan_error(exc):
             raise
+        stale_plan_ids.append(str(plan_id or ""))
 
-    _emit_progress(
-        progress_callback,
-        phase="fresh_dependency_audit",
-        started_monotonic=started_monotonic,
-        stale_plan_id=stale_plan_id,
-    )
-    if time.monotonic() >= deadline_monotonic:
-        raise ClearupExecutionTimeout("fresh_dependency_audit")
-    fresh_plan = build_clearup_plan(
-        root, current_version=str(app_version), keep_rollbacks=3,
-        deadline_monotonic=deadline_monotonic, progress_callback=progress_callback,
-        started_monotonic=started_monotonic,
-    )
-    if current_prerequisite_fingerprint:
-        fresh_plan["prerequisite_fingerprint"] = current_prerequisite_fingerprint
-    fresh_plan_id = fresh_plan.get("plan_id")
-    if not fresh_plan_id or fresh_plan_id == stale_plan_id:
-        raise RuntimeError("CLEARUP verse dependency-audit leverde geen nieuw plan-id op")
-    if int(fresh_plan.get("clearup_count") or 0) == 0:
-        return {
-            "status": "no_action",
-            "review_count": int(fresh_plan.get("review_count") or 0),
-            "plan_id": fresh_plan_id,
-            "stale_plan_id": stale_plan_id,
-            "replanned_after_stale": True,
-            "delete_performed": False,
-            "gate": gate,
-        }
-    result = _apply_clearup_via_watcher(
-        root,
-        fresh_plan,
-        run_id=run_id,
-        deadline_monotonic=deadline_monotonic,
-        progress_callback=progress_callback,
-        started_monotonic=started_monotonic,
-        pre_acceptance=bool(gate.get("pre_acceptance")),
-    )
-    return {
-        **result,
-        "gate": gate,
-        "plan_id": fresh_plan_id,
-        "stale_plan_id": stale_plan_id,
-        "replanned_after_stale": True,
-    }
+    # Route 2: a stale plan gets a fresh dependency audit.  Live watcher state
+    # can legitimately churn more than once, so this route is bounded to three
+    # fresh audits while preserving the same fail-closed checks every time.
+    for stale_attempt in range(1, max_stale_reaudits + 1):
+        _emit_progress(
+            progress_callback,
+            phase="fresh_dependency_audit",
+            started_monotonic=started_monotonic,
+            stale_plan_id=plan_id,
+            stale_attempt=stale_attempt,
+        )
+        if time.monotonic() >= deadline_monotonic:
+            raise ClearupExecutionTimeout("fresh_dependency_audit")
+
+        previous_plan_id = plan_id
+        plan = build_clearup_plan(
+            root, current_version=str(app_version), keep_rollbacks=3,
+            deadline_monotonic=deadline_monotonic, progress_callback=progress_callback,
+            started_monotonic=started_monotonic,
+        )
+        if current_prerequisite_fingerprint:
+            plan["prerequisite_fingerprint"] = current_prerequisite_fingerprint
+        plan_id = plan.get("plan_id")
+        if not plan_id or plan_id == previous_plan_id:
+            raise RuntimeError("CLEARUP verse dependency-audit leverde geen nieuw plan-id op")
+        if int(plan.get("clearup_count") or 0) == 0:
+            return _no_action_payload(plan)
+
+        try:
+            result = _apply_clearup_via_watcher(
+                root,
+                plan,
+                run_id=run_id,
+                deadline_monotonic=deadline_monotonic,
+                progress_callback=progress_callback,
+                started_monotonic=started_monotonic,
+                pre_acceptance=bool(gate.get("pre_acceptance")),
+            )
+            return _completed_payload(result, plan_id)
+        except RuntimeError as exc:
+            if not _stale_plan_error(exc):
+                raise
+            stale_plan_ids.append(str(plan_id or ""))
+            if stale_attempt >= max_stale_reaudits:
+                raise RuntimeError(
+                    f"CLEARUP-plan bleef wijzigen na {max_stale_reaudits} verse dependency-audits"
+                ) from exc
+
+    raise RuntimeError("CLEARUP re-audit loop eindigde onverwacht")
 

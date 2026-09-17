@@ -1,3 +1,19 @@
+## 32.4.55 — autonomous release ingress recovery
+
+- Incoming recovery classificeert identieke dubbele ZIPs deterministisch en blokkeert verschillende kandidaten fail-closed.
+- Orphan Processing wordt na bewezen stale/absent installer-eigendom veilig teruggezet naar Incoming.
+- Installer-lock heeft owner + heartbeat en stale recovery verwijdert alleen de strikt bekende lock-inhoud.
+- Stabiele corrupte ZIPs worden bounded naar `Inbox/failed/corrupt` gequarantaineerd in plaats van oneindig Incoming te blokkeren.
+- Bestaande generation-fenced transition recovery, FINAL Projectmanager-provenance en watcher/control-plane safety blijven behouden.
+- RuntimeV2 cross-runtime state normaliseert directories naar 0777 en JSON-state naar 0666; symlinktargets falen gesloten.
+- Document-sync behoudt bestaande bestandsmodus zodat KB/status-documenten niet terugvallen naar 0600.
+- Incoming recovery gebruikt lstat-first voor installer-lock, owner en heartbeat; dangling symlinks blijven BLOCKED zonder requeue.
+- NAS Container CR Docker image-export gebruikt een 600s read-timeout voor de bewezen 500MB+ export.
+- CLEARUP herkent watcher-wrapped stale-plan fouten en voert maximaal drie verse dependency-audits uit binnen een 60-minuten fail-closed budget.
+- Release-transition workerfouten worden persistent vastgelegd en legacy ownership-migratie is idempotent.
+- N+1 release-preflight accepteert een canonieke 32.4.54 PM-snapshot zonder de pas in 32.4.55 ingevoerde `command_ingress_consumer` healthcheck; de CommandIngress-map en receipts/queue blijven rechtstreeks fail-closed gecontroleerd.
+- Target identity: EnergieProject 32.4.55 / Projectmanager 2.0.0-rc42.
+
 ## 32.4.54 — generation-fenced release transition
 
 - Eén duurzame release-transition is nu de enige planner voor technische release-closure; oude 32.4-projecties zijn read-only.

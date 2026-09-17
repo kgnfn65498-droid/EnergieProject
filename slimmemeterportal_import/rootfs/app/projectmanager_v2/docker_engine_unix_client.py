@@ -23,7 +23,7 @@ class _UnixHTTPConnection(http.client.HTTPConnection):
 class DockerEngineUnixClient:
     """Small allowlisted Docker Engine client for the trusted local CR executor."""
 
-    def __init__(self, socket_path: str = '/var/run/docker.sock', *, timeout_seconds: float = 30.0):
+    def __init__(self, socket_path: str = '/var/run/docker.sock', *, timeout_seconds: float = 600.0):
         self._socket_path = str(socket_path)
         self._timeout = max(1.0, float(timeout_seconds))
 

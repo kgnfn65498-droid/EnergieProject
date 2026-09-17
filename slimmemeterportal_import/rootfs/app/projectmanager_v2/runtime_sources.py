@@ -231,6 +231,8 @@ class RuntimeCollector:
             heartbeat_path, now, source_label=heartbeat_source_label
         )
         atomic_path = inbox / 'atomic_app_swap_state.json'
+        watcher_contract_path = inbox / 'watcher_container_contract.json'
+        watcher_contract = self._read_json(watcher_contract_path) or {}
         legacy_publisher_path = inbox / 'github_publisher_state.json'
         shared_publication_path = inbox / 'github_publication_state.json'
         installer_lock_path = inbox / '.installer.lock'
@@ -271,6 +273,14 @@ class RuntimeCollector:
                 **watcher_liveness,
                 'heartbeat_path': str(heartbeat_path),
                 'stale_after_seconds': self.watcher_stale_seconds,
+            },
+            'watcher_container_contract': {
+                'status': watcher_contract.get('status'),
+                'ready': watcher_contract.get('ready'),
+                'contract_version': watcher_contract.get('contract_version'),
+                'reason': watcher_contract.get('reason'),
+                'source': str(watcher_contract_path),
+                'exists': watcher_contract_path.is_file(),
             },
             'incoming': self._zip_snapshot(inbox / 'incoming', now=now),
             'processing': self._zip_snapshot(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json, time, sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -13,16 +14,35 @@ try:
     from .command_store import CommandStore
     from .task_engine import TaskStore
     from .project_close_state import write_project_close
+    from .persistence import atomic_write_json
 except ImportError:
     from release_transition import ReleaseTransitionCoordinator
     from release_ownership import migrate_legacy_tasks
     from command_store import CommandStore
     from task_engine import TaskStore
     from project_close_state import write_project_close
+    from persistence import atomic_write_json
 
 
 def plan_transition_step(state: dict[str,Any], facts: dict[str,Any]) -> dict[str,Any]:
     phase=str(state.get('phase') or '')
+    if phase=='TRANSITION_PREPARED':
+        target=str(state.get('to_release') or '')
+        source=str(state.get('from_release') or '')
+        atomic_state=str(facts.get('atomic_state') or '').upper()
+        hold_ok=(
+            (atomic_state=='LIVE_ACCEPTANCE' and facts.get('hold_active') is True)
+            or (atomic_state=='ACCEPTED' and facts.get('hold_active') is False and facts.get('hold_validation_status')=='ok')
+        )
+        promoted=(
+            facts.get('active_version')==target
+            and facts.get('atomic_from_version')==source
+            and facts.get('atomic_to_version')==target
+            and atomic_state in {'LIVE_ACCEPTANCE','ACCEPTED'}
+            and facts.get('hold_release_version')==target
+            and hold_ok
+        )
+        return {'action':'ADVANCE_APP_PROMOTED' if promoted else 'WAIT_APP_PROMOTED'}
     if phase=='APP_PROMOTED': return {'action':'RECONCILE_OLD_STATE'}
     if phase=='RECONCILE_OLD_STATE': return {'action':'ADVANCE_PM_CURRENT'}
     if phase=='PM_CURRENT': return {'action':'ADVANCE_NATIVE_RUNTIME_CURRENT' if facts.get('pm_green') else 'WAIT_PM_CURRENT'}
@@ -54,7 +74,16 @@ def _checks(root: Path):
     hold=_load(root/'Inbox/operating_mode/release_validation_hold.json')
     clear=_load(root/'Inbox/logs/project_clearup_runtime.json')
     mode=_load(root/'Inbox/operating_mode/operating_mode_state.json')
+    try: active_version=(root/'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+    except OSError: active_version=''
     return {
+        'active_version': active_version,
+        'atomic_state': str(atomic.get('state') or '').upper(),
+        'atomic_from_version': str(atomic.get('from_version') or ''),
+        'atomic_to_version': str(atomic.get('to_version') or ''),
+        'hold_active': hold.get('active'),
+        'hold_release_version': str(hold.get('release_version') or ''),
+        'hold_validation_status': str(hold.get('validation_status') or ''),
         'pm_green': audit.get('status')=='GREEN',
         'native_green': by.get('native_mcp_runtime')=='GREEN',
         'atomic_committed': str(atomic.get('state') or '').upper()=='ACCEPTED' and hold.get('active') is False and hold.get('validation_status')=='ok',
@@ -81,8 +110,14 @@ class ReleaseTransitionWorker:
         if any(x.get('status') in active for x in matches): return matches[-1]
         if matches and matches[-1].get('status')=='DONE': return matches[-1]
         if matches and matches[-1].get('status') in {'FAILED','CANCELLED','SUPERSEDED','INTERRUPTED'}:
-            self.coord.block(expected_revision=int(state['revision']),expected_generation=gen,blocker='executor_side_effect_unknown')
-            return matches[-1]
+            failed=matches[-1]
+            failed_request=str(failed.get('transition_request_id') or '')
+            attempts=state.get('attempts') or {}
+            attempt=attempts.get(failed_request) if isinstance(attempts,dict) else None
+            reissue_allowed=isinstance(attempt,dict) and attempt.get('reissue_allowed') is True
+            if not reissue_allowed:
+                self.coord.block(expected_revision=int(state['revision']),expected_generation=gen,blocker='executor_side_effect_unknown')
+                return failed
         ticket=self.coord.issue_executor_ticket(intent,expected_revision=int(state['revision']),expected_generation=gen)
         return self.commands.enqueue({
             'intent':intent,'source':'projectmanager_auto','text':f'release transition {gen}: {intent}',
@@ -123,11 +158,35 @@ class ReleaseTransitionWorker:
         self.coord.advance(expected_revision=int(accepted['revision']),expected_generation=gen,phase='RESTORE_DEVELOPMENT',next_action='complete transition')
         return result
 
+    def _ticketless_nas_cr_absent_readback(self):
+        bridge = self.root/'Inbox/nas_container_cr_local'
+        refs = [str(bridge/'request.json'), str(bridge/'result.json'), str(self.root/'Backups/NAS Container')]
+        if any(path.exists() or path.is_symlink() for path in (bridge/'request.json', bridge/'result.json')):
+            return None
+        return {'state': 'ABSENT', 'evidence_refs': refs}
+
+    def _recover_ticketless_nas_cr_once(self, state):
+        if 'current_ticket' not in state or (state.get('lifecycle_state'), state.get('phase'), state.get('phase_status'), state.get('blocker'), state.get('current_ticket')) != ('BLOCKED', 'NAS_CR', 'RED', 'executor_side_effect_unknown', None):
+            return None
+        attempts = state.get('attempts') or {}
+        previous = next((request_id for request_id, attempt in reversed(list(attempts.items())) if isinstance(attempt, dict) and attempt.get('executor_name') == 'nas_container_cr_create' and attempt.get('reissue_allowed') is True), None)
+        readback = self._ticketless_nas_cr_absent_readback()
+        if not previous or not readback: return None
+        return self.coord.recover_ticketless_nas_cr_not_performed(expected_generation=str(state.get('generation_id') or ''), expected_revision=int(state['revision']), previous_request_id=previous, readback=readback)
+
     def run_once(self):
         state=self.coord.load() or self.coord.bootstrap_legacy_if_needed()
+        recovered = self._recover_ticketless_nas_cr_once(state)
+        if recovered is not None:
+            return recovered
+        if state.get('lifecycle_state') == 'BLOCKED':
+            return state
         if state.get('lifecycle_state') in {'COMPLETE','ROLLED_BACK','CANCELLED'}: return state
         facts=_checks(self.root); step=plan_transition_step(state,facts); action=step['action']
         gen=state['generation_id']; rev=int(state['revision']); rel=state['to_release']
+        if action=='ADVANCE_APP_PROMOTED':
+            return self.coord.advance(expected_revision=rev,expected_generation=gen,phase='APP_PROMOTED',next_action='reconcile old state')
+        if action=='WAIT_APP_PROMOTED': return state
         if action=='RECONCILE_OLD_STATE':
             migrate_legacy_tasks(self.tasks,project_root=self.root,current_release=rel,evidence_ref='App/VERSIE.txt')
             return self.coord.advance(expected_revision=rev,expected_generation=gen,phase='RECONCILE_OLD_STATE',next_action='verify Projectmanager current')
@@ -166,10 +225,27 @@ class ReleaseTransitionWorker:
 
 
 def release_transition_daemon(stop_event, app_module, project_root, *, interval=5.0):
-    worker=ReleaseTransitionWorker(project_root,app_module)
+    root = Path(project_root)
+    worker=ReleaseTransitionWorker(root,app_module)
+    status_path = root/'Inbox/projectmanager_v2/RuntimeV2/release_transition/worker_status.json'
     last={}
     while not stop_event.is_set():
-        try: last=worker.run_once()
-        except Exception as exc: last={'lifecycle_state':'BLOCKED','error':f'{type(exc).__name__}: {exc}'}
+        observed_at = datetime.now(timezone.utc).isoformat()
+        try:
+            last=worker.run_once()
+            atomic_write_json(status_path, {
+                'schema': 1, 'status': 'GREEN', 'observed_at': observed_at,
+                'phase': last.get('phase') if isinstance(last, dict) else None,
+                'lifecycle_state': last.get('lifecycle_state') if isinstance(last, dict) else None,
+                'revision': last.get('revision') if isinstance(last, dict) else None,
+                'error': None,
+            })
+        except Exception as exc:
+            error = f'{type(exc).__name__}: {exc}'
+            last={'lifecycle_state':'BLOCKED','error':error}
+            atomic_write_json(status_path, {
+                'schema': 1, 'status': 'RED', 'observed_at': observed_at,
+                'lifecycle_state': 'BLOCKED', 'error': error,
+            })
         if stop_event.wait(interval): break
     return last

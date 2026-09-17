@@ -22,6 +22,14 @@ for path in (str(APP), str(PM), str(ROOT)):
         sys.path.insert(0, path)
 
 
+
+def _watcher_capability(bridge, version):
+    bridge.joinpath('capability.json').write_text(json.dumps({
+        'schema':'energie_nas_container_cr_local_capability_v1','ready':True,'status':'GREEN','version':version,
+        'transport':'local_docker_unix_socket','bridge_mode':'0777','request_result_mode':'0644',
+        'mailbox_contract_owner':'watcher','operation_lock_exclusive':True,
+    }), encoding='utf-8')
+
 def _minimal_nas_project(tmp_path: Path, version: str = '32.4.36') -> Path:
     root = tmp_path / 'EnergieProject'
     (root / 'App').mkdir(parents=True)
@@ -30,6 +38,7 @@ def _minimal_nas_project(tmp_path: Path, version: str = '32.4.36') -> Path:
     bridge = root / 'Inbox/nas_container_cr_local'
     bridge.mkdir(parents=True)
     bridge.chmod(0o777)
+    _watcher_capability(bridge, version)
     (root / 'App/VERSIE.txt').write_text(version + '\n', encoding='utf-8')
     (root / 'Infra/docker-compose.yml').write_text('services: {}\n', encoding='utf-8')
     (root / 'Infra/Docker/Energie.env').write_text('SECRET=test\n', encoding='utf-8')
@@ -333,7 +342,7 @@ def test_32436_release_identity_is_consistent():
     import release_test_contract as contract
 
     assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_RELEASE
-    assert contract.CURRENT_PM_VERSION == '2.0.0-rc41'
+    assert contract.CURRENT_PM_VERSION == '2.0.0-rc42'
     assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_PM_VERSION
     assert f'version: "{contract.CURRENT_RELEASE}"' in (ROOT / 'slimmemeterportal_import/config.yaml').read_text(encoding='utf-8')
     assert f'APP_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / 'main.py').read_text(encoding='utf-8')

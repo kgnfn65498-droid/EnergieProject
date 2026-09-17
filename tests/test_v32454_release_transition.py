@@ -259,13 +259,13 @@ def test_orchestrator_no_longer_syncs_release_closure_task():
     assert 'self._sync_324_closure_task(' not in run
 
 def test_32454_release_identity_is_consistent():
-    assert (ROOT/'VERSIE.txt').read_text().strip() == '32.4.54'
-    assert (PM/'VERSION.txt').read_text().strip() == '2.0.0-rc41'
-    assert 'CURRENT_RELEASE = "32.4.54"' in (ROOT/'release_test_contract.py').read_text()
-    assert 'CURRENT_PM_VERSION = "2.0.0-rc41"' in (ROOT/'release_test_contract.py').read_text()
-    assert 'version: "32.4.54"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text()
-    assert 'APP_VERSION = "32.4.54"' in (APP/'main.py').read_text()
-    assert 'TARGET_RELEASE_VERSION = "32.4.54"' in (APP/'mode_entrypoint.py').read_text()
+    assert (ROOT/'VERSIE.txt').read_text().strip() == '32.4.55'
+    assert (PM/'VERSION.txt').read_text().strip() == '2.0.0-rc42'
+    assert 'CURRENT_RELEASE = "32.4.55"' in (ROOT/'release_test_contract.py').read_text()
+    assert 'CURRENT_PM_VERSION = "2.0.0-rc42"' in (ROOT/'release_test_contract.py').read_text()
+    assert 'version: "32.4.55"' in (ROOT/'slimmemeterportal_import/config.yaml').read_text()
+    assert 'APP_VERSION = "32.4.55"' in (APP/'main.py').read_text()
+    assert 'TARGET_RELEASE_VERSION = "32.4.55"' in (APP/'mode_entrypoint.py').read_text()
 
 
 def test_transition_advance_rejects_non_direct_successor(tmp_path):
@@ -347,3 +347,73 @@ def test_gui_validate_release_hold_is_blocked_during_active_transition():
     endpoint=src[start:end]
     assert '_active_release_transition' in endpoint and 'coordinator_owned' in endpoint
     assert endpoint.index('coordinator_owned') < endpoint.index('attempt_release_hold')
+@pytest.mark.parametrize('change', [
+    {'expected_generation':'bad'}, {'phase':'PROJECT_CR'}, {'blocker':'other'}, {'current_ticket':{'request_id':'x'}},
+    {'attempts':{}}, {'attempts':{'old':{'executor_name':'wrong','reissue_allowed':True}}},
+    {'attempts':{'old':{'executor_name':'nas_container_cr_create','reissue_allowed':False}}},
+])
+def test_ticketless_nas_cr_recovery_fails_closed(tmp_path, change):
+    from release_transition import ReleaseTransitionCoordinator, InvalidTransitionResult
+    root=_root(tmp_path); c=ReleaseTransitionCoordinator(root)
+    state={'generation_id':'g','revision':7,'to_release':'32.4.54','lifecycle_state':'BLOCKED','phase':'NAS_CR','phase_status':'RED','blocker':'executor_side_effect_unknown','current_ticket':None,'attempts':{'old':{'executor_name':'nas_container_cr_create','reissue_allowed':True}},'evidence_refs':[]}
+    state.update({k:v for k,v in change.items() if k!='expected_generation'})
+    _j(c.path,state)
+    with pytest.raises(InvalidTransitionResult):
+        c.recover_ticketless_nas_cr_not_performed(expected_generation=change.get('expected_generation','g'),expected_revision=7,previous_request_id='old',readback={'state':'ABSENT','evidence_refs':['e']})
+
+@pytest.mark.parametrize('state_name', ['UNKNOWN','PROVEN'])
+def test_ticketless_nas_cr_recovery_rejects_non_absent_evidence(tmp_path,state_name):
+    from release_transition import ReleaseTransitionCoordinator, InvalidTransitionResult
+    root=_root(tmp_path); c=ReleaseTransitionCoordinator(root)
+    _j(c.path,{'generation_id':'g','revision':7,'to_release':'32.4.54','lifecycle_state':'BLOCKED','phase':'NAS_CR','phase_status':'RED','blocker':'executor_side_effect_unknown','current_ticket':None,'attempts':{'old':{'executor_name':'nas_container_cr_create','reissue_allowed':True}},'evidence_refs':[]})
+    with pytest.raises(InvalidTransitionResult): c.recover_ticketless_nas_cr_not_performed(expected_generation='g',expected_revision=7,previous_request_id='old',readback={'state':state_name,'evidence_refs':['e']})
+
+def test_ticketless_nas_cr_recovery_reactivates_without_ticket_and_fences_revision(tmp_path):
+    from release_transition import ReleaseTransitionCoordinator, StaleRevision
+    root=_root(tmp_path); c=ReleaseTransitionCoordinator(root)
+    old={'executor_name':'nas_container_cr_create','reissue_allowed':True}; other={'executor_name':'nas_container_cr_create','reissue_allowed':True}
+    _j(c.path,{'generation_id':'g','revision':7,'to_release':'32.4.54','lifecycle_state':'BLOCKED','phase':'NAS_CR','phase_status':'RED','blocker':'executor_side_effect_unknown','current_ticket':None,'attempts':{'old1':old,'old2':other},'evidence_refs':['old']})
+    with pytest.raises(StaleRevision): c.recover_ticketless_nas_cr_not_performed(expected_generation='g',expected_revision=6,previous_request_id='old2',readback={'state':'ABSENT','evidence_refs':['e']})
+    result=c.recover_ticketless_nas_cr_not_performed(expected_generation='g',expected_revision=7,previous_request_id='old2',readback={'state':'NOT_PERFORMED','evidence_refs':['e']})
+    assert (result['lifecycle_state'],result['phase'],result['phase_status'],result['current_ticket'],result['blocker']) == ('ACTIVE','NAS_CR','PENDING',None,'')
+    assert result['generation_id']=='g' and result['revision']==8 and result['attempts']=={'old1':old,'old2':other}
+
+def test_ticketless_recovery_worker_queues_exactly_once_on_second_cycle(tmp_path):
+    from release_transition_worker import ReleaseTransitionWorker
+    root=_root(tmp_path); (root/'Inbox/nas_container_cr_local').mkdir(parents=True); worker=ReleaseTransitionWorker(root, object())
+    old1={'executor_name':'nas_container_cr_create','reissue_allowed':True}
+    old2={'executor_name':'nas_container_cr_create','reissue_allowed':True}
+    _j(worker.coord.path,{'generation_id':'g','revision':7,'to_release':'32.4.54','lifecycle_state':'BLOCKED','phase':'NAS_CR','phase_status':'RED','blocker':'executor_side_effect_unknown','current_ticket':None,'attempts':{'old1':old1,'old2':old2},'evidence_refs':['old']})
+    first=worker.run_once()
+    assert first['lifecycle_state']=='ACTIVE' and first['phase_status']=='PENDING' and first['current_ticket'] is None
+    assert worker.commands.all()==[]
+    second=worker.run_once(); commands=worker.commands.all(); current=worker.coord.load()
+    assert second['phase_status']=='WAITING_RESULT' and len(commands)==1 and current['current_ticket']
+    assert commands[0]['intent']=='nas_container_cr_create'
+    assert commands[0]['transition_request_id'] not in {'old1','old2'}
+    assert commands[0]['transition_idempotency_key'] not in {'old1','old2'}
+    assert current['attempts']['old1']==old1 and current['attempts']['old2']==old2
+    worker.run_once()
+    assert len(worker.commands.all())==1 and worker.coord.load()['current_ticket']==current['current_ticket']
+
+
+def test_blocked_transition_is_stable_for_100_cycles_without_new_evidence(tmp_path):
+    from release_transition_worker import ReleaseTransitionWorker
+    root=_root(tmp_path)
+    worker=ReleaseTransitionWorker(root, object())
+    state={
+        'generation_id':'g-stable','revision':77,'from_release':'32.4.54','to_release':'32.4.55',
+        'lifecycle_state':'BLOCKED','phase':'NAS_CR','phase_status':'RED',
+        'blocker':'executor_side_effect_unknown','next_action':'manual evidence required',
+        'current_ticket':None,
+        'attempts':{'old':{'executor_name':'nas_container_cr_create','reissue_allowed':False}},
+        'evidence_refs':['evidence'], 'completed_phases':['APP_PROMOTED'],
+    }
+    _j(worker.coord.path,state)
+    before=worker.coord.path.read_bytes()
+    for _ in range(100):
+        result=worker.run_once()
+        assert result==state
+    assert worker.coord.path.read_bytes()==before
+    assert worker.coord.load()['revision']==77
+    assert worker.commands.all()==[]

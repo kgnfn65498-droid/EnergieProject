@@ -1,0 +1,134 @@
+{
+  "action_catalog": {
+    "CONTROL_PLANE_RESTART": {
+      "action": "docker restart energie-control-plane",
+      "executor": "bounded_external_terminal",
+      "postcondition": "fresh runtime marker loaded_fingerprint equals synced source fingerprint and guard is GREEN",
+      "precondition": "control-plane runtime guard proves marker missing/stale or loaded fingerprint mismatch and Peter approved the protected action",
+      "protected": true,
+      "readback": "/energy/Inbox/control_plane/runtime.json plus tools/control_plane_runtime_guard.py result",
+      "side_effect_scope": "restart exact existing energie-control-plane container only"
+    },
+    "INGRESS_RECONCILE_ONCE": {
+      "action": "python3 /energy/App/tools/release_ingress_recovery.py reconcile --root /energy",
+      "executor": "energie-release-watcher",
+      "postcondition": "result is READY, WAITING, RECOVERED, or BLOCKED with canonical files matching the reported state",
+      "precondition": "watcher container has canonical /energy RW mount and no protected action is required",
+      "protected": false,
+      "readback": "/energy/Inbox/logs/release_ingress_recovery.json",
+      "side_effect_scope": "bounded Incoming/Processing/failed quarantine and stale installer-lock recovery only"
+    },
+    "NATIVE_MCP_RELOAD": {
+      "action": "existing allowlisted control-plane action native_mcp_reload",
+      "executor": "existing_control_plane",
+      "postcondition": "runtime fingerprint equals expected source fingerprint and health is GREEN",
+      "precondition": "source/runtime fingerprint mismatch or stopped runtime and Peter approved the protected action",
+      "protected": true,
+      "readback": "/energy/Inbox/native_mcp_runtime/runtime_guard.json",
+      "side_effect_scope": "exact energie-filesystem-mcp restart only"
+    },
+    "READ_RELEASE_STATE": {
+      "action": "read canonical Incoming/Processing/installer-lock/hold/atomic/PM runtime evidence",
+      "executor": "read_only",
+      "postcondition": "no state changed",
+      "precondition": "project root /energy is the canonical mounted EnergieProject root",
+      "protected": false,
+      "readback": "machine-readable canonical state files only",
+      "side_effect_scope": "none"
+    },
+    "STOP_FAIL_CLOSED": {
+      "action": "stop without additional commands",
+      "executor": "none",
+      "postcondition": "no additional side effect",
+      "precondition": "observed state does not exactly match a known runbook scenario or an extra shell step would be needed",
+      "protected": false,
+      "readback": "preserve current evidence and report exact mismatch",
+      "side_effect_scope": "none"
+    },
+    "WATCHER_RECREATE": {
+      "action": "existing allowlisted control-plane action watcher_recreate",
+      "executor": "existing_control_plane",
+      "postcondition": "container contract GREEN and heartbeat proves the replacement watcher is active",
+      "precondition": "watcher container contract reports recreate_required and Peter approved the protected action",
+      "protected": true,
+      "readback": "/energy/Inbox/watcher_container_contract.json plus fresh watcher heartbeat",
+      "side_effect_scope": "exact energie-release-watcher recreate only"
+    }
+  },
+  "canonical_route": [
+    "ZIP",
+    "Incoming",
+    "watcher",
+    "installer",
+    "live",
+    "acceptance",
+    "processed"
+  ],
+  "max_actions_per_run": 5,
+  "release": "32.4.55",
+  "rules": {
+    "exit_code_alone_is_not_proof": true,
+    "machine_readable_readback_required": true,
+    "no_free_shell": true,
+    "no_manual_state_fabrication": true,
+    "no_parallel_release_route": true,
+    "protected_actions_require_explicit_approval": true
+  },
+  "scenarios": {
+    "CONTROL_PLANE_STALE_OR_DOWN": {
+      "actions": [
+        "READ_RELEASE_STATE",
+        "CONTROL_PLANE_RESTART",
+        "READ_RELEASE_STATE"
+      ],
+      "preconditions": [
+        "control-plane runtime guard proves stale/down/fingerprint mismatch",
+        "protected approval exists"
+      ]
+    },
+    "KNOWN_INGRESS_STALE_LOCK_OR_ORPHAN": {
+      "actions": [
+        "READ_RELEASE_STATE",
+        "INGRESS_RECONCILE_ONCE",
+        "READ_RELEASE_STATE"
+      ],
+      "preconditions": [
+        "canonical route is not in an active protected deploy step",
+        "state matches release_ingress_recovery supported evidence"
+      ]
+    },
+    "NATIVE_MCP_STALE_OR_DOWN": {
+      "actions": [
+        "READ_RELEASE_STATE",
+        "NATIVE_MCP_RELOAD",
+        "READ_RELEASE_STATE"
+      ],
+      "preconditions": [
+        "native MCP runtime guard proves stopped or source/runtime fingerprint mismatch",
+        "protected approval exists"
+      ]
+    },
+    "UNKNOWN_OR_BRANCHING_RECOVERY": {
+      "actions": [
+        "READ_RELEASE_STATE",
+        "STOP_FAIL_CLOSED"
+      ],
+      "preconditions": [
+        "known scenario preconditions are not all satisfied"
+      ]
+    },
+    "WATCHER_DOWN_OR_CONTRACT_MISMATCH": {
+      "actions": [
+        "READ_RELEASE_STATE",
+        "WATCHER_RECREATE",
+        "READ_RELEASE_STATE"
+      ],
+      "preconditions": [
+        "watcher container contract proves recreate_required",
+        "protected approval exists"
+      ]
+    }
+  },
+  "schema": "energie_bounded_release_recovery_runbook_v1",
+  "unknown_scenario_policy": "STOP_NO_EXTRA_SHELL"
+}

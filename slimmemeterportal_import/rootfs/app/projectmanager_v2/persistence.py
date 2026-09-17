@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import stat
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,9 +32,52 @@ def _fsync_parent(path: Path) -> None:
         os.close(fd)
 
 
+def _runtimev2_root_for(target: Path) -> Path | None:
+    for candidate in (target.parent, *target.parents):
+        if candidate.name == 'RuntimeV2':
+            return candidate
+    return None
+
+
+def _ensure_runtimev2_shared_parent(target: Path) -> bool:
+    runtime_root = _runtimev2_root_for(target)
+    if runtime_root is None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        return False
+    target.parent.mkdir(parents=True, exist_ok=True)
+    current = runtime_root
+    chain = [current]
+    try:
+        relative = target.parent.relative_to(runtime_root)
+    except ValueError:
+        relative = Path('.')
+    for part in relative.parts:
+        if part in {'.', ''}:
+            continue
+        current = current / part
+        chain.append(current)
+    for directory in chain:
+        try:
+            st = directory.lstat()
+        except OSError as exc:
+            raise RuntimeError(f'RuntimeV2 shared directory unavailable: {directory}') from exc
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+            raise RuntimeError(f'RuntimeV2 shared directory is unsafe: {directory}')
+        os.chmod(directory, 0o777)
+    return True
+
+
 def atomic_write_text(path, content: str, *, mode: int | None = None) -> None:
     target = _path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
+    runtime_shared = _ensure_runtimev2_shared_parent(target)
+    try:
+        existing = target.lstat()
+    except FileNotFoundError:
+        existing = None
+    if existing is not None and stat.S_ISLNK(existing.st_mode):
+        raise RuntimeError(f'atomic target is symlink: {target}')
+    if mode is None and runtime_shared and target.suffix.lower() == '.json':
+        mode = 0o666
     if mode is not None:
         mode = int(mode)
         if mode < 0 or mode > 0o777:

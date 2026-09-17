@@ -643,10 +643,26 @@ class ConfiguredNasContainerCrService:
         # contract and fail closed until the watcher has repaired any drift.
         if self.bridge_root.is_symlink() or not self.bridge_root.is_dir():
             raise RuntimeError('NAS Container CR bridge-directory ontbreekt of is onveilig')
-        if stat.S_IMODE(self.bridge_root.stat().st_mode) != 0o777:
-            raise RuntimeError('NAS Container CR bridge-directory voldoet niet aan mailboxcontract 0777')
         if self.request_path.is_symlink() or self.result_path.is_symlink():
             raise RuntimeError('Onveilige NAS Container CR bridge-path')
+
+        capability_path = self.bridge_root / 'capability.json'
+        if capability_path.is_symlink() or not capability_path.is_file():
+            raise RuntimeError('NAS Container CR watcher-capability ontbreekt of is onveilig')
+        capability = self._load_json(capability_path)
+        if not (
+            capability
+            and capability.get('schema') == 'energie_nas_container_cr_local_capability_v1'
+            and capability.get('ready') is True
+            and capability.get('status') == 'GREEN'
+            and capability.get('version') == version
+            and capability.get('transport') == 'local_docker_unix_socket'
+            and capability.get('bridge_mode') == '0777'
+            and capability.get('request_result_mode') == '0644'
+            and capability.get('mailbox_contract_owner') == 'watcher'
+            and capability.get('operation_lock_exclusive') is True
+        ):
+            raise RuntimeError('NAS Container CR watcher-capability is niet GREEN voor actuele release')
 
         request = self._load_json(self.request_path)
         if request:

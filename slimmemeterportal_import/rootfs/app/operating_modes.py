@@ -185,6 +185,7 @@ _COMMAND_ACTIONS = frozenset({
     "end_temporary",
     "reconcile",
     "close_development_session",
+    "transition_owned_temporary_maintenance",
 })
 
 
@@ -200,6 +201,7 @@ class ModeCommand:
     transition_id: str = ""
     suspended_features: tuple[str, ...] = ()
     confirmed_by_user: bool = False
+    transition_fence: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_payload(cls, raw: dict[str, Any]) -> "ModeCommand":
@@ -228,6 +230,10 @@ class ModeCommand:
         if not isinstance(suspended_raw, (list, tuple)):
             raise ValueError("suspended_features must be a list")
         suspended = tuple(str(item) for item in suspended_raw)
+        fence_raw = raw.get("transition_fence", {})
+        if not isinstance(fence_raw, dict):
+            raise ValueError("transition_fence must be an object")
+        fence = {str(key): str(value).strip() for key, value in fence_raw.items()}
 
         command = cls(
             schema_version=int(raw.get("schema_version", 1)),
@@ -240,6 +246,7 @@ class ModeCommand:
             transition_id=str(raw.get("transition_id", "")).strip(),
             suspended_features=suspended,
             confirmed_by_user=confirmed_by_user,
+            transition_fence=fence,
         )
         if action in {"set_base", "begin_temporary"} and requested_mode is None:
             raise ValueError(f"requested_mode is required for {action}")
@@ -247,6 +254,8 @@ class ModeCommand:
             raise ValueError("enabled is required for set_auto")
         if action == "end_temporary" and not command.transition_id:
             raise ValueError("transition_id is required for end_temporary")
+        if action == "transition_owned_temporary_maintenance" and requested_mode is not Mode.MAINTENANCE:
+            raise ValueError("transition-owned recovery requires MAINTENANCE")
         return command
 
 
@@ -350,6 +359,88 @@ def _active_release_transition(project_root: Path | str) -> dict[str, Any] | Non
     return value
 
 
+def _transition_owned_project_cr_maintenance_allowed(
+    project_root: Path | str, command: ModeCommand, transition: dict[str, Any]
+) -> bool:
+    """Accept one explicitly approved, coordinator-fenced Project-CR bridge.
+
+    This is deliberately separate from ordinary mode commands: every identity
+    at the transition, queue and bridge boundaries must match before a mode can
+    change while a release transition is active.
+    """
+    if command.action != "transition_owned_temporary_maintenance":
+        return False
+    if command.requested_mode is not Mode.MAINTENANCE or not command.confirmed_by_user:
+        return False
+    fence = command.transition_fence
+    if not str(fence.get("approval_reference") or "").strip():
+        return False
+    ticket = transition.get("current_ticket") if isinstance(transition.get("current_ticket"), dict) else {}
+    if (
+        transition.get("lifecycle_state") != "ACTIVE"
+        or transition.get("phase") != "PROJECT_CR"
+        or transition.get("phase_status") != "WAITING_RESULT"
+    ):
+        return False
+    required = {
+        "generation_id": transition.get("generation_id"),
+        "phase": transition.get("phase"),
+        "phase_status": transition.get("phase_status"),
+        "lifecycle_state": transition.get("lifecycle_state"),
+        "ticket_request_id": ticket.get("request_id"),
+        "idempotency_key": ticket.get("idempotency_key"),
+        "executor_name": "project_cr_create",
+        "release_owner": transition.get("to_release"),
+    }
+    if ticket.get("executor_name") != "project_cr_create":
+        return False
+    if any(not value or str(fence.get(key) or "") != str(value) for key, value in required.items()):
+        return False
+    root = Path(project_root)
+    try:
+        live_release = (root / "App/VERSIE.txt").read_text(encoding="utf-8").strip()
+        request = json.loads((root / "Inbox/project_cr_local/request.json").read_text(encoding="utf-8"))
+        queue_raw = json.loads((root / "Inbox/projectmanager_v2/RuntimeV2/commands/queue.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(request, dict):
+        return False
+    if isinstance(queue_raw, list):
+        queue = queue_raw
+    elif isinstance(queue_raw, dict) and isinstance(queue_raw.get("items"), list):
+        queue = queue_raw["items"]
+    else:
+        return False
+    if live_release != str(required["release_owner"]):
+        return False
+    command_id = str(fence.get("command_id") or "")
+    request_id = str(fence.get("project_cr_request_id") or "")
+    if not command_id or not request_id:
+        return False
+    if not (
+        request.get("schema") == "energie_project_cr_local_request_v1"
+        and request.get("operation") == "project_cr_create"
+        and str(request.get("request_id") or "") == request_id
+        and str(request.get("command_id") or "") == command_id
+        and str(request.get("expected_runtime_version") or "") == live_release
+    ):
+        return False
+    queued = next((item for item in queue if isinstance(item, dict) and str(item.get("id") or "") == command_id), None)
+    if not isinstance(queued, dict) or queued.get("status") != "PENDING":
+        return False
+    queue_required = {
+        "intent": "project_cr_create",
+        "transition_generation": required["generation_id"],
+        "transition_phase": required["phase"],
+        "transition_request_id": required["ticket_request_id"],
+        "transition_idempotency_key": required["idempotency_key"],
+        "executor_name": required["executor_name"],
+        "release_owner": required["release_owner"],
+        "release_version": required["release_owner"],
+    }
+    return all(str(queued.get(key) or "") == str(value) for key, value in queue_required.items())
+
+
 def process_mode_command(project_root: Path | str, now: Any = None) -> ModeState:
     del now
     state = load_mode_state(project_root)
@@ -370,7 +461,13 @@ def process_mode_command(project_root: Path | str, now: Any = None) -> ModeState
     # Public/ordinary mode commands must be consumed but cannot mutate mode
     # while one durable release transition owns the release lifecycle. This
     # prevents a stale GUI/API command from applying later after restart.
-    if _active_release_transition(project_root) is not None:
+    transition = _active_release_transition(project_root)
+    if transition is not None and _transition_owned_project_cr_maintenance_allowed(project_root, command, transition):
+        updated = set_base_mode(state, Mode.MAINTENANCE, confirmed_by_user=True)
+        updated = replace(updated, last_processed_request_id=command.request_id, reconciliation_status="ok")
+        save_mode_state(project_root, updated)
+        return updated
+    if transition is not None:
         updated = _add_drift(state, "release_transition_active_normal_mutation_blocked")
         updated = replace(
             updated,

@@ -27,7 +27,7 @@ from projectmanager_v2.release_transition import ReleaseTransitionCoordinator
 from projectmanager_v2.release_transition_worker import release_transition_daemon
 from projectmanager_v2.startup_timing import StartupTiming
 
-TARGET_RELEASE_VERSION = "32.4.54"
+TARGET_RELEASE_VERSION = "32.4.55"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 _BACKGROUND_LOCK = threading.Lock()

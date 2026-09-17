@@ -1,5 +1,5 @@
 from __future__ import annotations
-import hashlib,json,re
+import hashlib,json,re,os
 from pathlib import Path
 
 VERSION_RE=re.compile(r'(?<!\d)(\d+\.\d+\.\d+)(?!\d)')
@@ -9,7 +9,11 @@ def _sha(record): return hashlib.sha256(_canon(record)).hexdigest()
 
 class LegacyOwnershipIndex:
     def __init__(self, project_root):
-        self.path=Path(project_root)/'Inbox/projectmanager_v2/RuntimeV2/release_ownership/legacy_index.jsonl'; self.path.parent.mkdir(parents=True,exist_ok=True)
+        self.path=Path(project_root)/'Inbox/projectmanager_v2/RuntimeV2/release_ownership/legacy_index.jsonl'
+        self.path.parent.mkdir(parents=True,exist_ok=True)
+        if self.path.parent.is_symlink() or not self.path.parent.is_dir():
+            raise RuntimeError('legacy ownership directory is unsafe')
+        self.path.parent.chmod(0o777)
     def _entries(self):
         if not self.path.exists(): return []
         out=[]
@@ -19,15 +23,24 @@ class LegacyOwnershipIndex:
             if isinstance(v,dict): out.append(v)
         return out
     def classify(self, store, record, *, current_release):
+        rid=str(record.get('id') or '')
+        source_sha=_sha(record)
+        for existing in reversed(self._entries()):
+            if existing.get('store')==store and existing.get('record_id')==rid and existing.get('source_sha256')==source_sha:
+                return existing
         text=' '.join(str(record.get(k) or '') for k in ('title','goal','next_action'))
         found=VERSION_RE.findall(text)
         if found and any(w in text.lower() for w in ('release','closure','maintenance','build','bouw')):
             status='MIGRATED'; scope='RELEASE'; owner=found[0]; lifecycle='RELEASE_TRANSIENT'
         else:
             status='LEGACY_AMBIGUOUS'; scope='EXTERNAL'; owner=None; lifecycle='LEGACY_REVIEW'
-        entry={'store':store,'record_id':str(record.get('id') or ''),'source_sha256':_sha(record),'ownership_status':status,
+        entry={'store':store,'record_id':rid,'source_sha256':source_sha,'ownership_status':status,
                'scope':scope,'release_owner':owner,'lifecycle_class':lifecycle,'created_generation':'legacy','classification_evidence':found,'migration_version':'32.4.54-v1'}
-        with self.path.open('a',encoding='utf-8') as h: h.write(json.dumps(entry,ensure_ascii=False,sort_keys=True)+'\n')
+        with self.path.open('a',encoding='utf-8') as h:
+            h.write(json.dumps(entry,ensure_ascii=False,sort_keys=True)+'\n')
+            h.flush()
+            os.fsync(h.fileno())
+        self.path.chmod(0o666)
         return entry
     def resolve(self, store, record):
         rid=str(record.get('id') or '')

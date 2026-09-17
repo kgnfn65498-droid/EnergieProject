@@ -97,6 +97,120 @@ def _sidecar_sha_matches(zip_path: Path, sha_path: Path) -> bool:
     return len(expected) == 64 and expected == _sha256_file(zip_path)
 
 
+def _numeric_release(value: str) -> tuple[int, ...]:
+    try:
+        return tuple(int(part) for part in str(value).strip().split('.'))
+    except (TypeError, ValueError):
+        return ()
+
+
+def _control_plane_source_fingerprint(project_root: Path) -> str:
+    source = Path(project_root) / 'Data/03_Systeem/Projectmanager/ControlPlane'
+    digest = hashlib.sha256()
+    for name in ('control_plane.py', 'qnap_control_plane_bootstrap.py'):
+        path = source / name
+        if not path.is_file() or path.is_symlink():
+            return ''
+        digest.update(name.encode('utf-8') + b'\0')
+        try:
+            digest.update(path.read_bytes())
+        except OSError:
+            return ''
+    return digest.hexdigest()
+
+
+def _control_plane_runtime_check(project_root: Path | str, *, now=None):
+    root = Path(project_root)
+    now = now or datetime.now(timezone.utc)
+    expected = _control_plane_source_fingerprint(root)
+    marker_path = root / 'Inbox/control_plane/runtime.json'
+    marker = _read_json(marker_path)
+    loaded = str((marker or {}).get('loaded_fingerprint') or '').lower()
+    try:
+        heartbeat = float((marker or {}).get('heartbeat_at_epoch'))
+    except (TypeError, ValueError):
+        heartbeat = 0.0
+    age = max(0.0, now.timestamp() - heartbeat) if heartbeat else None
+    if not expected:
+        return _check('control_plane_runtime', 'RED', 'source_missing_or_invalid', marker_path,
+                      {'expected_fingerprint': None, 'loaded_fingerprint': loaded or None}, verified=False)
+    if not isinstance(marker, dict) or marker.get('schema') != 'energie_control_plane_runtime_v1':
+        return _check('control_plane_runtime', 'RED', 'runtime_marker_missing_or_invalid', marker_path,
+                      {'expected_fingerprint': expected, 'loaded_fingerprint': loaded or None}, verified=False)
+    if loaded != expected:
+        return _check('control_plane_runtime', 'RED', 'loaded_runtime_fingerprint_mismatch', marker_path,
+                      {'expected_fingerprint': expected, 'loaded_fingerprint': loaded or None, 'heartbeat_age_seconds': age}, verified=False)
+    if age is None or age > 30:
+        return _check('control_plane_runtime', 'RED', 'runtime_heartbeat_stale', marker_path,
+                      {'expected_fingerprint': expected, 'loaded_fingerprint': loaded, 'heartbeat_age_seconds': age}, verified=False)
+    return _check('control_plane_runtime', 'GREEN', 'loaded_runtime_fingerprint_match', marker_path,
+                  {'expected_fingerprint': expected, 'loaded_fingerprint': loaded, 'heartbeat_age_seconds': round(age, 1)}, verified=True)
+
+
+def _command_ingress_consumer_check(project_root: Path | str):
+    root = Path(project_root)
+    ingress = root / 'Data/03_Systeem/Projectmanager/CommandIngress'
+    runtime_commands = root / 'Inbox/projectmanager_v2/RuntimeV2/commands'
+    receipts_path = runtime_commands / 'ingress_receipts.json'
+    queue_path = runtime_commands / 'queue.json'
+    if not ingress.is_dir() or ingress.is_symlink():
+        return _check('command_ingress_consumer', 'RED', 'ingress_directory_missing_or_unsafe', ingress, verified=False)
+    receipts = _read_json(receipts_path)
+    items = (receipts or {}).get('items')
+    if not isinstance(items, dict):
+        return _check('command_ingress_consumer', 'RED', 'ingress_receipts_missing_or_invalid', receipts_path, verified=False)
+    envelope_ids = sorted(path.stem for path in ingress.glob('*.json') if path.is_file() and not path.is_symlink())
+    pending = [item for item in envelope_ids if item not in items]
+    invalid_receipts = []
+    imported = []
+    rejected = []
+    for ingress_id in envelope_ids:
+        receipt = items.get(ingress_id)
+        if not isinstance(receipt, dict):
+            continue
+        status = str(receipt.get('status') or '')
+        if status == 'IMPORTED':
+            imported.append((ingress_id, str(receipt.get('command_id') or '')))
+        elif status == 'REJECTED':
+            rejected.append(ingress_id)
+        else:
+            invalid_receipts.append(ingress_id)
+
+    queue = _read_json(queue_path) if imported else {'schema': 1, 'items': []}
+    queue_items = (queue or {}).get('items')
+    if imported and not isinstance(queue_items, list):
+        return _check('command_ingress_consumer', 'RED', 'command_queue_missing_or_invalid', queue_path,
+                      {'pending_ids': pending[:20], 'imported_ids': [item[0] for item in imported[:20]]}, verified=False)
+    by_command_id = {
+        str(item.get('id') or ''): item for item in (queue_items or [])
+        if isinstance(item, dict) and item.get('id')
+    }
+    orphan_receipts = [
+        ingress_id for ingress_id, command_id in imported
+        if not command_id
+        or command_id not in by_command_id
+        or str(by_command_id[command_id].get('ingress_id') or '') != ingress_id
+    ]
+    details = {
+        'envelope_count': len(envelope_ids),
+        'pending_count': len(pending),
+        'pending_ids': pending[:20],
+        'receipted_current_count': len(envelope_ids) - len(pending),
+        'receipt_count': len(items),
+        'queued_import_count': len(imported) - len(orphan_receipts),
+        'rejected_count': len(rejected),
+        'invalid_receipt_ids': invalid_receipts[:20],
+        'orphan_receipt_ids': orphan_receipts[:20],
+    }
+    if pending:
+        return _check('command_ingress_consumer', 'RED', 'unconsumed_envelopes', receipts_path, details, verified=False)
+    if invalid_receipts:
+        return _check('command_ingress_consumer', 'RED', 'invalid_ingress_receipts', receipts_path, details, verified=False)
+    if orphan_receipts:
+        return _check('command_ingress_consumer', 'RED', 'receipt_without_queued_command', queue_path, details, verified=False)
+    return _check('command_ingress_consumer', 'GREEN', 'all_current_envelopes_proven_consumed', receipts_path, details, verified=True)
+
+
 def _runtime_version(project_root: Path) -> str:
     try:
         return (Path(project_root) / 'App' / 'VERSIE.txt').read_text(encoding='utf-8').strip()
@@ -234,6 +348,10 @@ class EnergyHealthCollector:
             },
             verified=native_runtime_ok,
         ))
+
+        if _numeric_release(version) >= (32, 4, 55):
+            checks.append(_control_plane_runtime_check(self.project_root, now=now))
+            checks.append(_command_ingress_consumer_check(self.project_root))
 
         hold_path = self.project_root / 'Inbox' / 'operating_mode' / 'release_validation_hold.json'
         hold = _read_json(hold_path)

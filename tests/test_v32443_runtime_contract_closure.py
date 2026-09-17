@@ -17,6 +17,14 @@ for path in (str(APP), str(PM), str(TOOLS)):
         sys.path.insert(0, path)
 
 
+
+def _watcher_capability(bridge, version):
+    bridge.joinpath('capability.json').write_text(json.dumps({
+        'schema':'energie_nas_container_cr_local_capability_v1','ready':True,'status':'GREEN','version':version,
+        'transport':'local_docker_unix_socket','bridge_mode':'0777','request_result_mode':'0644',
+        'mailbox_contract_owner':'watcher','operation_lock_exclusive':True,
+    }), encoding='utf-8')
+
 def _write(path: Path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')
@@ -144,6 +152,7 @@ def test_32443_nas_cr_bridge_binds_command_id_and_expected_release(tmp_path, mon
     bridge = project / 'Inbox/nas_container_cr_local'
     bridge.mkdir(parents=True)
     bridge.chmod(0o777)
+    _watcher_capability(bridge, '32.4.43')
     monkeypatch.setattr('nas_container_cr_service.secrets.token_hex', lambda _n: 'c'*32)
     _write(bridge / 'result.json', {
         'schema': 'energie_nas_container_cr_local_result_v1', 'request_id': 'c'*32,

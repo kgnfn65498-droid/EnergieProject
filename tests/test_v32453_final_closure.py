@@ -27,6 +27,14 @@ def _load_tool(name: str):
     return module
 
 
+
+def _watcher_capability(bridge, version):
+    bridge.joinpath('capability.json').write_text(json.dumps({
+        'schema':'energie_nas_container_cr_local_capability_v1','ready':True,'status':'GREEN','version':version,
+        'transport':'local_docker_unix_socket','bridge_mode':'0777','request_result_mode':'0644',
+        'mailbox_contract_owner':'watcher','operation_lock_exclusive':True,
+    }), encoding='utf-8')
+
 def _mode(path: Path) -> int:
     return stat.S_IMODE(path.stat().st_mode)
 
@@ -73,6 +81,7 @@ def test_nas_bridge_real_pm_service_executor_roundtrip_across_identities():
     (root / 'Inbox').chmod(0o755)
     bridge = root / 'Inbox/nas_container_cr_local'
     bridge.chmod(0o777)
+    _watcher_capability(bridge, '32.4.53')
     env = dict(os.environ)
     env['PYTHONPATH'] = f'{PM}:{TOOLS}:' + env.get('PYTHONPATH', '')
 
@@ -135,7 +144,8 @@ def test_pm_service_validates_watcher_owned_mailbox_without_chmod_and_fails_on_d
     source = (PM / 'nas_container_cr_service.py').read_text(encoding='utf-8')
     create_block = source[source.index('    def create(self, *, command_id'):source.index('        request = self._load_json', source.index('    def create(self, *, command_id'))]
     assert 'bridge_root.chmod' not in create_block
-    assert 'stat.S_IMODE(self.bridge_root.stat().st_mode) != 0o777' in create_block
+    assert 'watcher-capability is niet GREEN' in create_block
+    assert 'capability.json' in create_block
 
     import nas_container_cr_service as service
     root = Path('/tmp') / f'energie-nas-mailbox-drift-{os.getpid()}'
@@ -145,9 +155,11 @@ def test_pm_service_validates_watcher_owned_mailbox_without_chmod_and_fails_on_d
     (root / 'App/VERSIE.txt').write_text('32.4.53\n', encoding='utf-8')
     bridge = root / 'Inbox/nas_container_cr_local'
     bridge.chmod(0o755)
+    _watcher_capability(bridge, '32.4.53')
+    (bridge / 'capability.json').write_text('{"ready": false}', encoding='utf-8')
     try:
         svc = service.ConfiguredNasContainerCrService(root, timeout_seconds=.1, poll_seconds=.01)
-        with pytest.raises(RuntimeError, match='mailboxcontract 0777'):
+        with pytest.raises(RuntimeError, match='watcher-capability'):
             svc.create(expected_release='32.4.53', wait_for_result=False)
         assert _mode(bridge) == 0o755, 'PM must not mutate owner-controlled mailbox permissions'
     finally:
@@ -436,6 +448,7 @@ def test_watcher_mailbox_contract_repairs_mode_then_pm_service_accepts(tmp_path)
     repaired = _run_mailbox_contract_function(fn, 'ensure_nas_cr_mailbox_contract', bridge)
     assert repaired.returncode == 0, repaired.stderr
     assert bridge.is_dir() and not bridge.is_symlink() and _mode(bridge) == 0o777
+    _watcher_capability(bridge, '32.4.53')
 
     import nas_container_cr_service as service
     svc = service.ConfiguredNasContainerCrService(root, timeout_seconds=.1, poll_seconds=.01)
