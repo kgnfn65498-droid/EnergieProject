@@ -204,6 +204,11 @@ class ReleaseTransitionCoordinator:
         if result.get('status')!='GREEN' or result.get('side_effect_state') not in {'PROVEN','NOT_REQUIRED'}:
             raise InvalidTransitionResult('executor result not proven green')
         state=dict(cur); state['phase_status']='GREEN'; state['current_ticket']=None; state['next_action']=''
+        completed=list(state.get('completed_phases') or [])
+        current_phase=str(state.get('phase') or '')
+        if current_phase and current_phase not in completed:
+            completed.append(current_phase)
+        state['completed_phases']=completed
         state.setdefault('evidence_refs',[]).extend(result.get('evidence_refs') or [])
         return self._save(state,expected_revision=int(cur.get('revision',0)))
 

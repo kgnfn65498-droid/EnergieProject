@@ -1,16 +1,10 @@
 # Changelog
 
-## 32.4.55 — autonomous release ingress recovery
+## 32.4.56 — process workspace, veilige cleanup en PM startup recovery
 
-- Incoming herstelt identieke dubbele release-ZIPs deterministisch en blokkeert verschillende kandidaten fail-closed.
-- Orphan Processing wordt alleen na bewezen stale/absent installer-eigendom veilig teruggezet naar Incoming.
-- Installer-lock gebruikt owner + heartbeat; stale recovery verwijdert uitsluitend de strikt bekende lock-inhoud.
-- Stabiele corrupte ZIPs worden bounded naar `Inbox/failed/corrupt` gequarantaineerd in plaats van Incoming permanent te blokkeren.
-- Generation-fenced release-transition recovery en coherente FINAL Projectmanager-provenance blijven behouden.
-- RuntimeV2 cross-runtime state normaliseert directories naar 0777 en JSON-state naar 0666; symlinktargets falen gesloten.
-- Document-sync behoudt bestaande bestandsmodus zodat KB/status-documenten niet terugvallen naar 0600.
-- Incoming recovery gebruikt lstat-first voor installer-lock, owner en heartbeat; dangling symlinks blijven BLOCKED zonder requeue.
-- NAS Container CR Docker image-export gebruikt een 600s read-timeout voor de bewezen 500MB+ export.
-- CLEARUP herkent watcher-wrapped stale-plan fouten en voert maximaal drie verse dependency-audits uit binnen een 60-minuten fail-closed budget.
-- Release-transition workerfouten worden persistent vastgelegd en legacy ownership-migratie is idempotent.
-- Target identity: EnergieProject 32.4.55 / Projectmanager 2.0.0-rc42.
+- Introduceert `Inbox/process` met `tmp`, `cache`, `active` en atomische procesregistratie; CLEARUP verplaatst alleen expliciet vrijgegeven of verlaten tijdelijke artefacten.
+- Root-hygiëne classificeert bekende release/buildrommel voor reversibele CLEARUP en laat onbekend materiaal fail-closed staan; gewone release-rollbackretentie blijft 3.
+- EnergieProject- en NAS Containers Crash Recovery behouden retentie=1 met validatie vóór oude sets naar quarantaine gaan.
+- Embedded Projectmanager schrijft per cyclus duurzame RUNNING/GREEN/RED-evidence en kan na 15 minuten zonder verse huidige PM-cycle maximaal één add-on self-restart per uur aanvragen; geen hostrestart en geen gefabriceerde release-state.
+- Behoudt de 32.4.55 `/share` atomic-mode readback-fix en automatische dismiss van herstelde HA-foutmeldingen.
+- Target identity: EnergieProject 32.4.56 / Projectmanager 2.0.0-rc43.

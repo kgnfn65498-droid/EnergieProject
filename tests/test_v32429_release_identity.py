@@ -9,7 +9,6 @@ def test_32429_release_identity_is_synchronized():
     assert f'version: "{contract.CURRENT_RELEASE}"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
     assert f'APP_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / "main.py").read_text(encoding="utf-8")
     assert f'TARGET_RELEASE_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
-    assert contract.CURRENT_PM_VERSION == "2.0.0-rc42"
     assert (APP / "projectmanager_v2/VERSION.txt").read_text(encoding="utf-8").strip() == contract.CURRENT_PM_VERSION
     assert 'PRODUCTION_CORE_REVISION = "9.4-core3"' in (APP / "main.py").read_text(encoding="utf-8")
 

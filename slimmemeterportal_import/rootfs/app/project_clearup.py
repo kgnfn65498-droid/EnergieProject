@@ -18,6 +18,45 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+try:
+    from process_workspace import clearup_process_candidates
+except ModuleNotFoundError:  # standalone loader paths used by PM/watcher tools
+    import importlib.util as _importlib_util
+    _process_workspace_path = Path(__file__).resolve().parent / "process_workspace.py"
+    if _process_workspace_path.is_file():
+        _process_workspace_spec = _importlib_util.spec_from_file_location(
+            "energie_process_workspace_impl", _process_workspace_path
+        )
+        if _process_workspace_spec is None or _process_workspace_spec.loader is None:
+            raise ImportError(f"Cannot load process workspace implementation: {_process_workspace_path}")
+        _process_workspace_module = _importlib_util.module_from_spec(_process_workspace_spec)
+        _process_workspace_spec.loader.exec_module(_process_workspace_module)
+        clearup_process_candidates = _process_workspace_module.clearup_process_candidates
+    else:
+        # Legacy watcher tests/installations may copy only project_clearup.py.
+        # No process workspace module means there can be no registered 32.4.56
+        # process candidates; preserve the historical standalone executor path.
+        def clearup_process_candidates(_project_root):
+            return []
+
+try:
+    from root_structure_policy import root_clearup_candidates
+except ModuleNotFoundError:  # standalone legacy executor may copy only this file
+    import importlib.util as _root_importlib_util
+    _root_policy_path = Path(__file__).resolve().parent / "root_structure_policy.py"
+    if _root_policy_path.is_file():
+        _root_policy_spec = _root_importlib_util.spec_from_file_location(
+            "energie_root_structure_policy_impl", _root_policy_path
+        )
+        if _root_policy_spec is None or _root_policy_spec.loader is None:
+            raise ImportError(f"Cannot load root structure policy: {_root_policy_path}")
+        _root_policy_module = _root_importlib_util.module_from_spec(_root_policy_spec)
+        _root_policy_spec.loader.exec_module(_root_policy_module)
+        root_clearup_candidates = _root_policy_module.root_clearup_candidates
+    else:
+        def root_clearup_candidates(_project_root):
+            return []
+
 SCHEMA = "energie_project_clearup_v1"
 TEXT_SUFFIXES = {
     "", ".txt", ".md", ".json", ".jsonl", ".yaml", ".yml", ".ini", ".conf",
@@ -88,6 +127,11 @@ PROTECTED_EXACT = {
     "App",
     "Infra",
     "Inbox",
+    "Inbox/process",
+    "Inbox/process/process_map.json",
+    "Inbox/process/tmp",
+    "Inbox/process/cache",
+    "Inbox/process/active",
     "Backups",
     "Data",
     "CLEARUP",
@@ -172,6 +216,30 @@ def _tree_sha256_runtime(
     return tree_sha256(
         path, deadline_monotonic=deadline_monotonic, phase=phase, candidate=candidate
     )
+
+
+def _candidate_cache_signature(path: Path, *, deadline_monotonic: float | None = None, candidate: str | None = None) -> tuple:
+    """Cheap recursive metadata signature for safe content-hash reuse within one CLEARUP run."""
+    _check_deadline(deadline_monotonic, "candidate_hashcache", candidate=candidate)
+    rows=[]
+    if path.is_symlink():
+        st=path.lstat()
+        return (("symlink", os.readlink(path), st.st_dev, st.st_ino, st.st_mtime_ns),)
+    if path.is_file():
+        st=path.stat()
+        return (("file", st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns),)
+    for item in sorted(path.rglob("*"), key=lambda p: p.as_posix()):
+        _check_deadline(deadline_monotonic, "candidate_hashcache", candidate=candidate)
+        rel=item.relative_to(path).as_posix()
+        st=item.lstat()
+        if item.is_symlink():
+            rows.append((rel, "symlink", os.readlink(item), st.st_dev, st.st_ino, st.st_mtime_ns))
+        elif item.is_file():
+            rows.append((rel, "file", st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns))
+        elif item.is_dir():
+            rows.append((rel, "dir", st.st_dev, st.st_ino, st.st_mtime_ns))
+    root_st=path.lstat()
+    return (("root", root_st.st_dev, root_st.st_ino, root_st.st_mtime_ns), *rows)
 
 
 def _size_bytes(path: Path, *, deadline_monotonic: float | None = None, candidate: str | None = None) -> int:
@@ -299,19 +367,34 @@ def _collect_candidates(root: Path, *, keep_rollbacks: int) -> list[dict[str, An
         for child in infra.glob("*.pre_*"):
             _add_candidate(items, root, child, reason="obsolete_pre_fix_copy", category="infra_backup")
 
-    # macOS resource-fork residue has no executable value and is safe only after
-    # the normal dependency scan below finds no live reference.
+    # macOS AppleDouble/resource-fork residue inside protected input trees is
+    # intentionally left in place. Protected data roots must never bypass
+    # _add_candidate(); cleanup of such metadata is lower priority than preserving
+    # the fail-closed Data/01_Input contract.
     epex_manual = root / "Data/01_Input/EPEX manual downlaod"
     if epex_manual.is_dir():
         for child in epex_manual.glob("._*"):
-            # This is a narrow exception inside Data/01_Input: only AppleDouble
-            # metadata is ever considered, never actual month/source data.
-            relative = _rel(child, root)
-            items.setdefault(relative, {
-                "source_path": relative,
-                "reason": "macos_appledouble_metadata",
-                "category": "filesystem_metadata",
-            })
+            _add_candidate(
+                items, root, child,
+                reason="macos_appledouble_metadata",
+                category="filesystem_metadata",
+            )
+
+    for candidate in root_clearup_candidates(root):
+        source = root / str(candidate.get("source_path") or "")
+        _add_candidate(
+            items, root, source,
+            reason=str(candidate.get("reason") or "root_development_artifact"),
+            category=str(candidate.get("category") or "root_development_debt"),
+        )
+
+    for candidate in clearup_process_candidates(root):
+        source = root / str(candidate.get("source_path") or "")
+        _add_candidate(
+            items, root, source,
+            reason=str(candidate.get("reason") or "registered_process_artifact_released"),
+            category=str(candidate.get("category") or "process_workspace"),
+        )
 
     return [items[key] for key in sorted(items)]
 
@@ -475,6 +558,7 @@ def build_clearup_plan(
     deadline_monotonic: float | None = None,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
     started_monotonic: float | None = None,
+    candidate_hashcache: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     root = Path(project_root).resolve()
     _check_deadline(deadline_monotonic, "candidate_inventory")
@@ -493,6 +577,8 @@ def build_clearup_plan(
         candidate_total=len(raw_items), active_file_count=len(active_files),
     )
     atomic_rollback = _atomic_rollback_reference(root)
+    candidate_hashcache = candidate_hashcache if candidate_hashcache is not None else {}
+    hash_cache_hits = 0
 
     items: list[dict[str, Any]] = []
     total = len(raw_items)
@@ -512,10 +598,22 @@ def build_clearup_plan(
         size_bytes = None
         tree_hash = None
         try:
-            size_bytes = _size_bytes(source, deadline_monotonic=deadline_monotonic, candidate=relative)
-            tree_hash = _tree_sha256_runtime(
-                source, deadline_monotonic=deadline_monotonic, phase="candidate_hash", candidate=relative
+            signature = _candidate_cache_signature(
+                source, deadline_monotonic=deadline_monotonic, candidate=relative
             )
+            cached = candidate_hashcache.get(relative)
+            if isinstance(cached, dict) and cached.get("signature") == signature:
+                size_bytes = cached.get("size_bytes")
+                tree_hash = cached.get("tree_sha256")
+                hash_cache_hits += 1
+            else:
+                size_bytes = _size_bytes(source, deadline_monotonic=deadline_monotonic, candidate=relative)
+                tree_hash = _tree_sha256_runtime(
+                    source, deadline_monotonic=deadline_monotonic, phase="candidate_hash", candidate=relative
+                )
+                candidate_hashcache[relative] = {
+                    "signature": signature, "size_bytes": size_bytes, "tree_sha256": tree_hash,
+                }
         except OSError as exc:
             # Fail closed per candidate: unreadable or otherwise inaccessible
             # candidates cannot be content-verified and therefore may never be
@@ -558,6 +656,7 @@ def build_clearup_plan(
         "clearup_count": sum(1 for item in items if item["disposition"] == "CLEARUP"),
         "review_count": sum(1 for item in items if item["disposition"] == "REVIEW"),
         "items": items,
+        "hash_cache_hits": hash_cache_hits,
         "delete_capability": False,
     }
 

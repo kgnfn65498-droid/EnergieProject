@@ -10,7 +10,35 @@ heavier project_clearup module remains responsible for dependency-audited moves.
 import json
 import re
 from pathlib import Path
+
+try:
+    from process_workspace import inspect_process_workspace
+except ModuleNotFoundError:  # standalone loader paths used by PM/watcher tools
+    import importlib.util as _importlib_util
+    _process_workspace_path = Path(__file__).resolve().parent / "process_workspace.py"
+    _process_workspace_spec = _importlib_util.spec_from_file_location(
+        "energie_process_workspace_impl", _process_workspace_path
+    )
+    if _process_workspace_spec is None or _process_workspace_spec.loader is None:
+        raise ImportError(f"Cannot load process workspace implementation: {_process_workspace_path}")
+    _process_workspace_module = _importlib_util.module_from_spec(_process_workspace_spec)
+    _process_workspace_spec.loader.exec_module(_process_workspace_module)
+    inspect_process_workspace = _process_workspace_module.inspect_process_workspace
 from typing import Any
+
+try:
+    from root_structure_policy import root_structure_snapshot
+except ModuleNotFoundError:
+    import importlib.util as _root_importlib_util
+    _root_policy_path = Path(__file__).resolve().parent / "root_structure_policy.py"
+    _root_policy_spec = _root_importlib_util.spec_from_file_location(
+        "energie_root_structure_policy_impl", _root_policy_path
+    )
+    if _root_policy_spec is None or _root_policy_spec.loader is None:
+        raise ImportError(f"Cannot load root structure policy: {_root_policy_path}")
+    _root_policy_module = _root_importlib_util.module_from_spec(_root_policy_spec)
+    _root_policy_spec.loader.exec_module(_root_policy_module)
+    root_structure_snapshot = _root_policy_module.root_structure_snapshot
 
 
 def _version_tuple(value: str) -> tuple[int, ...]:
@@ -25,6 +53,57 @@ def _count_children(path: Path) -> int:
         return 0
 
 
+
+
+
+
+def _children_relative(root: Path, parent_rel: str) -> list[str]:
+    parent = root / parent_rel
+    try:
+        if not parent.is_dir():
+            return []
+        return sorted((Path(parent_rel) / child.name).as_posix() for child in parent.iterdir())
+    except OSError:
+        return []
+
+
+def _current_release(root: Path) -> str:
+    try:
+        return (root / "App/VERSIE.txt").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _current_clearup_review_paths(root: Path, *, release_version: str) -> tuple[set[str], bool, str]:
+    runtime = _read_json(root / "Inbox/logs/project_clearup_runtime.json") or {}
+    done = str(runtime.get("status") or "") in {"completed", "already_completed", "no_action"}
+    if not done or str(runtime.get("release_version") or "") != str(release_version or ""):
+        return set(), False, "runtime_not_current_completed"
+    manifest_rel = str(runtime.get("manifest") or "").strip()
+    plan_id = str(runtime.get("plan_id") or "").strip()
+    if not manifest_rel or not plan_id:
+        return set(), False, "runtime_manifest_or_plan_missing"
+    manifest_path = (root / manifest_rel).resolve(strict=False)
+    clearup_root = (root / "CLEARUP").resolve(strict=False)
+    if manifest_path == clearup_root or clearup_root not in manifest_path.parents:
+        return set(), False, "manifest_outside_clearup"
+    manifest = _read_json(manifest_path) or {}
+    if (
+        str(manifest.get("current_version") or "") != str(release_version or "")
+        or str(manifest.get("plan_id") or "") != plan_id
+    ):
+        return set(), False, "manifest_identity_mismatch"
+    review_items = manifest.get("review_items")
+    if not isinstance(review_items, list):
+        return set(), False, "review_items_missing"
+    paths: set[str] = set()
+    for item in review_items:
+        if not isinstance(item, dict) or str(item.get("disposition") or "REVIEW") != "REVIEW":
+            continue
+        relative = str(item.get("source_path") or "").strip().strip("/")
+        if relative and not relative.startswith("../") and "/../" not in relative:
+            paths.add(relative)
+    return paths, True, "current_completed_review_manifest"
 
 
 def _inbox_development_debt(root: Path) -> tuple[int, int, list[str]]:
@@ -75,20 +154,23 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
     rollbacks.sort(reverse=True)
     excess_rollbacks = [name for _, name in rollbacks[max(0, int(keep_rollbacks)):]]
 
-    failed_release_count = sum(1 for path in root.glob("App.__failed_*") if path.exists())
-    failed_inbox = root / "Inbox/failed"
-    if failed_inbox.is_dir():
-        try:
-            failed_release_count += sum(
-                1 for path in failed_inbox.iterdir() if path.exists() or path.is_symlink()
-            )
-        except OSError:
-            pass
-    restore_count = _count_children(root / "Backups/RestoreStaging")
-    release_prepare_count = _count_children(root / "Backups/_release_prepare")
-    release_builder_count = _count_children(root / "Data/03_Systeem/ReleaseBuilders")
+    failed_release_paths = sorted(
+        path.relative_to(root).as_posix()
+        for path in root.glob("App.__failed_*")
+        if path.exists() or path.is_symlink()
+    )
+    failed_release_paths += _children_relative(root, "Inbox/failed")
+    failed_release_count = len(failed_release_paths)
+    restore_paths = _children_relative(root, "Backups/RestoreStaging")
+    release_prepare_paths = _children_relative(root, "Backups/_release_prepare")
+    release_builder_paths = _children_relative(root, "Data/03_Systeem/ReleaseBuilders")
+    restore_count = len(restore_paths)
+    release_prepare_count = len(release_prepare_paths)
+    release_builder_count = len(release_builder_paths)
     clearup_run_count = _count_children(root / "CLEARUP")
     inbox_develop_count, inbox_root_debt_count, inbox_root_debt = _inbox_development_debt(root)
+    process_workspace = inspect_process_workspace(root)
+    root_structure = root_structure_snapshot(root)
 
     known_staging_paths = (
         root / "_fix_backup_auto",
@@ -103,11 +185,34 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
         root / "Infra/Docker/native-mcp/_fix_backup_auto",
         root / "Infra/Docker/native-mcp/_permission_fix_backup",
     )
-    known_staging_count = sum(1 for path in known_staging_paths if path.exists() or path.is_symlink())
+    known_staging_debt = sorted(
+        path.relative_to(root).as_posix()
+        for path in known_staging_paths
+        if path.exists() or path.is_symlink()
+    )
     # ProjectManagerV2 staging is managed per child by CLEARUP. The stable
     # parent directory may intentionally remain present and is not debt by
     # itself; only residual children count.
-    known_staging_count += _count_children(root / "Data/03_Systeem/Projectmanager/Staging/ProjectManagerV2")
+    known_staging_debt += _children_relative(
+        root, "Data/03_Systeem/Projectmanager/Staging/ProjectManagerV2"
+    )
+    known_staging_debt = sorted(set(known_staging_debt))
+    known_staging_count = len(known_staging_debt)
+
+    legacy_debt_paths = set(excess_rollbacks)
+    legacy_debt_paths.update(failed_release_paths)
+    legacy_debt_paths.update(restore_paths)
+    legacy_debt_paths.update(release_prepare_paths)
+    legacy_debt_paths.update(release_builder_paths)
+    legacy_debt_paths.update(known_staging_debt)
+    legacy_debt_paths.update(f"Inbox/{name}" for name in inbox_root_debt)
+
+    release_version = _current_release(root)
+    reviewed_paths, review_evidence_current, review_evidence_reason = _current_clearup_review_paths(
+        root, release_version=release_version
+    )
+    reviewed_hygiene_debt = sorted(legacy_debt_paths & reviewed_paths) if review_evidence_current else []
+    unreviewed_hygiene_debt = sorted(legacy_debt_paths - set(reviewed_hygiene_debt))
 
     details = {
         "rollback_total_count": len(rollbacks),
@@ -123,23 +228,41 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
         "inbox_develop_child_count": inbox_develop_count,
         "inbox_root_development_debt_count": inbox_root_debt_count,
         "inbox_root_development_debt": inbox_root_debt,
+        "process_workspace_active_count": int(process_workspace.get("active_count") or 0),
+        "process_workspace_released_count": int(process_workspace.get("released_count") or 0),
+        "process_workspace_unregistered_count": int(process_workspace.get("unregistered_count") or 0),
+        "process_workspace_unregistered": list(process_workspace.get("unregistered") or []),
+        "process_workspace_invalid_entry_count": int(process_workspace.get("invalid_entry_count") or 0),
+        "root_known_debt_count": int(root_structure.get("known_debt_count") or 0),
+        "root_known_debt": list(root_structure.get("known_debt") or []),
+        "root_unclassified_item_count": int(root_structure.get("unclassified_item_count") or 0),
+        "root_unclassified_items": list(root_structure.get("unclassified_items") or []),
+        "clearup_review_evidence_current": review_evidence_current,
+        "clearup_review_evidence_reason": review_evidence_reason,
+        "reviewed_hygiene_debt_count": len(reviewed_hygiene_debt),
+        "reviewed_hygiene_debt": reviewed_hygiene_debt,
+        "unreviewed_hygiene_debt_count": len(unreviewed_hygiene_debt),
+        "unreviewed_hygiene_debt": unreviewed_hygiene_debt,
         "mutated": False,
     }
     debt = (
-        len(excess_rollbacks)
-        + failed_release_count
-        + restore_count
-        + release_prepare_count
-        + release_builder_count
-        + known_staging_count
-        + inbox_root_debt_count
+        len(unreviewed_hygiene_debt)
+        + int(process_workspace.get("released_count") or 0)
+        + int(process_workspace.get("unregistered_count") or 0)
+        + int(process_workspace.get("invalid_entry_count") or 0)
+        + int(root_structure.get("known_debt_count") or 0)
+        + int(root_structure.get("unclassified_item_count") or 0)
         # CLEARUP is intentional reversible quarantine. Existing runs are
         # evidence/history, not live-structure debt.
     )
     return {
         "name": "project_structure_hygiene",
         "status": "ORANGE" if debt else "GREEN",
-        "reason": "cleanup_or_quarantine_pending" if debt else "clean",
+        "reason": (
+            "cleanup_or_quarantine_pending"
+            if debt
+            else ("clean_reviewed_debt_preserved" if reviewed_hygiene_debt else "clean")
+        ),
         "evidence_ref": str(root),
         "evidence_strength": "verified",
         "details": details,

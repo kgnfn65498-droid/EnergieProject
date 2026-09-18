@@ -83,7 +83,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.55"
+APP_VERSION = "32.4.56"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -20330,6 +20330,35 @@ def _verify_github_remote_baseline(contract, worktree: Path):
     return True, "GitHub remote-baseline gecontroleerd."
 
 
+
+def _request_supervisor_same_version_rebuild(token: str) -> dict[str, Any]:
+    """Refresh the official add-on store and rebuild this same-version add-on.
+
+    This route is used only after the validated GitHub target for the already
+    installed version is proven current. It does not invent a QNAP/Git path.
+    """
+    token = str(token or "").strip()
+    if not token:
+        return {"status": "SKIPPED", "requested": False, "reason": "supervisor_token_missing"}
+    steps = []
+    for endpoint in ("/addons/reload", "/addons/self/rebuild"):
+        request = urllib.request.Request(
+            "http://supervisor" + endpoint,
+            data=b"{}",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:
+                body = response.read().decode("utf-8", errors="replace")
+            steps.append({"endpoint": endpoint, "ok": True, "body": body[:500]})
+        except Exception as exc:
+            return {
+                "status": "RED", "requested": False, "steps": steps,
+                "failed_endpoint": endpoint, "error": f"{type(exc).__name__}: {exc}",
+            }
+    return {"status": "GREEN", "requested": True, "steps": steps}
+
 def publish_github_release(options=None):
     options = options or {}
     LOGGER.info("GitHub-publicatie: gevalideerd publicatiecontract controleren.")
@@ -20366,6 +20395,12 @@ def publish_github_release(options=None):
             "version": contract.get("version"),
             "message": "GitHub-publicatie reeds exact aanwezig",
         }
+        result["same_version_rebuild"] = _request_supervisor_same_version_rebuild(os.environ.get("SUPERVISOR_TOKEN", ""))
+        if result["same_version_rebuild"].get("status") == "RED":
+            result["published"] = False
+            result["message"] = "GitHub target is exact, maar officiële store reload/rebuild kon niet worden aangevraagd"
+            _write_github_publish_state(result)
+            return result
         try:
             HA_PUBLICATION_REQUIRED.unlink()
             result["publication_contract_removed"] = True
@@ -20420,6 +20455,12 @@ def publish_github_release(options=None):
     else:
         result["message"] = f"GitHub-publicatie mislukt: {err or out}"
     if result.get("published"):
+        result["same_version_rebuild"] = _request_supervisor_same_version_rebuild(os.environ.get("SUPERVISOR_TOKEN", ""))
+        if result["same_version_rebuild"].get("status") == "RED":
+            result["published"] = False
+            result["message"] = "Publicatie geslaagd, maar officiële store reload/rebuild kon niet worden aangevraagd"
+            _write_github_publish_state(result)
+            return result
         try:
             HA_PUBLICATION_REQUIRED.unlink()
             result["publication_contract_removed"] = True
@@ -20438,7 +20479,9 @@ def _write_github_publish_state(payload):
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp = path.with_name(path.name + f".tmp.{os.getpid()}")
             tmp.write_text(data, encoding="utf-8")
+            os.chmod(tmp, 0o666)
             os.replace(tmp, path)
+            os.chmod(path, 0o666)
         except Exception as exc:
             failures.append(f"{path}:{type(exc).__name__}:{exc}")
     if failures:

@@ -202,7 +202,7 @@ def test_project_cr_executor_consumes_exact_request(tmp_path, monkeypatch):
     native = root/'Infra/Docker/native-mcp'; native.mkdir(parents=True)
     fake = types.ModuleType('crash_recovery')
     fake.create_crash_recovery_backup = lambda *a, **k: {'status':'valid','deep_verified':True,'backup_name':'2026-09-11 08.00 32.4.38 CR EnergieProject.zip','backup_sha256':'x','retention_delete_performed':False,'retention_quarantined':[]}
-    fake.verify_crash_recovery_backup = lambda *a, **k: {'status':'valid','verified_files':1}
+    fake.verify_crash_recovery_backup = lambda *a, **k: {'status':'valid','verified_files':0,'sha256_matches':True,'zip_integrity':'ok','deep_verified':False}
     sys.modules['crash_recovery'] = fake
     spec = importlib.util.spec_from_file_location('project_cr_local_executor_under_test', TOOLS/'project_cr_local_executor.py')
     mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)

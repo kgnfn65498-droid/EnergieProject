@@ -262,6 +262,7 @@ EOF
     return 1
   }
   [ -f "$HA_PUBLICATION_REQUIRED" ] || return 1
+  chmod 0666 "$HA_PUBLICATION_REQUIRED" || return 1
   grep -Fq "\"version\":\"$NEW_VERSION\"" "$HA_PUBLICATION_REQUIRED" || return 1
   log "HA-publicatiecontract gereed voor v$NEW_VERSION; marker=$HA_PUBLICATION_REQUIRED"
 }

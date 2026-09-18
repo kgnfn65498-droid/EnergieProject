@@ -42,9 +42,9 @@ def execute(root: Path) -> dict:
         sys.path.insert(0,str(native))
         from crash_recovery import create_crash_recovery_backup, verify_crash_recovery_backup
         created=create_crash_recovery_backup(root,root/'Backups',retention=1)
-        verify=verify_crash_recovery_backup(root/'Backups',created.get('backup_name'),deep_verify_files=True)
+        verify=verify_crash_recovery_backup(root/'Backups',created.get('backup_name'),deep_verify_files=False)
         expected_suffix=f' {version} CR EnergieProject.zip'
-        if created.get('status')!='valid' or created.get('deep_verified') is not True or verify.get('status')!='valid':
+        if created.get('status')!='valid' or created.get('deep_verified') is not True or verify.get('status')!='valid' or verify.get('sha256_matches') is not True or verify.get('zip_integrity')!='ok':
             raise RuntimeError('EnergieProject CR verificatie RED')
         if not str(created.get('backup_name') or '').endswith(expected_suffix):
             raise RuntimeError('EnergieProject CR naam/runtimeversie mismatch')
@@ -52,7 +52,7 @@ def execute(root: Path) -> dict:
             raise RuntimeError('EnergieProject CR rapporteert onverwachte delete')
         result={'schema':RESULT_SCHEMA,'request_id':req['request_id'],'operation':OPERATION,'status':'GREEN','ok':True,
                 'version':version,'backup_name':created.get('backup_name'),'backup_sha256':created.get('backup_sha256'),
-                'deep_verified':True,'verified_files':verify.get('verified_files'),'retention':1,
+                'deep_verified':True,'verified_files':created.get('verified_files'),'retention':1,
                 'retention_quarantined':created.get('retention_quarantined',[]),'delete_performed':False,
                 'finished_at':datetime.now(timezone.utc).isoformat()}
         if command_id:

@@ -157,6 +157,7 @@ def _apply_retention(crash_root: Path, retention: int):
             1,
         )
     text = _crash_recovery_snapshot_v2(text)
+    text = _crash_recovery_snapshot_v3(text)
     return text
 
 def _crash_recovery_snapshot_v2(text: str) -> str:
@@ -279,6 +280,100 @@ def _crash_recovery_snapshot_v2(text: str) -> str:
         'CR snapshot result evidence',
     )
     return text
+
+def _crash_recovery_snapshot_v3(text: str) -> str:
+    """Exclude settled root release debt while preserving active rollback/hold gates."""
+    marker = 'SNAPSHOT_SCOPE_POLICY = "energie_cr_snapshot_release_debt_v1"'
+    if marker in text:
+        return text
+    if 'SNAPSHOT_POLICY = "energie_cr_snapshot_v2"' not in text or 'def _inventory(' not in text:
+        return text
+    helper = '''
+SNAPSHOT_SCOPE_POLICY = "energie_cr_snapshot_release_debt_v1"
+_RELEASE_DEBT_PREFIXES = ("App.__rollback_", "App.__failed_", "App.__candidate_")
+_RELEASE_ZIP_RE = re.compile(r"^EnergieProject_v\\d+\\.\\d+\\.\\d+(?:[^/]*)\\.zip$")
+
+def _snapshot_release_debt_exclusions(project_root: Path) -> tuple[set[str], set[str]]:
+    protected: set[str] = set()
+    atomic_path = project_root / "Inbox/atomic_app_swap_state.json"
+    hold_path = project_root / "Inbox/operating_mode/release_validation_hold.json"
+    try:
+        atomic = json.loads(atomic_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        atomic = {}
+    rollback = str(atomic.get("rollback_path") or "").strip()
+    if rollback:
+        try:
+            candidate = Path(rollback)
+            if candidate.is_absolute():
+                candidate = candidate.resolve(strict=False).relative_to(project_root.resolve())
+            if len(candidate.parts) == 1 and candidate.name.startswith(_RELEASE_DEBT_PREFIXES):
+                protected.add(candidate.name)
+        except (OSError, ValueError):
+            pass
+    try:
+        hold = json.loads(hold_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        hold = {}
+    if hold.get("active") is True:
+        release = str(hold.get("release_version") or "").strip()
+        if release:
+            protected.add(f"App.__candidate_{release}")
+    excluded: set[str] = set()
+    try:
+        children = list(project_root.iterdir())
+    except OSError:
+        return excluded, protected
+    for child in children:
+        name = child.name
+        if name in protected:
+            continue
+        if name.startswith(_RELEASE_DEBT_PREFIXES) or (child.is_file() and _RELEASE_ZIP_RE.fullmatch(name)):
+            excluded.add(name)
+    return excluded, protected
+
+'''
+    anchor = 'def _inventory(project_root: Path, max_files: int, max_source_bytes: int) -> dict[str, Any]:\n'
+    if anchor not in text:
+        raise RuntimeError('CR snapshot inventory anchor ontbreekt voor release-debt scope')
+    text = text.replace(anchor, helper + anchor, 1)
+    old = '    transient_excluded = []\n\n    for root, dirnames, filenames in os.walk(project_root, topdown=True, followlinks=False):'
+    new = '    transient_excluded = []\n    release_debt_excluded, release_debt_protected = _snapshot_release_debt_exclusions(project_root)\n\n    for root, dirnames, filenames in os.walk(project_root, topdown=True, followlinks=False):'
+    if old not in text:
+        raise RuntimeError('CR snapshot release-debt inventory state anchor ontbreekt')
+    text = text.replace(old, new, 1)
+    old = '            p = root_path / name\n            rel = PurePosixPath((root_rel / name).as_posix())\n            if _excluded(rel):\n                continue\n'
+    new = '            p = root_path / name\n            rel = PurePosixPath((root_rel / name).as_posix())\n            if root_rel == Path(".") and name in release_debt_excluded:\n                continue\n            if _excluded(rel):\n                continue\n'
+    if old not in text:
+        raise RuntimeError('CR snapshot directory-loop anchor ontbreekt')
+    text = text.replace(old, new, 1)
+    old = '            p = root_path / name\n            rel = PurePosixPath((root_rel / name).as_posix())\n            if _excluded(rel):\n                continue\n            if _is_known_atomic_temp(rel):\n'
+    new = '            p = root_path / name\n            rel = PurePosixPath((root_rel / name).as_posix())\n            if root_rel == Path(".") and name in release_debt_excluded:\n                continue\n            if _excluded(rel):\n                continue\n            if _is_known_atomic_temp(rel):\n'
+    if old not in text:
+        raise RuntimeError('CR snapshot filename-loop release-debt anchor ontbreekt')
+    text = text.replace(old, new, 1)
+    old = '        "transient_excluded": transient_excluded,\n    }'
+    new = '        "transient_excluded": transient_excluded,\n        "release_debt_excluded": sorted(release_debt_excluded),\n        "release_debt_protected": sorted(release_debt_protected),\n        "snapshot_scope_policy": SNAPSHOT_SCOPE_POLICY,\n    }'
+    if old not in text:
+        raise RuntimeError('CR snapshot inventory return anchor ontbreekt')
+    text = text.replace(old, new, 1)
+    old = '    transient_excluded = list(inventory.get("transient_excluded", []))\n    transient_skipped = []\n'
+    new = '    transient_excluded = list(inventory.get("transient_excluded", []))\n    release_debt_excluded = list(inventory.get("release_debt_excluded", []))\n    release_debt_protected = list(inventory.get("release_debt_protected", []))\n    transient_skipped = []\n'
+    if old not in text:
+        raise RuntimeError('CR snapshot create evidence anchor ontbreekt')
+    text = text.replace(old, new, 1)
+    old = '            "transient_skipped_count": len(transient_skipped),\n            "type": "EnergieProject_CRASH_RECOVERY",'
+    new = '            "transient_skipped_count": len(transient_skipped),\n            "snapshot_scope_policy": SNAPSHOT_SCOPE_POLICY,\n            "release_debt_excluded": release_debt_excluded,\n            "release_debt_protected": release_debt_protected,\n            "type": "EnergieProject_CRASH_RECOVERY",'
+    if old not in text:
+        raise RuntimeError('CR snapshot manifest release-debt anchor ontbreekt')
+    text = text.replace(old, new, 1)
+    old = '            "transient_skipped": transient_skipped,\n            "excluded": ['
+    new = '            "transient_skipped": transient_skipped,\n            "snapshot_scope_policy": SNAPSHOT_SCOPE_POLICY,\n            "release_debt_excluded": release_debt_excluded,\n            "release_debt_protected": release_debt_protected,\n            "excluded": ['
+    if old not in text:
+        raise RuntimeError('CR snapshot result release-debt anchor ontbreekt')
+    text = text.replace(old, new, 1)
+    return text
+
 
 def _tools_recovery(text: str) -> str:
     text = _replace(text, 'retention=3,', 'retention=1,', 'tools_recovery max-1', count=2)

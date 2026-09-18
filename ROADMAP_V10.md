@@ -1,5 +1,11 @@
 # Roadmap v10.x
 
+## 32.4 proces/cleanup/recovery — 32.4.56
+- `Inbox/process` wordt de enige canonieke plek voor tijdelijke test/cache/procesartefacten; actieve items blijven beschermd, vrijgegeven items worden door CLEARUP reversibel beheerd.
+- Hoofdroot wordt beleidsmatig opgeschoond: bekende oude release-ZIPs/build-temp en excess rollbacks gaan alleen via dependency-audited CLEARUP; onbekende items blijven zichtbaar en fail-closed.
+- CR-retentie blijft exact 1 voor EnergieProject en NAS Containers; gewone release-rollbackretentie blijft 3.
+- Open 32.4.55 live-acceptancebevinding wordt structureel meegenomen met embedded-PM startup recovery en restart-loopbegrenzing.
+
 ## 32.4 kernreparatie — 32.4.39
 - Scope bewust beperkt tot vier bewezen kernoorzaken; gevolgproblemen worden na live 32.4.39 opnieuw gemeten en niet vooraf als opgelost geclaimd.
 - Kern: watcher recreategrens, Native MCP runtime truth, canonical roadmap persistence en CLEARUP/acceptance-deadlock.

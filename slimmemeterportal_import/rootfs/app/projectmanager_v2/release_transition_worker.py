@@ -49,8 +49,14 @@ def plan_transition_step(state: dict[str,Any], facts: dict[str,Any]) -> dict[str
     if phase=='NATIVE_RUNTIME_CURRENT': return {'action':'ADVANCE_HOLD_VALID' if facts.get('native_green') else 'QUEUE_NATIVE_MCP_RELOAD'}
     if phase=='HOLD_VALID': return {'action':'ADVANCE_ATOMIC_ACCEPTANCE_COMMITTED' if facts.get('atomic_committed') else 'COMMIT_ATOMIC_ACCEPTANCE'}
     if phase=='ATOMIC_ACCEPTANCE_COMMITTED': return {'action':'ADVANCE_PROJECT_CR'}
-    if phase=='PROJECT_CR': return {'action':'ADVANCE_NAS_CR' if facts.get('project_cr_green') else 'QUEUE_PROJECT_CR'}
-    if phase=='NAS_CR': return {'action':'ADVANCE_CLEARUP' if facts.get('nas_cr_green') else 'QUEUE_NAS_CR'}
+    if phase=='PROJECT_CR':
+        if state.get('current_ticket'): return {'action':'WAIT_PROJECT_CR_RESULT'}
+        if str(state.get('phase_status') or '').upper()=='GREEN' and 'PROJECT_CR' in (state.get('completed_phases') or []): return {'action':'ADVANCE_NAS_CR'}
+        return {'action':'ADVANCE_NAS_CR' if facts.get('project_cr_green') else 'QUEUE_PROJECT_CR'}
+    if phase=='NAS_CR':
+        if state.get('current_ticket'): return {'action':'WAIT_NAS_CR_RESULT'}
+        if str(state.get('phase_status') or '').upper()=='GREEN' and 'NAS_CR' in (state.get('completed_phases') or []): return {'action':'ADVANCE_CLEARUP'}
+        return {'action':'ADVANCE_CLEARUP' if facts.get('nas_cr_green') else 'QUEUE_NAS_CR'}
     if phase=='CLEARUP': return {'action':'ADVANCE_HYGIENE' if facts.get('clearup_green') else 'WAIT_CLEARUP'}
     if phase=='HYGIENE': return {'action':'ADVANCE_LIVE_PROVEN' if facts.get('hygiene_green') else 'WAIT_HYGIENE'}
     if phase=='LIVE_PROVEN': return {'action':'RESTORE_DEVELOPMENT'}
@@ -174,14 +180,84 @@ class ReleaseTransitionWorker:
         if not previous or not readback: return None
         return self.coord.recover_ticketless_nas_cr_not_performed(expected_generation=str(state.get('generation_id') or ''), expected_revision=int(state['revision']), previous_request_id=previous, readback=readback)
 
+
+    def _settle_current_ticket(self, state):
+        ticket=state.get('current_ticket') if isinstance(state.get('current_ticket'),dict) else None
+        if not ticket or ticket.get('executor_name') not in {'project_cr_create','nas_container_cr_create'}:
+            return None
+        request_id=str(ticket.get('request_id') or '')
+        generation=str(ticket.get('generation_id') or '')
+        matches=[command for command in self.commands.all() if
+                 command.get('transition_request_id')==request_id and
+                 command.get('transition_generation')==generation and
+                 command.get('executor_name')==ticket.get('executor_name')]
+        if not matches:
+            return None
+        command=matches[-1]
+        if command.get('status')=='DONE':
+            result=command.get('result') if isinstance(command.get('result'),dict) else {}
+            evidence=[]
+            for key in ('backup_name','backup_sha256','result_path','evidence_ref'):
+                if result.get(key): evidence.append(str(result.get(key)))
+            accepted=self.coord.accept_executor_result({
+                **ticket, 'status':'GREEN', 'side_effect_state':'PROVEN',
+                'evidence_refs':evidence,
+            })
+            return accepted
+        if command.get('status') in {'FAILED','CANCELLED','SUPERSEDED'}:
+            self.coord.block(
+                expected_revision=int(state['revision']), expected_generation=generation,
+                blocker='executor_command_failed_before_ticket_settlement',
+                next_action='inspect exact executor command result',
+            )
+            return self.coord.load()
+        return None
+
+    def _ensure_project_cr_maintenance_bridge(self, state):
+        ticket=state.get('current_ticket') if isinstance(state.get('current_ticket'),dict) else None
+        if not ticket or ticket.get('executor_name')!='project_cr_create':
+            return None
+        request_id=str(ticket.get('request_id') or '')
+        matches=[command for command in self.commands.all() if
+                 command.get('transition_request_id')==request_id and
+                 command.get('transition_generation')==state.get('generation_id') and
+                 command.get('executor_name')=='project_cr_create']
+        if not matches:
+            return None
+        command=matches[-1]
+        pending_result=command.get('result') if isinstance(command.get('result'),dict) else {}
+        project_cr_request_id=str(pending_result.get('request_id') or '')
+        if command.get('status')!='PENDING' or not project_cr_request_id:
+            return None
+        from mode_bridge import ModeBridge
+        bridge=ModeBridge(self.root/'Inbox/operating_mode/operating_mode_command.json')
+        return bridge.request_transition_owned_temporary_maintenance(
+            generation_id=str(state.get('generation_id') or ''),
+            ticket_request_id=request_id,
+            idempotency_key=str(ticket.get('idempotency_key') or ''),
+            command_id=str(command.get('id') or ''),
+            project_cr_request_id=project_cr_request_id,
+            release_owner=str(state.get('to_release') or ''),
+            approval_reference='release_transition_authorized_release_e2e',
+            confirmed_by_user=True,
+        )
+
     def run_once(self):
         state=self.coord.load() or self.coord.bootstrap_legacy_if_needed()
+        settled=self._settle_current_ticket(state)
+        if settled is not None:
+            state=settled
         recovered = self._recover_ticketless_nas_cr_once(state)
         if recovered is not None:
             return recovered
         if state.get('lifecycle_state') == 'BLOCKED':
             return state
         if state.get('lifecycle_state') in {'COMPLETE','ROLLED_BACK','CANCELLED'}: return state
+        if state.get('phase')=='PROJECT_CR' and state.get('current_ticket'):
+            self._ensure_project_cr_maintenance_bridge(state)
+            return self.coord.load() or state
+        if state.get('phase')=='NAS_CR' and state.get('current_ticket'):
+            return state
         facts=_checks(self.root); step=plan_transition_step(state,facts); action=step['action']
         gen=state['generation_id']; rev=int(state['revision']); rel=state['to_release']
         if action=='ADVANCE_APP_PROMOTED':
@@ -209,7 +285,11 @@ class ReleaseTransitionWorker:
         if action=='ADVANCE_PROJECT_CR':
             write_project_close(self.root,release_version=rel,state='REQUESTED',reason='release_transition_project_close',source='release_transition_coordinator')
             return self.coord.advance(expected_revision=rev,expected_generation=gen,phase='PROJECT_CR',phase_status='PENDING',next_action='current Project CR')
-        if action=='QUEUE_PROJECT_CR': self._queue_once('project_cr_create',state); return self.coord.load()
+        if action=='QUEUE_PROJECT_CR':
+            self._queue_once('project_cr_create',state)
+            current=self.coord.load() or state
+            self._ensure_project_cr_maintenance_bridge(current)
+            return self.coord.load() or current
         if action=='ADVANCE_NAS_CR': return self.coord.advance(expected_revision=rev,expected_generation=gen,phase='NAS_CR',phase_status='PENDING',next_action='current NAS Container CR')
         if action=='QUEUE_NAS_CR': self._queue_once('nas_container_cr_create',state); return self.coord.load()
         if action=='ADVANCE_CLEARUP': return self.coord.advance(expected_revision=rev,expected_generation=gen,phase='CLEARUP',phase_status='PENDING',next_action='wait reversible CLEARUP')

@@ -55,6 +55,25 @@ def _write_runtime_evidence(runtime, status: dict) -> dict:
     return payload
 
 
+def _write_cycle_state(runtime, status: str, *, started_at_epoch: float, error: str = "") -> dict:
+    config = runtime.config
+    now = time.time()
+    payload = {
+        "schema": "energie_embedded_pm_cycle_v1",
+        "status": str(status),
+        "release_version": str(getattr(config, "running_release_version", "") or "").strip(),
+        "pid": os.getpid(),
+        "started_at_epoch": float(started_at_epoch),
+        "observed_at_epoch": now,
+        "observed_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
+        "error": str(error or ""),
+    }
+    if status != "RUNNING":
+        payload["finished_at_epoch"] = now
+    atomic_write_json(Path(config.system_root) / "embedded_runtime" / "cycle.json", payload)
+    return payload
+
+
 def run_embedded(stop_event, *, runtime, interval_seconds=60, on_failure=None, on_success=None):
     """Run PM cycles inside the existing Energie add-on process.
 
@@ -66,11 +85,14 @@ def run_embedded(stop_event, *, runtime, interval_seconds=60, on_failure=None, o
     failures = 0
     interval = max(60, int(interval_seconds))
     while not stop_event.is_set():
+        cycle_started = time.time()
         try:
+            _write_cycle_state(runtime, "RUNNING", started_at_epoch=cycle_started)
             status = runtime.run_once()
             if not isinstance(status, dict):
                 raise RuntimeError('embedded Projectmanager cycle returned no status object')
             _write_runtime_evidence(runtime, status)
+            _write_cycle_state(runtime, "GREEN", started_at_epoch=cycle_started)
             if on_success is not None:
                 try:
                     on_success()
@@ -78,6 +100,13 @@ def run_embedded(stop_event, *, runtime, interval_seconds=60, on_failure=None, o
                     logging.exception('Projectmanager success callback failed safely')
         except Exception as exc:
             failures += 1
+            try:
+                _write_cycle_state(
+                    runtime, "RED", started_at_epoch=cycle_started,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+            except Exception:
+                logging.exception('Embedded Projectmanager cycle-evidence write failed safely')
             logging.exception('Embedded Projectmanager cycle failed; primary Energie app remains active')
             if on_failure is not None:
                 try:

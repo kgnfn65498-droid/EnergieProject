@@ -23,6 +23,7 @@ def _atomic_text(path: Path, text: str) -> None:
 
 
 class ConfiguredProjectCrService:
+    STALE_WORKER_MARKER_SECONDS=30*60
     REQUEST_SCHEMA='energie_project_cr_local_request_v1'
     RESULT_SCHEMA='energie_project_cr_local_result_v1'
     OPERATION='project_cr_create'
@@ -42,7 +43,34 @@ class ConfiguredProjectCrService:
 
     def _worker_marker_active(self) -> bool:
         marker=self.bridge_root/'project_cr_local_worker.pid'
-        return marker.is_file() and not marker.is_symlink() and bool(marker.read_text(encoding='utf-8',errors='ignore').strip())
+        if not marker.is_file() or marker.is_symlink():
+            return False
+        content=marker.read_text(encoding='utf-8',errors='ignore').strip()
+        if not content:
+            return False
+        try:
+            age=max(0.0,time.time()-marker.stat().st_mtime)
+        except OSError:
+            return True
+        if age <= self.STALE_WORKER_MARKER_SECONDS:
+            return True
+        fence=self.bridge_root/'single_worker_recovery_fence.json'
+        if fence.is_symlink():
+            raise RuntimeError('onveilige Project-CR recovery fence')
+        request=self._load(self.request_path) or {}
+        payload={
+            'schema':'energie_project_cr_single_worker_recovery_v1',
+            'status':'RECOVERED_STALE_MARKER',
+            'reason':'stale_worker_marker_recovered',
+            'marker_value':content,
+            'marker_age_seconds':age,
+            'request_id':str(request.get('request_id') or ''),
+            'recovered_at':datetime.now(timezone.utc).isoformat(),
+            'delete_performed':False,
+        }
+        _atomic_text(fence,json.dumps(payload,ensure_ascii=False,sort_keys=True)+'\n')
+        marker.unlink(missing_ok=True)
+        return False
 
     def _archive_bridge_evidence(self, *, reason: str) -> None:
         if self._worker_marker_active():

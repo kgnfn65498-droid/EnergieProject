@@ -1,5 +1,12 @@
 # Vaste ontwikkelafspraken Energieproject
 
+## Proces-/cleanupcontract vanaf 32.4.56
+- Tijdelijke test-, cache-, build- en procesartefacten horen onder `Inbox/process`; nieuwe losse tijdelijke namespaces in de EnergieProject-hoofdroot zijn niet toegestaan.
+- CLEARUP blijft een reversibele hard-move/quarantaine met manifest en restorepad; geen generieke delete-capability.
+- Onbekende losse root-items worden nooit blind verplaatst: zij tellen als fail-closed hygiëneschuld totdat zij expliciet geclassificeerd zijn.
+- Gewone release-rollbacks houden retentie 3; Crash Recovery is een apart domein met retentie=1 voor EnergieProject en NAS Containers.
+- Embedded Projectmanager startup recovery mag maximaal één add-on self-restart per 60 minuten aanvragen wanneer 15 minuten na add-onstart nog geen verse huidige PM-cycle bestaat; daarna BLOCKED, nooit een restart-loop of gefabriceerde COMPLETE/ACCEPTED-state.
+
 - Als de gebruiker zegt `bouw X.Y`, bouw daadwerkelijk een complete nieuwe productieversie op de vorige geteste versie.
 - Iedere build levert: complete ZIP, changelog, kopieerbare committekst en testinstructies onderaan.
 - Na iedere versie wachten op de Home Assistant-testresultaten voordat de volgende versie wordt gebouwd.

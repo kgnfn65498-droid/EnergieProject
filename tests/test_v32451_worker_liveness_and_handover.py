@@ -117,10 +117,12 @@ def test_handover_carries_cross_chat_build_and_audit_contract():
 
 
 def test_32451_release_identity():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.4.55'
-    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc42'
-    assert 'TARGET_RELEASE_VERSION = "32.4.55"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "32.4.55"' in (APP / 'main.py').read_text(encoding='utf-8')
+    import release_test_contract as contract
+
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_RELEASE
+    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == contract.CURRENT_PM_VERSION
+    assert f'TARGET_RELEASE_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
+    assert f'APP_VERSION = "{contract.CURRENT_RELEASE}"' in (APP / 'main.py').read_text(encoding='utf-8')
 
 
 def test_release_health_fails_closed_when_pm_driver_liveness_is_stale():

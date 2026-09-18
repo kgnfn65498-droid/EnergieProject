@@ -18,6 +18,7 @@ from typing import Any
 from atomic_app_swap import _is_forbidden_release_path, _safe_zip_infos
 
 _GENERATED_METADATA = {"MANIFEST.sha256", "SHA256SUMS.json"}
+_BUILD_EVIDENCE = {"fulltest.log", "fulltest.exit"}
 _EXCLUDED_DIR_PARTS = {".git"}
 
 
@@ -29,6 +30,7 @@ def _filtered_release_path(relative: Path) -> bool:
     return (
         _is_forbidden_release_path(relative)
         or any(part in _EXCLUDED_DIR_PARTS for part in relative.parts)
+        or (len(relative.parts) == 1 and relative.name in _BUILD_EVIDENCE)
         or (len(relative.parts) == 1 and relative.name.startswith('.testfiles') and relative.suffix == '.txt')
     )
 

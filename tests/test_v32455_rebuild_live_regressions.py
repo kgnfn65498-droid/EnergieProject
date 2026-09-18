@@ -239,3 +239,46 @@ def test_release_installer_normalizes_existing_runtimev2_before_transition_prepa
     call = source.index('normalize_projectmanager_runtime_permissions')
     prepare = source.index('TRANSITION_PREPARED schrijven mislukt')
     assert call < prepare
+
+
+def test_runtimev2_mode_readback_marks_home_assistant_share_projection_non_authoritative():
+    import persistence as mod
+
+    assert mod._mode_readback_is_authoritative(Path('/share/Energie_NAS/EnergieProject/Inbox/projectmanager_v2/RuntimeV2/market/market_schedule.json')) is False
+    assert mod._mode_readback_is_authoritative(Path('/energy/Inbox/projectmanager_v2/RuntimeV2/market/market_schedule.json')) is True
+
+
+def test_runtimev2_atomic_write_tolerates_masked_mode_readback_on_non_authoritative_share(tmp_path: Path, monkeypatch):
+    import persistence as mod
+
+    target = tmp_path / 'Inbox/projectmanager_v2/RuntimeV2/market/market_schedule.json'
+    real_readback = mod._readback_mode
+
+    monkeypatch.setattr(mod, '_mode_readback_is_authoritative', lambda path: False)
+    monkeypatch.setattr(
+        mod,
+        '_readback_mode',
+        lambda path: 0o644 if Path(path) == target else real_readback(path),
+    )
+
+    mod.atomic_write_json(target, {'schema': 1, 'next_due': {}})
+
+    assert json.loads(target.read_text(encoding='utf-8'))['schema'] == 1
+    assert _mode(target) == 0o666
+
+
+def test_runtimev2_atomic_write_still_fails_closed_on_authoritative_mode_mismatch(tmp_path: Path, monkeypatch):
+    import persistence as mod
+
+    target = tmp_path / 'Inbox/projectmanager_v2/RuntimeV2/market/market_schedule.json'
+    real_readback = mod._readback_mode
+
+    monkeypatch.setattr(mod, '_mode_readback_is_authoritative', lambda path: True)
+    monkeypatch.setattr(
+        mod,
+        '_readback_mode',
+        lambda path: 0o644 if Path(path) == target else real_readback(path),
+    )
+
+    with pytest.raises(OSError, match='atomic final mode mismatch'):
+        mod.atomic_write_json(target, {'schema': 1, 'next_due': {}})

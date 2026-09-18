@@ -515,10 +515,11 @@ def run_approved_clearup_once(
                     "gate": gate,
                 }
 
+    candidate_hashcache: dict[str, dict[str, Any]] = {}
     plan = build_clearup_plan(
         root, current_version=str(app_version), keep_rollbacks=3,
         deadline_monotonic=deadline_monotonic, progress_callback=progress_callback,
-        started_monotonic=started_monotonic,
+        started_monotonic=started_monotonic, candidate_hashcache=candidate_hashcache,
     )
     if current_prerequisite_fingerprint:
         plan["prerequisite_fingerprint"] = current_prerequisite_fingerprint
@@ -596,13 +597,20 @@ def run_approved_clearup_once(
         plan = build_clearup_plan(
             root, current_version=str(app_version), keep_rollbacks=3,
             deadline_monotonic=deadline_monotonic, progress_callback=progress_callback,
-            started_monotonic=started_monotonic,
+            started_monotonic=started_monotonic, candidate_hashcache=candidate_hashcache,
         )
         if current_prerequisite_fingerprint:
             plan["prerequisite_fingerprint"] = current_prerequisite_fingerprint
         plan_id = plan.get("plan_id")
-        if not plan_id or plan_id == previous_plan_id:
-            raise RuntimeError("CLEARUP verse dependency-audit leverde geen nieuw plan-id op")
+        if not plan_id:
+            raise RuntimeError("CLEARUP verse dependency-audit leverde geen geldig plan-id op")
+        identical_fresh_plan = plan_id == previous_plan_id
+        if identical_fresh_plan:
+            _emit_progress(
+                progress_callback, phase="fresh_dependency_audit", started_monotonic=started_monotonic,
+                stale_plan_id=plan_id, stale_attempt=stale_attempt, identical_fresh_plan=True,
+                hash_cache_hits=int(plan.get("hash_cache_hits") or 0),
+            )
         if int(plan.get("clearup_count") or 0) == 0:
             return _no_action_payload(plan)
 

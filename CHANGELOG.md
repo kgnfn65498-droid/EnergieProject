@@ -1,3 +1,20 @@
+## 32.4.56 — procesworkspace, veilige root-cleanup en PM startup recovery
+
+- rc44 live-rescue closure: shared publication-state permissies, officiële same-version Supervisor store reload/self rebuild, transition-ticket settlement vóór broad-health doorgang en automatische transition-owned PROJECT_CR→MAINTENANCE bridge.
+- CLEARUP accepteert een inhoudelijk identieke verse re-audit binnen bounded retries en hergebruikt kandidaat-hashes uitsluitend na ongewijzigde recursieve metadata-signature.
+- Project CR doet nog één volledige deep verify tijdens creatie; de onafhankelijke tweede controle beperkt zich tot ZIP/SHA-readback. Stale worker-markers krijgen bounded recovery-fence bewijs.
+- CR snapshot-scope sluit settled root release-debt uit maar beschermt de actuele atomic rollback en actieve hold-candidate.
+- Nieuwe-chatcontinuïteit is release-inhoud via PROJECT_CONSTITUTION.md, CURRENT_HANDOVER.md en WORK_LEDGER.md.
+- Target identity: EnergieProject 32.4.56 / Projectmanager 2.0.0-rc44.
+
+- Introduceert `Inbox/process` als canonieke tijdelijke werkruimte met `tmp`, `cache`, `active` en een atomisch `process_map.json`; CLEARUP verplaatst alleen expliciet geregistreerde vrijgegeven/verlaten procesartefacten.
+- Breidt projecthygiëne uit met bekende root-release/buildrommel en fail-closed rapportage van onbekende root-items; bestaande release-rollbackretentie blijft 3 en CLEARUP blijft quarantaine/move zonder delete.
+- Bevestigt via regressies dat EnergieProject Crash Recovery en NAS Containers Crash Recovery retentie=1 houden en oude geldige sets pas na nieuwe geldige set naar quarantaine gaan.
+- Behoudt de 32.4.55 `/share` atomic-mode readback-fix en HA-notificatie-dismiss.
+- Voegt embedded Projectmanager startup recovery toe: per cyclus RUNNING/GREEN/RED-evidence, maximaal één Supervisor add-on self-restart per uur wanneer na 15 minuten geen verse huidige PM-cycle verschijnt, daarna fail-closed BLOCKED zonder restart-loop of gefabriceerde release-state.
+- 32.4.55 live-audit blijft als regressie-evidence: GUI kon draaien terwijl PM-status stale bleef; 32.4.56 maakt dit expliciet detecteerbaar en begrensd herstelbaar.
+- Auditclosure: `Inbox/process` wordt nu bij add-onstartup daadwerkelijk aangemaakt na de release-transition bootstrap; releasepackaging sluit lokale `fulltest.log`/`fulltest.exit` build-evidence uit.
+
 ## 32.4.55 — autonomous release ingress recovery
 
 - Incoming recovery classificeert identieke dubbele ZIPs deterministisch en blokkeert verschillende kandidaten fail-closed.
@@ -12,6 +29,8 @@
 - CLEARUP herkent watcher-wrapped stale-plan fouten en voert maximaal drie verse dependency-audits uit binnen een 60-minuten fail-closed budget.
 - Release-transition workerfouten worden persistent vastgelegd en legacy ownership-migratie is idempotent.
 - N+1 release-preflight accepteert een canonieke 32.4.54 PM-snapshot zonder de pas in 32.4.55 ingevoerde `command_ingress_consumer` healthcheck; de CommandIngress-map en receipts/queue blijven rechtstreeks fail-closed gecontroleerd.
+- RuntimeV2 atomic writes behandelen Home Assistant `/share`-mode-readback als niet-authoritatief, zodat gemaskeerde POSIX-permissies geen valse `atomic final mode mismatch` meer veroorzaken; native `/energy`/lokale filesystems blijven fail-closed op echte mode-drift.
+- Na een succesvolle embedded Projectmanager-cyclus wordt naast `embedded_failure.json` ook de bijbehorende Home Assistant persistent notification best-effort gewist.
 - Target identity: EnergieProject 32.4.55 / Projectmanager 2.0.0-rc42.
 
 ## 32.4.54 — generation-fenced release transition

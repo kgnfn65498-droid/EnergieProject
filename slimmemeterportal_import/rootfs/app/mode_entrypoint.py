@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
+import time
 from pathlib import Path
 
 import main as app
@@ -26,8 +28,10 @@ from projectmanager_v2.projectmanager_web import install_projectmanager_web
 from projectmanager_v2.release_transition import ReleaseTransitionCoordinator
 from projectmanager_v2.release_transition_worker import release_transition_daemon
 from projectmanager_v2.startup_timing import StartupTiming
+from projectmanager_v2.startup_recovery import startup_recovery_daemon
+from process_workspace import ensure_process_workspace
 
-TARGET_RELEASE_VERSION = "32.4.55"
+TARGET_RELEASE_VERSION = "32.4.56"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 _BACKGROUND_LOCK = threading.Lock()
@@ -96,9 +100,11 @@ def _observe_startup_phases(startup_timing, root):
 
 
 def start_operating_mode_runtime() -> None:
+    startup_epoch = time.time()
     root = operating_mode_project_root()
     # First substantive startup action: establish/verify the durable release transition.
     ReleaseTransitionCoordinator(root).bootstrap_legacy_if_needed()
+    ensure_process_workspace(root)
     startup_timing = StartupTiming(root)
     startup_timing.mark("PROCESS_STARTED")
     ensure_release_hold_state(root, TARGET_RELEASE_VERSION)
@@ -116,6 +122,15 @@ def start_operating_mode_runtime() -> None:
     install_projectmanager_web(app, root)
     startup_timing.mark("INGRESS_READY")
     _supervise_background_workers(root)
+    threading.Thread(
+        target=startup_recovery_daemon,
+        args=(
+            app.STOP, root, TARGET_RELEASE_VERSION,
+            os.environ.get("SUPERVISOR_TOKEN", ""), startup_epoch,
+        ),
+        daemon=True,
+        name="pm-startup-recovery",
+    ).start()
     threading.Thread(
         target=_observe_startup_phases,
         args=(startup_timing, root),
