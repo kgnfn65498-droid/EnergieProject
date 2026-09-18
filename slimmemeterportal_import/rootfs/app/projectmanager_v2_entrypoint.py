@@ -88,6 +88,25 @@ def _mark_success(config):
     except OSError:
         pass
 
+    token = os.environ.get('SUPERVISOR_TOKEN', '')
+    if not token:
+        return
+    try:
+        import json
+        data = json.dumps({
+            'notification_id': 'energie_projectmanager_self_failure',
+        }).encode('utf-8')
+        request = urllib.request.Request(
+            'http://supervisor/core/api/services/persistent_notification/dismiss',
+            data=data,
+            headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+            method='POST',
+        )
+        with urllib.request.urlopen(request, timeout=5):
+            pass
+    except Exception:
+        pass
+
 
 def respond_projectmanager_conversation(
     query,

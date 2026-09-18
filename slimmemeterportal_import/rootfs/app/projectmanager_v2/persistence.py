@@ -18,6 +18,23 @@ def _path(value) -> Path:
     return value if isinstance(value, Path) else Path(value)
 
 
+
+
+def _readback_mode(path: Path) -> int:
+    return stat.S_IMODE(path.stat().st_mode)
+
+
+def _mode_readback_is_authoritative(path: Path) -> bool:
+    """Return False for Home Assistant /share views that mask POSIX mode bits."""
+    target = _path(path)
+    try:
+        absolute = target if target.is_absolute() else target.resolve(strict=False)
+    except OSError:
+        absolute = target
+    parts = absolute.parts
+    return not (len(parts) >= 2 and parts[0] == '/' and parts[1] == 'share')
+
+
 def _fsync_parent(path: Path) -> None:
     try:
         fd = os.open(str(path.parent), os.O_RDONLY)
@@ -93,7 +110,8 @@ def atomic_write_text(path, content: str, *, mode: int | None = None) -> None:
         os.replace(tmp_name, target)
         if mode is not None:
             os.chmod(target, mode)
-            if (target.stat().st_mode & 0o777) != mode:
+            observed_mode = _readback_mode(target)
+            if observed_mode != mode and _mode_readback_is_authoritative(target):
                 raise OSError(f'atomic final mode mismatch for {target}')
         _fsync_parent(target)
     except Exception:

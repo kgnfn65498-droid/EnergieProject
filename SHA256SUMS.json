@@ -578,7 +578,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/persistence.py",
-      "sha256": "06475aea8f9ac39c76a3b818552a5998b9c3f3ac97638a5e500d7884cbf52672"
+      "sha256": "05231640057838ee76ba10f0e99be6d036079f25954165f3123ef45b48ef6bf1"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/proactive_assessment.py",
@@ -710,7 +710,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2_entrypoint.py",
-      "sha256": "f3054452ff8edeb27f647680c49895bab819b64b2a406852d818bd44d21dec01"
+      "sha256": "4a52cb1398881cc892b4c3ba3498e20d5843b40b8f9f133bb827951f63afdd05"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/release_validation_hold.py",
