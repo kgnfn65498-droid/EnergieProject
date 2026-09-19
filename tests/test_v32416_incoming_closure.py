@@ -73,7 +73,7 @@ def test_waiting_release_exception_never_hides_unrelated_health_problem(tmp_path
 
 
 def test_watcher_blocks_live_acceptance_but_allows_immediately_after_accepted(tmp_path):
-    watcher = (ROOT / 'tools/release_watcher.sh').read_text(encoding='utf-8')
+    watcher = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     function = 'atomic_swap_allows_release_ingress(){' + watcher.split('atomic_swap_allows_release_ingress(){', 1)[1].split('\n}', 1)[0] + '\n}'
     inbox = tmp_path / 'Inbox'
     inbox.mkdir()

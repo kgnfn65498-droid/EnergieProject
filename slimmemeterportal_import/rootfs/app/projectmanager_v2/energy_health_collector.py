@@ -10,6 +10,7 @@ from month_closure_truth import closure_status_is_deep_verified
 from cr_evidence import evaluate_cr_closure
 from health_engine import evaluate_quarter_hour_heartbeat
 from project_hygiene import ngrok_security_check, project_hygiene_check
+from release_controller_state import load_release_controller_state, release_view
 
 VALID_MODES = {'USER', 'DEVELOPMENT', 'MAINTENANCE'}
 LOCAL_TZ = ZoneInfo('Europe/Amsterdam')
@@ -119,7 +120,7 @@ def _control_plane_source_fingerprint(project_root: Path) -> str:
     return digest.hexdigest()
 
 
-def _control_plane_runtime_check(project_root: Path | str, *, now=None):
+def _control_plane_runtime_check(project_root: Path | str, *, now=None, heartbeat_required=True):
     root = Path(project_root)
     now = now or datetime.now(timezone.utc)
     expected = _control_plane_source_fingerprint(root)
@@ -135,13 +136,17 @@ def _control_plane_runtime_check(project_root: Path | str, *, now=None):
         return _check('control_plane_runtime', 'RED', 'source_missing_or_invalid', marker_path,
                       {'expected_fingerprint': None, 'loaded_fingerprint': loaded or None}, verified=False)
     if not isinstance(marker, dict) or marker.get('schema') != 'energie_control_plane_runtime_v1':
-        return _check('control_plane_runtime', 'RED', 'runtime_marker_missing_or_invalid', marker_path,
+        status = 'RED' if heartbeat_required else 'ORANGE'
+        reason = 'runtime_marker_missing_or_invalid' if heartbeat_required else 'runtime_marker_unavailable_on_demand_actuator'
+        return _check('control_plane_runtime', status, reason, marker_path,
                       {'expected_fingerprint': expected, 'loaded_fingerprint': loaded or None}, verified=False)
     if loaded != expected:
         return _check('control_plane_runtime', 'RED', 'loaded_runtime_fingerprint_mismatch', marker_path,
                       {'expected_fingerprint': expected, 'loaded_fingerprint': loaded or None, 'heartbeat_age_seconds': age}, verified=False)
     if age is None or age > 30:
-        return _check('control_plane_runtime', 'RED', 'runtime_heartbeat_stale', marker_path,
+        status = 'RED' if heartbeat_required else 'ORANGE'
+        reason = 'runtime_heartbeat_stale' if heartbeat_required else 'runtime_heartbeat_stale_on_demand_actuator'
+        return _check('control_plane_runtime', status, reason, marker_path,
                       {'expected_fingerprint': expected, 'loaded_fingerprint': loaded, 'heartbeat_age_seconds': age}, verified=False)
     return _check('control_plane_runtime', 'GREEN', 'loaded_runtime_fingerprint_match', marker_path,
                   {'expected_fingerprint': expected, 'loaded_fingerprint': loaded, 'heartbeat_age_seconds': round(age, 1)}, verified=True)
@@ -314,21 +319,41 @@ class EnergyHealthCollector:
         valid_mode = isinstance(mode_data, dict) and mode in VALID_MODES
         checks.append(_check('operating_mode_source', 'GREEN' if valid_mode else 'RED', 'valid' if valid_mode else 'missing_or_invalid_mode', mode_path, {'effective_mode': mode}, verified=valid_mode))
 
-        watcher_contract_path = self.project_root / 'Inbox' / 'watcher_container_contract.json'
-        watcher_contract = _read_json(watcher_contract_path)
-        watcher_contract_ok = (
-            isinstance(watcher_contract, dict)
-            and watcher_contract.get('status') == 'GREEN'
-            and watcher_contract.get('ready') is True
-            and int(watcher_contract.get('contract_version') or 0) >= 2
-        )
-        checks.append(_check(
-            'watcher_container_contract', 'GREEN' if watcher_contract_ok else 'RED',
-            'contract_v2_active' if watcher_contract_ok else 'recreate_required_or_unverified',
-            watcher_contract_path,
-            {'contract_version': (watcher_contract or {}).get('contract_version'), 'reason': (watcher_contract or {}).get('reason')},
-            verified=watcher_contract_ok,
-        ))
+        if _numeric_release(version) >= (32, 4, 57):
+            controller_runtime_path = self.project_root / 'Inbox' / 'release_controller' / 'runtime.json'
+            controller_runtime = _read_json(controller_runtime_path)
+            controller_age = _age_seconds(controller_runtime_path, now) if controller_runtime else None
+            controller_runtime_ok = bool(
+                isinstance(controller_runtime, dict)
+                and controller_runtime.get('schema') == 'energie_release_controller_runtime_v1'
+                and int(controller_runtime.get('pid') or 0) > 1
+                and controller_age is not None
+                and controller_age <= 30
+            )
+            checks.append(_check(
+                'release_controller_runtime', 'GREEN' if controller_runtime_ok else 'RED',
+                'controller_runtime_fresh' if controller_runtime_ok else 'controller_runtime_missing_or_stale',
+                controller_runtime_path,
+                {'age_seconds': round(controller_age, 1) if controller_age is not None else None,
+                 'phase': (controller_runtime or {}).get('phase'), 'status': (controller_runtime or {}).get('status')},
+                verified=controller_runtime_ok,
+            ))
+        else:
+            watcher_contract_path = self.project_root / 'Inbox' / 'watcher_container_contract.json'
+            watcher_contract = _read_json(watcher_contract_path)
+            watcher_contract_ok = (
+                isinstance(watcher_contract, dict)
+                and watcher_contract.get('status') == 'GREEN'
+                and watcher_contract.get('ready') is True
+                and int(watcher_contract.get('contract_version') or 0) >= 2
+            )
+            checks.append(_check(
+                'watcher_container_contract', 'GREEN' if watcher_contract_ok else 'RED',
+                'contract_v2_active' if watcher_contract_ok else 'recreate_required_or_unverified',
+                watcher_contract_path,
+                {'contract_version': (watcher_contract or {}).get('contract_version'), 'reason': (watcher_contract or {}).get('reason')},
+                verified=watcher_contract_ok,
+            ))
 
         native_runtime_path = self.project_root / 'Inbox' / 'native_mcp_runtime' / 'runtime_guard.json'
         native_runtime = _read_json(native_runtime_path)
@@ -350,17 +375,46 @@ class EnergyHealthCollector:
         ))
 
         if _numeric_release(version) >= (32, 4, 55):
-            checks.append(_control_plane_runtime_check(self.project_root, now=now))
+            checks.append(_control_plane_runtime_check(
+                self.project_root,
+                now=now,
+                heartbeat_required=_numeric_release(version) < (32, 4, 57),
+            ))
             checks.append(_command_ingress_consumer_check(self.project_root))
 
-        hold_path = self.project_root / 'Inbox' / 'operating_mode' / 'release_validation_hold.json'
-        hold = _read_json(hold_path)
-        hold_ok = isinstance(hold, dict) and hold.get('active') is False and hold.get('validation_status') == 'ok'
-        checks.append(_check(
-            'release_validation_hold', 'GREEN' if hold_ok else 'ORANGE',
-            'released_ok' if hold_ok else 'missing_active_or_unvalidated', hold_path,
-            {'active': (hold or {}).get('active'), 'validation_status': (hold or {}).get('validation_status')}, verified=hold_ok,
-        ))
+        if _numeric_release(version) >= (32, 4, 57):
+            controller_state_path = self.project_root / 'Inbox' / 'release_controller' / 'current.json'
+            try:
+                controller_state = load_release_controller_state(self.project_root)
+                controller_error = ''
+            except Exception as exc:
+                controller_state = None
+                controller_error = f'{type(exc).__name__}: {exc}'
+            controller_status = str((controller_state or {}).get('status') or '')
+            if controller_error:
+                rc_health, rc_reason, rc_verified = 'RED', 'controller_state_invalid', False
+            elif not controller_state:
+                rc_health, rc_reason, rc_verified = 'GREEN', 'idle_no_release_state', True
+            elif controller_status == 'COMPLETE':
+                rc_health, rc_reason, rc_verified = 'GREEN', 'release_complete', True
+            elif controller_status == 'BLOCKED':
+                rc_health, rc_reason, rc_verified = 'RED', str(controller_state.get('blocker') or 'release_blocked'), False
+            else:
+                rc_health, rc_reason, rc_verified = 'ORANGE', 'release_in_progress_or_waiting', False
+            checks.append(_check(
+                'release_controller_state', rc_health, rc_reason, controller_state_path,
+                {'controller': release_view(controller_state), 'error': controller_error or None},
+                verified=rc_verified,
+            ))
+        else:
+            hold_path = self.project_root / 'Inbox' / 'operating_mode' / 'release_validation_hold.json'
+            hold = _read_json(hold_path)
+            hold_ok = isinstance(hold, dict) and hold.get('active') is False and hold.get('validation_status') == 'ok'
+            checks.append(_check(
+                'release_validation_hold', 'GREEN' if hold_ok else 'ORANGE',
+                'released_ok' if hold_ok else 'missing_active_or_unvalidated', hold_path,
+                {'active': (hold or {}).get('active'), 'validation_status': (hold or {}).get('validation_status')}, verified=hold_ok,
+            ))
 
         cr_dir = self.project_root / 'Data' / '03_Systeem' / 'Projectmanager' / 'State'
         cr_files = sorted(cr_dir.glob('crash_recovery_closure_*.json')) if cr_dir.is_dir() else []

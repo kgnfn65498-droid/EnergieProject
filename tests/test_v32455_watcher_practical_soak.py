@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-WATCHER = ROOT/'tools/release_watcher.sh'
+WATCHER = ROOT/'tests/fixtures/pre57/release_watcher.sh'
 RECOVERY = ROOT/'tools/release_ingress_recovery.py'
 RELEASE_ZIP = ROOT/'tools/release_zip.py'
 

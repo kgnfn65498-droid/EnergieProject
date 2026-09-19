@@ -101,14 +101,14 @@ def test_startup_timing_module_uses_monotonic_and_records_required_phases(tmp_pa
     assert all('elapsed_monotonic_seconds' in x for x in data['phases'])
 
 def test_new_installer_prepares_transition_before_swap():
-    src=(Path(__file__).resolve().parents[1]/'tools/release_installer.sh').read_text()
+    src=(Path(__file__).resolve().parents[1]/'tests/fixtures/pre57/release_installer.sh').read_text()
     prep=src.index('release_transition_prepare.py')
     swap=src.index('prepare-and-swap', prep)
     assert prep < swap
 
 
 def test_watcher_bootstraps_transition_before_maintenance_side_effects():
-    src=(Path(__file__).resolve().parents[1]/'tools/release_watcher.sh').read_text()
+    src=(Path(__file__).resolve().parents[1]/'tests/fixtures/pre57/release_watcher.sh').read_text()
     boot=src.index('release_transition_bootstrap.py')
     clear=src.index('CLEARUP-root startup-preflight')
     assert boot < clear
@@ -177,7 +177,9 @@ def test_transition_planner_never_skips_closure_phases():
     base['phase']='RESTORE_DEVELOPMENT'; assert plan_transition_step(base,facts)['action']=='COMPLETE'
 
 def test_mode_entry_bootstraps_transition_before_hold_and_workers():
-    src=(APP/'mode_entrypoint.py').read_text()
+    # Historical 32.4.54 contract: validate the preserved pre-57 implementation,
+    # not the active 32.4.57 entrypoint where this orchestrator is intentionally retired.
+    src=(ROOT/'tests/fixtures/pre57/mode_entrypoint.py').read_text()
     boot=src.index('bootstrap_legacy_if_needed()')
     hold=src.index('ensure_release_hold_state(',boot)
     workers=src.index('_supervise_background_workers(',boot)
@@ -343,7 +345,7 @@ def test_mode_restore_uses_ticket_and_restores_previous_base_mode(tmp_path):
 
 
 def test_gui_validate_release_hold_is_blocked_during_active_transition():
-    src=(APP/'operating_mode_web.py').read_text()
+    src=(ROOT/'tests/fixtures/pre57/operating_mode_web.py').read_text()
     start=src.index('elif endpoint == "validate-release-hold"')
     end=src.index('else:\n                if live_app is None', start) + 400
     endpoint=src[start:end]

@@ -1,3 +1,18 @@
+## 32.4.57 — single-owner Incoming/release architecture
+
+- Eén ReleaseController bezit de volledige Incoming-releasecyclus met één persisted state.
+- De oude release transition, release validation hold, operating mode, CR, CLEARUP/hygiene en PM FINAL zijn geen releasegates meer.
+- atomic_app_swap.py blijft de bewezen install/rollback primitive; crashherstel hervat dezelfde controllergeneration.
+- Native MCP self-heal is exact release-scoped en generation/artifact/fingerprint-fenced via de bestaande Control Plane.
+- De eerste 56→57 installatie wordt alleen geadopteerd bij exact LIVE_ACCEPTANCE/ACCEPTED journal + actieve App-versie + processed artifact SHA.
+- GitHub/HA delivery start pas na lokale atomic acceptance; een deliveryfout kan de lokaal geaccepteerde App niet terugrollen.
+- Home Assistant publiceert Inbox/ha_runtime/current.json als directe runtime-version readback.
+- Projectmanager 2.0.0-rc45; release 32.4.57.
+- Canonieke controllerstate weigert symlink/non-regular/corrupte reads.
+- Bij een volgende N→N+1 release wordt de bestaande Control Plane opnieuw exact gesynchroniseerd zodra de live App-versie verandert; na COMPLETE re-exec't de controller de watcher uit de geaccepteerde App zodat geen oude geladen controllercode blijft draaien.
+- Historische pre-57 installer/watcher/mode-entrypointcontracten blijven als fixtures/regressiebewijs bestaan zonder opnieuw release-authority te worden.
+- PROJECT_CONSTITUTION legt crash-/chat-resume vast: bij “opnieuw” eerst persistente checkpoints/staging lezen en vanaf het hoogste bewezen punt hervatten.
+
 ## 32.4.56 — procesworkspace, veilige root-cleanup en PM startup recovery
 
 - rc44 live-rescue closure: shared publication-state permissies, officiële same-version Supervisor store reload/self rebuild, transition-ticket settlement vóór broad-health doorgang en automatische transition-owned PROJECT_CR→MAINTENANCE bridge.

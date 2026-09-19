@@ -349,7 +349,14 @@ def end_temporary_mode(state: ModeState, transition_id: str) -> ModeState:
 
 
 def _active_release_transition(project_root: Path | str) -> dict[str, Any] | None:
-    path = Path(project_root) / "Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json"
+    root = Path(project_root)
+    try:
+        live = (root / "App/VERSIE.txt").read_text(encoding="utf-8").strip()
+        if tuple(int(part) for part in live.split(".")) >= (32, 4, 57):
+            return None
+    except (OSError, ValueError):
+        pass
+    path = root / "Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json"
     value = read_transition_state(path, missing_ok=True)
     if not isinstance(value, dict):
         return None

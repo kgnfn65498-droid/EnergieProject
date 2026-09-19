@@ -135,7 +135,7 @@ def test_auto_release_module_never_uses_emergency_release():
 
 
 def test_mode_entrypoint_starts_auto_release_worker_after_safety_layers():
-    text = (APP_ROOT / "mode_entrypoint.py").read_text(encoding="utf-8")
+    text = (ROOT / "tests/fixtures/pre57/mode_entrypoint.py").read_text(encoding="utf-8")
     assert "automatic_release_hold_worker" in text
     startup = text.index("def start_operating_mode_runtime()")
     supervise = text.index("_supervise_background_workers(root)", startup)

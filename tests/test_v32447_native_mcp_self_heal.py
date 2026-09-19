@@ -159,7 +159,7 @@ def test_32447_policy_disabled_keeps_gui_approval_path_fail_closed(tmp_path):
 
 
 def test_32447_runtime_invokes_self_heal_authorizer_before_command_processor():
-    source = (PM / 'orchestrator.py').read_text(encoding='utf-8')
+    source = (ROOT / 'tests/fixtures/pre57/orchestrator.py').read_text(encoding='utf-8')
     assert 'from native_mcp_self_heal import NativeMcpSelfHealAuthorizer' in source
     assert 'self.native_mcp_self_heal = NativeMcpSelfHealAuthorizer(' in source
     approval_pos = source.index('self_heal_authorization = self.native_mcp_self_heal.run_once()')

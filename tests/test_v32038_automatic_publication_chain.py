@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "slimmemeterportal_import/config.yaml"
 MAIN = ROOT / "slimmemeterportal_import/rootfs/app/main.py"
 PATHS = ROOT / "slimmemeterportal_import/rootfs/app/project_paths.py"
-INSTALLER = ROOT / "tools/release_installer.sh"
+INSTALLER = ROOT / "tests/fixtures/pre57/release_installer.sh"
 BOOTSTRAP = ROOT / "tools/bootstrap_release_watcher_container.sh"
 
 def _load_paths():

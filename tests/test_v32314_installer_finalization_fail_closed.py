@@ -1,7 +1,7 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALLER = ROOT / "tools/release_installer.sh"
+INSTALLER = ROOT / "tests/fixtures/pre57/release_installer.sh"
 
 
 def text():

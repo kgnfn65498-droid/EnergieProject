@@ -189,7 +189,7 @@ def test_embedded_runtime_writes_running_then_green_cycle_evidence(tmp_path, mon
 
 
 def test_mode_entrypoint_starts_bounded_pm_startup_recovery_monitor():
-    source = (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
+    source = (ROOT / "tests/fixtures/pre57/mode_entrypoint.py").read_text(encoding="utf-8")
     assert "startup_recovery_daemon" in source
     assert "pm-startup-recovery" in source
     assert "SUPERVISOR_TOKEN" in source

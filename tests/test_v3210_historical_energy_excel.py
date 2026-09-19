@@ -6,7 +6,7 @@ MAIN = ROOT / "slimmemeterportal_import/rootfs/app/main.py"
 CONFIG = ROOT / "slimmemeterportal_import/config.yaml"
 DOCKERFILE = ROOT / "slimmemeterportal_import/Dockerfile"
 BOOTSTRAP = ROOT / "tools/bootstrap_release_watcher_container.sh"
-INSTALLER = ROOT / "tools/release_installer.sh"
+INSTALLER = ROOT / "tests/fixtures/pre57/release_installer.sh"
 
 
 def test_v3210_release_identity_and_runtime_dependency():

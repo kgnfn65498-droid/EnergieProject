@@ -50,6 +50,7 @@ from assistant_analysis_cache import AssistantAnalysisCache
 from assistant_response import build_assistant_response_payload, render_assistant_response
 from assistant_event_bridge import HomeAssistantNomadBridge
 from ha_nomad_automation import ensure_nomad_automation
+from ha_runtime_marker import write_ha_runtime_marker
 from projectmanager_v2_entrypoint import respond_projectmanager_conversation
 from projectmanager_external_ingress import authenticate_external_pm_request, parse_external_pm_payload
 from month_closure_truth import CLOSED_VALID, OPEN as MONTH_OPEN, UNKNOWN as MONTH_UNKNOWN, classify_month_closure
@@ -83,7 +84,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.56"
+APP_VERSION = "32.4.57"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -22003,6 +22004,25 @@ def main() -> None:
     validate_runtime_dependencies()
     ensure_storage_paths()
     LOGGER.info("Python-app v%s initialiseert.", APP_VERSION)
+    try:
+        write_ha_runtime_marker(_runtime_nas_roots_now()[1], APP_VERSION)
+        LOGGER.info("HA runtime release-marker v%s gepubliceerd.", APP_VERSION)
+    except Exception as exc:
+        LOGGER.warning("HA runtime release-marker kon nog niet direct worden gepubliceerd: %s", type(exc).__name__)
+
+        def _retry_release_runtime_marker() -> None:
+            try:
+                _, marker_root = wait_for_existing_nas_roots(attempts=60, delay_seconds=2.0)
+                write_ha_runtime_marker(marker_root, APP_VERSION)
+                LOGGER.info("HA runtime release-marker v%s na mount-wacht gepubliceerd.", APP_VERSION)
+            except Exception:
+                LOGGER.exception("HA runtime release-marker bleef na begrensde mount-wacht onbeschikbaar.")
+
+        threading.Thread(
+            target=_retry_release_runtime_marker,
+            daemon=True,
+            name="ha-release-runtime-marker",
+        ).start()
 
     processed_retention = cleanup_processed_release_retention_on_app_start(
         PROJECT_BACKUP_RETENTION

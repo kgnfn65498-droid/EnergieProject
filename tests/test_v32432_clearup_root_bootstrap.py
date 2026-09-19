@@ -8,7 +8,7 @@ import release_test_contract as contract
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / 'slimmemeterportal_import/rootfs/app'
 HELPER = ROOT / 'tools' / 'prepare_clearup_root.sh'
-WATCHER = ROOT / 'tools' / 'release_watcher.sh'
+WATCHER = ROOT / 'tests' / 'fixtures' / 'pre57' / 'release_watcher.sh'
 
 
 def run_helper(project_root: Path):

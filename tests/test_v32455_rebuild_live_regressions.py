@@ -232,7 +232,7 @@ def test_clearup_runtime_budget_allows_multiple_real_nas_audits():
 
 
 def test_release_installer_normalizes_existing_runtimev2_before_transition_prepare():
-    source = (ROOT / 'tools/release_installer.sh').read_text(encoding='utf-8')
+    source = (ROOT / 'tests/fixtures/pre57/release_installer.sh').read_text(encoding='utf-8')
     assert 'normalize_projectmanager_runtime_permissions()' in source
     assert 'find "$PM_RUNTIME" -type d -exec chmod 0777 {} +' in source
     assert 'find "$PM_RUNTIME" -type f -name "*.json" -exec chmod 0666 {} +' in source

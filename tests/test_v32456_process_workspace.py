@@ -139,7 +139,7 @@ def test_hygiene_reports_unregistered_process_debris_and_released_registered_deb
 
 
 def test_mode_entrypoint_initializes_process_workspace_before_background_workers():
-    source = (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
+    source = (ROOT / "tests/fixtures/pre57/mode_entrypoint.py").read_text(encoding="utf-8")
     assert "from process_workspace import ensure_process_workspace" in source
     start = source.index("def start_operating_mode_runtime()")
     end = source.index("\ndef main()", start)

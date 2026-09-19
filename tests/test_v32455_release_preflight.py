@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import sys
 import json
 import time
 import zipfile
@@ -9,16 +10,35 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PREFLIGHT = ROOT/'tools/release_preflight.py'
+PREFLIGHT = ROOT/'tests/fixtures/pre57/release_preflight.py'
 EMBED_GUARD = ROOT/'tools/embedded_pm_runtime_guard.py'
 
 
 def _load(path: Path, name: str):
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    # Historical pre-57 fixtures must resolve their sibling guard modules,
+    # independent of modules already imported by the 32.4.57 runtime tests.
+    fixture_dir = str(path.parent)
+    saved_path = list(sys.path)
+    saved_modules = {
+        key: sys.modules.get(key)
+        for key in ("control_plane_runtime_guard", "embedded_pm_runtime_guard")
+    }
+    try:
+        sys.path.insert(0, fixture_dir)
+        for key in saved_modules:
+            sys.modules.pop(key, None)
+        spec = importlib.util.spec_from_file_location(name, path)
+        assert spec and spec.loader
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    finally:
+        sys.path[:] = saved_path
+        for key, value in saved_modules.items():
+            if value is None:
+                sys.modules.pop(key, None)
+            else:
+                sys.modules[key] = value
 
 
 def _write(path: Path, data: dict) -> None:

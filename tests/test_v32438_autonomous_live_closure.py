@@ -151,7 +151,7 @@ def test_post_release_autonomy_queues_only_needed_fixed_actions():
 def test_project_cr_fixed_request_executor_exists_and_is_narrow():
     gateway=(PM/'command_gateway.py').read_text()
     processor=(PM/'command_processor.py').read_text()
-    watcher=(TOOLS/'release_watcher.sh').read_text()
+    watcher=(ROOT/'tests/fixtures/pre57/release_watcher.sh').read_text()
     executor=(TOOLS/'project_cr_local_executor.py').read_text()
     assert "'project_cr_create'" in gateway
     assert 'project_cr_create' in processor

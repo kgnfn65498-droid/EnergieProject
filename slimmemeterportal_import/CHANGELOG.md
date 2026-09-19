@@ -1,10 +1,11 @@
 # Changelog
 
-## 32.4.56 — process workspace, veilige cleanup en PM startup recovery
+## 32.4.57 — single-owner release controller
 
-- Introduceert `Inbox/process` met `tmp`, `cache`, `active` en atomische procesregistratie; CLEARUP verplaatst alleen expliciet vrijgegeven of verlaten tijdelijke artefacten.
-- Root-hygiëne classificeert bekende release/buildrommel voor reversibele CLEARUP en laat onbekend materiaal fail-closed staan; gewone release-rollbackretentie blijft 3.
-- EnergieProject- en NAS Containers Crash Recovery behouden retentie=1 met validatie vóór oude sets naar quarantaine gaan.
-- Embedded Projectmanager schrijft per cyclus duurzame RUNNING/GREEN/RED-evidence en kan na 15 minuten zonder verse huidige PM-cycle maximaal één add-on self-restart per uur aanvragen; geen hostrestart en geen gefabriceerde release-state.
-- Behoudt de 32.4.55 `/share` atomic-mode readback-fix en automatische dismiss van herstelde HA-foutmeldingen.
-- Target identity: EnergieProject 32.4.56 / Projectmanager 2.0.0-rc43.
+- Incoming heeft één centrale releasecontroller met acht lineaire fasen en één persisted state.
+- Oude release-transition, release-hold, mode, CR, CLEARUP en PM FINAL zijn geen releasegates meer.
+- Atomic App swap blijft de enige install/rollback primitive; restart-resume gebruikt hetzelfde journal en dezelfde generation.
+- Native MCP kan uitsluitend release-scoped self-healen met exacte release/generation/artifact/fingerprint-fencing.
+- GitHub/HA delivery start pas na lokale atomic ACCEPTED en kan daarna nooit een App rollback veroorzaken.
+- De HA runtime publiceert een directe version marker voor deterministische end-to-end readback.
+- Target identity: EnergieProject 32.4.57 / Projectmanager 2.0.0-rc45.

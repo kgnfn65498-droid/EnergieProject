@@ -12,7 +12,7 @@ from pathlib import Path
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 MODULE = APP_ROOT / "tools/atomic_app_swap.py"
-INSTALLER = APP_ROOT / "tools/release_installer.sh"
+INSTALLER = APP_ROOT / "tests/fixtures/pre57/release_installer.sh"
 
 
 def sha256(data: bytes) -> str:

@@ -6,7 +6,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 MAIN = ROOT / "slimmemeterportal_import/rootfs/app/main.py"
 PATHS = ROOT / "slimmemeterportal_import/rootfs/app/project_paths.py"
-INSTALLER = ROOT / "tools/release_installer.sh"
+INSTALLER = ROOT / "tests/fixtures/pre57/release_installer.sh"
 CONFIG = ROOT / "slimmemeterportal_import/config.yaml"
 
 def _load_paths_module():

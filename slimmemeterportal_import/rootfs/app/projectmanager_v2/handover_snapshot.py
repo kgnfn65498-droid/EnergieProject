@@ -8,6 +8,7 @@ from uuid import uuid4
 from persistence import atomic_write_json, atomic_write_text, load_json
 from secret_guard import contains_secret_text, redact
 from transition_state_io import read_transition_state, TransitionStateReadError
+from release_controller_state import load_release_controller_state, release_view
 
 
 _SCHEMA = 'energie_projectmanager_handover_snapshot_v1'
@@ -328,6 +329,15 @@ class HandoverSnapshotService:
         self_audit = self._load_optional_dict('self_audit/current.json')
         runtime_snapshot = self._load_optional_dict('snapshots/current_runtime.json')
         release_transition = self._load_optional_dict('release_transition/current.json')
+        try:
+            release_parts = tuple(int(part) for part in release_version.split('.'))
+        except ValueError:
+            release_parts = ()
+        release_controller = {}
+        if release_parts >= (32, 4, 57) and self.project_root is not None:
+            release_controller = load_release_controller_state(self.project_root) or {}
+            # Old transition state is historical evidence only from 57 onward.
+            release_transition = {}
 
         progress = redact(status.get('progress', {}))
         blockers = progress.get('blockers') if isinstance(progress.get('blockers'), list) else []
@@ -385,8 +395,17 @@ class HandoverSnapshotService:
             'mode': str(status.get('mode')),
             'roadmap': roadmap_summary,
             'progress': progress,
-            'next_step': str(release_transition.get('next_action') or status.get('next_action') or progress.get('next_action') or status.get('active_task', {}).get('next_action') or ''),
+            'next_step': str(
+                release_controller.get('required_action')
+                or release_controller.get('wait_reason')
+                or release_transition.get('next_action')
+                or status.get('next_action')
+                or progress.get('next_action')
+                or status.get('active_task', {}).get('next_action')
+                or ''
+            ),
             'release_transition': redact(release_transition),
+            'release_controller': redact(release_view(release_controller) if release_controller else {}),
             'blockers': redact(list(blockers)),
             'active_tasks': active_tasks,
             'open_approvals': open_approvals[:20],

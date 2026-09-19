@@ -168,7 +168,7 @@ def test_pm_service_validates_watcher_owned_mailbox_without_chmod_and_fails_on_d
 
 def test_nas_bridge_contract_owned_by_bootstrap_watcher_and_probe_has_no_false_cross_runtime_green():
     bootstrap = (TOOLS / 'bootstrap_release_watcher_container.sh').read_text(encoding='utf-8')
-    watcher = (TOOLS / 'release_watcher.sh').read_text(encoding='utf-8')
+    watcher = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     probe = (TOOLS / 'nas_cr_local_probe.py').read_text(encoding='utf-8')
     service = (PM / 'nas_container_cr_service.py').read_text(encoding='utf-8')
     assert 'ensure_nas_cr_mailbox_contract' in bootstrap
@@ -349,7 +349,7 @@ def test_non_development_post_release_maintenance_remains_compatible(tmp_path):
 
 
 def test_watcher_rechecks_post_release_transition_without_masking_failure():
-    text = (TOOLS/'release_watcher.sh').read_text(encoding='utf-8')
+    text = (ROOT/'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     loop = text[text.index('while :; do'):]
     assert 'process_post_release_maintenance_transition' in loop
     assert 'process_post_release_maintenance_transition || true' not in loop
@@ -396,7 +396,7 @@ def _run_mailbox_contract_function(function_source: str, function_name: str, mai
 
 
 def test_watcher_mailbox_contract_rejects_symlink_and_regular_file_without_touching_target(tmp_path):
-    watcher = (TOOLS / 'release_watcher.sh').read_text(encoding='utf-8')
+    watcher = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     fn = _extract_shell_function(watcher, 'ensure_nas_cr_mailbox_contract')
 
     external = tmp_path / 'external'
@@ -436,7 +436,7 @@ def test_bootstrap_mailbox_contract_rejects_symlink_and_regular_file_without_tou
 
 
 def test_watcher_mailbox_contract_repairs_mode_then_pm_service_accepts(tmp_path):
-    watcher = (TOOLS / 'release_watcher.sh').read_text(encoding='utf-8')
+    watcher = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     fn = _extract_shell_function(watcher, 'ensure_nas_cr_mailbox_contract')
     root = tmp_path / 'EnergieProject'
     (root / 'App').mkdir(parents=True)

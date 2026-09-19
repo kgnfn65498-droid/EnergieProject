@@ -2,6 +2,7 @@ from transition_state_io import read_transition_state
 from approval_gate import PROTECTED_ACTIONS, can_execute
 from command_gateway import plan_command
 from development_build_contract import build_metadata_from_command
+from release_controller_state import load_release_controller_state, release_active, release_view
 
 
 class CommandProcessor:
@@ -27,6 +28,18 @@ class CommandProcessor:
         except OSError:
             return ''
 
+    def _release_controller_enabled(self):
+        active = self._active_release()
+        try:
+            return tuple(int(part) for part in active.split('.')) >= (32, 4, 57)
+        except ValueError:
+            return False
+
+    def _controller_state(self):
+        if not self.project_root or not self._release_controller_enabled():
+            return None
+        return load_release_controller_state(self.project_root)
+
     def _guard_release_owned_closure(self, item, action):
         if action not in {'project_cr_create', 'nas_container_cr_create'}:
             return None
@@ -45,6 +58,10 @@ class CommandProcessor:
                 release_parts = tuple(int(part) for part in active.split('.'))
             except ValueError:
                 raise RuntimeError('project_close_deferred: active release is invalid')
+            if release_parts >= (32, 4, 57):
+                # CR is post-release maintenance from 32.4.57 onward; it is no
+                # longer sequenced by or allowed to gate the release controller.
+                return None
             if release_parts >= (32, 4, 43):
                 from project_close_state import load_project_close
                 close = load_project_close(self.project_root, active_release=active)
@@ -64,6 +81,16 @@ class CommandProcessor:
 
     def _guard_active_transition_mutation(self, item, action):
         if not self.project_root:
+            return None
+        if self._release_controller_enabled():
+            state = self._controller_state()
+            if not release_active(state):
+                return None
+            # Normal PM work, mode changes and post-release maintenance no longer
+            # participate in release sequencing. Only competing release mutation
+            # is fenced while the one controller owns a generation.
+            if action in {'production_deploy', 'native_mcp_reload', 'watcher_recreate', 'release_recover'}:
+                raise RuntimeError('release_controller_active_competing_release_mutation_blocked')
             return None
         from pathlib import Path
         path = Path(self.project_root) / 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json'
@@ -87,6 +114,8 @@ class CommandProcessor:
         raise RuntimeError('release_transition_active_normal_mutation_blocked')
 
     def _guard_transition_ticket(self, item, action):
+        if self._release_controller_enabled():
+            return None
         protected = {'native_mcp_reload', 'watcher_recreate', 'project_cr_create', 'nas_container_cr_create'}
         if action not in protected or not self.project_root:
             return None
@@ -271,9 +300,9 @@ class CommandProcessor:
                 raise RuntimeError('approved action store unavailable; fail closed')
             mode_request = None
             requested_mode = None
-            if action == 'production_deploy':
-                # Deployment approval is already explicit; selecting DEVELOPMENT
-                # is an operational PM mode choice, not a second approval gate.
+            if action == 'production_deploy' and not self._release_controller_enabled():
+                # Legacy watcher releases required DEVELOPMENT. 32.4.57+ Incoming
+                # is mode-independent and must not create a mode dependency.
                 requested_mode = 'DEVELOPMENT'
                 mode_request = self._request_mode(
                     'DEVELOPMENT',
@@ -404,6 +433,19 @@ class CommandProcessor:
             elif action == 'release_recover':
                 if not self.project_root:
                     raise RuntimeError('release_recover requires project_root')
+                if self._release_controller_enabled():
+                    state = self._controller_state()
+                    result = {
+                        'ok': True, 'executed': False, 'action': 'release_recover',
+                        'recovery': {
+                            'status': 'CONTROLLER_OWNED',
+                            'reason': 'same_generation_resume_is_built_into_release_controller',
+                            'release_controller': release_view(state),
+                        },
+                    }
+                    finished = self.commands.complete(item['id'], result=result)
+                    self._audit('command.processed', finished, result)
+                    return finished
                 from release_recovery import ReleaseRecoveryService
                 recovery = ReleaseRecoveryService(self.project_root).recover()
                 if recovery.get('needs_development'):

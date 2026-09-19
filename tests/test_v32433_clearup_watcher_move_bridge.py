@@ -16,7 +16,7 @@ import release_test_contract as contract
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "slimmemeterportal_import/rootfs/app"
 EXECUTOR = ROOT / "tools/project_clearup_move_executor.py"
-WATCHER = ROOT / "tools/release_watcher.sh"
+WATCHER = ROOT / "tests/fixtures/pre57/release_watcher.sh"
 BOOTSTRAP = ROOT / "tools/bootstrap_release_watcher_container.sh"
 
 

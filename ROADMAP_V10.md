@@ -1,5 +1,12 @@
 # Roadmap v10.x
 
+## 32.4 release-architectuur — 32.4.57
+- Eén owner: ReleaseController. Incoming -> VERIFY -> INSTALL -> RUNTIME_ALIGN -> VERIFY -> ACCEPT -> HA delivery -> COMPLETE.
+- Geen release-critical afhankelijkheid van operating mode, Project/NAS CR, CLEARUP/hygiene, PM FINAL of historische hotfixworkers.
+- Atomic swap en exact runtime readback blijven fail-closed; crashherstel resumeert dezelfde generation zonder rescueketen.
+- 32.4.56 closureproblemen blijven regressie-evidence; 57 verwijdert de structurele circular dependencies.
+
+
 ## 32.4 proces/cleanup/recovery — 32.4.56
 - `Inbox/process` wordt de enige canonieke plek voor tijdelijke test/cache/procesartefacten; actieve items blijven beschermd, vrijgegeven items worden door CLEARUP reversibel beheerd.
 - Hoofdroot wordt beleidsmatig opgeschoond: bekende oude release-ZIPs/build-temp en excess rollbacks gaan alleen via dependency-audited CLEARUP; onbekende items blijven zichtbaar en fail-closed.

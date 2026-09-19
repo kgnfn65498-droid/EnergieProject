@@ -9,16 +9,40 @@ Status: bindend, permanent.
 - Een release is niet geaccepteerd op basis van unittests alleen. De autonome live end-to-end releaseketen moet GREEN sluiten.
 - Geen productie-installatie, restart/recreate of andere beschermde productieactie zonder expliciete autorisatie.
 - Terminalgebruik door Peter is uitzondering. Als het echt nodig is: vooraf waarom, stap X/Y, verwachte duur, maximale duur, exact terug te sturen resultaat en resterend werk.
-- Canonieke releaseweg blijft ZIP → Incoming → watcher/installer → hold → atomic acceptance → CR → CLEARUP/HYGIENE → LIVE_PROVEN → DEVELOPMENT restore → COMPLETE.
 - Geen GitHub-reconstructie of productieboom als vervangende buildbasis.
-- Geen state fabriceren of handmatig hold/atomic/transition op GREEN zetten.
+- Geen state fabriceren of handmatig release-state/atomic/runtimebewijs op GREEN zetten.
 - CR-retentie EnergieProject=1 en NAS Containers=1; oude geldige sets alleen reversibel/quarantaine, niet als shortcut verwijderen.
 - Nieuwe chats beginnen niet opnieuw met reeds bewezen onderzoek.
+
+## Releasecontract
+### Tot en met 32.4.56
+De historische releaseketen blijft uitsluitend relevant om de reeds live 32.4.56 minimaal en veilig af te sluiten. Er wordt geen nieuwe rescueketen voor gebouwd.
+
+### Vanaf 32.4.57
+- Incoming blijft de release-authority.
+- Één ReleaseController bezit de lifecycle via `Inbox/release_controller/current.json`.
+- Canonieke fasen: DETECTED → VERIFIED → INSTALLING → INSTALLED → RUNTIME_ALIGNING → VERIFYING → ACCEPTED → COMPLETE.
+- Status is apart: ACTIVE / WAITING / BLOCKED / COMPLETE / ROLLED_BACK.
+- `atomic_app_swap.py` blijft de install/rollback primitive en journal-evidence, maar is geen tweede lifecycle-owner.
+- Operating mode, release_validation_hold, oude release_transition, CR, CLEARUP/hygiene, PM FINAL/self-audit, watcher heartbeat/contract, CommandIngress en stale PM tasks zijn geen release-critical gates.
+- Native MCP self-heal is alleen release-scoped via exacte release_id/generation/artifact/version/fingerprint fencing.
+- Geen compatibility shadow-state naar oude transition/hold.
+
+## Crash-/chat-resumeprotocol
+Wanneer Peter zegt **“opnieuw”**, “verder na crash”, of equivalent:
+1. eerst persistent state/checkpoints lezen;
+2. hoogste bewezen checkpoint + later gewijzigde staging/handover/ledger bepalen;
+3. vanaf dat exacte punt hervatten;
+4. geen reeds bewezen onderzoek, tests of buildstappen opnieuw uitvoeren tenzij nieuw bewijs daar expliciet om vraagt;
+5. pas daarna een nieuw checkpoint opslaan.
+
+Dit protocol geldt ook automatisch bij een nieuwe chat of onderbroken sessie.
 
 ## Persistente informatielagen
 Een nieuwe chat leest in deze volgorde:
 1. PROJECT_CONSTITUTION.md
 2. CURRENT_HANDOVER.md
 3. WORK_LEDGER.md
+4. hoogste relevante checkpoint/worklog en later gewijzigde staging-evidence
 
 Daarna uitsluitend aanvullende runtime-evidence die voor de eerstvolgende stap nodig is.

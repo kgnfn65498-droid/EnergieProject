@@ -254,6 +254,21 @@ def reconcile_measured_runtime(
     root = Path(project_root)
     state = load_mode_state(root)
     hold = load_release_hold(root, str(app_module.APP_VERSION))
+    try:
+        release_parts = tuple(int(part) for part in str(app_module.APP_VERSION).split("."))
+    except ValueError:
+        release_parts = ()
+    if release_parts >= (32, 4, 57):
+        # The historical release hold is retired as release authority. Keep the
+        # mode runtime independent even if a stale 32.4.56 hold file remains.
+        hold = replace(
+            hold,
+            active=False,
+            release_version=str(app_module.APP_VERSION),
+            validation_status="retired",
+            reconcile_status="ok",
+            reasons=(),
+        )
     reconciled_at = _reconciled_at(now)
 
     try:

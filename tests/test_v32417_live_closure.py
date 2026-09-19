@@ -66,14 +66,14 @@ def test_pending_current_publication_remains_non_green_even_if_old_publisher_sta
 
 
 def test_watcher_has_bounded_external_gate_execution():
-    text = (ROOT / 'tools/release_watcher.sh').read_text(encoding='utf-8')
+    text = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     assert 'run_bounded(){' in text
     mode = text.split('mode_allows(){', 1)[1].split('\n}', 1)[0]
     assert 'run_bounded "$MODE_GATE_TIMEOUT" python3 "$MODE_GATE"' in mode
 
 
 def test_watcher_bounded_runner_actually_terminates_hung_command(tmp_path):
-    text = (ROOT / 'tools/release_watcher.sh').read_text(encoding='utf-8')
+    text = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     if 'run_bounded(){' not in text:
         raise AssertionError('run_bounded missing')
     fn = 'run_bounded(){' + text.split('run_bounded(){', 1)[1].split('\n}', 1)[0] + '\n}'

@@ -105,8 +105,9 @@ def _seed_real_preflight_54(root: Path) -> None:
 
     cpdir = root / 'Data/03_Systeem/Projectmanager/ControlPlane'
     cpdir.mkdir(parents=True, exist_ok=True)
+    pre57 = ROOT / 'tests/fixtures/pre57'
     for name in ('control_plane.py', 'qnap_control_plane_bootstrap.py'):
-        shutil.copy2(ROOT / 'tools/control_plane' / name, cpdir / name)
+        shutil.copy2(pre57 / name, cpdir / name)
     _write_json(inbox / 'control_plane/runtime.json', {
         'schema': 'energie_control_plane_runtime_v1',
         'loaded_fingerprint': _control_plane_fingerprint(cpdir),
@@ -127,11 +128,19 @@ def _seed_real_preflight_54(root: Path) -> None:
 def _install_via_real_watcher_once(root: Path) -> subprocess.CompletedProcess[str]:
     tools = root / 'App/tools'
     tools.mkdir(parents=True, exist_ok=True)
+    pre57 = ROOT / 'tests/fixtures/pre57'
+    historical = {
+        'release_watcher.sh': pre57 / 'release_watcher.sh',
+        'release_installer.sh': pre57 / 'release_installer.sh',
+        'release_preflight.py': pre57 / 'release_preflight.py',
+        'control_plane_runtime_guard.py': pre57 / 'control_plane_runtime_guard.py',
+    }
     for name in (
         'release_watcher.sh', 'release_installer.sh', 'release_ingress_recovery.py', 'release_zip.py',
         'release_preflight.py', 'control_plane_runtime_guard.py', 'embedded_pm_runtime_guard.py',
     ):
-        shutil.copy2(ROOT / 'tools' / name, tools / name)
+        source = historical.get(name, ROOT / 'tools' / name)
+        shutil.copy2(source, tools / name)
 
     env = os.environ.copy()
     env.update({

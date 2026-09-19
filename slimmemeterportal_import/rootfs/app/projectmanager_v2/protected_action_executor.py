@@ -5,6 +5,7 @@ import shutil
 import time
 from pathlib import Path
 from transition_state_io import read_transition_state
+from release_controller_state import load_release_controller_state, release_active
 
 
 class ProtectedActionExecutor:
@@ -143,6 +144,18 @@ class ProtectedActionExecutor:
 
     def _validate_transition_command(self, command, action_name):
         if action_name not in {'native_mcp_reload','watcher_recreate'}:
+            return
+        try:
+            live_release = (self.project_root / 'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+            live_tuple = tuple(int(part) for part in live_release.split('.'))
+        except (OSError, ValueError):
+            live_tuple = ()
+        if live_tuple >= (32, 4, 57):
+            state = load_release_controller_state(self.project_root)
+            if action_name == 'native_mcp_reload' and release_active(state):
+                raise RuntimeError('release_controller_owns_native_mcp_reload')
+            # Watcher/container recreation remains a separately protected
+            # infrastructure action; old transition tickets are retired.
             return
         transition_path = self.project_root / 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json'
         transition = read_transition_state(transition_path, missing_ok=True)

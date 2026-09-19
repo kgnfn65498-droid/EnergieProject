@@ -50,7 +50,7 @@ class _Store:
 
 
 def test_32441_packages_dedicated_control_plane_and_only_two_actions():
-    cp_path = TOOLS / 'control_plane/control_plane.py'
+    cp_path = ROOT / 'tests/fixtures/pre57/control_plane.py'
     qnap_path = TOOLS / 'control_plane/qnap_control_plane_bootstrap.py'
     compose_path = TOOLS / 'control_plane/docker-compose.containerstation.yml'
     assert cp_path.is_file() and qnap_path.is_file() and compose_path.is_file()
@@ -326,7 +326,7 @@ def test_32441_release_identity():
 
 
 def test_32441_control_plane_source_sync_is_exact_atomic_and_no_delete(tmp_path):
-    sync = _load(TOOLS / 'control_plane_source_sync.py', 'v32441_cp_sync')
+    sync = _load(ROOT / 'tests/fixtures/pre57/control_plane_source_sync.py', 'v32441_cp_sync')
     root = tmp_path / 'project'
     source = root / 'App/tools/control_plane'
     target = root / 'Data/03_Systeem/Projectmanager/ControlPlane'
@@ -352,7 +352,7 @@ def test_32441_control_plane_source_sync_is_exact_atomic_and_no_delete(tmp_path)
 
 
 def test_32441_watcher_syncs_control_plane_source_before_contract_and_native_guard():
-    source = (TOOLS / 'release_watcher.sh').read_text(encoding='utf-8')
+    source = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     assert 'CONTROL_PLANE_SOURCE_SYNC=' in source
     assert 'process_control_plane_source_sync(){' in source
     startup = source[source.index('log "Release watcher gestart;'):source.index('while :; do')]

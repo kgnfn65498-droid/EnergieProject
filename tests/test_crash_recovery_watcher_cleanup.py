@@ -6,7 +6,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 HELPER = ROOT / "tools/crash_recovery_cleanup.py"
-WATCHER = ROOT / "tools/release_watcher.sh"
+WATCHER = ROOT / "tests/fixtures/pre57/release_watcher.sh"
 
 
 def run_helper(tmp_path, request):

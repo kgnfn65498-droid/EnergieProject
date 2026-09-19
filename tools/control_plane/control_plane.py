@@ -11,6 +11,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, urlencode
+from control_plane_release_bridge import authorize_release_native_reconcile, authorize_release_native_request, release_result_fields
 
 ALLOWED_ACTIONS = {'watcher_recreate', 'native_mcp_reload'}
 WATCHER_CONTAINER = 'energie-release-watcher'
@@ -18,7 +19,7 @@ MCP_CONTAINER = 'energie-filesystem-mcp'
 WATCHER_IMAGE = 'python:3.12-slim'
 WATCHER_COMMAND = ['sh', '/energy/App/tools/release_watcher.sh']
 WATCHER_CAPS = ['DAC_OVERRIDE', 'DAC_READ_SEARCH', 'FOWNER']
-RUNTIME_FINGERPRINT_FILES = ('control_plane.py', 'qnap_control_plane_bootstrap.py')
+RUNTIME_FINGERPRINT_FILES = ('control_plane.py', 'qnap_control_plane_bootstrap.py', 'control_plane_release_bridge.py', 'release_scoped_auth.py')
 
 def _loaded_runtime_fingerprint() -> str:
     root = Path(__file__).resolve().parent
@@ -173,6 +174,42 @@ def already_completed(result_path: Path, request_id: str) -> bool:
     return result.get('status') == 'GREEN' and result.get('ok') is True and result.get('request_id') == request_id
 
 
+def _optional_json(path: Path) -> dict:
+    try:
+        return _load_json(Path(path))
+    except Exception:
+        return {}
+
+
+def _native_runtime_matches(runtime_evidence: Path, expected: str) -> bool:
+    marker = _optional_json(Path(runtime_evidence) / 'native_mcp_runtime_fingerprint.json')
+    return bool(
+        marker.get('schema') in {'energie_native_mcp_runtime_v2', 'energie_native_mcp_runtime_v3'}
+        and str(marker.get('fingerprint') or '').lower() == str(expected or '').lower()
+    )
+
+
+def _native_result_base(request: dict, approval: dict | None) -> dict:
+    result = {
+        'schema': 'energie_native_mcp_reload_result_v1',
+        'request_id': request['request_id'],
+        'container': MCP_CONTAINER,
+        'expected_fingerprint': str(request['expected_fingerprint']).lower(),
+        'release_version': request['release_version'],
+    }
+    if approval is not None:
+        result.update({
+            'approval_action_id': approval['id'],
+            'decision_id': request['decision_id'],
+            'command_id': request['command_id'],
+            'authorization': 'peter_approval',
+        })
+    else:
+        result.update(release_result_fields(request))
+        result['authorization'] = 'release_controller'
+    return result
+
+
 def load_control_plane_native_request(inbox: Path, approved_queue: Path):
     request = _load_json(Path(inbox) / 'control_plane' / 'requests' / 'native_mcp_reload.json')
     if request.get('schema') != 'energie_control_plane_request_v1':
@@ -314,9 +351,14 @@ class ControlPlane:
                     pass
             self.docker.create_container(WATCHER_CONTAINER, watcher_create_payload(self.host_project_root))
             self.docker.start_container(WATCHER_CONTAINER)
+            runtime_marker = self.inbox / 'release_controller' / 'runtime.json'
+            try:
+                runtime_marker.unlink(missing_ok=True)
+            except OSError:
+                pass
             proof = self._wait_json(
-                self.inbox / 'watcher_container_contract.json',
-                lambda v: v.get('ready') is True and v.get('contract_version') == 3,
+                runtime_marker,
+                lambda v: v.get('schema') == 'energie_release_controller_runtime_v1' and int(v.get('pid') or 0) > 1,
                 60.0,
             )
             if renamed:
@@ -328,7 +370,7 @@ class ControlPlane:
                 'request_id': request['request_id'],
                 'approval_action_id': approval['id'],
                 'decision_id': approval.get('decision_id'),
-                'contract_version': proof.get('contract_version'),
+                'release_controller_pid': proof.get('pid'),
             }
             _atomic_json(self.result_root / 'watcher_recreate_result.json', result)
             _atomic_json(self.result_root / 'results' / 'watcher_recreate.json', result)
@@ -348,37 +390,119 @@ class ControlPlane:
                     pass
             raise
 
+    def _write_native_result(self, result: dict) -> dict:
+        _atomic_json(self.result_root / 'results' / 'native_mcp_reload.json', result)
+        _atomic_json(self.inbox / 'native_mcp_runtime' / 'reload_result.json', result)
+        return result
+
+    def _reconcile_fenced_native_attempt(self, request: dict, result_path: Path) -> dict | None:
+        previous = _optional_json(result_path)
+        if str(previous.get('request_id') or '') != str(request.get('request_id') or ''):
+            return None
+        if previous.get('status') == 'GREEN' and previous.get('ok') is True:
+            return previous
+        if previous.get('retry_allowed') is not False:
+            return None
+        expected = str(request.get('expected_fingerprint') or '').lower()
+        if _native_runtime_matches(self.runtime_evidence, expected):
+            result = dict(previous)
+            result.update({
+                'status': 'GREEN',
+                'ok': True,
+                'runtime_fingerprint': expected,
+                'side_effect_state': 'PROVEN_BY_READBACK',
+                'finished_at': datetime.now(timezone.utc).isoformat(),
+                'retry_allowed': False,
+            })
+            return self._write_native_result(result)
+        return previous
+
     def reload_native_mcp(self) -> dict:
-        request, approval = load_control_plane_native_request(self.inbox, self.approved_queue)
+        request_path = self.inbox / 'control_plane' / 'requests' / 'native_mcp_reload.json'
+        request_probe = _load_json(request_path)
+        if request_probe.get('schema') == 'energie_control_plane_release_request_v1':
+            request, _controller_state = authorize_release_native_request(
+                request_path=request_path,
+                controller_state_path=self.inbox / 'release_controller' / 'current.json',
+                version_path=self.version_path,
+                runtime_guard_path=self.inbox / 'native_mcp_runtime' / 'runtime_guard.json',
+            )
+            approval = None
+        else:
+            request, approval = load_control_plane_native_request(self.inbox, self.approved_queue)
         live_version = self.version_path.read_text(encoding='utf-8').strip()
         if str(request.get('release_version') or '').strip() != live_version:
             raise RuntimeError('control-plane native MCP request hoort niet bij actuele live release')
         self.docker.ping()
         if self.docker.inspect_container(MCP_CONTAINER) is None:
             raise RuntimeError('energie-filesystem-mcp ontbreekt')
-        self.docker.restart_container(MCP_CONTAINER, timeout=30)
-        expected = request['expected_fingerprint'].lower()
-        proof = self._wait_json(
-            self.runtime_evidence / 'native_mcp_runtime_fingerprint.json',
-            lambda v: v.get('schema') in {'energie_native_mcp_runtime_v2', 'energie_native_mcp_runtime_v3'} and str(v.get('fingerprint') or '').lower() == expected,
-            90.0,
-        )
-        result = {
-            'schema': 'energie_native_mcp_reload_result_v1',
-            'request_id': request['request_id'],
-            'status': 'GREEN', 'ok': True,
-            'container': MCP_CONTAINER,
-            'expected_fingerprint': expected,
+
+        expected = str(request['expected_fingerprint']).lower()
+        result_path = self.result_root / 'results' / 'native_mcp_reload.json'
+        fenced = self._reconcile_fenced_native_attempt(request, result_path)
+        if fenced is not None:
+            return fenced
+
+        # Persist the exact request fence BEFORE the side effect. A crash after
+        # this write can only reconcile readback; it may never issue a second
+        # automatic restart for the same request_id.
+        attempt = {
+            **_native_result_base(request, approval),
+            'status': 'ATTEMPTING',
+            'ok': False,
+            'runtime_fingerprint': None,
+            'restart_performed': False,
+            'side_effect_state': 'FENCED_BEFORE_RESTART',
+            'retry_allowed': False,
+            'started_at': datetime.now(timezone.utc).isoformat(),
+        }
+        self._write_native_result(attempt)
+
+        try:
+            self.docker.restart_container(MCP_CONTAINER, timeout=30)
+        except Exception as exc:
+            failed = dict(attempt)
+            failed.update({
+                'status': 'RED',
+                'error': f'{type(exc).__name__}:{exc}',
+                'side_effect_state': 'RESTART_OUTCOME_UNKNOWN',
+                'finished_at': datetime.now(timezone.utc).isoformat(),
+            })
+            return self._write_native_result(failed)
+
+        attempt = dict(attempt)
+        attempt.update({
+            'restart_performed': True,
+            'side_effect_state': 'RESTART_RETURNED',
+        })
+        self._write_native_result(attempt)
+
+        try:
+            proof = self._wait_json(
+                self.runtime_evidence / 'native_mcp_runtime_fingerprint.json',
+                lambda v: v.get('schema') in {'energie_native_mcp_runtime_v2', 'energie_native_mcp_runtime_v3'} and str(v.get('fingerprint') or '').lower() == expected,
+                90.0,
+            )
+        except Exception as exc:
+            failed = dict(attempt)
+            failed.update({
+                'status': 'RED',
+                'error': f'{type(exc).__name__}:{exc}',
+                'side_effect_state': 'RESTART_PERFORMED_UNPROVEN',
+                'finished_at': datetime.now(timezone.utc).isoformat(),
+            })
+            return self._write_native_result(failed)
+
+        result = dict(attempt)
+        result.update({
+            'status': 'GREEN',
+            'ok': True,
             'runtime_fingerprint': str(proof.get('fingerprint') or '').lower(),
             'restart_performed': True,
-            'approval_action_id': approval['id'],
-            'decision_id': request['decision_id'],
-            'command_id': request['command_id'],
-            'release_version': request['release_version'],
-        }
-        _atomic_json(self.result_root / 'results' / 'native_mcp_reload.json', result)
-        _atomic_json(self.inbox / 'native_mcp_runtime' / 'reload_result.json', result)
-        return result
+            'side_effect_state': 'PROVEN',
+            'finished_at': datetime.now(timezone.utc).isoformat(),
+        })
+        return self._write_native_result(result)
 
     def _write_runtime_marker(self) -> None:
         now = time.time()
@@ -424,11 +548,42 @@ class ControlPlane:
                     if not (isinstance(prior, dict) and prior.get('status') == 'GREEN' and prior.get('ok') is True):
                         native_result.unlink(missing_ok=True)
                 elif not already_completed(native_result, request_id):
-                    results.append(self.reload_native_mcp())
+                    previous = _optional_json(native_result)
+                    if (
+                        str(previous.get('request_id') or '') == request_id
+                        and previous.get('retry_allowed') is False
+                    ):
+                        if request.get('schema') == 'energie_control_plane_release_request_v1':
+                            authorize_release_native_reconcile(
+                                request_path=native_request,
+                                controller_state_path=self.inbox / 'release_controller' / 'current.json',
+                                version_path=self.version_path,
+                                runtime_guard_path=self.inbox / 'native_mcp_runtime' / 'runtime_guard.json',
+                            )
+                        reconciled = self._reconcile_fenced_native_attempt(request, native_result)
+                        if isinstance(reconciled, dict) and reconciled.get('status') == 'GREEN':
+                            results.append(reconciled)
+                    else:
+                        results.append(self.reload_native_mcp())
             except RuntimeError as exc:
-                _atomic_json(self.result_root / 'results' / 'native_mcp_reload.json', {
-                    'schema':'energie_control_plane_result_v1','action':'native_mcp_reload','status':'RED','ok':False,'error':str(exc)
-                })
+                native_result = self.result_root / 'results' / 'native_mcp_reload.json'
+                request_now = _optional_json(native_request)
+                previous = _optional_json(native_result)
+                if (
+                    str(previous.get('request_id') or '')
+                    and str(previous.get('request_id') or '') == str(request_now.get('request_id') or '')
+                    and previous.get('retry_allowed') is False
+                ):
+                    # Preserve the durable side-effect fence. An authorization
+                    # failure may annotate it, but must never reopen/retry it.
+                    preserved = dict(previous)
+                    preserved['reconcile_error'] = str(exc)
+                    self._write_native_result(preserved)
+                else:
+                    _atomic_json(native_result, {
+                        'schema':'energie_control_plane_result_v1','action':'native_mcp_reload',
+                        'status':'RED','ok':False,'error':str(exc)
+                    })
         return results
 
 

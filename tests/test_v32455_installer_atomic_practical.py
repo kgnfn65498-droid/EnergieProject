@@ -15,7 +15,7 @@ import sys
 sys.path.insert(0, str(PM)); sys.path.insert(0, str(APP))
 from release_transition_worker import ReleaseTransitionWorker
 
-INSTALLER = ROOT / 'tools/release_installer.sh'
+INSTALLER = ROOT / 'tests/fixtures/pre57/release_installer.sh'
 RECOVERY = ROOT / 'tools/release_ingress_recovery.py'
 
 
@@ -36,14 +36,17 @@ def _write_tree(root: Path, *, version: str, pm_version: str, candidate: bool) -
         'tools/release_zip.py': (ROOT / 'tools/release_zip.py').read_bytes(),
     }
     if candidate:
-        for rel in (
-            'tools/release_transition_prepare.py',
-            'tools/release_installer.sh',
-            'tools/release_watcher.sh',
-            'slimmemeterportal_import/rootfs/app/projectmanager_v2/release_transition.py',
-            'slimmemeterportal_import/rootfs/app/transition_state_io.py',
-        ):
-            files[rel] = (ROOT / rel).read_bytes()
+        sources = {
+            'tools/release_transition_prepare.py': ROOT / 'tools/release_transition_prepare.py',
+            'tools/release_installer.sh': ROOT / 'tests/fixtures/pre57/release_installer.sh',
+            'tools/release_watcher.sh': ROOT / 'tests/fixtures/pre57/release_watcher.sh',
+            'slimmemeterportal_import/rootfs/app/projectmanager_v2/release_transition.py':
+                ROOT / 'slimmemeterportal_import/rootfs/app/projectmanager_v2/release_transition.py',
+            'slimmemeterportal_import/rootfs/app/transition_state_io.py':
+                ROOT / 'slimmemeterportal_import/rootfs/app/transition_state_io.py',
+        }
+        for rel, source in sources.items():
+            files[rel] = source.read_bytes()
     root.mkdir(parents=True, exist_ok=True)
     for rel, data in files.items():
         target = root / rel

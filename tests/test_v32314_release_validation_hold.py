@@ -194,13 +194,15 @@ def test_automatic_month_close_execute_guard_blocks_even_with_stale_enabled_opti
 
 
 def test_release_hold_guards_are_installed_before_app_main_starts_scheduler():
-    text = (APP_ROOT / "mode_entrypoint.py").read_text(encoding="utf-8")
+    # Historical 32.3.14/pre-57 contract. The active 32.4.57 entrypoint
+    # intentionally retires release-hold orchestration from the release path.
+    text = (ROOT / "tests/fixtures/pre57/mode_entrypoint.py").read_text(encoding="utf-8")
     assert "install_release_hold_guards" in text
     assert text.index("install_release_hold_guards(app, root)") < text.index("app.main()")
 
 
 def test_installer_defines_atomic_release_hold_marker_in_writable_inbox():
-    text = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    text = (ROOT / "tests/fixtures/pre57/release_installer.sh").read_text(encoding="utf-8")
     assert 'RELEASE_HOLD_STATE="$INBOX/operating_mode/release_validation_hold.json"' in text
     assert "write_release_validation_hold(){" in text
     function = text.split("write_release_validation_hold(){", 1)[1].split("\n}", 1)[0]
@@ -215,7 +217,7 @@ def test_installer_defines_atomic_release_hold_marker_in_writable_inbox():
 
 
 def test_installer_arms_hold_before_ha_publication_call():
-    text = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    text = (ROOT / "tests/fixtures/pre57/release_installer.sh").read_text(encoding="utf-8")
     hold_call = 'write_release_validation_hold || fail "release validation hold activeren mislukt"'
     phase7 = 'log "FASE 7/8: publicatie-afhandeling"'
     publication_call = 'write_ha_publication_required "$PROCESSED_SHA256"'
@@ -227,7 +229,7 @@ def test_installer_arms_hold_before_ha_publication_call():
 
 
 def test_installer_refuses_publication_if_hold_cannot_be_armed():
-    text = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
+    text = (ROOT / "tests/fixtures/pre57/release_installer.sh").read_text(encoding="utf-8")
     hold_call = 'write_release_validation_hold || fail "release validation hold activeren mislukt"'
     assert text.count(hold_call) == 1
     assert text.index(hold_call) < text.index('git push origin main')

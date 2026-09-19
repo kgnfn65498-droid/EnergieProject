@@ -15,7 +15,7 @@ from release_health import release_health_checks
 
 
 def _touch_heartbeat_function():
-    text = (ROOT / 'tools/release_watcher.sh').read_text(encoding='utf-8')
+    text = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     return 'touch_heartbeat(){' + text.split('touch_heartbeat(){', 1)[1].split('\n}', 1)[0] + '\n}'
 
 

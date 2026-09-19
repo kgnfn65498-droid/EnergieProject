@@ -64,7 +64,7 @@ def test_stale_heartbeat_payload_stays_red_even_if_file_mtime_is_fresh(tmp_path)
 
 
 def _watcher_functions_text():
-    text = (ROOT / 'tools/release_watcher.sh').read_text(encoding='utf-8')
+    text = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     run_bounded = 'run_bounded(){' + text.split('run_bounded(){', 1)[1].split('\n}', 1)[0] + '\n}'
     mode_allows = 'mode_allows(){' + text.split('mode_allows(){', 1)[1].split('\n}', 1)[0] + '\n}'
     return run_bounded + '\n' + mode_allows

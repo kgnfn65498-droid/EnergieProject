@@ -3,7 +3,7 @@ import os
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALLER = ROOT / 'tools' / 'release_installer.sh'
+INSTALLER = ROOT / 'tests' / 'fixtures' / 'pre57' / 'release_installer.sh'
 
 
 def test_second_installer_must_not_remove_lock_owned_by_active_installer(tmp_path: Path):

@@ -32,6 +32,7 @@ from protected_action_executor import ProtectedActionExecutor
 from progress_truth import build_task_progress
 from roadmap_regie import RoadmapRegie
 from state_reconciliation import StateReconciler
+from release_controller_state import load_release_controller_state, release_active, release_view
 
 
 def _read_manager_version(app_root) -> str:
@@ -48,6 +49,13 @@ class ProjectmanagerRuntime:
         self.base = base_service or ConfiguredManagerService(config)
         root = Path(config.system_root)
         self.root = root
+        try:
+            _release_text = (Path(config.project_root) / 'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+            _release_tuple = tuple(int(part) for part in _release_text.split('.'))
+        except (OSError, ValueError):
+            _release_text = ''
+            _release_tuple = ()
+        self.release_controller_enabled = _release_tuple >= (32, 4, 57)
         self.commands = CommandStore(root / 'commands' / 'queue.json')
         self.approved_actions = ApprovedActionStore(root / 'approved_actions' / 'queue.json')
         self.handoffs = getattr(self.base, 'handoffs', None) or HandoffQueue(root / 'handoffs' / 'queue.json')
@@ -127,7 +135,7 @@ class ProjectmanagerRuntime:
             self.base.decisions,
             audit=self.base.audit,
         )
-        self.native_mcp_self_heal = NativeMcpSelfHealAuthorizer(
+        self.native_mcp_self_heal = None if self.release_controller_enabled else NativeMcpSelfHealAuthorizer(
             config.project_root,
             self.commands,
             self.base.decisions,
@@ -182,6 +190,16 @@ class ProjectmanagerRuntime:
             parts = tuple(int(x) for x in release_version.split('.'))
         except ValueError:
             return {'status':'NOT_APPLICABLE','reason':'release_version_invalid','release_version':release_version}
+        if parts >= (32,4,57):
+            controller_state = load_release_controller_state(self.config.project_root)
+            return {
+                'status': 'CONTROLLER_OWNED',
+                'release_version': release_version,
+                'release_controller': release_view(controller_state),
+                'planner': 'release_controller',
+                'project_close_deferred': True,
+                'next_action': (controller_state or {}).get('required_action') or (controller_state or {}).get('wait_reason') or '',
+            }
         if parts < (32,4,38):
             return {'status':'NOT_APPLICABLE','release_version':release_version}
 
@@ -301,6 +319,16 @@ class ProjectmanagerRuntime:
         self.base.tasks.progress(active['id'], step=step, steps_total=2, next_action=next_action)
 
     def _release_validation_snapshot(self):
+        if self.release_controller_enabled:
+            state = load_release_controller_state(self.config.project_root)
+            return {
+                'active': False,
+                'validation_status': 'ok',
+                'status': 'ok',
+                'release_controller_owned': True,
+                'release_controller': release_view(state),
+                '_source': 'Inbox/release_controller/current.json',
+            }
         path = self.release_validation_path
         try:
             data = json.loads(path.read_text(encoding='utf-8'))
@@ -313,6 +341,13 @@ class ProjectmanagerRuntime:
             return {'_source': str(path), 'error': f'{type(exc).__name__}: {exc}'}
 
     def _auto_route_release_ingress(self, runtime_snapshot: dict) -> dict:
+        if self.release_controller_enabled:
+            state = load_release_controller_state(self.config.project_root)
+            return {
+                'status': 'CONTROLLER_OWNED',
+                'requested_mode': None,
+                'release_controller': release_view(state),
+            }
         """Use the existing operational mode bridge when one release is waiting.
 
         The watcher remains fail-closed outside DEVELOPMENT; Projectmanager only
@@ -423,7 +458,13 @@ class ProjectmanagerRuntime:
                 details={'active_release': active_release, 'command_ids': [item.get('id') for item in superseded_release_commands]},
             )
 
-        self_heal_authorization = self.native_mcp_self_heal.run_once()
+        if self.release_controller_enabled:
+            self_heal_authorization = {
+                'status': 'CONTROLLER_OWNED',
+                'reason': 'release_scoped_native_mcp_alignment_is_owned_by_release_controller',
+            }
+        else:
+            self_heal_authorization = self.native_mcp_self_heal.run_once()
         processed = self.processor.process_all(max_items=50)
         protected_results = self.protected_executor.run_once(max_items=5)
         runtime_snapshot = self.base.runtime_collector.collect()

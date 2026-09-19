@@ -7,7 +7,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 HELPER = ROOT / "tools/mcp_system_path_guard_hotfix.py"
-WATCHER = ROOT / "tools/release_watcher.sh"
+WATCHER = ROOT / "tests/fixtures/pre57/release_watcher.sh"
 
 EXPECTED_DUPLICATE = (
     pathlib.Path("Data/03_Systeem/Data/03_Systeem/Projectmanager/Runs")

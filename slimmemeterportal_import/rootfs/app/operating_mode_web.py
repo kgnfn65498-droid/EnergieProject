@@ -26,7 +26,14 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _active_release_transition(project_root: Path | str) -> dict[str, Any] | None:
-    path = Path(project_root) / "Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json"
+    root = Path(project_root)
+    try:
+        live = (root / "App/VERSIE.txt").read_text(encoding="utf-8").strip()
+        if tuple(int(part) for part in live.split(".")) >= (32, 4, 57):
+            return None
+    except (OSError, ValueError):
+        pass
+    path = root / "Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json"
     payload = read_transition_state(path, missing_ok=True)
     if not isinstance(payload, dict):
         return None
@@ -343,6 +350,18 @@ def install_mode_web(app_module: Any, project_root: Path | str) -> None:
                     app_module=live_app,
                 )
             elif endpoint == "validate-release-hold":
+                try:
+                    release_parts = tuple(int(part) for part in str(app_module.APP_VERSION).split("."))
+                except ValueError:
+                    release_parts = ()
+                if release_parts >= (32, 4, 57):
+                    result = {"status": "retired", "owner": "release_controller"}
+                    if return_ui:
+                        _send_ui_redirect(self, "reconcile_ok", "success")
+                        return
+                    body = json.dumps(result, ensure_ascii=False).encode("utf-8")
+                    self.send_body(200, body, "application/json; charset=utf-8")
+                    return
                 transition = _active_release_transition(root)
                 if transition is not None:
                     result = {
@@ -360,6 +379,18 @@ def install_mode_web(app_module: Any, project_root: Path | str) -> None:
                         issued_by="projectmanager_gui",
                     )
             else:
+                try:
+                    release_parts = tuple(int(part) for part in str(app_module.APP_VERSION).split("."))
+                except ValueError:
+                    release_parts = ()
+                if release_parts >= (32, 4, 57):
+                    result = {"status": "retired", "owner": "release_controller"}
+                    if return_ui:
+                        _send_ui_redirect(self, "reconcile_ok", "success")
+                        return
+                    body = json.dumps(result, ensure_ascii=False).encode("utf-8")
+                    self.send_body(200, body, "application/json; charset=utf-8")
+                    return
                 if live_app is None:
                     raise RuntimeError("live runtime validation is unavailable")
                 confirmation = str((form.get("confirm") or [""])[0]).strip() == "NOODVRIJGAVE"

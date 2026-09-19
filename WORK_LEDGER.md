@@ -1,3 +1,98 @@
+## 2026-09-18 — 32.4.57 checkpoint 11
+
+- Release-scoped Native-MCP uitvoering en reconcile zijn nu duurzaam en generation-fenced.
+- Een gefencede RED wordt exact als BLOCKED gerapporteerd en opent geen tweede uitvoerpad.
+- Control Plane herstel is bounded per verwachte fingerprint en blijft één actuatorroute.
+- Control-Plane source-sync evidence staat canoniek onder Inbox/release_controller.
+- PM-health voor 57+ behandelt verouderde CP-heartbeat als observability; fingerprint mismatch blijft RED.
+- Handover blijft vanaf 57 controller-owned; oude release_transition is historisch.
+- 15/15 genummerde required cases, 1 next-release case en 36 specifieke 32.4.57 architectuurtests aanwezig.
+- Checkpoint-11 delta nog niet via pytest/full build/fresh-extract uitgevoerd; geen GREEN-claim.
+- Geen productieactie of kandidaat-ZIP.
+
+## 2026-09-18 — 32.4.57 checkpoint 11
+
+- Native-MCP actuator nu volledig attempt-fenced: maximaal één automatische restart per exact request_id; daarna alleen readback/reconcile.
+- Reconcile valideert opnieuw actuele release_id/generation/version/artifact/fingerprint-fence.
+- Gefencede RED wordt door de centrale RuntimeCoordinator exact BLOCKED als native_mcp_reload_unproven; geen nieuw request/restartpad.
+- Control Plane bounded restart fence blijft maximaal één restart per expected fingerprint; nieuwe fingerprint mag één nieuwe bounded poging.
+- Control-Plane source-sync evidence staat canoniek in Inbox/release_controller/control_plane_source_sync.json.
+- PM-health voor 57+: stale/missing CP heartbeat is ORANGE observability; loaded fingerprint mismatch blijft RED; 55/56 contract ongewijzigd.
+- Handover blijft voor 57 controller-owned; oude release_transition wordt historisch/leeg gemaakt.
+- 15/15 genummerde required cases + 1 next-release case + 36 specifieke 32.4.57 architectuurtests aanwezig.
+- Checkpoint-11 delta nog niet via pytest/full build/fresh-extract uitgevoerd; geen GREEN-claim.
+- Geen productieactie, duplicaat 56-command, rescueketen of kandidaat-ZIP.
+
+## 2026-09-18 — 32.4.57 checkpoint 10
+
+- Native-MCP side effect is nu attempt-fenced: maximaal één automatische restart per exact request_id.
+- RED/ATTEMPTING result blijft retry_allowed=false; latere exacte fingerprint kan hetzelfde request alleen reconcile-only naar GREEN brengen.
+- Reconcile valideert opnieuw de actuele release_id/generation/artifact/version/fingerprint-fence.
+- RuntimeCoordinator rapporteert exact gefencede RED als native_mcp_reload_unproven BLOCKED in plaats van eindeloos pending.
+- Control Plane zelf heeft nu maximaal één bounded restart per exact expected fingerprint; zelfde fingerprint kan geen restart-loop vormen.
+- Nieuwe expected CP fingerprint mag één nieuwe bounded restartpoging krijgen.
+- Stale CP heartbeat + Docker healthy + exact loaded fingerprint blijft restart-vrij.
+- Control-Plane source-sync evidence verplaatst van historische 32.4.44 marker naar Inbox/release_controller/control_plane_source_sync.json.
+- Manual ProtectedActionExecutor kan een actieve 57 release-scoped native_mcp_reload niet overschrijven.
+- Actieve 57 releasekern gescand op oude transition/hold/mode/CR/CLEARUP leakage: geen treffers.
+- Testinventory: 15/15 genummerde required cases + 1 next-release case + 36 specifieke 32.4.57 architectuurtests aanwezig.
+- Checkpoint-10 delta nog niet via pytest uitgevoerd; geen nieuwe GREEN-claim.
+- Geen productieactie of kandidaat-ZIP.
+
+## 2026-09-18 — 32.4.57 checkpoint 9
+
+- Na retry/crash eerst persistent state gelezen: checkpoint 8 plus later gewijzigde staging tot 20:49:17Z teruggevonden; niet opnieuw begonnen.
+- Control Plane pre-install/global sync verwijderd: Control Plane is nu uitsluitend actuator bij daadwerkelijke Native-MCP mismatch.
+- Stale CP heartbeat is observability-only wanneer Docker healthy is en loaded fingerprint exact matcht; dan geen restart.
+- Echte CP fingerprint mismatch kan maximaal één restart van de bestaande container uitvoeren; geen recreateketen.
+- INSTALLING en RUNTIME_ALIGNING zijn nu aparte duurzame fasegrenzen vóór respectievelijke side effects.
+- Crash na duurzaam atomic ACCEPTED maar vóór controller-state-save is idempotent herstelbaar; ACCEPTED App wordt niet teruggerold.
+- Ontbrekende IngressDecision-import in orphan Processing route gerepareerd.
+- Legacy adoption begrensd tot exact 32.4.56 -> 32.4.57; 32.4.58+ kan legacy transition/hold niet adopteren.
+- Legacy atomic authority via symlink/non-regular state wordt geweigerd.
+- Verplichte acceptance case 3/4 aangescherpt naar echte CP direct-probe/bounded-blocker semantics.
+- Laatste wijzigingen zijn statisch doorgelopen maar nog niet via pytest uitgevoerd; geen nieuwe GREEN-claim.
+- Full BUILD_32457.py + exact fresh-extract blijft de eerstvolgende harde execution gate.
+- Geen productieactie, nieuwe rescueketen, duplicaat 56-command of kandidaat-ZIP.
+
+## 2026-09-18 — 32.4.57 checkpoint 8
+
+- DETECTED-crashgrens gesloten: eerste persistente lifecycle-state is VERIFIED.
+- Atomic pre-activation rollback ruimt uitsluitend de exact eigen candidate op en settle PREPARED naar ROLLED_BACK.
+- 32.4.55 orphan Processing + stable corrupt Incoming recovery samengevoegd in de ene ReleaseController.
+- Legacy ownership 50+ MB index: één streaming load + cached lookups; repeated-read klasse verwijderd.
+- Definitieve `test_v32457_required_acceptance.py` bevat 15/15 architectuurauditcases plus twee 55-ingressregressies.
+- BUILD_32457.py regenereert/controleert release-metadata vóór tests, controleert opnieuw na tests, bouwt alleen canonieke `EnergieProject_v32.4.57.zip` en herhaalt alle gates op exact fresh extract.
+- Coverage-matrix 32.4.57: 12/12 live defectclusters en 11/11 historische contractfamilies structureel gemapt; execution blijft pending.
+- Checkpoint 8: Data/03_Systeem/Projectmanager/Worklogs/ARCHITECTURE_32457_CHECKPOINT_8_2026-09-18.md.
+- Geen productieactie en geen kandidaat-ZIP.
+
+## 2026-09-18 — 32.4.57 post-crash hardening
+
+- Na chatcrash eerst persistent checkpoint/staging gelezen; checkpoint 6 én later opgeslagen overlaywerk teruggevonden. Geen herstart vanaf oud punt.
+- Crash-resumeprotocol toegevoegd aan PROJECT_CONSTITUTION.md: “opnieuw” betekent eerst hoogste persistente state/checkpoint vinden.
+- Canonical StateStore gehard tegen symlink/non-regular/corrupte reads.
+- Future N→N+1 runtime-gap gesloten: Control Plane resync bij live-versiewijziging en controller self-reexec pas na COMPLETE.
+- Historische pre-57 mode_entrypoint fixture toegevoegd.
+- Historische 32.3.14/32.4.51/32.4.54 implementation-tests naar pre-57 fixture gemigreerd; testfamilies blijven behouden.
+- 32.4.56 rescue identity-regressie aangepast naar 32.4.57/PM rc45 met behoud van rc44-contract.
+- 32.4.57 architecture/static tests uitgebreid voor state-symlink, CP-resync en self-reexec.
+- Checkpoint 7: Data/03_Systeem/Projectmanager/Worklogs/ARCHITECTURE_32457_CHECKPOINT_7_2026-09-18.md.
+- Geen productieactie, nieuwe rescueketen of kandidaat-ZIP uitgevoerd.
+- Full overlay/fresh-extract suite blijft open en is de eerstvolgende harde buildgate.
+
+## 2026-09-18 — 32.4.57 architecture-first
+
+- 32.4.56 blijft live en wacht op exact één bestaande protected Native-MCP reload; geen duplicaat aangemaakt.
+- Bestaande Incoming-keten ontleed: watcher/installer/transition/hold vormden meerdere lifecycle-eigenaren.
+- Nieuwe single-owner ReleaseController ontworpen met acht fasen en gescheiden status.
+- Atomic swap blijft primitive; OS flock vervangt stale lock recovery.
+- Release-scoped Native MCP authorization via Control Plane ontworpen en in overlay uitgewerkt.
+- 56→57 exact legacy-install adoption toegevoegd voor de eenmalige migratie.
+- PM/mode/handover/health ontkoppeld van oude transition/hold voor >=32.4.57.
+- Definitieve overlay opgeslagen onder Data/03_Systeem/Projectmanager/Staging/32457_release_overlay.
+- Bewijs tot nu: 34/34 + 10/10 + 2/2 GREEN; full overlay suite nog open.
+
 # WORK_LEDGER — 32.4.56
 
 ## 2026-09-18 — rc43 → rc44
@@ -28,3 +123,80 @@
 - [x] finale canonical ZIP na deze laatste document-sync: manifest + SHA256SUMS + CRC GREEN (exacte SHA in externe werklog).
 - [x] finale exact-ZIP fresh-extract: 1.866 passed, 2 skipped, 0 failed (bewijs in externe werklog).
 - [ ] daarna live end-to-end releaseacceptatie, uitsluitend na expliciete productieautoriteit.
+
+
+## 2026-09-19 — 32.4.57 checkpoint 12
+- hervat vanaf werkelijk laatste persisted punt (checkpoint 11 bevestigd vóór wijziging)
+- Native stale exact release-request cleanup toegevoegd + regressietest
+- PM/orchestrator bevestigd CONTROLLER_OWNED vanaf 57; mode/validation geen Incoming-authority
+- open gate: HA/GitHub volgorde t.o.v. atomic ACCEPTED moet vóór release-seal expliciet worden gekozen/getest
+- geen productie-write, geen containerrestart, geen terminal, geen release-ZIP gebouwd
+- checkpoint: Data/03_Systeem/Projectmanager/Worklogs/ARCHITECTURE_32457_CHECKPOINT_12_2026-09-19.md
+
+
+## 2026-09-19 — 32.4.57 checkpoint 13
+- checkpoint 12 bevestigd als laatste persisted bronpunt vóór hervatting
+- HA/ACCEPTED-volgorde niet opnieuw ontworpen; latere checkpoints 5/6 zijn leidend
+- 57 pm-startup-recovery Supervisor-restartpad verwijderd; PM thread supervision blijft
+- nieuwe architectuurregressie toegevoegd; 38 specifieke 57 architectuurtests aanwezig
+- geen productie-write, geen containerrestart, geen terminal, geen release-ZIP
+- volgende gate: 56->57 HA bootstrap + build/test/fresh-extract
+- checkpoint: Data/03_Systeem/Projectmanager/Worklogs/ARCHITECTURE_32457_CHECKPOINT_13_2026-09-19.md
+
+
+## 2026-09-19 — 32.4.57 checkpoint 14
+- live 56 HA publisher/rebuild route read-only bevestigd als 56->57 bootstrap
+- geen extra HA daemon toegevoegd; bestaande handover hergebruikt
+- architectuurtest toegevoegd; 39 specifieke 57 architectuurtests aanwezig
+- geen productie-write, geen containerrestart, geen terminal
+- checkpoint: Data/03_Systeem/Projectmanager/Worklogs/ARCHITECTURE_32457_CHECKPOINT_14_2026-09-19.md
+
+
+## 2026-09-19 — 32.4.57 checkpoint 15
+- live 56->57 Incoming bootstrap blocker bewezen: atomic LIVE_ACCEPTANCE + niet-terminale legacy transition blokkeren preflight
+- een Native reload alleen is niet bewezen voldoende; latere 56 CR/CLEARUP/hygiene fasen kunnen opnieuw blokkeren
+- vervolg beperkt tot veilige bestaande terminal/supersede/cancel-route in 56
+- geen productie-write, geen restart, geen terminal
+- checkpoint: Data/03_Systeem/Projectmanager/Worklogs/ARCHITECTURE_32457_CHECKPOINT_15_2026-09-19.md
+
+
+## 2026-09-19 — 32.4.57 checkpoint 16
+- crash-resume regel toegepast; checkpoint 15 bevestigd als laatste inhoudelijke bronstand
+- 56 release_recover/cancel/supersede routes onderzocht: geen bestaande veilige transition-terminalisatie API
+- compacte attempt_release_hold validatie kan atomic/hold sluiten zonder Native/CR/CLEARUP/hygiene als directe gate
+- geen actieve oude release-owned tasks voor 54/55/56
+- volgende exacte stap: evidence-bound, exact 56->57 legacy-transition supersede/finalize brug ontwerpen + TDD
+- geen productie-write, geen restart, geen terminal, geen tweede Native request
+- checkpoint: Data/03_Systeem/Projectmanager/Worklogs/ARCHITECTURE_32457_CHECKPOINT_16_2026-09-19.md
+
+
+## 2026-09-19 — definitieve nieuwe-chat overdracht
+- FINAL_HANDOVER_32.4.57_EXACT_RESUME_2026-09-19.md opgeslagen
+- SHA256 56daa4d280ec4069a8143620c2ee28ea93ec22f651a526ab89c63d2e7d6ba847
+- exact resume point = eenmalige 56->57 bootstrap/migratiehelper ontwerpen; daarna buildgate
+- nieuwe chat niet opnieuw laten zoeken; starten bij §13 van final handover
+
+
+## 2026-09-19 — 32.4.57 checkpoint 20
+- eenvoudseis 57 vastgezet: één controller/één truth/één Incoming->GitHub/HA keten
+- modes + CR/NAS CR/CLEARUP/hygiene behouden maar release-neutraal voor steady-state 57
+- eenmalige evidence-bound 56->57 bootstrap helper in staging geschreven
+- 12 nieuwe TDD regressies geschreven; niet uitgevoerd in huidige connector
+- geen productie-write, restart, terminal of tweede Native request
+- checkpoint: Data/03_Systeem/Projectmanager/Worklogs/ARCHITECTURE_32457_CHECKPOINT_20_2026-09-19.md
+
+
+## 2026-09-19 — 32.4.57 checkpoint 21
+- eenmalige 56->57 bootstrap statisch gehard + crash recovery
+- 14 nieuwe tests aanwezig, niet uitgevoerd
+- steady-state eenvoud audit afgerond: één controller, mode/CR/CLEARUP/hygiene release-neutraal
+- geblokkeerd op uitvoerbare build/testomgeving met canonieke 56 ZIP binary
+- geen productie-write/restart/terminal/Native side effect
+- checkpoint: Data/03_Systeem/Projectmanager/Worklogs/ARCHITECTURE_32457_CHECKPOINT_21_2026-09-19.md
+
+
+## 2026-09-19 — checkpoint 22 continuation
+- canonical 56 ZIP SHA exact bewezen
+- lokale baseline batches 32.4.36 t/m 32.4.56 gericht GREEN waar afgerond; lange full suite alleen door 45s tool-timeout afgebroken, geen failure gezien
+- modes blijven beschikbaar maar oude mode/hold transition workers zijn uit 57 release authority
+- geen productie-write/restart/request

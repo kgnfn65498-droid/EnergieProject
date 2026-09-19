@@ -214,7 +214,7 @@ def test_current_canonical_publication_failure_stays_red(tmp_path):
 
 
 def test_watcher_kills_process_that_ignores_sigterm():
-    text = (ROOT / 'tools/release_watcher.sh').read_text(encoding='utf-8')
+    text = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     assert 'run_bounded(){' in text
     fn = 'run_bounded(){' + text.split('run_bounded(){', 1)[1].split('\n}', 1)[0] + '\n}'
     cmd = (

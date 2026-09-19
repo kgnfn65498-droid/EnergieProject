@@ -16,8 +16,10 @@ for value in (str(APP), str(PM), str(TOOLS)):
         sys.path.insert(0, value)
 
 
-def test_rc44_identity_is_final_candidate():
-    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc44'
+def test_rc44_contract_is_carried_forward_by_rc45_release():
+    # Regression family retained: 32.4.57/rc45 must preserve the rc44 rescue
+    # behavior while publishing the new coherent Projectmanager identity.
+    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc45'
 
 
 def test_project_constitution_current_handover_and_work_ledger_exist():
@@ -28,7 +30,7 @@ def test_project_constitution_current_handover_and_work_ledger_exist():
 
 
 def test_installer_publication_contract_is_shared_mode_0666():
-    source = (TOOLS / 'release_installer.sh').read_text(encoding='utf-8')
+    source = (ROOT / 'tests/fixtures/pre57/release_installer.sh').read_text(encoding='utf-8')
     block = source[source.index('write_ha_publication_required(){'):source.index('rollback_atomic_swap(){')]
     assert 'chmod 0666 "$HA_PUBLICATION_REQUIRED"' in block
 

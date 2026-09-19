@@ -189,7 +189,7 @@ def test_auto_release_daemon_stops_cleanly_while_release_remains_blocked(monkeyp
     assert len(calls) == 3
 
 def test_projectmanager_starts_before_auto_release_daemon():
-    source = (RUNTIME_APP / 'mode_entrypoint.py').read_text(encoding='utf-8')
+    source = (ROOT / 'tests/fixtures/pre57/mode_entrypoint.py').read_text(encoding='utf-8')
     pm_start = source.index('start_projectmanager_v2(app.STOP, root, TARGET_RELEASE_VERSION)')
     worker_start = source.index('target=automatic_release_hold_worker')
     assert 'automatic_release_hold_daemon as automatic_release_hold_worker' in source

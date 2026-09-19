@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-WATCHER = ROOT / "tools" / "release_watcher.sh"
+WATCHER = ROOT / "tests" / "fixtures" / "pre57" / "release_watcher.sh"
 
 
 def _function_source(name: str) -> str:

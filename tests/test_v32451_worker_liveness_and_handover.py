@@ -83,16 +83,15 @@ def test_periodic_mode_worker_runs_lifecycle_supervisor():
 
 
 def test_mode_entrypoint_supervises_pm_and_hold_workers():
-    import mode_entrypoint as entry
-
-    assert hasattr(entry, '_supervise_background_workers')
-    source = inspect.getsource(entry._supervise_background_workers)
+    # Historical 32.4.51 contract retained against the pre-57 fixture.
+    # The active 32.4.57 entrypoint intentionally has no release-hold worker.
+    source = (ROOT / 'tests/fixtures/pre57/mode_entrypoint.py').read_text(encoding='utf-8')
     assert 'start_projectmanager_v2' in source
     assert 'automatic_release_hold_worker' in source
 
 
 def test_release_watcher_project_cr_is_detached_from_main_loop():
-    source = (ROOT / 'tools/release_watcher.sh').read_text(encoding='utf-8')
+    source = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     fn = source.split('process_project_cr_local(){', 1)[1].split('\n}', 1)[0]
     assert 'project_cr_local_worker.pid' in source
     assert 'run_bounded "$PROJECT_CR_LOCAL_TIMEOUT" python3 "$PROJECT_CR_LOCAL_EXECUTOR"' in fn

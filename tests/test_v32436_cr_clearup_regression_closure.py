@@ -204,7 +204,7 @@ def test_watcher_bootstrap_has_local_socket_hardening_and_minimum_fs_caps():
 
 
 def test_watcher_runs_cr_hotfix_before_local_nas_request_and_probes_capability():
-    source = (ROOT / 'tools/release_watcher.sh').read_text(encoding='utf-8')
+    source = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     for token in ('process_cr_standard_hotfix', 'process_nas_cr_capability_probe', 'process_nas_container_cr_local'):
         assert token in source
     assert source.index('process_cr_standard_hotfix') < source.index('process_nas_container_cr_local')

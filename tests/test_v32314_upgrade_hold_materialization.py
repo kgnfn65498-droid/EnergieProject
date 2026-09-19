@@ -63,7 +63,7 @@ def test_mismatched_release_hold_is_repaired_for_installed_release(tmp_path):
 
 
 def test_entrypoint_materializes_hold_before_runtime_and_app_main():
-    text = (APP_ROOT / "mode_entrypoint.py").read_text(encoding="utf-8")
+    text = (ROOT / "tests/fixtures/pre57/mode_entrypoint.py").read_text(encoding="utf-8")
     call = "ensure_release_hold_state(root, TARGET_RELEASE_VERSION)"
     assert call in text
     assert text.index(call) < text.index("install_release_hold_guards(app, root)")

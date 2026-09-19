@@ -100,7 +100,7 @@ def test_startup_preserves_manual_fixed_base_mode(tmp_path):
 def test_addon_launcher_uses_mode_entrypoint_before_main():
     root = pathlib.Path(__file__).resolve().parents[1]
     run_sh = (root / "slimmemeterportal_import/run.sh").read_text(encoding="utf-8")
-    entry = (root / "slimmemeterportal_import/rootfs/app/mode_entrypoint.py").read_text(encoding="utf-8")
+    entry = (root / "tests/fixtures/pre57/mode_entrypoint.py").read_text(encoding="utf-8")
     measured_tick = "operating_mode_tick(root, app_module=app)"
     assert "exec python3 -u /app/mode_entrypoint.py" in run_sh
     assert entry.index("recover_startup_mode_state(root)") < entry.index("install_mode_overrides(app, root)")

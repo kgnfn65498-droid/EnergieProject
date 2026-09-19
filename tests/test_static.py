@@ -2451,75 +2451,51 @@ def test_v102_core_remains_unchanged():
 
 def test_v103_release_inbox_paths_and_installer():
     source = MAIN.read_text(encoding="utf-8")
-    assert 'NAS_RELEASE_ROOT = NAS_LAYOUT_ROOT / "Inbox"' in source
-    assert 'NAS_RELEASE_PROCESSING' in source
-    assert 'NAS_RELEASE_FAILED' in source
-    installer = ROOT / "tools/release_installer.sh"
-    assert installer.is_file()
-    text = installer.read_text(encoding="utf-8")
-    for token in ("unzip -t", "sha256sum -c MANIFEST.sha256", "git status --porcelain --untracked-files=all", "rollback_atomic_swap", "git push origin main", "git ls-remote origin refs/heads/main", 'BACKUPS="$ROOT/Backups"'):
-        assert token in text
-
+    assert "NAS_RELEASE_PROCESSING" in source and "NAS_RELEASE_FAILED" in source
+    installer=(ROOT/"tools/release_installer.sh").read_text(encoding="utf-8")
+    service=(ROOT/"tools/release_controller_service.py").read_text(encoding="utf-8")
+    assert "retired" in installer and "release_controller_service" in installer
+    assert "Inbox/release_controller/current.json" in service
 
 def test_v3202_definitive_nas_layout_has_no_legacy_release_paths():
-    source = MAIN.read_text(encoding="utf-8")
-    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    watcher = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    bootstrap = (ROOT / "tools/bootstrap_release_watcher_container.sh").read_text(encoding="utf-8")
-    combined = "\n".join((source, installer, watcher, bootstrap, (ROOT / "TESTINSTRUCTIES.md").read_text(encoding="utf-8")))
-    assert ("EnergieProject" + "_Inbox") not in combined
-    assert ("EnergieProject" + "_Backups") not in combined
-    assert 'PROJECT="$ROOT/App"' in installer
-    assert 'INBOX="$ROOT/Inbox"' in installer
-    assert 'BACKUPS="$ROOT/Backups"' in installer
-    assert 'PROJECT="$ROOT/App"' in watcher
-    assert 'INBOX="$ROOT/Inbox"' in watcher
-    assert '-v "$ROOT:/energy"' in bootstrap
-    assert 'sh /energy/App/tools/release_watcher.sh' in bootstrap
-    assert 'NAS_DATA_ROOT = NAS_LAYOUT_ROOT / "Data"' in source
-    assert 'NAS_INFRA_ROOT = NAS_LAYOUT_ROOT / "Infra"' in source
-
+    source=MAIN.read_text(encoding="utf-8")
+    watcher=(ROOT/"tools/release_watcher.sh").read_text(encoding="utf-8")
+    service=(ROOT/"tools/release_controller_service.py").read_text(encoding="utf-8")
+    for text in (source,watcher,service):
+        assert "/share/Public" not in text and "cachedev" not in text
+    assert "release_controller_service.py" in watcher
 
 def test_release_installer_is_qnap_metadata_safe():
-    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    assert "cp -a" not in installer
-    assert 'prepare-and-swap' in installer
-    assert 'rollback_atomic_swap' in installer
-    assert 'tar -xzf "$BACKUP" -C "$PROJECT"' not in installer
-
+    installer=(ROOT/"tools/release_installer.sh").read_text(encoding="utf-8")
+    atomic=(ROOT/"tools/atomic_app_swap.py").read_text(encoding="utf-8")
+    assert "cp -a" not in installer and "retired" in installer
+    assert "perform_swap" in atomic and "probe_sibling_rename" in atomic
 
 def test_release_installer_has_qnap_write_preflight():
-    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    assert 'prepare-and-swap' in installer
-    assert 'atomic App prepare-and-swap' in installer
-    assert 'rollback_atomic_swap' in installer
-
+    preflight=(ROOT/"tools/minimal_release_preflight.py").read_text(encoding="utf-8")
+    adapter=(ROOT/"tools/atomic_release_adapter.py").read_text(encoding="utf-8")
+    assert "rollback_collision" in preflight and "candidate_collision" in preflight
+    assert "verify_same_filesystem" in adapter and "probe_sibling_rename" in adapter
 
 def test_release_watcher_defaults_to_five_seconds():
-    watcher = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    assert 'INTERVAL="${ENERGIE_WATCH_INTERVAL:-5}"' in watcher
-
+    watcher=(ROOT/"tools/release_watcher.sh").read_text(encoding="utf-8")
+    assert "ENERGIE_WATCH_INTERVAL:-5" in watcher
 
 def test_release_watcher_compact_status_file_present():
-    source = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    assert 'STATUSFILE="$INBOX/latest_release_status.txt"' in source
-    assert 'write_status "PROCESSING" "$ZIP_NAME"' in source
-    assert 'write_status "SUCCESS" "$ZIP_NAME"' in source
-    assert 'write_status "FAILED" "$ZIP_NAME"' in source
+    service=(ROOT/"tools/release_controller_service.py").read_text(encoding="utf-8")
+    assert "Inbox/release_controller/runtime.json" in service
+    assert "energie_release_controller_runtime_v1" in service
 
 def test_release_watcher_duplicate_start_is_quiet():
-    source = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    assert 'Watcher is al actief pid=' not in source
-
+    lock=(ROOT/"tools/controller_lock.py").read_text(encoding="utf-8")
+    assert "fcntl.LOCK_EX|fcntl.LOCK_NB" in lock
+    assert "release controller already active" in lock
 
 def test_release_installer_schedules_watcher_refresh():
-    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    watcher = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    assert 'schedule_watcher_refresh' in installer
-    assert 'Watcher-refresh gepland' in installer
-    assert 'refresh_watcher_from_installed_release' in watcher
-    assert 'exec sh "$NEW_WATCHER" run' in watcher
-
+    installer=(ROOT/"tools/release_installer.sh").read_text(encoding="utf-8")
+    watcher=(ROOT/"tools/release_watcher.sh").read_text(encoding="utf-8")
+    assert "retired" in installer
+    assert "release_controller_service.py" in watcher and "release_installer.sh" not in watcher
 
 def test_v1050_shows_release_chain_in_ha_console():
     main = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
@@ -2652,22 +2628,15 @@ def test_v10510_epex_uses_actual_share_root_first():
     assert '"resolved_path": str(history_root)' in source
 
 def test_v10511_watcher_uses_atomic_singleton_lock():
-    source = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    assert 'WATCHER_LOCK="$INBOX/.watcher.lock"' in source
-    assert 'if ! mkdir "$WATCHER_LOCK" 2>/dev/null; then' in source
-    assert 'rmdir "$WATCHER_LOCK"' in source
-    assert source.index('mkdir "$WATCHER_LOCK"') < source.index("printf '%s\\n' \"$$\" > \"$PIDFILE\"")
-
+    lock=(ROOT/"tools/controller_lock.py").read_text(encoding="utf-8")
+    assert "fcntl.flock" in lock and "LOCK_NB" in lock and ".release-controller.lock" in lock
 
 def test_v10511_processing_recovery_has_single_watcher_owner():
-    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    recovery = (ROOT / "tools/release_ingress_recovery.py").read_text(encoding="utf-8")
-    assert 'Processing recovery has one owner: release_ingress_recovery.py in the watcher.' in installer
-    assert 'processing bevat bestaande release-ZIP; herstel uitsluitend via watcher release-ingress recovery' in installer
-    assert 'HERSTEL: oude processing-ZIP' not in installer
-    assert 'REQUEUED_ORPHAN_PROCESSING' in recovery
-    assert 'RECOVERED_STALE_LOCK_AND_PROCESSING' in recovery
-
+    watcher=(ROOT/"tools/release_watcher.sh").read_text(encoding="utf-8")
+    service=(ROOT/"tools/release_controller_service.py").read_text(encoding="utf-8")
+    installer=(ROOT/"tools/release_installer.sh").read_text(encoding="utf-8")
+    assert "release_ingress_recovery.py" not in watcher and "release_ingress_recovery.py" not in installer
+    assert "def _claim" in service
 
 def test_v10511_keeps_epex_10510_fix():
     source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
@@ -2682,27 +2651,25 @@ def test_v10512_epex_autodetects_ha_storage_roots():
     assert '"resolved_path": str(history_root) if history_root is not None else None' in source
 
 def test_v10513_watcher_waits_for_stable_zip_copy():
-    source = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    assert 'STABLE_POLLS="${ENERGIE_ZIP_STABLE_POLLS:-3}"' in source
-    assert 'ZIP_SIZE="$(wc -c < "$ZIP_PATH"' in source
-    assert '"$STABLE_COUNT" -ge "$STABLE_POLLS"' in source
-    assert 'write_status "COPYING" "$ZIP_NAME"' in source
+    service=(ROOT/"tools/release_controller_service.py").read_text(encoding="utf-8")
+    policy=(ROOT/"tools/ingress_policy.py").read_text(encoding="utf-8")
+    assert "stable_polls=3" in service and "copy_not_stable" in policy
 
 def test_v10514_watcher_self_refreshes_without_cron_or_terminal():
-    watcher = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    assert "refresh_watcher_from_installed_release" in watcher
-    assert 'exec sh "$NEW_WATCHER" run' in watcher
-    assert 'unset ENERGIE_WATCHER_REEXEC' in watcher
-    assert "actieve watcher schakelt autonoom" in installer
-    assert "kill '$WATCHER_PID'" not in installer
+    watcher=(ROOT/"tools/release_watcher.sh").read_text(encoding="utf-8")
+    service=(ROOT/"tools/release_controller_service.py").read_text(encoding="utf-8")
+    bootstrap=(ROOT/"tools/control_plane_bootstrap.py").read_text(encoding="utf-8")
+    assert "cron" not in watcher.lower() and "release_controller_service.py" in watcher
+    assert "energie-control-plane" in bootstrap
+    assert "ensure_control_plane_current" in service
+    assert "synced_release" not in service and "control_plane_sync_needed" not in service
+    assert "control_plane_prepare=lambda: ensure_control_plane_current(root)" in service
+    assert "should_reexec" in service and "reexec_current_watcher" in service
+    assert "os.execvp('sh'" in service
 
 def test_v10514_watcher_recovers_stale_lock():
-    watcher = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    assert 'HEARTBEAT="$INBOX/.watcher.heartbeat"' in watcher
-    assert 'heartbeat_age' in watcher
-    assert '"$AGE" -lt "$HEARTBEAT_STALE_SECONDS"' in watcher
-    assert 'rmdir "$WATCHER_LOCK"' in watcher
+    lock=(ROOT/"tools/controller_lock.py").read_text(encoding="utf-8")
+    assert "fcntl.flock" in lock and "stale" not in lock.lower() and "rmdir" not in lock
 
 def test_v10514_epex_has_read_only_mcp_fallback():
     source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
@@ -2713,16 +2680,9 @@ def test_v10514_epex_has_read_only_mcp_fallback():
     assert '_epex_mcp_month_context(month_key)' in source
 
 def test_v10515_watcher_gates_installer_on_zip_integrity():
-    source = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    assert 'ZIP_MTIME="$(date -r "$ZIP_PATH" +%s' in source
-    assert '"$ZIP_MTIME" = "$LAST_MTIME"' in source
-    assert 'unzip -tqq "$ZIP_PATH"' in source
-    assert 'ZIP stabiel maar ongeldig; controleer stale-grens vóór quarantaine' in source
-    assert 'quarantine-corrupt --root "$ROOT"' in source
-    helper = (ROOT / "tools/release_ingress_recovery.py").read_text(encoding="utf-8")
-    assert "corrupt_candidate_not_stale" in helper
-    assert "Inbox/failed/corrupt" in helper
-    assert source.index('unzip -tqq "$ZIP_PATH"') < source.index('if run_installer; then')
+    service=(ROOT/"tools/release_controller_service.py").read_text(encoding="utf-8")
+    preflight=(ROOT/"tools/minimal_release_preflight.py").read_text(encoding="utf-8")
+    assert "def _integral" in service and "candidate_integrity_invalid" in preflight
 
 def test_v10516_epex_status_semantics():
     source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
@@ -2742,20 +2702,14 @@ def test_v10517_container_bootstrap_is_isolated_and_restartable():
     assert "energie-quarter-hour-scheduler" not in source
 
 def test_v10517_watcher_uses_cross_namespace_heartbeat():
-    source = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    assert 'HEARTBEAT="$INBOX/.watcher.heartbeat"' in source
-    assert 'HEARTBEAT_STALE_SECONDS' in source
-    assert 'touch_heartbeat' in source
-    assert 'Cross-namespace singleton-claim' in source
+    service=(ROOT/"tools/release_controller_service.py").read_text(encoding="utf-8")
+    health=(ROOT/"slimmemeterportal_import/rootfs/app/projectmanager_v2/energy_health_collector.py").read_text(encoding="utf-8")
+    assert "release_controller/runtime.json" in service and "release_controller_runtime" in health
 
 def test_v10517_has_python_zip_helper():
-    source = (ROOT / "tools/release_zip.py").read_text(encoding="utf-8")
-    watcher = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    assert "zipfile.ZipFile" in source
-    assert "unsafe ZIP member" in source
-    assert 'python3 "$ZIP_HELPER_SOURCE" test' in watcher
-    assert 'python3 "$ZIP_HELPER" extract' in installer
+    preflight=(ROOT/"tools/minimal_release_preflight.py").read_text(encoding="utf-8")
+    service=(ROOT/"tools/release_controller_service.py").read_text(encoding="utf-8")
+    assert "zipfile.ZipFile" in preflight and "zipfile.ZipFile" in service and "unzip " not in service
 
 def test_v10518_financial_context_is_conservative():
     source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
@@ -4003,12 +3957,10 @@ def test_v2500_savings_ledger_runtime_present():
     assert '"next_step": "v25_cumulative_portfolio_impact_runtime"' in source
 
 def test_v2500_preserves_suffix_tolerant_publisher():
-    source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
-    assert 'def _prepare_validated_publication_source' in source
-    assert 'processed_zip_sha256' in source
-    installer = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    assert 'CANONICAL_PROCESSED="$PROCESSED/EnergieProject_v${NEW_VERSION}.zip"' in installer
-
+    source=MAIN.read_text(encoding="utf-8")
+    delivery=(ROOT/"tools/ha_delivery_adapter.py").read_text(encoding="utf-8")
+    assert "def _prepare_validated_publication_source" in source and "processed_zip_sha256" in source
+    assert "ha_publication_required.json" in delivery
 
 def test_v2510_cumulative_portfolio_impact_runtime_present():
     source = (ADDON / "rootfs/app/main.py").read_text(encoding="utf-8")
@@ -4540,17 +4492,9 @@ def test_v3200_release_identity_marker():
 
 
 def test_v3201_release_installer_backup_retention():
-    source = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    for x in [
-        'BACKUP_RETENTION="${ENERGIE_BACKUP_RETENTION:-3}"',
-        'cleanup_old_backups(){',
-        'EnergieProject_pre_*.tar.gz',
-        'tail -n +$((BACKUP_RETENTION + 1))',
-        '[ "$old_backup" = "$BACKUP" ] && continue',
-        'Backupretentie toegepast: maximaal $BACKUP_RETENTION pre-release backups',
-    ]:
-        assert x in source
-
+    service=(ROOT/"tools/release_controller_service.py").read_text(encoding="utf-8")
+    installer=(ROOT/"tools/release_installer.sh").read_text(encoding="utf-8")
+    assert "Backups" not in service and "BACKUP_RETENTION" not in service and "retired" in installer
 
 def test_v3203_home_assistant_github_publisher_uses_dedicated_worktree():
     source = MAIN.read_text(encoding="utf-8")
@@ -4785,67 +4729,27 @@ def test_v32033_smp_transfer_creates_homeassistant_ingress_when_missing():
 
 
 def test_v32019_processed_release_retention():
-    source = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    for required in [
-        'PROCESSED_RETENTION="${ENERGIE_PROCESSED_RETENTION:-3}"',
-        'cleanup_processed_releases(){',
-        'EnergieProject_v*.zip',
-        'tail -n +$((PROCESSED_RETENTION + 1))',
-        'cleanup_processed_releases',
-    ]:
-        assert required in source
-
+    source=MAIN.read_text(encoding="utf-8")
+    service=(ROOT/"tools/release_controller_service.py").read_text(encoding="utf-8")
+    assert "cleanup_processed_release_retention_on_app_start" in source and "PROCESSED_RETENTION" not in service
 
 def test_v32020_processed_retention_fail_closed():
-    source = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    for required in [
-        'Processed-retentie: start count=',
-        'find "$PROCESSED" -maxdepth 1 -type f',
-        'processed-retentie eindcontrole mislukt',
-        'Processed-retentie toegepast en gecontroleerd:',
-    ]:
-        assert required in source
-
+    source=MAIN.read_text(encoding="utf-8")
+    assert "cleanup_processed_release_retention_on_app_start" in source and "HA-app processed-retentie" in source
 
 def test_v32021_processed_retention_is_fail_closed():
-    source = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    for required in [
-        'Processed-retentie: start count=$COUNT keep=$PROCESSED_RETENTION',
-        "find \"$PROCESSED\" -maxdepth 1 -type f -name 'EnergieProject_v*.zip'",
-        'tail -n +$((PROCESSED_RETENTION + 1))',
-        'processed-retentie eindcontrole mislukt: count=$AFTER keep=$PROCESSED_RETENTION',
-        'Processed-retentie toegepast en gecontroleerd: count=$AFTER keep=$PROCESSED_RETENTION',
-        'cleanup_processed_releases',
-    ]:
-        assert required in source
-
+    source=MAIN.read_text(encoding="utf-8")
+    assert "processed_retention.get" in source and "LOGGER.error" in source
 
 def test_v32022_watcher_owns_startup_processed_retention():
-    source = (ROOT / "tools/release_watcher.sh").read_text(encoding="utf-8")
-    for required in [
-        'PROCESSED="$INBOX/processed"',
-        'PROCESSED_RETENTION="${ENERGIE_PROCESSED_RETENTION:-3}"',
-        'cleanup_processed_releases_on_start(){',
-        'Watcher startup-retentie v32.0.22: start count=',
-        'sort -r > "$RANKED"',
-        'tail -n +$((PROCESSED_RETENTION + 1)) "$RANKED"',
-        'Watcher startup-retentie v32.0.22: OK count=',
-        'startup-retention-ok',
-        'MAINTENANCE_FAILED',
-    ]:
-        assert required in source
-
+    watcher=(ROOT/"tools/release_watcher.sh").read_text(encoding="utf-8")
+    source=MAIN.read_text(encoding="utf-8")
+    assert "PROCESSED_RETENTION" not in watcher and "cleanup_processed_release_retention_on_app_start" in source
 
 def test_v32022_installer_uses_semantic_version_retention():
-    source = (ROOT / "tools/release_installer.sh").read_text(encoding="utf-8")
-    for required in [
-        'version="${base#EnergieProject_v}"',
-        'printf \'%09d.%09d.%09d %s',
-        'sort -r > "$RANKED"',
-        'processed-retentie eindcontrole mislukt:',
-    ]:
-        assert required in source
-
+    installer=(ROOT/"tools/release_installer.sh").read_text(encoding="utf-8")
+    source=MAIN.read_text(encoding="utf-8")
+    assert "retired" in installer and "cleanup_processed_release_retention_on_app_start" in source
 
 def test_v32023_ha_app_owns_processed_retention():
     source = (ROOT / "slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
@@ -4863,15 +4767,9 @@ def test_v32023_ha_app_owns_processed_retention():
 
 
 def test_v32024_zip_mode_marks_ha_publication_required():
-    source=(ROOT/"tools/release_installer.sh").read_text(encoding="utf-8")
-    for required in [
-        'HA_PUBLICATION_REQUIRED="$INBOX/ha_publication_required.json"',
-        'write_ha_publication_required(){',
-        '"status":"publication_required"',
-        '"version":"$NEW_VERSION"',
-        'HA-publicatiecontract gereed voor v$NEW_VERSION',
-    ]:
-        assert required in source
+    delivery=(ROOT/"tools/ha_delivery_adapter.py").read_text(encoding="utf-8")
+    assert "ha_publication_required.json" in delivery and "publication_required" in delivery
+    assert "processed_zip_sha256" in delivery
 
 def test_v32024_publication_and_retention_responsibilities_are_separate():
     source=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")
@@ -4897,15 +4795,8 @@ def test_v32025_main_runtime_boot_contract_restored():
         assert item in source
 
 def test_v32025_processed_retention_contract_still_present():
-    source=(ROOT/"tools/release_installer.sh").read_text(encoding="utf-8")
-    for required in [
-        'cleanup_processed_releases(){',
-        'sort -r > "$RANKED"',
-        'tail -n +$((PROCESSED_RETENTION + 1)) "$RANKED"',
-        'processed-retentie eindcontrole mislukt',
-    ]:
-        assert required in source
-
+    source=MAIN.read_text(encoding="utf-8")
+    assert "cleanup_processed_release_retention_on_app_start" in source and "PROJECT_BACKUP_RETENTION" in source
 
 def test_v32026_gui_is_fail_safe_without_valid_options():
     source=(ROOT/"slimmemeterportal_import/rootfs/app/main.py").read_text(encoding="utf-8")

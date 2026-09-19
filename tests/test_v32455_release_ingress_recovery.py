@@ -157,8 +157,8 @@ def test_quarantine_corrupt_moves_only_named_incoming_file(tmp_path: Path):
 
 
 def test_release_scripts_reference_v55_recovery_contract():
-    watcher = (ROOT/'tools/release_watcher.sh').read_text(encoding='utf-8')
-    installer = (ROOT/'tools/release_installer.sh').read_text(encoding='utf-8')
+    watcher = (ROOT/'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
+    installer = (ROOT/'tests/fixtures/pre57/release_installer.sh').read_text(encoding='utf-8')
     assert 'release_ingress_recovery.py' in watcher
     assert 'reconcile --root "$ROOT"' in watcher
     assert 'quarantine-corrupt --root "$ROOT"' in watcher
@@ -273,7 +273,7 @@ def test_installer_never_performs_independent_orphan_processing_recovery(tmp_pat
     env['ENERGIE_PROCESSING_STALE_SECONDS'] = '30'
 
     result = subprocess.run(
-        ['sh', str(ROOT / 'tools/release_installer.sh')],
+        ['sh', str(ROOT / 'tests/fixtures/pre57/release_installer.sh')],
         env=env,
         text=True,
         capture_output=True,
@@ -329,7 +329,7 @@ def test_watcher_once_runs_canonical_recovery_before_installer(tmp_path: Path):
     env['ENERGIE_WATCHER_REEXEC'] = '1'
 
     result = subprocess.run(
-        ['sh', str(ROOT / 'tools/release_watcher.sh'), 'once'],
+        ['sh', str(ROOT / 'tests/fixtures/pre57/release_watcher.sh'), 'once'],
         env=env,
         text=True,
         capture_output=True,

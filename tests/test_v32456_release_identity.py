@@ -6,11 +6,13 @@ PM = APP / "projectmanager_v2"
 
 
 def test_32456_release_identity_and_pm_version_are_consistent():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.56"
-    assert (PM / "VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc44"
-    assert 'version: "32.4.56"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.56"' in (APP / "main.py").read_text(encoding="utf-8")
-    assert 'TARGET_RELEASE_VERSION = "32.4.56"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
+    # Regression name retained: 32.4.57 must carry the 32.4.56 contract forward
+    # while publishing the new coherent release identity.
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.57"
+    assert (PM / "VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc45"
+    assert 'version: "32.4.57"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
+    assert 'APP_VERSION = "32.4.57"' in (APP / "main.py").read_text(encoding="utf-8")
+    assert 'TARGET_RELEASE_VERSION = "32.4.57"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
 
 
 def test_32456_documentation_records_process_workspace_and_startup_recovery():
@@ -19,6 +21,7 @@ def test_32456_documentation_records_process_workspace_and_startup_recovery():
     agreements = (ROOT / "PROJECT_AFSPRAKEN.md").read_text(encoding="utf-8")
 
     assert "## 32.4.56" in changelog
+    assert "## 32.4.57" in changelog
     assert "Inbox/process" in changelog
     assert "startup recovery" in changelog.lower()
     assert "32.4.56" in roadmap

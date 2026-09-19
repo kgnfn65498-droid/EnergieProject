@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALLER = ROOT / "tools/release_installer.sh"
-WATCHER = ROOT / "tools/release_watcher.sh"
+INSTALLER = ROOT / "tests/fixtures/pre57/release_installer.sh"
+WATCHER = ROOT / "tests/fixtures/pre57/release_watcher.sh"
 
 
 class AtomicReleaseInstallerIntegrationTests(unittest.TestCase):

@@ -8,9 +8,10 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CP_SOURCE = ROOT / 'tools/control_plane/control_plane.py'
-BOOT_SOURCE = ROOT / 'tools/control_plane/qnap_control_plane_bootstrap.py'
-GUARD = ROOT / 'tools/control_plane_runtime_guard.py'
+PRE57 = ROOT / 'tests/fixtures/pre57'
+CP_SOURCE = PRE57 / 'control_plane.py'
+BOOT_SOURCE = PRE57 / 'qnap_control_plane_bootstrap.py'
+GUARD = PRE57 / 'control_plane_runtime_guard.py'
 
 
 def _load(path: Path, name: str):

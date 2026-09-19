@@ -41,7 +41,7 @@ def test_32450_stale_native_mcp_guard_refresh_task_is_superseded_by_newer_runtim
 
 
 def test_32450_native_mcp_guard_refreshes_in_main_loop_even_outside_maintenance_mode():
-    source = (ROOT / 'tools/release_watcher.sh').read_text(encoding='utf-8')
+    source = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     loop = source.split('while :; do', 1)[1]
     maintenance = loop.index('if mode_allows maintenance_requests; then')
     release_gate = loop.index('if mode_allows release_ingress && atomic_swap_allows_release_ingress; then')

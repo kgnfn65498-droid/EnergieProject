@@ -66,10 +66,6 @@ def qnap_watcher_create_payload(host_project_root: str) -> dict:
             "ENERGIE_ROOT=/energy",
             "ENERGIE_WATCH_INTERVAL=5",
             "ENERGIE_ZIP_STABLE_POLLS=3",
-            "ENERGIE_WATCHER_HEARTBEAT_STALE_SECONDS=30",
-            "ENERGIE_WATCHER_CONTAINER_CONTRACT=3",
-            "ENERGIE_BACKUP_RETENTION=999",
-            "ENERGIE_PROCESSED_RETENTION=999",
         ],
         "HostConfig": {
             "Binds": [

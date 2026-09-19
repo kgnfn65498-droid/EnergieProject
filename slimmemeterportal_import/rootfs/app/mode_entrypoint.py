@@ -9,7 +9,6 @@ from pathlib import Path
 import main as app
 from operating_mode_runtime import (
     install_mode_overrides,
-    install_release_hold_guards,
     operating_mode_project_root,
     operating_mode_tick,
     operating_mode_worker,
@@ -21,46 +20,23 @@ from operating_mode_crash_recovery import (
     install_crash_recovery_mode_integration,
     recover_crash_recovery_mode_session,
 )
-from release_validation_hold import ensure_release_hold_state
-from operating_mode_auto_release import automatic_release_hold_daemon as automatic_release_hold_worker
 from projectmanager_v2_entrypoint import start_projectmanager_v2
 from projectmanager_v2.projectmanager_web import install_projectmanager_web
-from projectmanager_v2.release_transition import ReleaseTransitionCoordinator
-from projectmanager_v2.release_transition_worker import release_transition_daemon
 from projectmanager_v2.startup_timing import StartupTiming
-from projectmanager_v2.startup_recovery import startup_recovery_daemon
 from process_workspace import ensure_process_workspace
 
-TARGET_RELEASE_VERSION = "32.4.56"
+TARGET_RELEASE_VERSION = "32.4.57"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 _BACKGROUND_LOCK = threading.Lock()
-_HOLD_THREAD = None
-_TRANSITION_THREAD = None
 
 
 def _supervise_background_workers(root):
-    global _HOLD_THREAD, _TRANSITION_THREAD
     with _BACKGROUND_LOCK:
         pm_thread = start_projectmanager_v2(app.STOP, root, TARGET_RELEASE_VERSION)
-        if _TRANSITION_THREAD is None or not _TRANSITION_THREAD.is_alive():
-            _TRANSITION_THREAD = threading.Thread(
-                target=release_transition_daemon, args=(app.STOP, app, root),
-                daemon=True, name="release-transition-coordinator",
-            )
-            _TRANSITION_THREAD.start()
-        if _HOLD_THREAD is None or not _HOLD_THREAD.is_alive():
-            _HOLD_THREAD = threading.Thread(
-                target=automatic_release_hold_worker,
-                args=(app.STOP, app, root, TARGET_RELEASE_VERSION),
-                daemon=True,
-                name="release-hold-auto-validation",
-            )
-            _HOLD_THREAD.start()
         return {
             "projectmanager_alive": bool(pm_thread and pm_thread.is_alive()),
-            "release_hold_alive": bool(_HOLD_THREAD and _HOLD_THREAD.is_alive()),
-            "release_transition_alive": bool(_TRANSITION_THREAD and _TRANSITION_THREAD.is_alive()),
+            "release_controller_external": True,
         }
 
 
@@ -102,17 +78,13 @@ def _observe_startup_phases(startup_timing, root):
 def start_operating_mode_runtime() -> None:
     startup_epoch = time.time()
     root = operating_mode_project_root()
-    # First substantive startup action: establish/verify the durable release transition.
-    ReleaseTransitionCoordinator(root).bootstrap_legacy_if_needed()
     ensure_process_workspace(root)
     startup_timing = StartupTiming(root)
     startup_timing.mark("PROCESS_STARTED")
-    ensure_release_hold_state(root, TARGET_RELEASE_VERSION)
     crash_recovery = recover_crash_recovery_mode_session(root)
     if not crash_recovery.get("preserve_temporary"):
         recover_startup_mode_state(root)
     install_mode_overrides(app, root)
-    install_release_hold_guards(app, root)
     install_crash_recovery_mode_integration(app, root)
     operating_mode_tick(root, app_module=app)
     install_mode_web(app, root)
@@ -122,15 +94,6 @@ def start_operating_mode_runtime() -> None:
     install_projectmanager_web(app, root)
     startup_timing.mark("INGRESS_READY")
     _supervise_background_workers(root)
-    threading.Thread(
-        target=startup_recovery_daemon,
-        args=(
-            app.STOP, root, TARGET_RELEASE_VERSION,
-            os.environ.get("SUPERVISOR_TOKEN", ""), startup_epoch,
-        ),
-        daemon=True,
-        name="pm-startup-recovery",
-    ).start()
     threading.Thread(
         target=_observe_startup_phases,
         args=(startup_timing, root),

@@ -5,7 +5,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 GATE = ROOT / "tools/operating_mode_gate.py"
-WATCHER = ROOT / "tools/release_watcher.sh"
+WATCHER = ROOT / "tests/fixtures/pre57/release_watcher.sh"
 
 
 def seed_state(project, mode):

@@ -46,7 +46,7 @@ def test_watcher_bootstrap_declares_and_verifies_contract_v3():
 
 
 def test_release_watcher_checks_contract_before_nas_capability():
-    text = (TOOLS / 'release_watcher.sh').read_text()
+    text = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text()
     startup = text[text.index('Release watcher gestart'):text.index('while :; do')]
     assert 'process_watcher_container_contract' in startup
     assert startup.index('process_watcher_container_contract') < startup.index('process_nas_cr_capability_probe')
@@ -185,8 +185,8 @@ def test_health_includes_watcher_contract_native_runtime_and_canonical_cr_only()
 
 
 def test_installer_records_post_release_maintenance_requirement_and_watcher_applies_it():
-    installer = (TOOLS / 'release_installer.sh').read_text()
-    watcher = (TOOLS / 'release_watcher.sh').read_text()
+    installer = (ROOT / 'tests/fixtures/pre57/release_installer.sh').read_text()
+    watcher = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text()
     assert 'post_release_maintenance_required.json' in installer
     assert 'process_post_release_maintenance_transition' in watcher
     assert 'MAINTENANCE' in watcher
@@ -231,14 +231,14 @@ def test_post_release_transition_is_idempotent_after_applied(tmp_path):
 
 
 def test_installer_writes_post_release_marker_before_atomic_rollback_is_disabled():
-    text = (TOOLS / 'release_installer.sh').read_text()
+    text = (ROOT / 'tests/fixtures/pre57/release_installer.sh').read_text()
     marker = text.rindex('write_post_release_maintenance_required')
     disable = text.rindex('ATOMIC_SWAP_ACTIVE=0')
     assert marker < disable
 
 
 def test_watcher_startup_failure_cannot_be_masked_by_watcher_active():
-    text = (TOOLS / 'release_watcher.sh').read_text()
+    text = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text()
     startup = text[text.index('Release watcher gestart'):text.index('while :; do')]
     assert 'STARTUP_DEGRADED' in startup
     assert 'watcher-container-recreate-required' in startup
@@ -299,7 +299,7 @@ def test_protected_reload_does_not_overwrite_different_pending_request(tmp_path)
 
 
 def test_watcher_clears_stale_reload_result_before_executor():
-    text = (TOOLS / 'release_watcher.sh').read_text()
+    text = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text()
     fn = text[text.index('process_native_mcp_reload(){'):text.index('process_post_release_maintenance_transition(){')]
     assert 'rm -f "$NATIVE_MCP_RELOAD_RESULT"' in fn
 

@@ -318,6 +318,7 @@ def test_32442_incoming_single_release_autoroutes_existing_mode_to_development()
 
     runtime = ProjectmanagerRuntime.__new__(ProjectmanagerRuntime)
     runtime.mode_bridge = Bridge()
+    runtime.release_controller_enabled = False
     result = runtime._auto_route_release_ingress({
         'operating_mode': {'effective_mode': 'MAINTENANCE'},
         'release_chain': {
@@ -346,6 +347,7 @@ def test_32442_incoming_autoroute_is_fail_closed_for_ambiguous_or_already_develo
 
     runtime = ProjectmanagerRuntime.__new__(ProjectmanagerRuntime)
     runtime.mode_bridge = Bridge()
+    runtime.release_controller_enabled = False
     ambiguous = runtime._auto_route_release_ingress({
         'operating_mode': {'effective_mode': 'MAINTENANCE'},
         'release_chain': {'incoming': {'count': 2, 'files': [{'name': 'a.zip'}, {'name': 'b.zip'}]}},
