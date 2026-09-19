@@ -10,6 +10,7 @@ from controller_lock import controller_lease
 from control_plane_bootstrap import ensure_control_plane_current
 from ha_delivery_adapter import HADelivery
 from ingress_policy import IncomingItem,IngressDecision,decide_incoming
+from legacy_install_adoption import adopt_exact_pre57_install
 from minimal_release_preflight import verify_candidate
 from release_controller import ReleaseController,ReleaseState,Status
 from release_runtime_adapter import NativeRuntimeCoordinator
@@ -165,6 +166,11 @@ class ReleaseControllerService:
         os.replace(p,dst)
     def cycle(self):
         state=self._load_state()
+        if state is None:
+            adopted=adopt_exact_pre57_install(self.root,self.controller,self.store)
+            if adopted is not None:
+                self._save(adopted)
+                state=adopted
         if state and state.status not in {Status.COMPLETE.value,Status.ROLLED_BACK.value}:
             if not self._claim(state):
                 state.status=Status.BLOCKED.value;state.blocker='owned_artifact_missing_or_mismatched'
@@ -209,7 +215,7 @@ def build_adapter(root:Path):
     return AtomicReleaseAdapter(root,atomic_app_swap,native,delivery)
 
 def main()->int:
-    p=argparse.ArgumentParser(description='Energie 32.4.58 single-owner release controller')
+    p=argparse.ArgumentParser(description='Energie 32.4.57 single-owner release controller')
     p.add_argument('--root',required=True);p.add_argument('--interval',type=float,default=5.0);p.add_argument('--stable-polls',type=int,default=3)
     p.add_argument('--ingress-stale-seconds',type=int,default=600)
     args=p.parse_args();root=Path(args.root)

@@ -22,31 +22,32 @@ def release_health_checks(runtime: dict) -> list:
         str(pm_liveness.get('reason') or ('manager_heartbeat_fresh' if pm_active else 'manager_heartbeat_missing_or_invalid')),
         pm_liveness,
     ))
-    controller = chain.get('release_controller')
-    release = (runtime or {}).get('release') or {}
-    version_text = str(release.get('version') or release.get('nas_version') or '').strip()
-    try:
-        version_parts = tuple(int(part) for part in version_text.split('.')[:3])
-    except ValueError:
-        version_parts = ()
-    controller_authoritative = version_parts >= (32, 4, 58) or isinstance(controller, dict)
-    if controller_authoritative:
-        controller = controller if isinstance(controller, dict) else {}
-        controller_active = controller.get('active') is True
-        checks.append(_check(
-            'release_controller_liveness',
-            'GREEN' if controller_active else 'RED',
-            'controller_runtime_fresh' if controller_active else 'controller_runtime_missing_or_stale',
-            controller,
-        ))
+    hold_driver = (runtime or {}).get('release_hold_driver_liveness') or {}
+    atomic_for_hold = chain.get('atomic_swap') or {}
+    atomic_for_hold_state = str(atomic_for_hold.get('state') or '').strip().upper()
+    hold_required = atomic_for_hold_state == 'LIVE_ACCEPTANCE'
+    hold_active = hold_driver.get('active') is True
+    hold_settled = hold_driver.get('settled') is True
+    if hold_required and not hold_active and not hold_settled:
+        hold_status = 'RED'
+        hold_reason = str(hold_driver.get('reason') or 'release_hold_worker_missing_or_invalid')
     else:
-        watcher = chain.get('watcher') or {}
-        checks.append(_check(
-            'release_watcher',
-            'GREEN' if watcher.get('active') is True else 'RED',
-            'heartbeat_fresh' if watcher.get('active') is True else 'watcher_inactive_or_stale',
-            watcher,
-        ))
+        hold_status = 'GREEN'
+        hold_reason = (
+            'release_hold_worker_fresh' if hold_active
+            else ('release_hold_worker_settled' if hold_settled else 'release_hold_worker_not_required')
+        )
+    checks.append(_check(
+        'release_hold_driver_liveness', hold_status, hold_reason, hold_driver,
+    ))
+
+    watcher = chain.get('watcher') or {}
+    checks.append(_check(
+        'release_watcher',
+        'GREEN' if watcher.get('active') is True else 'RED',
+        'heartbeat_fresh' if watcher.get('active') is True else 'watcher_inactive_or_stale',
+        watcher,
+    ))
 
     incoming = chain.get('incoming') or {}
     incoming_count = int(incoming.get('count') or 0)

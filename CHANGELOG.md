@@ -1,3 +1,15 @@
+## 32.4.58 — simplified autonomous release steady state
+
+- ReleaseController is the sole active Incoming lifecycle owner; legacy 56→57 adoption is retired from active flow.
+- Canonical release evidence is idempotently deduplicated.
+- Global operating-mode startup/GUI gating and automatic post-release CLEARUP are removed from active runtime.
+- Home Assistant delivery uses Supervisor `/store/reload` plus `/addons/self/rebuild` with explicit Supervisor API capability/manager role.
+- Projectmanager health uses ReleaseController runtime liveness, separates release/energy/maintenance/observability domains and treats an empty quarter-hour snapshot as a collector fault without fabricating live-source outages.
+- Historical 32.4.57 implementation contracts remain preserved under `tests/fixtures/legacy57`.
+- N→N+1 atomic journal rollover now accepts only a physically proven immediately previous `ACCEPTED` journal as historical evidence; all non-adjacent or malformed journal mismatches remain fail-closed.
+- Blocked pre-activation N→N+1 generations self-recover only when physical evidence proves the source App never moved, the current candidate/rollback paths are absent and the exact immediately previous atomic journal is still `ACCEPTED`; otherwise recovery remains fail-closed.
+- Live 57 migration evidence confirmed that stale controller/publication fences can be archived without fabricating green state; the controller then reconstructs canonical 57 `COMPLETE/IDLE` from independent physical evidence before a revised 58 is offered.
+
 ## 32.4.57 — single-owner Incoming/release architecture
 
 - Eén ReleaseController bezit de volledige Incoming-releasecyclus met één persisted state.

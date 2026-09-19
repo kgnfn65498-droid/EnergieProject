@@ -7,12 +7,25 @@ import time
 from pathlib import Path
 
 import main as app
+from operating_mode_runtime import (
+    install_mode_overrides,
+    operating_mode_project_root,
+    operating_mode_tick,
+    operating_mode_worker,
+    recover_startup_mode_state,
+)
+from operating_mode_web import install_mode_web
+from operating_mode_crash_recovery import (
+    crash_recovery_mode_worker,
+    install_crash_recovery_mode_integration,
+    recover_crash_recovery_mode_session,
+)
 from projectmanager_v2_entrypoint import start_projectmanager_v2
 from projectmanager_v2.projectmanager_web import install_projectmanager_web
 from projectmanager_v2.startup_timing import StartupTiming
 from process_workspace import ensure_process_workspace
 
-TARGET_RELEASE_VERSION = "32.4.58"
+TARGET_RELEASE_VERSION = "32.4.57"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 _BACKGROUND_LOCK = threading.Lock()
@@ -62,12 +75,19 @@ def _observe_startup_phases(startup_timing, root):
         app.STOP.wait(0.1)
 
 
-def start_runtime() -> None:
+def start_operating_mode_runtime() -> None:
     startup_epoch = time.time()
-    root = app._runtime_nas_roots_now()[1]
+    root = operating_mode_project_root()
     ensure_process_workspace(root)
     startup_timing = StartupTiming(root)
     startup_timing.mark("PROCESS_STARTED")
+    crash_recovery = recover_crash_recovery_mode_session(root)
+    if not crash_recovery.get("preserve_temporary"):
+        recover_startup_mode_state(root)
+    install_mode_overrides(app, root)
+    install_crash_recovery_mode_integration(app, root)
+    operating_mode_tick(root, app_module=app)
+    install_mode_web(app, root)
     # The approval card is inside authenticated Home Assistant ingress and
     # writes immutable ApprovalIngress envelopes only; it never mutates
     # RuntimeV2 directly.
@@ -80,11 +100,23 @@ def start_runtime() -> None:
         daemon=True,
         name="startup-phase-observer",
     ).start()
-
+    threading.Thread(
+        target=crash_recovery_mode_worker,
+        args=(app.STOP, app, root),
+        daemon=True,
+        name="crash-recovery-mode-reconcile",
+    ).start()
+    threading.Thread(
+        target=operating_mode_worker,
+        args=(app.STOP, root, app),
+        kwargs={"lifecycle_tick": lambda: _supervise_background_workers(root)},
+        daemon=True,
+        name="operating-mode-reconcile",
+    ).start()
 
 
 def main() -> None:
-    start_runtime()
+    start_operating_mode_runtime()
     app.main()
 
 

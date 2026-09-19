@@ -100,37 +100,34 @@ def _read_status(project_root) -> dict[str, Any]:
 
 
 def render_projectmanager_health(project_root) -> str:
+    # PM/release health is deliberately separate from workflow health.
     status = _read_status(project_root)
     health = status.get('health') if isinstance(status.get('health'), dict) else {}
     checks = health.get('checks') if isinstance(health.get('checks'), list) else []
+    overall = str(health.get('status') or 'NOG_TE_CONTROLEREN').upper()
     release = status.get('release') if isinstance(status.get('release'), dict) else {}
     version = str(release.get('version') or release.get('ha_runtime_version') or 'NOG_TE_CONTROLEREN')
-    domains = {'Release/runtime': [], 'Energiedata/live sources': [], 'Onderhoud/backup/hygiëne': [], 'Projectmanager/observability': []}
+    relevant = []
     for item in checks:
         if not isinstance(item, dict):
             continue
-        name = str(item.get('name') or 'onbekend')
-        if name.startswith('release_') or name in {'native_mcp_runtime', 'control_plane_runtime'}:
-            domain = 'Release/runtime'
-        elif name.startswith('live_source_') or name in {'current_quarter_hour_snapshot', 'quarter_hour_scheduler', 'previous_month_import_pipeline'}:
-            domain = 'Energiedata/live sources'
-        elif any(token in name for token in ('crash_recovery', 'backup', 'hygiene', 'closure', 'clearup')):
-            domain = 'Onderhoud/backup/hygiëne'
-        else:
-            domain = 'Projectmanager/observability'
-        domains[domain].append(item)
-    rank = {'GREEN': 0, 'ORANGE': 1, 'RED': 2}
-    blocks = []
-    for label, items in domains.items():
-        worst = 'GREEN'
-        for item in items:
-            state = str(item.get('status') or 'ORANGE').upper()
-            if rank.get(state, 1) > rank.get(worst, 0):
-                worst = state
-        border = {'GREEN': '#2e7d32', 'ORANGE': '#d18b00', 'RED': '#b3261e'}.get(worst, '#6b7280')
-        rows = ''.join('<li><strong>' + html.escape(str(item.get('name') or 'onbekend')) + '</strong>: ' + html.escape(str(item.get('status') or 'NOG_TE_CONTROLEREN').upper()) + (' — ' + html.escape(str(item.get('reason') or '')) if item.get('reason') else '') + '</li>' for item in items if str(item.get('status') or '').upper() != 'GREEN') or '<li>Geen actuele afwijkingen.</li>'
-        blocks.append(f'<section style="margin:8px 0;padding:10px;border:1px solid {border};border-radius:8px"><h4>{html.escape(label)} — {html.escape(worst)}</h4><ul>{rows}</ul></section>')
-    return '<section id="pmv2-system-health" style="margin:16px 0;padding:14px;border:2px solid #6b7280;border-radius:10px"><h3>Projectmanager — gezondheid per domein</h3><p>Release ' + html.escape(version) + '. Domeinen worden onafhankelijk beoordeeld.</p>' + ''.join(blocks) + '</section>'
+        name = str(item.get('name') or '')
+        check_status = str(item.get('status') or '').upper()
+        if check_status != 'GREEN' or name.startswith('release_') or name in {
+            'native_mcp_runtime', 'watcher_container_contract', 'projectmanager_self_audit',
+        }:
+            relevant.append((name or 'onbekend', check_status or 'NOG_TE_CONTROLEREN', str(item.get('reason') or '')))
+    border = {'GREEN': '#2e7d32', 'ORANGE': '#d18b00', 'RED': '#b3261e'}.get(overall, '#6b7280')
+    rows = ''.join(
+        '<li><strong>' + html.escape(name) + '</strong>: ' + html.escape(state)
+        + (' — ' + html.escape(reason) if reason else '') + '</li>'
+        for name, state, reason in relevant[:20]
+    ) or '<li>Geen niet-groene Projectmanager/releasechecks.</li>'
+    return f'''<section id="pmv2-system-health" style="margin:16px 0;padding:14px;border:2px solid {border};border-radius:10px">
+<h3>Projectmanager — systeem- en releasegezondheid</h3>
+<p><strong>{html.escape(overall)}</strong> — release {html.escape(version)}</p>
+<ul>{rows}</ul>
+</section>'''
 
 
 def render_projectmanager_progress(project_root) -> str:

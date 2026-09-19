@@ -349,7 +349,7 @@ def test_32443_cr_hotfix_reports_every_postcheck_predicate(tmp_path):
 
 def test_32443_health_surfaces_are_explicitly_scoped():
     main = (APP/'main.py').read_text(encoding='utf-8')
-    web = (PM/'projectmanager_web.py').read_text(encoding='utf-8')
+    web = (ROOT/'tests/fixtures/legacy57/projectmanager_web.py').read_text(encoding='utf-8')
     assert '"scope": "workflow"' in main
     assert '"label": "Workflowgezondheid"' in main
     assert 'Projectmanager — systeem- en releasegezondheid' in web

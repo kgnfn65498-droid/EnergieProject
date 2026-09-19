@@ -11,6 +11,13 @@ class Status(str,Enum):
     ACTIVE='ACTIVE';WAITING='WAITING';BLOCKED='BLOCKED';COMPLETE='COMPLETE';ROLLED_BACK='ROLLED_BACK'
 _STEP={p:i+1 for i,p in enumerate(Phase)}
 
+def _merge_evidence(current, extra):
+    out=[]
+    for item in list(current or [])+list(extra or []):
+        if item not in out:
+            out.append(item)
+    return out
+
 @dataclass
 class Outcome:
     status:str;evidence:list[str];reason:str='';required_action:str='';rollback:bool=False
@@ -49,13 +56,13 @@ class ReleaseController:
     def _phase(self,s,phase,evidence=None):
         now=time.time();s.phase=phase.value;s.step=_STEP[phase];s.status=Status.COMPLETE.value if phase==Phase.COMPLETE else Status.ACTIVE.value
         s.phase_started_at_epoch=now;s.updated_at_epoch=now;s.blocker='';s.required_action='';s.wait_reason=''
-        if evidence:s.evidence=(s.evidence or [])+list(evidence)
+        if evidence:s.evidence=_merge_evidence(s.evidence,evidence)
     def mark_verified(self,s,evidence):
         if s.phase!=Phase.DETECTED.value:raise RuntimeError('verify requires DETECTED')
         self._phase(s,Phase.VERIFIED,evidence);return s
     def _outcome(self,s,out,success_phase,adapter,*,rollback_allowed):
         s.updated_at_epoch=time.time()
-        if out.evidence:s.evidence=(s.evidence or [])+out.evidence
+        if out.evidence:s.evidence=_merge_evidence(s.evidence,out.evidence)
         if out.status=='GREEN':self._phase(s,success_phase);return s
         if out.status=='WAITING':
             s.status=Status.WAITING.value;s.wait_reason=out.reason;s.blocker='';s.required_action='';return s
@@ -66,7 +73,7 @@ class ReleaseController:
                 rb=adapter.rollback(s,out.reason)
                 if rb.status in {'GREEN','ROLLED_BACK'}:
                     s.status=Status.ROLLED_BACK.value;s.blocker=out.reason;s.required_action='';s.wait_reason=''
-                    s.evidence=(s.evidence or [])+rb.evidence;return s
+                    s.evidence=_merge_evidence(s.evidence,rb.evidence);return s
                 s.status=Status.BLOCKED.value;s.blocker='rollback_unproven';s.required_action=rb.required_action or rb.reason;return s
             s.status=Status.BLOCKED.value;s.blocker=out.reason;s.required_action=out.required_action;s.wait_reason='';return s
         raise RuntimeError('unknown outcome')
@@ -86,7 +93,7 @@ class ReleaseController:
         if s.phase==Phase.VERIFYING.value:
             v=adapter.verify_live(s)
             if v.status!='GREEN':return self._outcome(s,v,Phase.VERIFYING,adapter,rollback_allowed=True)
-            if v.evidence:s.evidence=(s.evidence or [])+v.evidence
+            if v.evidence:s.evidence=_merge_evidence(s.evidence,v.evidence)
             return self._outcome(s,adapter.atomic_accept(s),Phase.ACCEPTED,adapter,rollback_allowed=True)
         if s.phase==Phase.ACCEPTED.value:return self._outcome(s,adapter.delivery(s),Phase.COMPLETE,adapter,rollback_allowed=False)
         return s

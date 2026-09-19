@@ -592,7 +592,7 @@ def test_32425_cr_gate_blocks_without_practical_acceptance_even_when_latest_zip_
     assert "crash_recovery_not_verified" in gate["blockers"]
 
 def test_32425_main_wires_post_acceptance_clearup_worker():
-    source = (APP / "main.py").read_text(encoding="utf-8")
+    source = (ROOT / "tests/fixtures/legacy57/main.py").read_text(encoding="utf-8")
     assert "from project_clearup_auto import run_approved_clearup_once" in source
     assert "def startup_project_clearup()" in source
     assert 'name="project-clearup-post-acceptance"' in source

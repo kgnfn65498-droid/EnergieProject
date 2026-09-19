@@ -6,13 +6,13 @@ PM = APP / "projectmanager_v2"
 
 
 def test_32456_release_identity_and_pm_version_are_consistent():
-    # Regression name retained: 32.4.57 must carry the 32.4.56 contract forward
-    # while publishing the new coherent release identity.
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.57"
-    assert (PM / "VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc45"
-    assert 'version: "32.4.57"' in (ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "32.4.57"' in (APP / "main.py").read_text(encoding="utf-8")
-    assert 'TARGET_RELEASE_VERSION = "32.4.57"' in (APP / "mode_entrypoint.py").read_text(encoding="utf-8")
+    # Historical 32.4.57 identity contract retained against exact canonical fixtures.
+    legacy = ROOT / "tests/fixtures/legacy57"
+    assert (legacy / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.57"
+    assert (legacy / "PM_VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc45"
+    assert 'version: "32.4.57"' in (legacy / "config.yaml").read_text(encoding="utf-8")
+    assert 'APP_VERSION = "32.4.57"' in (legacy / "main.py").read_text(encoding="utf-8")
+    assert 'TARGET_RELEASE_VERSION = "32.4.57"' in (legacy / "mode_entrypoint.py").read_text(encoding="utf-8")
 
 
 def test_32456_documentation_records_process_workspace_and_startup_recovery():

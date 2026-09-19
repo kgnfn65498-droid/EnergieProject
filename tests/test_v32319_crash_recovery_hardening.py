@@ -135,5 +135,5 @@ def test_reboot_while_cleanup_waits_preserves_maintenance_for_result_reconcile(t
 
 
 def test_mode_entrypoint_runs_cleanup_reconciler_periodically():
-    text = (APP_ROOT / "mode_entrypoint.py").read_text(encoding="utf-8")
+    text = (ROOT / "tests/fixtures/legacy57/mode_entrypoint.py").read_text(encoding="utf-8")
     assert "crash_recovery_mode_worker" in text

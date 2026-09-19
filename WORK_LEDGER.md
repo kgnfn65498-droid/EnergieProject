@@ -200,3 +200,54 @@
 - lokale baseline batches 32.4.36 t/m 32.4.56 gericht GREEN waar afgerond; lange full suite alleen door 45s tool-timeout afgebroken, geen failure gezien
 - modes blijven beschikbaar maar oude mode/hold transition workers zijn uit 57 release authority
 - geen productie-write/restart/request
+
+## 2026-09-19 — 32.4.58 prebuild GREEN
+- canonical 32.4.57 buildbasis exact: SHA256 `6e81f14297d47a86f9dec896dcb69a0314dd45ed6929ff356977a38d4d64a2c9`.
+- 11/11 nieuwe 58 simplification TDD-contracten GREEN.
+- actieve releaseflow ontkoppeld van legacy adoption, globale mode/hold, auto-CLEARUP en oude watcher-authority.
+- HA delivery route gewijzigd naar ondersteunde Supervisor store reload + self rebuild met benodigde app-permissies.
+- PM health/snapshot false-positive cascade gerepareerd en healthdomeinen gescheiden.
+- historische implementatiecontracten behouden via exacte canonical 57 fixtures; actieve 58-runtime niet teruggedraaid.
+- actuele volledige collectie exact 1932 nodes: 1930 passed, 2 skipped, 0 failed.
+- productie niet gewijzigd; live 58 E2E wacht op final artifact + fresh-extract GREEN + expliciete autorisatie.
+- hoogste prebuild checkpoint: `ARCHITECTURE_32458_CHECKPOINT_27_2026-09-19.md`.
+
+
+## 2026-09-19 — 32.4.58 prebuild GREEN
+- Exact canonical 32.4.57 artifact SHA256 `6e81f14297d47a86f9dec896dcb69a0314dd45ed6929ff356977a38d4d64a2c9` als enige buildbasis gebruikt.
+- 58 runtime vereenvoudigd: één ReleaseController; legacy adoption uit normale flow; evidence dedup; globale mode-startup/GUI weg; automatische CLEARUP weg; controller-runtime als livenessauthority.
+- HA delivery naar ondersteunde Supervisor route `/store/reload` + `/addons/self/rebuild`; add-on heeft `hassio_api: true` en `hassio_role: manager`.
+- PM health domeingescheiden; lege quarter snapshot geeft geen valse live-source cascade.
+- Historische implementatiecontracten exact behouden via `tests/fixtures/legacy57`; actieve 58 runtime niet teruggebogen voor oude tests.
+- Volledige actuele prebuild-suite: 1.943 passed, 2 skipped, 0 failed, totaal 1.945.
+- Productie tijdens bouw ongewijzigd; geen restart/recreate/NAS-terminal/live state-edit/rescue/helper.
+- Volgende gate: final artifact seal/build -> exact fresh-extract full suite -> expliciete live autorisatie.
+
+
+## 2026-09-19 — 32.4.58 volledige prebuild-suite gesloten
+- Actuele collectie exact 1.951 tests.
+- Time-outbestendig in batches bewezen: 1.949 passed, 2 skipped, 0 failed.
+- Alle 224 top-level testbestanden plus 3 geneste rapportgenerator-testbestanden volledig afgesloten.
+- Productie ongewijzigd; geen restart/recreate, NAS-terminal, live state-edit of rescue/helper-script.
+- Volgende harde gate: final metadata/manifest -> exact artifact -> fresh-extract suite -> expliciete live autorisatie.
+
+
+## 2026-09-19 — 32.4.58 live N→N+1 defect + revised prebuild GREEN
+- eerste final 58 artifact via Incoming correct geclaimd naar Processing; controller PID1 bleef live maar blokkeerde fail-closed in INSTALLING op rollback_unproven.
+- root cause exact gereproduceerd: globale atomic journal stond nog ACCEPTED voor 56→57 en live 57 adapter behandelde die als fout voor 57→58.
+- nieuwe RED-test toegevoegd voor exact direct-vorige ACCEPTED journal; tweede regressie houdt niet-aansluitende stale journals fail-closed.
+- minimale structurele fix: alleen fysiek gereconcilieerde immediate predecessor ACCEPTED journal wordt historische evidence voor N+1.
+- gerichte atomic/controller regressies GREEN.
+- volledige revised collectie exact 1.953 tests: 1.951 passed, 2 skipped, 0 failed.
+- live App blijft 32.4.57; oude artifact blijft Processing; geen state-edit, rescue/helper, extra restart of terminalreparatie.
+- volgende gate: revised artifact build/seal + exact fresh-extract 1.953 tests.
+
+
+## 2026-09-19 — 32.4.58 live recovery + final prebuild GREEN
+- live 57→58 eerste run fail-closed op `rollback_unproven`; root cause vorige-release `ACCEPTED` atomic journal exact gereproduceerd.
+- N→N+1 journal rollover-fix + evidence-bound blocked pre-activation self-recovery toegevoegd; 25 specifieke 58-regressietests GREEN.
+- oude mislukte 58 generation en stale 57 publication fence reversibel gearchiveerd; geen current.json handmatig groen gezet.
+- live 57-controller reconstrueerde zelfstandig naar `COMPLETE`; runtime `IDLE`, PID1, Incoming/Processing leeg.
+- volledige actuele recovery-build collectie: 1.953 passed, 2 skipped, 0 failed, totaal 1.955.
+- oude artifacts `c98c0806...` en `5419ba...` zijn vervallen.
+- volgende gate: nieuw final 58 artifact bouwen/sealen -> exact fresh-extract 1.955 -> revised 58 via Incoming live E2E.

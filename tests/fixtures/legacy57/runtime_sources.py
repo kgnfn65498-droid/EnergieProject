@@ -157,6 +157,44 @@ class RuntimeCollector:
             'provenance': payload.get('provenance'),
         }
 
+    def _release_hold_driver_liveness(self, *, now):
+        state_path = self.project_root / 'Inbox/operating_mode/release_hold_worker.json'
+        payload = self._read_json(state_path) or {}
+        value = payload.get('heartbeat_at')
+        heartbeat_at = None
+        if value:
+            try:
+                heartbeat_at = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+                if heartbeat_at.tzinfo is None:
+                    heartbeat_at = heartbeat_at.replace(tzinfo=timezone.utc)
+            except (TypeError, ValueError):
+                heartbeat_at = None
+        status = str(payload.get('status') or '').strip().lower()
+        settled = status in {'released', 'already_released'}
+        if heartbeat_at is None:
+            return {
+                'active': False,
+                'settled': settled,
+                'reason': 'release_hold_worker_missing_or_invalid',
+                'heartbeat_path': str(state_path),
+                'heartbeat_age_seconds': None,
+                'status': status or None,
+                'expected_version': payload.get('expected_version'),
+                'last_result': payload.get('last_result'),
+            }
+        age = max(0.0, (now.astimezone(timezone.utc) - heartbeat_at.astimezone(timezone.utc)).total_seconds())
+        active = age <= 180.0 and status not in {'stopped'}
+        return {
+            'active': active,
+            'settled': settled,
+            'reason': 'release_hold_worker_fresh' if active else ('release_hold_worker_settled' if settled else 'release_hold_worker_stale'),
+            'heartbeat_path': str(state_path),
+            'heartbeat_age_seconds': round(age, 1),
+            'status': status or None,
+            'expected_version': payload.get('expected_version'),
+            'last_result': payload.get('last_result'),
+        }
+
     @staticmethod
     def _zip_snapshot(directory, *, now, stale_after=None):
         root = Path(directory)
@@ -179,31 +217,19 @@ class RuntimeCollector:
             'files': files,
         }
 
-    def _release_at_least_58(self):
-        try:
-            parts = tuple(int(x) for x in str(self.running_release_version or '').split('.')[:3])
-        except ValueError:
-            return False
-        return parts >= (32, 4, 58)
-
     def _release_chain(self, *, now):
         inbox = self.project_root / 'Inbox'
-        release_controller_path = inbox / 'release_controller' / 'runtime.json'
-        release_controller = self._read_json(release_controller_path) or {}
-        release_controller_age = self._file_age(release_controller_path, now)
-        legacy_watcher = None
-        if not self._release_at_least_58():
-            heartbeat_v2_path = inbox / 'watcher_heartbeat.v2'
-            legacy_heartbeat_path = inbox / '.watcher.heartbeat'
-            if heartbeat_v2_path.is_file():
-                heartbeat_path = heartbeat_v2_path
-                heartbeat_source_label = 'content_epoch_v2'
-            else:
-                heartbeat_path = legacy_heartbeat_path
-                heartbeat_source_label = 'content_epoch'
-            legacy_watcher = {**self._watcher_liveness(heartbeat_path, now, source_label=heartbeat_source_label),
-                              'heartbeat_path': str(heartbeat_path),
-                              'stale_after_seconds': self.watcher_stale_seconds}
+        heartbeat_v2_path = inbox / 'watcher_heartbeat.v2'
+        legacy_heartbeat_path = inbox / '.watcher.heartbeat'
+        if heartbeat_v2_path.is_file():
+            heartbeat_path = heartbeat_v2_path
+            heartbeat_source_label = 'content_epoch_v2'
+        else:
+            heartbeat_path = legacy_heartbeat_path
+            heartbeat_source_label = 'content_epoch'
+        watcher_liveness = self._watcher_liveness(
+            heartbeat_path, now, source_label=heartbeat_source_label
+        )
         atomic_path = inbox / 'atomic_app_swap_state.json'
         watcher_contract_path = inbox / 'watcher_container_contract.json'
         watcher_contract = self._read_json(watcher_contract_path) or {}
@@ -242,17 +268,11 @@ class RuntimeCollector:
         else:
             publication_status = publication.get('status')
         legacy_publisher = self._read_json(legacy_publisher_path) or {}
-        chain = {
-            'release_controller': {
-                'status': release_controller.get('status'),
-                'phase': release_controller.get('phase'),
-                'pid': release_controller.get('pid'),
-                'release_id': release_controller.get('release_id'),
-                'generation': release_controller.get('generation'),
-                'source': str(release_controller_path),
-                'exists': release_controller_path.is_file(),
-                'age_seconds': release_controller_age,
-                'active': bool(release_controller_path.is_file() and release_controller_age is not None and release_controller_age <= 30 and int(release_controller.get('pid') or 0) > 1),
+        return {
+            'watcher': {
+                **watcher_liveness,
+                'heartbeat_path': str(heartbeat_path),
+                'stale_after_seconds': self.watcher_stale_seconds,
             },
             'watcher_container_contract': {
                 'status': watcher_contract.get('status'),
@@ -307,14 +327,11 @@ class RuntimeCollector:
                 'exists': legacy_publisher_path.is_file(),
             },
         }
-        if legacy_watcher is not None:
-            chain['watcher'] = legacy_watcher
-            chain.pop('release_controller', None)
-        return chain
 
     def collect(self, *, now=None) -> dict:
         now = now or datetime.now(timezone.utc)
         version_path = self.project_root / 'App' / 'VERSIE.txt'
+        mode_path = self.mode_state_path or (self.project_root / 'Inbox' / 'operating_mode' / 'operating_mode_state.json')
         nas_version = None
         if version_path.is_file():
             try:
@@ -349,10 +366,25 @@ class RuntimeCollector:
                 'source': str(version_path),
             },
             'release_chain': self._release_chain(now=now),
+            'operating_mode': {'effective_mode': None, 'source': str(mode_path)},
             'native_mcp_runtime': native_guard,
             'projectmanager_liveness': self._projectmanager_liveness(now=now),
+            'release_hold_driver_liveness': self._release_hold_driver_liveness(now=now),
         }
         if not version_path.is_file():
             result['release']['missing'] = True
 
+        if mode_path.is_file():
+            try:
+                mode_data = json.loads(mode_path.read_text(encoding='utf-8'))
+                result['operating_mode']['effective_mode'] = (
+                    mode_data.get('effective_mode')
+                    or mode_data.get('base_mode')
+                    or mode_data.get('mode')
+                )
+                result['operating_mode']['raw'] = mode_data
+            except (OSError, json.JSONDecodeError) as exc:
+                result['operating_mode']['error'] = str(exc)
+        else:
+            result['operating_mode']['missing'] = True
         return result

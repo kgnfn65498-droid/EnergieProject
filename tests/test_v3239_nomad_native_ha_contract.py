@@ -12,7 +12,7 @@ def test_no_hacs_or_custom_component_is_shipped():
 
 
 def test_only_homeassistant_api_permission_remains_for_nomad_bridge():
-    source = CONFIG.read_text(encoding="utf-8")
+    source = (ROOT / "tests/fixtures/legacy57/config.yaml").read_text(encoding="utf-8")
     assert "homeassistant_api: true" in source
     assert "hassio_api:" not in source
     assert "hassio_role:" not in source

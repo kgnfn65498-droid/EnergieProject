@@ -1,11 +1,10 @@
 # Changelog
 
-## 32.4.57 — single-owner release controller
+## 32.4.58 — simplified autonomous release steady state
 
-- Incoming heeft één centrale releasecontroller met acht lineaire fasen en één persisted state.
-- Oude release-transition, release-hold, mode, CR, CLEARUP en PM FINAL zijn geen releasegates meer.
-- Atomic App swap blijft de enige install/rollback primitive; restart-resume gebruikt hetzelfde journal en dezelfde generation.
-- Native MCP kan uitsluitend release-scoped self-healen met exacte release/generation/artifact/fingerprint-fencing.
-- GitHub/HA delivery start pas na lokale atomic ACCEPTED en kan daarna nooit een App rollback veroorzaken.
-- De HA runtime publiceert een directe version marker voor deterministische end-to-end readback.
-- Target identity: EnergieProject 32.4.57 / Projectmanager 2.0.0-rc45.
+- Eén permanente ReleaseController blijft na COMPLETE actief/IDLE en is de enige release-lifecycle-owner.
+- Legacy install adoption, globale operating-mode gates en automatische post-release CLEARUP zijn uit de actieve runtime verwijderd.
+- Supervisor delivery gebruikt `/store/reload` gevolgd door `/addons/self/rebuild`, met `hassio_api: true` en `hassio_role: manager`.
+- Projectmanager health gebruikt controller-runtime als livenessbron en toont release/runtime, energiedata/live sources, onderhoud/backup/hygiëne en observability als onafhankelijke domeinen.
+- Een lege kwartiersnapshot blijft een collectorfout maar veroorzaakt geen fictieve live-source-uitval.
+- Target identity: EnergieProject 32.4.58 / Projectmanager 2.0.0-rc45.

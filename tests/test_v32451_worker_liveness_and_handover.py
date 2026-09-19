@@ -11,6 +11,16 @@ for path in (str(APP), str(PM)):
         sys.path.insert(0, path)
 
 
+def _legacy57_module(name: str):
+    import importlib.util
+    path = ROOT / 'tests/fixtures/legacy57' / f'{name}.py'
+    spec = importlib.util.spec_from_file_location(f'legacy57_{name}_v32451', path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 
 def _watcher_capability(bridge, version):
     bridge.joinpath('capability.json').write_text(json.dumps({
@@ -240,8 +250,8 @@ def test_release_hold_daemon_publishes_persistent_liveness(tmp_path, monkeypatch
 
 def test_runtime_and_health_expose_stale_hold_driver_during_live_acceptance(tmp_path):
     from datetime import datetime, timedelta, timezone
-    from projectmanager_v2.runtime_sources import RuntimeCollector
-    from projectmanager_v2.release_health import release_health_checks
+    RuntimeCollector = _legacy57_module('runtime_sources').RuntimeCollector
+    release_health_checks = _legacy57_module('release_health').release_health_checks
 
     root = _project_root(tmp_path)
     inbox = root / 'Inbox'

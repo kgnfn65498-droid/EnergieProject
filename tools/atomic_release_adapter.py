@@ -20,10 +20,31 @@ class AtomicReleaseAdapter:
     def _journal(self,s):
         paths=self._paths(s);j=self.atomic.load_journal(paths)
         if j is None:return None
-        if str(j.get('from_version') or '')!=s.from_version:raise RuntimeError('atomic_from_version_mismatch')
-        if str(j.get('to_version') or '')!=s.to_version:raise RuntimeError('atomic_to_version_mismatch')
-        if str(j.get('artifact_sha256') or '').lower()!=s.artifact_sha256.lower():raise RuntimeError('atomic_artifact_mismatch')
-        return j
+        j_from=str(j.get('from_version') or '')
+        j_to=str(j.get('to_version') or '')
+        j_sha=str(j.get('artifact_sha256') or '').lower()
+        if j_from==s.from_version and j_to==s.to_version:
+            if j_sha!=s.artifact_sha256.lower():raise RuntimeError('atomic_artifact_mismatch')
+            return j
+        # A single global atomic journal intentionally survives acceptance. For N+1,
+        # accept it only as historical evidence when it is exactly the immediately
+        # preceding ACCEPTED release and the physical active App still proves that
+        # predecessor target. Every other mismatch remains fail-closed.
+        if str(j.get('state') or '')=='ACCEPTED' and j_to==s.from_version:
+            if len(j_sha)!=64 or any(c not in '0123456789abcdef' for c in j_sha):
+                raise RuntimeError('atomic_previous_artifact_invalid')
+            prior=self.atomic.SwapPaths.for_release(self.root,j_from,j_to)
+            if str(j.get('candidate_path') or '')!=prior.candidate.name:
+                raise RuntimeError('atomic_previous_candidate_path_mismatch')
+            if str(j.get('rollback_path') or '')!=prior.rollback.name:
+                raise RuntimeError('atomic_previous_rollback_path_mismatch')
+            proven=self.atomic.reconcile_state(prior)
+            if str(proven.get('state') or '')!='ACCEPTED':
+                raise RuntimeError('atomic_previous_acceptance_unproven')
+            return None
+        if j_from!=s.from_version:raise RuntimeError('atomic_from_version_mismatch')
+        if j_to!=s.to_version:raise RuntimeError('atomic_to_version_mismatch')
+        raise RuntimeError('atomic_artifact_mismatch')
     def _cleanup_unpromoted_candidate(self,s):
         paths=self._paths(s)
         active=(paths.app/'VERSIE.txt').read_text(encoding='utf-8').strip() if (paths.app/'VERSIE.txt').is_file() else ''
@@ -49,7 +70,24 @@ class AtomicReleaseAdapter:
                 error='pre-activation rollback: '+str(reason))
             evidence.append('atomic_prepared_marked_rolled_back')
         return evidence
+    def _blocked_pre_activation_source_unchanged(self,s):
+        if str(getattr(s,'phase',''))!='INSTALLING' or str(getattr(s,'status',''))!='BLOCKED':return None
+        if str(getattr(s,'blocker',''))!='rollback_unproven':return None
+        paths=self._paths(s)
+        active=(paths.app/'VERSIE.txt').read_text(encoding='utf-8').strip() if (paths.app/'VERSIE.txt').is_file() else ''
+        if active!=s.from_version:return None
+        if paths.candidate.exists() or paths.rollback.exists():return None
+        raw=self.atomic.load_journal(paths)
+        if not isinstance(raw,dict) or str(raw.get('state') or '')!='ACCEPTED':return None
+        if str(raw.get('to_version') or '')!=s.from_version:return None
+        # _journal performs the strict previous-release identity, path, SHA and
+        # physical ACCEPTED reconciliation. Only its historical-None result is
+        # valid evidence that no current-release atomic mutation ever started.
+        if self._journal(s) is not None:return None
+        return ['source_app_restored','previous_atomic_acceptance_preserved']
     def install(self,s):
+        recovery=self._blocked_pre_activation_source_unchanged(s)
+        if recovery is not None:return Outcome.rolled_back('pre_activation_source_unchanged',*recovery)
         paths=self._paths(s);artifact=self.root/'Inbox/processing'/s.artifact_name
         try:
             j=self._journal(s)

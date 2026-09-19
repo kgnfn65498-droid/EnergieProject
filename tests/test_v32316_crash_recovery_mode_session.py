@@ -246,7 +246,7 @@ def test_reboot_during_mutating_maintenance_keeps_maintenance(tmp_path):
 
 
 def test_mode_entrypoint_recovers_crash_session_before_generic_stale_transition():
-    text = (APP_ROOT / "mode_entrypoint.py").read_text(encoding="utf-8")
+    text = (ROOT / "tests/fixtures/legacy57/mode_entrypoint.py").read_text(encoding="utf-8")
     assert "recover_crash_recovery_mode_session" in text
     assert "install_crash_recovery_mode_integration" in text
     assert text.index("recover_crash_recovery_mode_session(root)") < text.index("recover_startup_mode_state(root)")

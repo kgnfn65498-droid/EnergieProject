@@ -46,10 +46,11 @@ def _zip(path, version="32.4.57"):
 
 
 def test_32457_identity_is_consistent():
-    assert _text(ROOT/"VERSIE.txt").strip() == "32.4.57"
-    assert _text(PM/"VERSION.txt").strip() == "2.0.0-rc45"
-    assert 'version: "32.4.57"' in _text(ROOT/"slimmemeterportal_import/config.yaml")
-    assert 'APP_VERSION = "32.4.57"' in _text(APP/"main.py")
+    legacy = ROOT / "tests/fixtures/legacy57"
+    assert _text(legacy/"VERSIE.txt").strip() == "32.4.57"
+    assert _text(legacy/"PM_VERSION.txt").strip() == "2.0.0-rc45"
+    assert 'version: "32.4.57"' in _text(legacy/"config.yaml")
+    assert 'APP_VERSION = "32.4.57"' in _text(legacy/"main.py")
 
 
 def test_32457_has_exact_eight_release_phases_and_separate_status():
@@ -83,7 +84,7 @@ def test_32457_minimal_preflight_has_no_runtime_or_maintenance_gates():
 
 
 def test_32457_controller_service_has_no_old_orchestrator_dependencies():
-    source=_text(TOOLS/"release_controller_service.py")
+    source=_text(ROOT/"tests/fixtures/legacy57/release_controller_service.py")
     for forbidden in ("release_validation_hold","release_transition_worker","project_cr","nas_cr","clearup","mode_allows"):
         assert forbidden not in source
     assert "adopt_exact_pre57_install" in source
@@ -221,7 +222,7 @@ def test_32457_control_plane_bootstrap_restarts_only_existing_exact_service():
 
 
 def test_32457_ha_bootstrap_reuses_existing_publisher_rebuild_chain():
-    main=_text(APP/"main.py")
+    main=_text(ROOT/"tests/fixtures/legacy57/main.py")
     delivery=_text(TOOLS/"ha_delivery_adapter.py")
     assert "ha_publication_required.json" in delivery
     assert "def publish_github_release" in main

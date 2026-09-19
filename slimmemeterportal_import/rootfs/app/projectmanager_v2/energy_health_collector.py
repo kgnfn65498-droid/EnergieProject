@@ -261,7 +261,7 @@ class EnergyHealthCollector:
             verified=snapshot_ok,
         ))
 
-        if snapshot:
+        if snapshot_ok:
             entities = {
                 str(item.get('entity_id')): item
                 for item in snapshot.get('entities', [])
@@ -312,12 +312,6 @@ class EnergyHealthCollector:
         except OSError:
             version = ''
         checks.append(_check('production_version_source', 'GREEN' if version else 'ORANGE', 'available' if version else 'missing_or_empty', version_path, {'version': version or None}, verified=bool(version)))
-
-        mode_path = self.project_root / 'Inbox' / 'operating_mode' / 'operating_mode_state.json'
-        mode_data = _read_json(mode_path)
-        mode = (mode_data or {}).get('effective_mode') or (mode_data or {}).get('base_mode') or (mode_data or {}).get('mode')
-        valid_mode = isinstance(mode_data, dict) and mode in VALID_MODES
-        checks.append(_check('operating_mode_source', 'GREEN' if valid_mode else 'RED', 'valid' if valid_mode else 'missing_or_invalid_mode', mode_path, {'effective_mode': mode}, verified=valid_mode))
 
         if _numeric_release(version) >= (32, 4, 57):
             controller_runtime_path = self.project_root / 'Inbox' / 'release_controller' / 'runtime.json'

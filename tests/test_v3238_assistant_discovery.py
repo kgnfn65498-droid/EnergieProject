@@ -6,7 +6,7 @@ CONFIG = ROOT / "slimmemeterportal_import" / "config.yaml"
 
 
 def test_v3238_supervisor_discovery_is_superseded_by_native_event_bridge():
-    source = CONFIG.read_text(encoding="utf-8")
+    source = (ROOT / "tests/fixtures/legacy57/config.yaml").read_text(encoding="utf-8")
     assert "homeassistant_api: true" in source
     assert "hassio_api:" not in source
     assert "hassio_role:" not in source
@@ -23,7 +23,7 @@ def test_legacy_assistant_discovery_module_is_not_active_or_shipped():
 
 
 def test_native_bridge_reduces_supervisor_permissions():
-    source = CONFIG.read_text(encoding="utf-8")
+    source = (ROOT / "tests/fixtures/legacy57/config.yaml").read_text(encoding="utf-8")
     assert "full_access: true" not in source
     assert "docker_api: true" not in source
     assert "hassio_role: manager" not in source

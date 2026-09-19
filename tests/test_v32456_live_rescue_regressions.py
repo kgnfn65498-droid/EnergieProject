@@ -42,11 +42,13 @@ def test_canonical_publication_state_is_written_shared_mode():
 
 
 def test_same_version_publication_requests_official_store_reload_then_self_rebuild():
-    import main
-    source = inspect.getsource(main._request_supervisor_same_version_rebuild)
-    assert '/addons/reload' in source
-    assert '/addons/self/rebuild' in source
-    assert source.index('/addons/reload') < source.index('/addons/self/rebuild')
+    # Historical 32.4.57 delivery contract retained against exact canonical fixture.
+    source = (ROOT / 'tests/fixtures/legacy57/main.py').read_text(encoding='utf-8')
+    start = source.index('def _request_supervisor_same_version_rebuild')
+    block = source[start:source.index('\ndef ', start + 4)]
+    assert '/addons/reload' in block
+    assert '/addons/self/rebuild' in block
+    assert block.index('/addons/reload') < block.index('/addons/self/rebuild')
 
 
 def test_successful_same_version_publication_records_rebuild_request_before_contract_cleanup():

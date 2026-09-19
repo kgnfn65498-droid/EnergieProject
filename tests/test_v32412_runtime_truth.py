@@ -11,6 +11,16 @@ sys.path.insert(0, str(PM))
 from runtime_sources import RuntimeCollector
 
 
+def _legacy57_module(name: str):
+    import importlib.util
+    path = ROOT / 'tests/fixtures/legacy57' / f'{name}.py'
+    spec = importlib.util.spec_from_file_location(f'legacy57_{name}', path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+    return module
+
+
 def _write(path: Path, text: str):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding='utf-8')
@@ -56,7 +66,8 @@ def test_release_chain_health_exposes_watcher_queues_lock_atomic_and_publisher(t
     _write(project / 'Inbox/atomic_app_swap_state.json', json.dumps({'state': 'NEW_ACTIVE'}))
     _write(project / 'Inbox/github_publisher_state.json', json.dumps({'status': 'ready', 'version': '32.4.12'}))
 
-    result = RuntimeCollector(project, running_release_version='32.4.11').collect(
+    legacy_runtime = _legacy57_module('runtime_sources')
+    result = legacy_runtime.RuntimeCollector(project, running_release_version='32.4.11').collect(
         now=datetime.now(timezone.utc)
     )
     chain = result['release_chain']
@@ -71,7 +82,7 @@ def test_release_chain_health_exposes_watcher_queues_lock_atomic_and_publisher(t
 
 
 def test_release_chain_is_part_of_pm_health_and_stopped_watcher_is_red():
-    from release_health import release_health_checks
+    release_health_checks = _legacy57_module('release_health').release_health_checks
 
     runtime = {
         'release_chain': {

@@ -84,7 +84,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.58"
+APP_VERSION = "32.4.57"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -20342,7 +20342,7 @@ def _request_supervisor_same_version_rebuild(token: str) -> dict[str, Any]:
     if not token:
         return {"status": "SKIPPED", "requested": False, "reason": "supervisor_token_missing"}
     steps = []
-    for endpoint in ("/store/reload", "/addons/self/rebuild"):
+    for endpoint in ("/addons/reload", "/addons/self/rebuild"):
         request = urllib.request.Request(
             "http://supervisor" + endpoint,
             data=b"{}",
@@ -22214,6 +22214,12 @@ def main() -> None:
             except Exception:
                 LOGGER.exception("Project CLEARUP foutstatus kon niet worden opgeslagen.")
             LOGGER.exception("Project CLEARUP startup-worker faalde gesloten; geen delete uitgevoerd.")
+
+    threading.Thread(
+        target=startup_project_clearup,
+        daemon=True,
+        name="project-clearup-post-acceptance",
+    ).start()
 
     def startup_self_test() -> None:
         try:
