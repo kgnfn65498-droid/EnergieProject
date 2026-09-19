@@ -2,6 +2,7 @@
 
 ## 32.4.58 — simplified autonomous release steady state
 
+- Repository-layout fix: historische testfixtures gebruiken niet langer de gereserveerde naam `config.yaml`; Supervisor ziet exact één add-onconfiguratie voor `slimmemeterportal_import`.
 - Eén permanente ReleaseController blijft na COMPLETE actief/IDLE en is de enige release-lifecycle-owner.
 - Legacy install adoption, globale operating-mode gates en automatische post-release CLEARUP zijn uit de actieve runtime verwijderd.
 - Supervisor delivery gebruikt `/store/reload` gevolgd door `/addons/self/rebuild`, met `hassio_api: true` en `hassio_role: manager`.

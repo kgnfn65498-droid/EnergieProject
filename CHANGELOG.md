@@ -1,5 +1,7 @@
 ## 32.4.58 — simplified autonomous release steady state
 
+- Home Assistant repository-layout hardened: historical `tests/fixtures/legacy57/config.yaml` is renamed to `config_legacy57.yaml`, because Supervisor recursively scans every `config.yaml`; the published repository now exposes exactly one app configuration.
+- Regression `test_58_22_github_repository_exposes_only_one_home_assistant_config_yaml` prevents duplicate recursive app configs from returning.
 - ReleaseController is the sole active Incoming lifecycle owner; legacy 56→57 adoption is retired from active flow.
 - Canonical release evidence is idempotently deduplicated.
 - Global operating-mode startup/GUI gating and automatic post-release CLEARUP are removed from active runtime.

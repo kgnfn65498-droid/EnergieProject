@@ -152,7 +152,7 @@ def test_installer_requires_runtime_supervisor_token(monkeypatch):
 
 def test_main_records_automatic_nomad_automation_installation_without_new_permissions():
     main = MAIN.read_text(encoding="utf-8")
-    addon = (ROOT / "tests/fixtures/legacy57/config.yaml").read_text(encoding="utf-8")
+    addon = (ROOT / "tests/fixtures/legacy57/config_legacy57.yaml").read_text(encoding="utf-8")
     assert "ensure_nomad_automation" in main
     assert 'result["nomad_automation_installation"]' in main
     assert "homeassistant_api: true" in addon

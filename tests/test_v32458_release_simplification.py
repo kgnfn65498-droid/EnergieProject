@@ -356,3 +356,8 @@ def test_58_21_blocked_pre_activation_recovery_refuses_candidate_or_rollback_pre
 
     outcome = adapter.install(state)
     assert outcome.status != 'ROLLED_BACK'
+
+
+def test_58_22_github_repository_exposes_only_one_home_assistant_config_yaml():
+    configs = sorted(path.relative_to(ROOT).as_posix() for path in ROOT.rglob('config.yaml'))
+    assert configs == ['slimmemeterportal_import/config.yaml']

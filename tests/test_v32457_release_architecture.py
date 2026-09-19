@@ -49,7 +49,7 @@ def test_32457_identity_is_consistent():
     legacy = ROOT / "tests/fixtures/legacy57"
     assert _text(legacy/"VERSIE.txt").strip() == "32.4.57"
     assert _text(legacy/"PM_VERSION.txt").strip() == "2.0.0-rc45"
-    assert 'version: "32.4.57"' in _text(legacy/"config.yaml")
+    assert 'version: "32.4.57"' in _text(legacy/"config_legacy57.yaml")
     assert 'APP_VERSION = "32.4.57"' in _text(legacy/"main.py")
 
 

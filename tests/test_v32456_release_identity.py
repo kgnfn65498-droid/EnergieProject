@@ -10,7 +10,7 @@ def test_32456_release_identity_and_pm_version_are_consistent():
     legacy = ROOT / "tests/fixtures/legacy57"
     assert (legacy / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.4.57"
     assert (legacy / "PM_VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc45"
-    assert 'version: "32.4.57"' in (legacy / "config.yaml").read_text(encoding="utf-8")
+    assert 'version: "32.4.57"' in (legacy / "config_legacy57.yaml").read_text(encoding="utf-8")
     assert 'APP_VERSION = "32.4.57"' in (legacy / "main.py").read_text(encoding="utf-8")
     assert 'TARGET_RELEASE_VERSION = "32.4.57"' in (legacy / "mode_entrypoint.py").read_text(encoding="utf-8")
 

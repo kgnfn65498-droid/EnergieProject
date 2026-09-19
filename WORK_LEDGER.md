@@ -1,3 +1,14 @@
+## 2026-09-19 — 32.4.58 repository-layout hotfix
+
+- Live NAS 32.4.58 is atomic ACCEPTED; HA runtime blijft 32.4.57 omdat Supervisor geen update toont.
+- GitHub-publicatie zelf bereikte main, maar repository bevatte naast de echte add-onconfig ook historische `tests/fixtures/legacy57/config.yaml`.
+- Officiële HA-regel: Supervisor scant `config.yaml` recursief; dubbele gereserveerde naam is dus een echte repository-layoutfout.
+- Structurele fix: historische fixture -> `config_legacy57.yaml`, alle referenties aangepast, `test_58_22` borgt exact één HA config.
+- Corrected source-suite volledig GREEN: 1.954 passed, 2 skipped, 0 failed (1.956 totaal); watcher practical soak 6/6 GREEN.
+- Een vergeten `test_v32456_release_identity.py`-referentie werd door de full-suite gevonden, daarna gecorrigeerd en exact rerun GREEN.
+- Tussentijdse hotfix artifact SHA `373e7f0d...` is vervallen; nieuw final artifact + fresh-extract nog vereist.
+- Geen live state-edit, restart/recreate of nieuwe releaseversie gebruikt om het probleem te maskeren.
+
 ## 2026-09-18 — 32.4.57 checkpoint 11
 
 - Release-scoped Native-MCP uitvoering en reconcile zijn nu duurzaam en generation-fenced.

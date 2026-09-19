@@ -1,7 +1,7 @@
 # CURRENT HANDOVER — EnergieProject 32.4.58
 
 Datum: 2026-09-19
-Status: REVISED RECOVERY-BUILD PREBUILD GREEN; LIVE 57 HERSTELD COMPLETE/IDLE; NIEUW FINAL ARTIFACT + FRESH-EXTRACT + 58 LIVE E2E NOG OPEN
+Status: LIVE NAS 32.4.58 ATOMIC ACCEPTED; HA NOG 32.4.57; REPOSITORY-LAYOUT HOTFIX SOURCE-SUITE GREEN; NIEUW FINAL ARTIFACT + FRESH-EXTRACT + SAME-VERSION GITHUB REPUBLISH NOG OPEN
 
 ## Nieuwe-chat / crash-resume
 Lees eerst:
@@ -13,50 +13,52 @@ Lees eerst:
 
 Niet opnieuw beginnen met reeds bewezen onderzoek of tests. Hervat vanaf het hoogste werkelijk opgeslagen bewijs.
 
-## Canonical buildbasis
-- Live productie: 32.4.57.
-- Canonical processed basis: `Inbox/processed/EnergieProject_v32.4.57.zip`.
-- Grootte: 5.735.133 bytes.
-- SHA256: `6e81f14297d47a86f9dec896dcb69a0314dd45ed6929ff356977a38d4d64a2c9`.
-- Lokale staging is uitsluitend uit exact dit artifact opgebouwd.
+## Live waarheid
+- NAS `App/VERSIE.txt` = 32.4.58.
+- Live 58 artifact dat lokaal werd geaccepteerd: SHA256 `3c097b869adc7c8f9000533e7dce4c090084c88cb445e22cef3a946a3574b91c`.
+- Atomic state = ACCEPTED voor 32.4.57 -> 32.4.58.
+- Final 58 ZIP staat in `Inbox/processed`; Incoming/Processing zijn leeg.
+- GitHub main bevat 32.4.58, maar de gepubliceerde repository-layout is defect omdat ook `tests/fixtures/legacy57/config.yaml` werd gepubliceerd.
+- Home Assistant runtime blijft daardoor 32.4.57 en toont geen update.
+- ReleaseController staat in ACCEPTED/delivery-blocked op de publicatieketen; dit is geen lokale installatiefout.
 
-## 32.4.58 kern
-- Eén ReleaseController blijft de enige Incoming lifecycle-owner.
-- Geen legacy_install_adoption meer in 58 normale controllerflow.
-- Evidence is idempotent gededupliceerd.
-- Globale USER/DEVELOPMENT/MAINTENANCE startup/GUI-gates zijn uit actieve runtime verwijderd.
-- Geen automatische post-release/startup CLEARUP-thread.
-- Oude release_validation_hold/release_transition/watcher-heartbeat zijn geen actuele release-healthauthority.
-- Releasecontroller runtime is de livenessbron.
-- PM-health is gescheiden in release/runtime, energiedata/live sources, onderhoud/backup/hygiëne en PM/observability.
-- Lege kwartiersnapshot is collector/snapshotfout en veroorzaakt geen fictieve live-source-uitval.
-- Home Assistant delivery gebruikt Supervisor `/store/reload` + `/addons/self/rebuild`, met `hassio_api: true` en `hassio_role: manager`.
-- Historische contracten blijven exact bewaard onder `tests/fixtures/legacy57`.
-- N→N+1 atomic journal rollover accepteert uitsluitend een fysiek bewezen direct-vorige `ACCEPTED` journal als historische predecessor; overige mismatches blijven fail-closed.
+## Root cause Home Assistant update-onzichtbaar
+Home Assistant Supervisor scant een app-repository recursief op `config.yaml`. De gepubliceerde 58 bevatte twee bestanden met die gereserveerde naam:
+- `slimmemeterportal_import/config.yaml` — echte 32.4.58 add-onconfig.
+- `tests/fixtures/legacy57/config.yaml` — historische 32.4.57 fixture met dezelfde slug.
+Deze repository-layoutfout verklaart waarom GitHub 58 bevat maar HA geen update toont.
 
-## Teststatus
-- 25 specifieke 32.4.58 simplification/regressietests aanwezig en GREEN.
-- Live ontdekt N→N+1 journal-defect eerst met nieuwe RED-test gereproduceerd en daarna structureel gerepareerd.
-- Volledige actuele revised prebuild-collectie inclusief ingebedde rapportgenerator-tests:
-  - 1.953 passed
-  - 2 skipped
-  - 0 failed
-  - 1.955 totaal
-- Langzame watcher-soak is afzonderlijk per testnode uitgevoerd om platformtime-outs te vermijden; timingflap is herhaald GREEN gesloten zonder testversoepeling.
+## Structurele fix in staging
+- Werkboom: `/mnt/data/32458_hotfix`.
+- Historische fixture hernoemd naar `tests/fixtures/legacy57/config_legacy57.yaml`.
+- Alle historische testreferenties daarop aangepast.
+- Nieuwe regressie `test_58_22_github_repository_exposes_only_one_home_assistant_config_yaml`.
+- Exact één `config.yaml` blijft over: `slimmemeterportal_import/config.yaml`.
 
-## Productiestatus
-- Eén expliciet geautoriseerde normale restart van `energie-release-watcher` heeft de 57-controller correct als PID1/IDLE laten overnemen; daarna geen extra restart/recreate uitgevoerd.
-- Exact eerste 58-artifact werd via Incoming correct geclaimd naar Processing, maar live 57 blokkeerde fail-closed in INSTALLING op `rollback_unproven`.
-- Root cause: live 57 interpreteerde het nog geldige vorige 56→57 `ACCEPTED` atomic journal als current 57→58 journalmismatch.
-- Het eerste 58-artifact werd pre-activation geblokkeerd; de oude generatie en stale publication fence zijn daarna reversibel gearchiveerd, zonder current.json handmatig groen te zetten.
-- De draaiende 57-controller reconstrueerde vervolgens zelf de canonieke 32.4.57 lifecycle naar `COMPLETE` en runtime `IDLE`; Incoming en Processing zijn leeg.
-- De recovery-build bevat extra evidence-bound pre-activation self-recovery zodat deze foutklasse vanaf 58 niet opnieuw handmatig hoeft te worden losgemaakt.
-- Het eerdere artifact SHA `c98c0806...` en het tussentijdse artifact SHA `5419ba...` zijn vervallen en mogen niet opnieuw worden aangeboden.
+## Teststatus corrected source
+Actuele collectie: 1.956 tests.
+- top-level: 1.945 passed, 2 skipped, 0 failed.
+- geneste rapportgeneratoren: 9 passed, 0 failed.
+- totaal: 1.954 passed, 2 skipped, 0 failed.
+- watcher practical soak afzonderlijk 6/6 GREEN.
+- Een gemiste historische identity-testreferentie werd tijdens de volledige suite gevonden, gerepareerd en het betrokken blok is daarna opnieuw GREEN uitgevoerd.
+
+## Artifactstatus
+- Tussentijdse repo-hotfix ZIP SHA `373e7f0d...` is VERVALLEN omdat daarna nog één testreferentie werd gecorrigeerd.
+- Bouw pas nu een nieuw final same-version 32.4.58 artifact met de canonieke `tools/release_artifact_builder.py`.
+- Daarna exact fresh-extract van die nieuwe bytes en volledige 1.956-testcollectie opnieuw sluiten.
 
 ## Eerstvolgende harde gates
-1. Revised metadata/manifest deterministisch regenereren en nieuw final ZIP bouwen.
-2. ZIP-integriteit + MANIFEST.sha256 + SHA256SUMS.json bewijzen.
-3. Exact revised artifact fresh-extracten en volledige 1.955-testcollectie GREEN sluiten.
-4. Exact revised 58 artifact opnieuw via Incoming laten lopen.
-5. COMPLETE vereist exact GitHub target, HA runtime 32.4.58, processed exact artifact, lege Incoming/Processing en blijvend levende 58-controller klaar voor 59 zonder restart/script/state-reset.
-6. Daarna als laatste steady-state bewijs controleren dat controller `IDLE` blijft en 59 zonder restart/script/state-reset kan worden aangeboden.
+1. Metadata/manifests regenereren en nieuw final 32.4.58 repo-hotfix artifact bouwen.
+2. CRC, MANIFEST.sha256, SHA256SUMS.json, exact één `config.yaml`, versie en symlink/path-gates bewijzen.
+3. Exact artifact fresh-extracten; collect-only exact 1.956 en volledige suite GREEN.
+4. Same-version GitHub-repository veilig corrigeren zonder live state te fabriceren. Beschikbare Energie_NAS/HA connectors kunnen geen GitHub-write of binary NAS-upload uitvoeren; gebruik uitsluitend een bestaande fail-closed projectroute of benoem de kleinste noodzakelijke eenmalige transportactie.
+5. HA repository refresh/update naar 32.4.58; daarna `ha_runtime/current.json = 32.4.58`.
+6. ReleaseController naar COMPLETE en daarna blijvend PID1/IDLE, Incoming/Processing leeg.
+7. Vervolgens N+1-readiness bewijzen zonder restart/script/state-reset.
+
+## Niet doen
+- Oude artifacts `c98c0806...`, `5419ba90...`, `3c097b86...` of tussentijdse repo-hotfix SHA `373e7f0d...` opnieuw als nieuwe release aanbieden.
+- Geen `current.json` of atomic state handmatig groen maken.
+- Geen nieuwe watcher-restart/recreate zonder aantoonbare noodzaak en expliciete autorisatie.
+- Geen nieuwe releaseversie starten alleen om deze GitHub-layoutfout te maskeren zolang same-version 58-correctie nog technisch oplosbaar is.
