@@ -1,3 +1,14 @@
+## 2026-09-20 — Usage Guard activated before 32.4.60 coding
+- Peter reported roughly 33% of available session/week usage already consumed before replacement-60 coding began.
+- Project budget mode set to CONSERVE.
+- Work remains Sol-Light; Codex remains gpt-5.6-terra + medium; no Astra/Sol fallback.
+- No broad duplicate analysis, no unchanged-head duplicate PR review, no parallel Codex/subagents by default.
+- One bounded Codex execution lane maximum; Codex only for demonstrably necessary code.
+- Each meaningful phase checkpoints before another large phase begins.
+- UI/Peter-reported usage is authoritative; agents do not invent quota percentages.
+- <=50% remaining: no new broad research phase. <=25% remaining: checkpoint/stop before new large phase unless Peter explicitly authorizes more usage.
+- Safety/test/release gates are never skipped to save usage; checkpoint instead.
+
 ## 2026-09-20 — Chat/Work/Codex bridge smoke COMPLETE_GREEN
 - PR #9 is open, mergeable and intentionally unmerged as durable bridge evidence.
 - Work step 1/2 GREEN: mandatory repository files read autonomously; isolated GitHub write/read-back proven.
