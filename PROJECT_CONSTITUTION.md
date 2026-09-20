@@ -56,3 +56,9 @@ Daarna uitsluitend aanvullende runtime-evidence die voor de eerstvolgende stap n
 - Agents mogen geen nieuwe architectuur of beschermde productieactie afleiden uit een algemene opdracht.
 - Peter wordt niet gebruikt voor handmatige overdracht van opdrachten, bestanden of resultaten tussen Chat, Work en Codex wanneer GitHub die overdracht kan dragen.
 - Nieuwe Chat/Work/Codex-sessies behandelen de persistente repositorylagen als continuïteitsbron; een sessiewissel reset geen ontwikkelcontract.
+
+## Codex modelbeleid
+- Voor EnergieProject-Codexwerk is de standaard en verplichte combinatie `gpt-5.6-terra` + `medium`.
+- Geen autonome escalatie naar Astra, Sol of hoger reasoning-niveau.
+- Hetzelfde beleid geldt voor plan mode en subagents.
+- Bij onbeschikbaarheid of conflict met een hogere host/workspace-policy: fail-closed als `BLOCKED_MODEL_POLICY`; geen model-fallback zonder expliciet besluit van Peter.
