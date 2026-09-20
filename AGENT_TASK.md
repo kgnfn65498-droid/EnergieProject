@@ -9,8 +9,9 @@ Schema: v1
 - reasoning: HOOG
 - work_model: SOL-LIGHT
 - usage_guard: CONSERVE
-- usage_signal: >=33% consumed before replacement-60 coding; minimize orchestration overhead immediately
+- usage_signal: 35% remaining reported by Peter; <=50% conserve mode active
 - max_parallel_codex_runs: 1
+- usage_execution_rule: one bounded active task only; no new broad research phase; checkpoint before any next large phase
 - duplicate_pr_head_review: FORBIDDEN
 - codex_model: gpt-5.6-terra
 - codex_reasoning: medium
