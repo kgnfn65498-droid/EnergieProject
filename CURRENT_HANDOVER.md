@@ -46,3 +46,12 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
   - complete rejected-60 evidence
 - Baseline at that saved checkpoint: App 59 / HA 59 / GitHub 59 / Processing empty.
 - Do not restart proven investigation and do not build a ZIP before loading that exact checkpoint.
+
+## 2026-09-20 — Incoming-first decision before replacement 32.4.60
+- Peter explicitly chose the predecessor/publisher-fix route after Work returned BLOCKED_SCOPE_EXPANSION.
+- Priority 1 is a functioning Incoming chain.
+- Active unchanged 32.4.59 publisher cannot publish a next-release candidate from Processing before installation; this must be corrected in the active predecessor before replacement 60 proceeds.
+- Commit 398b2aa is rejected/do-not-use because its test exercised future modified code as if already active in 59.
+- Last reported Work checkpoint: a59780d.
+- Develop the smallest 32.4.59 publisher correction under the existing single ReleaseController/identity-fencing architecture. No second publisher, bootstrap actuator or rescue path.
+- No live install until explicit production authorization. Replacement 32.4.60 stays paused until the corrected 59 publisher is live and Incoming E2E is proven GREEN.
