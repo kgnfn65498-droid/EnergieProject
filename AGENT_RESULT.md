@@ -1,21 +1,21 @@
 # AGENT_RESULT — EnergieProject
 
-Status: IN_PROGRESS
+Status: WORK_GREEN_CODEX_PENDING
 Schema: v1
 
 - task_id: AGENT-BRIDGE-SMOKE-2026-09-20
-- executor: SPOCK
-- status: IN_PROGRESS
-- branch: main (bridge policy only)
-- commit: pending latest bridge commits
-- changed_files: AGENTS.md; PROJECT_CONSTITUTION.md; AGENT_TASK.md; .codex/config.toml; AGENT_RESULT.md
+- executor: WORK
+- status: WORK_GREEN_CODEX_PENDING
+- branch: work/agent-bridge-smoke-2026-09-20
+- commit: pending GitHub write/read-back
+- changed_files: AGENT_RESULT.md
 - root_cause: N/A — connectivity acceptance
-- tests_run: GitHub read-back preflight; Codex model-policy configuration audit
-- test_result: Terra/medium policy persisted; Work/Codex live execution still pending
+- tests_run: mandatory-file read-back; GitHub repository read; isolated-branch diff scope check
+- test_result: WORK step 1/2 GREEN; GitHub read/write evidence pending remote read-back; CODEX step 2/2 pending
 - acceptance_criteria_status: PARTIAL
 - blockers: Work and Codex must execute their own live phases; Spock cannot truthfully simulate them.
-- checkpoint: Codex model locked project-side to gpt-5.6-terra + medium; no Astra fallback permitted.
-- next_action: WORK executes step 1/2, then CODEX executes step 2/2 under model gate.
+- checkpoint: Work independently read AGENTS.md, PROJECT_CONSTITUTION.md, CURRENT_HANDOVER.md, WORK_LEDGER.md and AGENT_TASK.md; repository access confirmed; no release, test, runtime, HA, NAS or production files changed.
+- next_action: After remote write/read-back GREEN, hand task to CODEX step 2/2 under the exact gpt-5.6-terra + medium fail-closed model gate.
 - production_action_performed: NO
 - restart_performed: NO
 - terminal_required_from_peter: NO
