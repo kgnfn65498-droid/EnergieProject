@@ -1,29 +1,21 @@
 # AGENT_RESULT — EnergieProject
 
-Status: IDLE
+Status: IN_PROGRESS
 Schema: v1
 
-Deze file bevat uitsluitend het overdraagbare resultaat van de actuele AGENT_TASK.
-
-## Verplichte velden bij uitvoering
-- task_id:
-- executor:
-- status: IN_PROGRESS | BLOCKED | GREEN | RED
-- branch:
-- commit:
-- changed_files:
-- root_cause:
-- tests_run:
-- test_result:
-- acceptance_criteria_status:
-- blockers:
-- checkpoint:
-- next_action:
+- task_id: AGENT-BRIDGE-SMOKE-2026-09-20
+- executor: SPOCK
+- status: IN_PROGRESS
+- branch: main (bridge policy only)
+- commit: pending latest bridge commits
+- changed_files: AGENTS.md; PROJECT_CONSTITUTION.md; AGENT_TASK.md; .codex/config.toml; AGENT_RESULT.md
+- root_cause: N/A — connectivity acceptance
+- tests_run: GitHub read-back preflight; Codex model-policy configuration audit
+- test_result: Terra/medium policy persisted; Work/Codex live execution still pending
+- acceptance_criteria_status: PARTIAL
+- blockers: Work and Codex must execute their own live phases; Spock cannot truthfully simulate them.
+- checkpoint: Codex model locked project-side to gpt-5.6-terra + medium; no Astra fallback permitted.
+- next_action: WORK executes step 1/2, then CODEX executes step 2/2 under model gate.
 - production_action_performed: NO
 - restart_performed: NO
 - terminal_required_from_peter: NO
-
-## Regels
-- Geen GREEN zonder aantoonbaar test-/read-backbewijs passend bij de taak.
-- Geen productieclaim vanuit source-only bewijs.
-- Duurzame lessen/regressie-evidence worden daarnaast naar WORK_LEDGER.md geschreven.
