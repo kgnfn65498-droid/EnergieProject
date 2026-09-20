@@ -46,3 +46,13 @@ Een nieuwe chat leest in deze volgorde:
 4. hoogste relevante checkpoint/worklog en later gewijzigde staging-evidence
 
 Daarna uitsluitend aanvullende runtime-evidence die voor de eerstvolgende stap nodig is.
+
+
+## Chat → Work → Codex agentcontract
+- `AGENTS.md` is de verplichte agent-startinstructie en verwijst altijd naar deze Constitution als hoogste projectautoriteit.
+- Iedere uitvoertaak loopt via exact één actuele `AGENT_TASK.md`; ontbrekende scope/acceptatie-/stopcriteria maken de taak BLOCKED.
+- Uitvoerresultaat wordt machine- en mensleesbaar teruggeschreven naar `AGENT_RESULT.md`.
+- Work orchestreert; Codex wijzigt alleen code wanneer de taak dat expliciet vereist.
+- Agents mogen geen nieuwe architectuur of beschermde productieactie afleiden uit een algemene opdracht.
+- Peter wordt niet gebruikt voor handmatige overdracht van opdrachten, bestanden of resultaten tussen Chat, Work en Codex wanneer GitHub die overdracht kan dragen.
+- Nieuwe Chat/Work/Codex-sessies behandelen de persistente repositorylagen als continuïteitsbron; een sessiewissel reset geen ontwikkelcontract.
