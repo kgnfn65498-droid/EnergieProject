@@ -1,3 +1,14 @@
+## 2026-09-20 — Decision: Incoming chain first via 32.4.59 publisher fix
+- Work fully loaded the NAS 32.4.60 handover/ledger and rejected-60 evidence, then correctly stopped with BLOCKED_SCOPE_EXPANSION.
+- Proven blocker: the actually active unchanged 32.4.59 publisher only publishes the active version from Processed, so it cannot publish a next-release candidate from Processing before installation.
+- Earlier proposed repair/test was invalid because it exercised future modified code as though that code were already active in 59.
+- Commit 398b2aa is explicitly REJECTED / DO_NOT_USE.
+- Last reported Work checkpoint: a59780d; branch was not pushed/PR-opened at that point.
+- Peter explicitly selected option 1: develop and verify a separate minimal predecessor/publisher update for 59, then replacement 60.
+- Highest priority is now restoring/proving the Incoming chain; no release-independent bootstrap actuator or second release path.
+- Production authority remains NO. Development may produce a verified publisher-fix candidate, then STOP for explicit approval before controlled live installation.
+- Usage Guard remains CONSERVE at 35% reported remaining; one Codex lane, Terra/Medium, no broad repeat analysis.
+
 ## 2026-09-20 — Usage Guard activated before 32.4.60 coding
 - Peter reported roughly 33% of available session/week usage already consumed before replacement-60 coding began.
 - Project budget mode set to CONSERVE.
