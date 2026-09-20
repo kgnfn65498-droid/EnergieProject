@@ -37,3 +37,12 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 - Nieuwe contractfiles: `AGENTS.md`, `AGENT_TASK.md`, `AGENT_RESULT.md`.
 - Doel: persistente Chat/Spock → Work → Codex overdracht zonder Peter als transportlaag.
 - Read-back/self-audit GREEN; PR #8 mergeable GREEN. Eerste echte Codex-taak blijft de verplichte live acceptance dat `AGENTS.md` daadwerkelijk wordt toegepast.
+
+## 32.4.60 resume authority after agent bridge GREEN
+- Chat/Work/Codex bridge smoke is COMPLETE_GREEN; evidence remains in open PR #9.
+- For replacement 32.4.60, the exact technical resume authority is on NAS:
+  - `Data/03_Systeem/Projectmanager/CURRENT_HANDOVER_32_4_60_WORK_CODEX.md`
+  - `Data/03_Systeem/Projectmanager/WORK_LEDGER_32_4_60.md`
+  - complete rejected-60 evidence
+- Baseline at that saved checkpoint: App 59 / HA 59 / GitHub 59 / Processing empty.
+- Do not restart proven investigation and do not build a ZIP before loading that exact checkpoint.
