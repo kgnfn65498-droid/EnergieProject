@@ -101,7 +101,7 @@ def test_exact_target_manifest_hash_with_tampered_remote_files_stays_fail_closed
     assert "remote bron" in message.lower()
 
 
-def test_exact_target_publication_clears_contract_without_push(tmp_path, monkeypatch):
+def test_exact_target_publication_reports_exact_without_push_and_leaves_settlement_to_controller(tmp_path, monkeypatch):
     contract_marker = tmp_path / "ha_publication_required.json"
     contract_marker.write_text("{}\n", encoding="utf-8")
     worktree = tmp_path / "worktree"
@@ -138,5 +138,8 @@ def test_exact_target_publication_clears_contract_without_push(tmp_path, monkeyp
 
     assert result["published"] is True
     assert result["already_published"] is True
-    assert result["publication_contract_removed"] is True
-    assert not contract_marker.exists()
+    assert result["publication_contract_removed"] is False
+    assert result["target_exact"] is True
+    assert result["release_id"] == contract.get("release_id")
+    assert result["generation"] == contract.get("generation")
+    assert contract_marker.exists()

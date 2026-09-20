@@ -9,7 +9,10 @@ def _sha(path:Path)->str:
         for c in iter(lambda:f.read(1024*1024),b''):h.update(c)
     return h.hexdigest()
 def _json(path):
-    try:v=json.loads(Path(path).read_text(encoding='utf-8'))
+    try:
+        p=Path(path)
+        if p.is_symlink() or not p.is_file(): return {}
+        v=json.loads(p.read_text(encoding='utf-8'))
     except Exception:return {}
     return v if isinstance(v,dict) else {}
 def _atomic(path,payload):
@@ -21,56 +24,89 @@ def _atomic(path,payload):
 
 class HADelivery:
     def __init__(self,root:Path,*,timeout_seconds=600):self.root=Path(root);self.timeout=float(timeout_seconds)
-    def _processed(self,s):
+    def _active_artifact(self,s):
+        processing=self.root/'Inbox/processing'/s.artifact_name
+        processed=self.root/'Inbox/processed'/s.artifact_name
+        if processing.is_file() and not processing.is_symlink():
+            if _sha(processing)!=s.artifact_sha256:raise RuntimeError('processing_artifact_hash_mismatch')
+            return processing
+        # Crash reconciliation: delivery may have archived immediately before
+        # controller state reached COMPLETE. Only exact owned artifact is valid.
+        if processed.is_file() and not processed.is_symlink():
+            if _sha(processed)!=s.artifact_sha256:raise RuntimeError('processed_artifact_hash_conflict')
+            return processed
+        raise RuntimeError('owned_artifact_missing')
+    def _archive_complete(self,s):
         src=self.root/'Inbox/processing'/s.artifact_name;dst=self.root/'Inbox/processed'/s.artifact_name
         dst.parent.mkdir(parents=True,exist_ok=True)
         if dst.is_file():
-            if _sha(dst)!=s.artifact_sha256:raise RuntimeError('processed_artifact_hash_conflict')
-            if src.is_file() and _sha(src)==s.artifact_sha256:src.unlink()
+            if dst.is_symlink() or _sha(dst)!=s.artifact_sha256:raise RuntimeError('processed_artifact_hash_conflict')
+            if src.is_file():
+                if src.is_symlink() or _sha(src)!=s.artifact_sha256:raise RuntimeError('processing_artifact_hash_mismatch')
+                src.unlink()
             return dst
-        if not src.is_file():raise RuntimeError('processing_artifact_missing')
+        if src.is_symlink() or not src.is_file():raise RuntimeError('processing_artifact_missing')
         if _sha(src)!=s.artifact_sha256:raise RuntimeError('processing_artifact_hash_mismatch')
-        os.replace(src,dst);return dst
+        os.replace(src,dst)
+        if not dst.is_file() or dst.is_symlink() or _sha(dst)!=s.artifact_sha256:raise RuntimeError('processed_archive_readback_failed')
+        return dst
     def _manifest_sha(self,p):
         if not Path(p).is_file():raise RuntimeError('manifest_missing')
         return _sha(Path(p))
-    def _contract(self,s,processed):
+    def _contract(self,s,artifact):
         rollback=self.root/f'App.__rollback_{s.from_version}'
-        return {'status':'publication_required','version':s.to_version,
+        return {'schema':'energie_ha_publication_contract_v2','status':'publication_required','version':s.to_version,
             'repository':'https://github.com/kgnfn65498-droid/EnergieProject','branch':'main',
             'expected_previous_version':s.from_version,
             'expected_previous_manifest_sha256':self._manifest_sha(rollback/'MANIFEST.sha256'),
             'target_manifest_sha256':self._manifest_sha(self.root/'App/MANIFEST.sha256'),
-            'processed_zip':processed.name,'processed_zip_sha256':s.artifact_sha256,
+            'processed_zip':artifact.name,'processed_zip_sha256':s.artifact_sha256,
             'release_id':s.release_id,'generation':s.generation}
+    @staticmethod
+    def _identity_matches(payload,expected):
+        keys=('version','release_id','generation','processed_zip','processed_zip_sha256','target_manifest_sha256')
+        return all(str(payload.get(k) or '')==str(expected.get(k) or '') for k in keys)
+    def _ensure_contract(self,s,payload,marker):
+        existing=_json(marker)
+        if not existing:
+            _atomic(marker,payload);return payload
+        core=('version','repository','branch','expected_previous_version','expected_previous_manifest_sha256','target_manifest_sha256','processed_zip','processed_zip_sha256')
+        if any(existing.get(k)!=payload.get(k) for k in core):raise RuntimeError('publication_contract_conflict')
+        if str(existing.get('release_id') or '')!=s.release_id or str(existing.get('generation') or '')!=s.generation:
+            raise RuntimeError('publication_contract_fence_conflict')
+        return existing
+    def _publisher_exact(self,pub,payload):
+        return bool(pub.get('published') is True and pub.get('target_exact') is True and pub.get('remote_head') and self._identity_matches(pub,payload))
+    def reconcile_completed_delivery(self,s:ReleaseState)->Outcome:
+        marker=self.root/'Inbox/ha_publication_required.json'
+        if not marker.exists(): return Outcome.green('completed_delivery_settled')
+        # Reuse exact fenced delivery reconciliation. A COMPLETE state may only
+        # settle its own still-open contract; foreign/unproven state fails closed.
+        return self.align(s)
     def align(self,s:ReleaseState)->Outcome:
+        marker=self.root/'Inbox/ha_publication_required.json'
         try:
-            processed=self._processed(s);payload=self._contract(s,processed);marker=self.root/'Inbox/ha_publication_required.json'
-            existing=_json(marker)
-            if existing:
-                core_keys=(
-                    'status','version','repository','branch','expected_previous_version',
-                    'expected_previous_manifest_sha256','target_manifest_sha256',
-                    'processed_zip','processed_zip_sha256'
-                )
-                if any(existing.get(k)!=payload.get(k) for k in core_keys):
-                    return Outcome.blocked('publication_contract_conflict','inspect existing publication contract')
-                old_release_id=existing.get('release_id')
-                old_generation=existing.get('generation')
-                if old_release_id not in (None,'',s.release_id) or old_generation not in (None,'',s.generation):
-                    return Outcome.blocked('publication_contract_fence_conflict','inspect existing publication contract')
-                if old_release_id!=s.release_id or old_generation!=s.generation:
-                    merged=dict(existing);merged['release_id']=s.release_id;merged['generation']=s.generation
-                    _atomic(marker,merged)
-            else:_atomic(marker,payload)
-        except Exception as exc:return Outcome.blocked(str(exc))
-        ha=_json(self.root/'Inbox/ha_runtime/current.json')
-        if str(ha.get('version') or '')==s.to_version:return Outcome.green('processed_archived','ha_runtime_current')
+            artifact=self._active_artifact(s);payload=self._contract(s,artifact);self._ensure_contract(s,payload,marker)
+        except Exception as exc:return Outcome.blocked(str(exc),'inspect exact publication ownership; do not delete foreign state')
         pub=_json(self.root/'Inbox/github_publication_state.json')
+        ha=_json(self.root/'Inbox/ha_runtime/current.json')
+        pub_exact=self._publisher_exact(pub,payload)
+        ha_exact=str(ha.get('version') or '')==s.to_version
+        if pub_exact and ha_exact:
+            try:
+                # Controller-owned final settlement. Re-read identity immediately
+                # before unlink so a foreign replacement can never be removed.
+                current=_json(marker)
+                if not self._identity_matches(current,payload):return Outcome.blocked('publication_contract_settlement_fence_conflict')
+                marker.unlink()
+                if marker.exists():return Outcome.blocked('publication_contract_settlement_readback_failed')
+                self._archive_complete(s)
+            except Exception as exc:return Outcome.blocked(str(exc))
+            return Outcome.green('github_target_exact','ha_runtime_current','publication_contract_settled','processed_archived')
         elapsed=max(0.0,time.time()-float(s.phase_started_at_epoch or time.time()))
         if elapsed>=self.timeout:
-            reason='github_publication_failed' if pub.get('published') is False and str(pub.get('version') or '')==s.to_version else 'ha_runtime_alignment_timeout'
-            return Outcome.blocked(reason,'inspect existing publisher/runtime evidence; do not create a second release')
-        if pub.get('published') is True and str(pub.get('version') or '')==s.to_version:
-            return Outcome.waiting('ha_runtime_start_pending','github_target_published','processed_archived')
-        return Outcome.waiting('github_publication_pending','publication_contract_ready','processed_archived')
+            if pub.get('published') is False and self._identity_matches(pub,payload):
+                return Outcome.blocked('github_publication_failed','inspect exact publisher evidence; do not create a second release')
+            return Outcome.blocked('ha_delivery_identity_timeout','inspect exact publisher/runtime evidence; do not create a second release')
+        if pub_exact:return Outcome.waiting('ha_runtime_start_pending','github_target_exact')
+        return Outcome.waiting('github_publication_pending','publication_contract_ready')

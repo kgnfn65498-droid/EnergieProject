@@ -241,10 +241,13 @@ def test_58_15_cr_services_are_release_neutral_and_do_not_require_global_mainten
 
 
 def test_58_16_ha_delivery_requires_exact_runtime_version_before_green():
+    # Strengthened in 32.4.59: exact HA runtime remains mandatory, but is no
+    # longer sufficient by itself; publisher identity and settlement are also required.
     text = _text(TOOLS / 'ha_delivery_adapter.py')
     assert "Inbox/ha_runtime/current.json" in text
     assert "==s.to_version" in text.replace(' ', '')
-    assert "Outcome.green('processed_archived','ha_runtime_current')" in text.replace(' ', '')
+    assert "pub_exact and ha_exact" in text
+    assert "publication_contract_settled" in text
 
 
 def test_58_17_watcher_is_only_a_thin_release_controller_launcher():

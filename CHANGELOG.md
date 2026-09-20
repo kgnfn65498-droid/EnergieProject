@@ -1,3 +1,11 @@
+## 32.4.59 — structural autonomous publication closure
+
+- Publication delivery is exact identity-fenced; HA version alone cannot close delivery.
+- ReleaseController owns exact publication-contract settlement.
+- Processing remains transactional until delivery is proven COMPLETE.
+- Completed predecessor settlement gates the next Incoming release.
+- Corrected 32.4.58 c9d67 baseline and single Home Assistant config layout are enforced.
+
 ## 32.4.58 — simplified autonomous release steady state
 
 - Home Assistant repository-layout hardened: historical `tests/fixtures/legacy57/config.yaml` is renamed to `config_legacy57.yaml`, because Supervisor recursively scans every `config.yaml`; the published repository now exposes exactly one app configuration.

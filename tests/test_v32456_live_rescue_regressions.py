@@ -51,14 +51,16 @@ def test_same_version_publication_requests_official_store_reload_then_self_rebui
     assert block.index('/addons/reload') < block.index('/addons/self/rebuild')
 
 
-def test_successful_same_version_publication_records_rebuild_request_before_contract_cleanup():
+def test_successful_same_version_publication_records_rebuild_request_before_controller_contract_cleanup():
+    # 32.4.59 strengthens the old rescue invariant: the publisher may request the
+    # same-version rebuild, but only ReleaseController settles the exact contract.
     source = (APP / 'main.py').read_text(encoding='utf-8')
     start = source.index('def publish_github_release(')
     end = source.index('\ndef _write_github_publish_state', start)
     block = source[start:end]
     assert '_request_supervisor_same_version_rebuild' in block
     assert 'same_version_rebuild' in block
-    assert block.index('_request_supervisor_same_version_rebuild') < block.rindex('HA_PUBLICATION_REQUIRED.unlink()')
+    assert 'HA_PUBLICATION_REQUIRED.unlink()' not in block
 
 
 def test_project_cr_queue_creates_transition_owned_maintenance_bridge():

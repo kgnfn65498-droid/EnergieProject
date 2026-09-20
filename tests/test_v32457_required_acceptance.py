@@ -159,8 +159,12 @@ def test_required_05_ha_delivery_waits_then_reads_runtime_current(tmp_path):
     marker=tmp_path/'Inbox/ha_runtime/current.json';marker.parent.mkdir(parents=True,exist_ok=True)
     marker.write_text(json.dumps({'schema':'energie_ha_runtime_v1','version':'32.4.57'}))
     second=delivery.align(s)
-    assert second.status=='GREEN'
-    assert (tmp_path/'Inbox/processed'/artifact.name).is_file()
+    # Runtime version alone is no longer sufficient from 32.4.59 onward.
+    # Exact publisher identity evidence + controller-owned contract settlement
+    # are required before delivery can become GREEN/Processed.
+    assert second.status=='WAITING'
+    assert (tmp_path/'Inbox/processing'/artifact.name).is_file()
+    assert not (tmp_path/'Inbox/processed'/artifact.name).exists()
 
 
 # 6. PM may become current later; base acceptance has no PM dependency.

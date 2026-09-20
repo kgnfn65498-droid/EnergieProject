@@ -84,7 +84,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.58"
+APP_VERSION = "32.4.59"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -20402,12 +20402,13 @@ def publish_github_release(options=None):
             result["message"] = "GitHub target is exact, maar officiële store reload/rebuild kon niet worden aangevraagd"
             _write_github_publish_state(result)
             return result
-        try:
-            HA_PUBLICATION_REQUIRED.unlink()
-            result["publication_contract_removed"] = True
-        except Exception as exc:
-            result["published"] = False
-            result["message"] = f"Target staat al op GitHub maar contract kon niet veilig worden opgeruimd: {exc}"
+        result.update({
+            "publication_contract_removed": False, "target_exact": True,
+            "release_id": contract.get("release_id"), "generation": contract.get("generation"),
+            "processed_zip": contract.get("processed_zip"),
+            "processed_zip_sha256": contract.get("processed_zip_sha256"),
+            "target_manifest_sha256": contract.get("target_manifest_sha256"),
+        })
         _write_github_publish_state(result)
         return result
 
@@ -20462,13 +20463,13 @@ def publish_github_release(options=None):
             result["message"] = "Publicatie geslaagd, maar officiële store reload/rebuild kon niet worden aangevraagd"
             _write_github_publish_state(result)
             return result
-        try:
-            HA_PUBLICATION_REQUIRED.unlink()
-            result["publication_contract_removed"] = True
-        except Exception as exc:
-            result["published"] = False
-            result["publication_contract_removed"] = False
-            result["message"] = f"Publicatie geslaagd maar contract kon niet veilig worden opgeruimd: {exc}"
+        result.update({
+            "publication_contract_removed": False, "target_exact": True,
+            "release_id": contract.get("release_id"), "generation": contract.get("generation"),
+            "processed_zip": contract.get("processed_zip"),
+            "processed_zip_sha256": contract.get("processed_zip_sha256"),
+            "target_manifest_sha256": contract.get("target_manifest_sha256"),
+        })
     _write_github_publish_state(result)
     return result
 

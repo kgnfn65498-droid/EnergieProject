@@ -262,3 +262,13 @@
 - volledige actuele recovery-build collectie: 1.953 passed, 2 skipped, 0 failed, totaal 1.955.
 - oude artifacts `c98c0806...` en `5419ba...` zijn vervallen.
 - volgende gate: nieuw final 58 artifact bouwen/sealen -> exact fresh-extract 1.955 -> revised 58 via Incoming live E2E.
+
+
+## 2026-09-20 — 32.4.59 structural closure development
+- Corrected 58 predecessor c9d67 verified locally: CRC/path/symlink/layout/manifest GREEN.
+- Root causes reproduced RED: version-only delivery GREEN, insufficient publication identity fencing, premature Processing->Processed.
+- Structural implementation GREEN: exact identity fencing, controller-owned contract settlement, predecessor gate, Processed=COMPLETE.
+- Synthetic 59->60 successor readiness GREEN without manual contract cleanup.
+- 32.4.56-59 current release families: 139/139 PASS after migrating two historical assertions to the stricter 59 invariant; product gates were not weakened.
+- Full source suite and final fresh-extract remain required before release-ready claim.
+- Production remains 32.4.58; no protected production action executed.
