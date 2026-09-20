@@ -8,6 +8,10 @@ Schema: v1
 - mode: DEVELOPMENT
 - reasoning: HOOG
 - work_model: SOL-LIGHT
+- usage_guard: CONSERVE
+- usage_signal: >=33% consumed before replacement-60 coding; minimize orchestration overhead immediately
+- max_parallel_codex_runs: 1
+- duplicate_pr_head_review: FORBIDDEN
 - codex_model: gpt-5.6-terra
 - codex_reasoning: medium
 - codex_plan_reasoning: medium
@@ -40,6 +44,7 @@ Schema: v1
   - Huidige 32.4.60-basis volgens de vastgelegde checkpointwaarheid: App 59 / HA 59 / GitHub 59 / Processing leeg.
   - De oude/rejected 60 is teruggetrokken en blijft bewijs; de vervangende 60 moet vanaf de NAS-handover worden hervat.
 - required_tests:
+  - USAGE GATE: reuse existing evidence; no broad re-analysis, no duplicate unchanged-head review, no parallel subagents.
   - WORK: bewijs dat alle drie NAS-bronnen werkelijk zijn gelezen; geen reconstructie uit herinnering.
   - WORK: rapporteer het hoogste bewezen checkpoint en exact eerstvolgende open stap.
   - WORK: controleer dat geen productie/NAS/HA-mutatie of ZIP-build plaatsvond tijdens hydratie.
@@ -52,6 +57,7 @@ Schema: v1
   - Het exacte hervatpunt is machine- en mensleesbaar vastgelegd.
   - Daarna is de volgende taak begrensd genoeg voor Codex of expliciet als Work-only gemarkeerd.
 - stop_conditions:
+  - UI/Peter reports <=25% remaining session/week budget before a new large phase: checkpoint and STOP unless Peter explicitly authorizes continued spend.
   - NAS-bronnen niet rechtstreeks bereikbaar of niet volledig leesbaar: BLOCKED_NAS_CHECKPOINT_ACCESS.
   - Conflict tussen NAS-handover en repositorywaarheid: BLOCKED_SOURCE_CONFLICT.
   - Elke vraag om productie/restart/terminal voordat de handover die stap expliciet vereist.
