@@ -9,7 +9,9 @@ Schema: v1
 - reasoning: HOOG
 - work_model: SOL-LIGHT
 - usage_guard: CONSERVE
-- usage_signal: 35% remaining reported by Peter; <=50% conserve mode active
+- usage_signal: 34% five-hour budget remaining reported by Peter; weekly 90% remaining
+- five_hour_reset_gate: reset shown at 23:51 local; safe large-phase start not before 23:55 local on 2026-09-20
+- pre_reset_large_task_rule: before 23:55 local, do not start any new phase reasonably expected to consume >25 percentage points of the five-hour budget; checkpoint and WAIT_USAGE_RESET instead
 - max_parallel_codex_runs: 1
 - usage_execution_rule: one bounded active task only; no broad re-analysis; checkpoint before each next large phase
 - duplicate_pr_head_review: FORBIDDEN
