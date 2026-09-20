@@ -53,6 +53,7 @@ Schema: v1
   - Geen ZIP, NAS-write, HA-write, Incoming-write, productieactie, restart of terminalactie vond bij die blocker plaats.
   - Baseline vóór deze fix: App 59 / HA 59 / GitHub 59 / Processing leeg.
 - required_tests:
+  - PREDECESSOR ARTIFACT ACCESS GATE: before any Codex/code work, verify that the exact canonical 32.4.59 predecessor ZIP named/identified by the NAS handover is directly readable. If readable, use it and continue. If not readable, STOP as BLOCKED_PREDECESSOR_ARTIFACT_MISSING and request that exact ZIP from Peter; do not substitute GitHub source, runtime copy, reconstructed tree, or another artifact.
   - USAGE GATE: hergebruik geladen evidence; geen brede heranalyse; geen parallelle subagents; één Codex-lijn.
   - RED: reproduceer met werkelijk ongewijzigde 32.4.59-publisher dat een exact geldige next-release candidate in Processing niet gepubliceerd kan worden.
   - GREEN: minimale publisherfix maakt exact die case mogelijk zonder Processed/COMPLETE-semantiek te verzwakken.
