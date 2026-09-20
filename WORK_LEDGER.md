@@ -1,3 +1,12 @@
+## 2026-09-20 — Agent bridge v1
+- Peter gaf expliciet akkoord voor de Chat/Spock → Work → Codex architectuurlaag.
+- `AGENTS.md`, `AGENT_TASK.md` en `AGENT_RESULT.md` toegevoegd op geïsoleerde branch `agent-bridge-v1`.
+- PROJECT_CONSTITUTION uitgebreid met bindend agentcontract; CURRENT_HANDOVER gesynchroniseerd.
+- Self-audit/read-back: exact 5 bedoelde bestanden geraakt; branch 5 commits ahead / 0 behind vóór finale ledger/handover-sync; geen releasecode/runtime/tests/NAS/HA gewijzigd.
+- PR #8 gecontroleerd als mergeable.
+- Directe Codex-uitvoering is vanuit deze chat niet beschikbaar; daarom blijft eerste echte Codex-taak de live acceptance voor automatische toepassing van `AGENTS.md`.
+- Geen terminal, productieactie, restart/recreate of runtime-statewijziging uitgevoerd.
+
 ## 2026-09-19 — 32.4.58 repository-layout hotfix
 
 - Live NAS 32.4.58 is atomic ACCEPTED; HA runtime blijft 32.4.57 omdat Supervisor geen update toont.
