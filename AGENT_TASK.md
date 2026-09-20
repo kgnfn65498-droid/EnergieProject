@@ -7,6 +7,10 @@ Schema: v1
 - release: INFRA-AGENT-BRIDGE-V1
 - mode: DEVELOPMENT
 - reasoning: HOOG
+- codex_model: gpt-5.6-terra
+- codex_reasoning: medium
+- codex_plan_reasoning: medium
+- codex_model_fallback: FORBIDDEN
 - step: 1/2
 - owner: WORK
 - goal: Bewijs de persistente Chat/Spock → Work → Codex koppeling zonder 32.4.60 of productie te wijzigen.
@@ -32,6 +36,7 @@ Schema: v1
   - 32.4.60 wordt na deze smoke test hervat vanaf NAS-checkpoint; niet opnieuw ontwerpen of zomaar een ZIP bouwen.
   - Bronwaarheid voor dat latere hervatpunt: App 59 / HA 59 / GitHub 59 / Processing leeg.
 - required_tests:
+  - CODEX MODEL GATE: effective model must be gpt-5.6-terra with medium reasoning; otherwise BLOCKED_MODEL_POLICY.
   - WORK: read-back van alle verplichte files en aantoonbare GitHub write op aparte branch.
   - CODEX: aantonen dat AGENTS.md vóór uitvoering is toegepast.
   - CODEX: alleen tijdelijke docs-probe; geen source/test/runtime wijzigingen.
