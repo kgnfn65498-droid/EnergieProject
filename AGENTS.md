@@ -51,3 +51,11 @@ Bij onderbreking, nieuwe sessie, "opnieuw" of "verder":
 ## Uitvoercontract
 Resultaten worden teruggeschreven naar AGENT_RESULT.md en relevante duurzame bevindingen naar WORK_LEDGER.md.
 Geen succesclaim zonder read-back/verificatie van de geschreven toestand.
+
+## Codex model lock
+- Verplicht model: `gpt-5.6-terra`.
+- Verplicht reasoning-niveau: `medium`.
+- Dit geldt ook voor plan mode en alle subagents.
+- Codex mag NIET autonoom escaleren naar GPT-6 Astra, GPT-5.6 Sol of een ander model/reasoning-niveau.
+- Als Terra + medium niet beschikbaar of niet afdwingbaar is: STOP en rapporteer `BLOCKED_MODEL_POLICY`; geen stille fallback.
+- Vóór iedere Codex-codewijziging wordt de effectieve modelinstelling gecontroleerd waar de omgeving dit kan rapporteren.
