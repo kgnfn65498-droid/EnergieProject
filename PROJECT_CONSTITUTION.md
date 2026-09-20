@@ -62,3 +62,12 @@ Daarna uitsluitend aanvullende runtime-evidence die voor de eerstvolgende stap n
 - Geen autonome escalatie naar Astra, Sol of hoger reasoning-niveau.
 - Hetzelfde beleid geldt voor plan mode en subagents.
 - Bij onbeschikbaarheid of conflict met een hogere host/workspace-policy: fail-closed als `BLOCKED_MODEL_POLICY`; geen model-fallback zonder expliciet besluit van Peter.
+
+## Usage-/tokenbeleid
+- EnergieProject gebruikt standaard CONSERVE om session- en weekgebruik te beschermen.
+- Work = Sol-Light voor orchestratie; Codex = Terra/Medium uitsluitend voor noodzakelijk codewerk.
+- Geen dubbele analyse door Chat, Work en Codex: reeds persistente/bewezen informatie wordt hergebruikt.
+- Geen parallelle subagents standaard en geen automatische modelverhoging.
+- Reviews zijn head-SHA-idempotent: dezelfde onveranderde PR-head krijgt niet opnieuw een volledige agentreview.
+- Bij door UI/Peter gemelde budgetdruk gelden de drempels uit AGENTS.md. Agents gokken nooit naar resterende quota.
+- Budgetbesparing mag testwaarheid, releaseveiligheid of verplichte regressies niet omzeilen; in dat geval checkpointen en stoppen.
