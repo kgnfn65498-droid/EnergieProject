@@ -33,7 +33,7 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 
 
 ## Agent bridge v1
-- Losse development-branch: `agent-bridge-v1`; geen productie- of releasecode gewijzigd.
+- Development-branch: `agent-bridge-v1`; geen productie- of releasecode gewijzigd.
 - Nieuwe contractfiles: `AGENTS.md`, `AGENT_TASK.md`, `AGENT_RESULT.md`.
 - Doel: persistente Chat/Spock → Work → Codex overdracht zonder Peter als transportlaag.
-- Branch blijft gescheiden van main totdat read-back/self-audit en PR-controle GREEN zijn.
+- Read-back/self-audit GREEN; PR #8 mergeable GREEN. Eerste echte Codex-taak blijft de verplichte live acceptance dat `AGENTS.md` daadwerkelijk wordt toegepast.
