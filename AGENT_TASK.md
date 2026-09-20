@@ -3,67 +3,64 @@
 Status: ACTIVE
 Schema: v1
 
-- task_id: AGENT-BRIDGE-SMOKE-2026-09-20
-- release: INFRA-AGENT-BRIDGE-V1
+- task_id: RELEASE-32.4.60-RESUME-2026-09-20
+- release: 32.4.60
 - mode: DEVELOPMENT
 - reasoning: HOOG
+- work_model: SOL-LIGHT
 - codex_model: gpt-5.6-terra
 - codex_reasoning: medium
 - codex_plan_reasoning: medium
 - codex_model_fallback: FORBIDDEN
 - step: 1/2
 - owner: WORK
-- goal: Bewijs de persistente Chat/Spock → Work → Codex koppeling zonder 32.4.60 of productie te wijzigen.
+- goal: Hervat de vervangende 32.4.60 exact vanaf het bewezen NAS-checkpoint na de geslaagde Chat/Work/Codex-koppeling. Begin niet opnieuw.
 - scope:
-  1. Lees AGENTS.md, PROJECT_CONSTITUTION.md, CURRENT_HANDOVER.md en WORK_LEDGER.md.
-  2. Bevestig dat GitHub-repository kgnfn65498-droid/EnergieProject toegankelijk is.
-  3. Schrijf alleen bridge-evidence naar AGENT_RESULT.md op een aparte branch.
-  4. Maak, indien de accountfunctie beschikbaar is, een GitHub-PR-event-triggered Work-taak die toekomstige Codex-PR's in deze repository beoordeelt op AGENTS/AGENT_TASK scope, tests en acceptatiecriteria.
-  5. Zet na GREEN Work-read/write bewijs deze taak door naar owner CODEX, step 2/2, met exact dezelfde beschermingsgrenzen.
-  6. CODEX-fase: lees opnieuw de verplichte bestanden via AGENTS.md, maak uitsluitend een tijdelijke docs-probe op een aparte codex-branch, open een PR en wijzig geen releasecode.
+  1. Lees eerst AGENTS.md, PROJECT_CONSTITUTION.md, CURRENT_HANDOVER.md en WORK_LEDGER.md.
+  2. Laad daarna exact de persistente NAS-bronnen:
+     - Data/03_Systeem/Projectmanager/CURRENT_HANDOVER_32_4_60_WORK_CODEX.md
+     - Data/03_Systeem/Projectmanager/WORK_LEDGER_32_4_60.md
+     - volledige rejected-60 evidence
+  3. Bepaal op basis van die bronnen het hoogste bewezen 32.4.60-checkpoint en de eerstvolgende nog niet uitgevoerde stap.
+  4. Herhaal geen reeds bewezen onderzoek, tests of ontwerpwerk.
+  5. Bouw niet eerst zomaar een ZIP.
+  6. Schrijf na volledige bronhydratie het exacte hervatpunt terug naar AGENT_RESULT.md en update AGENT_TASK.md naar de werkelijke volgende ontwikkelstap/scope indien de NAS-handover dat voorschrijft.
+  7. Start Codex pas daarna en alleen wanneer de handover aantoonbaar codewerk vereist.
 - do_not_change:
-  - 32.4.60 broncode of artifacts
-  - releasecontroller/runtime/HA/NAS state
-  - tests of productiecode
-  - CURRENT_HANDOVER_32_4_60_WORK_CODEX.md op NAS
-  - WORK_LEDGER_32_4_60.md op NAS
-  - rejected-60 evidence
+  - productie/runtime/NAS/HA state tijdens checkpoint-hydratie
+  - bewezen rejected-60 evidence
+  - historische bewijsbestanden
+  - release-architectuur buiten wat de NAS-handover expliciet vereist
+  - modelbeleid
 - proven_facts:
-  - Agent bridge v1 staat op main.
-  - AGENTS.md, AGENT_TASK.md en AGENT_RESULT.md bestaan.
-  - PROJECT_CONSTITUTION bevat het bindende Chat/Work/Codex-contract.
-  - PR #8 is gemerged.
-  - 32.4.60 wordt na deze smoke test hervat vanaf NAS-checkpoint; niet opnieuw ontwerpen of zomaar een ZIP bouwen.
-  - Bronwaarheid voor dat latere hervatpunt: App 59 / HA 59 / GitHub 59 / Processing leeg.
+  - Chat/Work/Codex bridge smoke test is COMPLETE_GREEN.
+  - PR #9 is open, mergeable en bewust ongemerged als bridge-evidence.
+  - Work PR-eventreview is actief en heeft aantoonbaar gedraaid.
+  - Codex bridge-probe gebruikte gpt-5.6-terra + medium zonder fallback.
+  - Huidige 32.4.60-basis volgens de vastgelegde checkpointwaarheid: App 59 / HA 59 / GitHub 59 / Processing leeg.
+  - De oude/rejected 60 is teruggetrokken en blijft bewijs; de vervangende 60 moet vanaf de NAS-handover worden hervat.
 - required_tests:
+  - WORK: bewijs dat alle drie NAS-bronnen werkelijk zijn gelezen; geen reconstructie uit herinnering.
+  - WORK: rapporteer het hoogste bewezen checkpoint en exact eerstvolgende open stap.
+  - WORK: controleer dat geen productie/NAS/HA-mutatie of ZIP-build plaatsvond tijdens hydratie.
   - CODEX MODEL GATE: effective model must be gpt-5.6-terra with medium reasoning; otherwise BLOCKED_MODEL_POLICY.
-  - WORK: read-back van alle verplichte files en aantoonbare GitHub write op aparte branch.
-  - CODEX: aantonen dat AGENTS.md vóór uitvoering is toegepast.
-  - CODEX: alleen tijdelijke docs-probe; geen source/test/runtime wijzigingen.
-  - PR-diff moet uitsluitend bridge-probe/resultaat bevatten.
-  - WORK-review van Codex-PR via event-trigger indien beschikbaar; anders expliciet BLOCKED op die capability, niet omzeilen.
+  - CODEX: geen uitvoering vóór Work de exacte NAS-handover heeft geladen en AGENT_TASK daarop is bijgewerkt.
 - acceptance_criteria:
-  - Work leest de persistente regels zonder dat Peter ze kopieert.
-  - Work kan een begrensde GitHub-resultaatwrite doen.
-  - Codex leest AGENTS.md en AGENT_TASK.md en respecteert scope.
-  - Codex opent een geïsoleerde PR zonder releasecodewijzigingen.
-  - Work kan de Codex-PR beoordelen via GitHub; event-trigger is GREEN indien beschikbaar, anders capability-blocker expliciet vastgelegd.
-  - Peter hoeft geen inhoud tussen Work en Codex te kopiëren.
+  - NAS-handover, NAS-ledger en rejected-60 evidence zijn exact geladen.
+  - Geen bewezen werk is opnieuw uitgevoerd.
+  - Geen ZIP is blind gebouwd.
+  - Het exacte hervatpunt is machine- en mensleesbaar vastgelegd.
+  - Daarna is de volgende taak begrensd genoeg voor Codex of expliciet als Work-only gemarkeerd.
 - stop_conditions:
-  - Elke vraag om productie/NAS/HA/restart/terminal.
-  - Elke poging 32.4.60 te wijzigen tijdens de smoke test.
-  - Ontbrekende of conflicterende projectwaarheid.
-  - Work of Codex kan GitHub niet lezen/schrijven.
+  - NAS-bronnen niet rechtstreeks bereikbaar of niet volledig leesbaar: BLOCKED_NAS_CHECKPOINT_ACCESS.
+  - Conflict tussen NAS-handover en repositorywaarheid: BLOCKED_SOURCE_CONFLICT.
+  - Elke vraag om productie/restart/terminal voordat de handover die stap expliciet vereist.
+  - Codex kan Terra + medium niet afdwingen: BLOCKED_MODEL_POLICY.
 - production_authority: NO
-- architecture_authority: YES
-- predecessor_artifact_required: NO
-- predecessor_artifact_identity: N/A
+- architecture_authority: NO
+- predecessor_artifact_required: AS_DEFINED_BY_NAS_HANDOVER
+- predecessor_artifact_identity: MUST_BE_READ_FROM_NAS_HANDOVER
 - checkpoint_writeback_required: YES
 
-## NAS-resume na succesvolle koppeling
-Na volledige GREEN smoke test wordt deze bridge-taak afgesloten en wordt 32.4.60 hervat vanaf:
-- Data/03_Systeem/Projectmanager/CURRENT_HANDOVER_32_4_60_WORK_CODEX.md
-- Data/03_Systeem/Projectmanager/WORK_LEDGER_32_4_60.md
-- volledige rejected-60 evidence
-
-Niet opnieuw beginnen. Niet eerst zomaar een ZIP bouwen.
+## Bindende hervatregel
+Niet opnieuw beginnen. Niet eerst zomaar een ZIP bouwen. NAS-handover is voor 32.4.60 de technische bronwaarheid.
