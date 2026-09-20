@@ -7,7 +7,7 @@ Schema: v1
 - executor: WORK_AND_CODEX
 - status: BLOCKED_EVENT_TRIGGER_DELIVERY
 - branch: codex/agent-bridge-smoke-2026-09-20
-- commit: pending final result write/read-back
+- commit: remote PR head verified after final result write
 - pull_request: https://github.com/kgnfn65498-droid/EnergieProject/pull/9
 - changed_files: CODEX_BRIDGE_PROBE.md; AGENT_RESULT.md
 - root_cause: GitHub PR-event automation is available, created and enabled, but no run was registered after PR #9 opened within the observed verification window.
