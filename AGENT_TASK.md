@@ -3,71 +3,81 @@
 Status: ACTIVE
 Schema: v1
 
-- task_id: RELEASE-32.4.60-RESUME-2026-09-20
-- release: 32.4.60
+- task_id: INCOMING-CHAIN-32.4.59-PUBLISHER-FIX-2026-09-20
+- release: 32.4.59-PUBLISHER-FIX
 - mode: DEVELOPMENT
 - reasoning: HOOG
 - work_model: SOL-LIGHT
 - usage_guard: CONSERVE
 - usage_signal: 35% remaining reported by Peter; <=50% conserve mode active
 - max_parallel_codex_runs: 1
-- usage_execution_rule: one bounded active task only; no new broad research phase; checkpoint before any next large phase
+- usage_execution_rule: one bounded active task only; no broad re-analysis; checkpoint before each next large phase
 - duplicate_pr_head_review: FORBIDDEN
 - codex_model: gpt-5.6-terra
 - codex_reasoning: medium
 - codex_plan_reasoning: medium
 - codex_model_fallback: FORBIDDEN
-- step: 1/2
+- step: 1/3
 - owner: WORK
-- goal: Hervat de vervangende 32.4.60 exact vanaf het bewezen NAS-checkpoint na de geslaagde Chat/Work/Codex-koppeling. Begin niet opnieuw.
+- goal: Maak eerst de bestaande Incoming-keten structureel werkend door de minimale noodzakelijke publisher-correctie op de werkelijk actieve 32.4.59-voorganger te ontwikkelen en volledig te verifiëren. Replacement 32.4.60 blijft daarna pas aan de beurt.
 - scope:
-  1. Lees eerst AGENTS.md, PROJECT_CONSTITUTION.md, CURRENT_HANDOVER.md en WORK_LEDGER.md.
-  2. Laad daarna exact de persistente NAS-bronnen:
-     - Data/03_Systeem/Projectmanager/CURRENT_HANDOVER_32_4_60_WORK_CODEX.md
-     - Data/03_Systeem/Projectmanager/WORK_LEDGER_32_4_60.md
-     - volledige rejected-60 evidence
-  3. Bepaal op basis van die bronnen het hoogste bewezen 32.4.60-checkpoint en de eerstvolgende nog niet uitgevoerde stap.
-  4. Herhaal geen reeds bewezen onderzoek, tests of ontwerpwerk.
-  5. Bouw niet eerst zomaar een ZIP.
-  6. Schrijf na volledige bronhydratie het exacte hervatpunt terug naar AGENT_RESULT.md en update AGENT_TASK.md naar de werkelijke volgende ontwikkelstap/scope indien de NAS-handover dat voorschrijft.
-  7. Start Codex pas daarna en alleen wanneer de handover aantoonbaar codewerk vereist.
+  1. Hervat vanaf het reeds door Work geladen NAS-checkpoint en de rejected-60 evidence. Geen brede heranalyse.
+  2. Leg vóór codewijziging het bewezen blockercheckpoint duurzaam vast: actieve ongewijzigde 32.4.59-publisher kan alleen de actieve versie uit Processed publiceren en kan daardoor geen volgende candidate uit Processing publiceren vóór installatie.
+  3. Markeer commit 398b2aa expliciet als REJECTED/DO_NOT_USE omdat de test ten onrechte toekomstige aangepaste code als actieve 59-code gebruikte.
+  4. Behoud checkpoint a59780d als inhoudelijk hervatpunt waar beschikbaar; als die lokale commit niet meer bereikbaar is, reconstrueer alleen de bewezen checkpointfeiten uit de persistente NAS-evidence, niet het afgekeurde patchwerk.
+  5. Codex maakt op een geïsoleerde branch uitsluitend de minimale 32.4.59-publisherfix die een exact geverifieerde volgende release-candidate vanuit Processing kan publiceren binnen de bestaande ReleaseController-eigenaarschap en identity fencing.
+  6. TDD verplicht: eerst een regressietest die faalt tegen de werkelijk ongewijzigde 32.4.59-publisher, daarna minimale implementatie, daarna gerichte regressies.
+  7. Behoud bestaande invarianten: Incoming is release-authority; Processing blijft eigenaar van niet-voltooide candidate; Processed betekent COMPLETE; geen version-only GREEN; exacte release_id/generation/version/artifact SHA/target-manifest identiteit blijft verplicht.
+  8. Ontwerp GEEN release-onafhankelijke bootstrap-actuator, tweede publisher, tweede lifecycle-owner, rescueketen of parallel releasepad.
+  9. Na gerichte GREEN: relevante release/publisher regressiefamilies draaien, daarna volledige vereiste suite en fresh-extract volgens bestaand buildcontract.
+  10. Alleen als alle ontwikkel- en artifactgates GREEN zijn: maak een gecontroleerde 32.4.59 publisher-fix kandidaat klaar. NIET live installeren zonder nieuwe expliciete productieautoriteit van Peter.
+  11. Pas na gecontroleerde live installatie + bewezen Incoming E2E GREEN mag replacement 32.4.60 worden hervat vanaf het bestaande NAS-checkpoint.
 - do_not_change:
-  - productie/runtime/NAS/HA state tijdens checkpoint-hydratie
-  - bewezen rejected-60 evidence
-  - historische bewijsbestanden
-  - release-architectuur buiten wat de NAS-handover expliciet vereist
-  - modelbeleid
+  - replacement 32.4.60 implementatie zolang 59-publisherfix niet live bewezen is
+  - rejected-60 evidence
+  - historische regressie-evidence
+  - ReleaseController single-owner architectuur buiten de minimale publishercorrectie
+  - NAS/HA/productie tijdens ontwikkeling
+  - model- en Usage Guard-beleid
 - proven_facts:
-  - Chat/Work/Codex bridge smoke test is COMPLETE_GREEN.
-  - PR #9 is open, mergeable en bewust ongemerged als bridge-evidence.
-  - Work PR-eventreview is actief en heeft aantoonbaar gedraaid.
-  - Codex bridge-probe gebruikte gpt-5.6-terra + medium zonder fallback.
-  - Huidige 32.4.60-basis volgens de vastgelegde checkpointwaarheid: App 59 / HA 59 / GitHub 59 / Processing leeg.
-  - De oude/rejected 60 is teruggetrokken en blijft bewijs; de vervangende 60 moet vanaf de NAS-handover worden hervat.
+  - Peter heeft optie 1 expliciet gekozen: eerst afzonderlijke voorganger-/publisher-update voor 59; daarna replacement 60.
+  - Hoogste prioriteit is een werkelijk werkende Incoming-keten.
+  - NAS-checkpoints en volledige rejected-60 evidence zijn door Work geladen.
+  - De actieve ongewijzigde 32.4.59-publisher kan alleen de actieve versie uit Processed publiceren.
+  - Daardoor kan de huidige publisher geen 32.4.60-candidate uit Processing vóór installatie publiceren.
+  - De eerste voorgestelde repair/test gebruikte aangepaste toekomstige code alsof die al actief was in 59 en is daarom ongeldig.
+  - Commit 398b2aa is REJECTED en mag niet worden gebruikt.
+  - Laatste Work-checkpoint is a59780d; branch was op dat moment niet gepusht en er was geen PR.
+  - Geen ZIP, NAS-write, HA-write, Incoming-write, productieactie, restart of terminalactie vond bij die blocker plaats.
+  - Baseline vóór deze fix: App 59 / HA 59 / GitHub 59 / Processing leeg.
 - required_tests:
-  - USAGE GATE: reuse existing evidence; no broad re-analysis, no duplicate unchanged-head review, no parallel subagents.
-  - WORK: bewijs dat alle drie NAS-bronnen werkelijk zijn gelezen; geen reconstructie uit herinnering.
-  - WORK: rapporteer het hoogste bewezen checkpoint en exact eerstvolgende open stap.
-  - WORK: controleer dat geen productie/NAS/HA-mutatie of ZIP-build plaatsvond tijdens hydratie.
-  - CODEX MODEL GATE: effective model must be gpt-5.6-terra with medium reasoning; otherwise BLOCKED_MODEL_POLICY.
-  - CODEX: geen uitvoering vóór Work de exacte NAS-handover heeft geladen en AGENT_TASK daarop is bijgewerkt.
+  - USAGE GATE: hergebruik geladen evidence; geen brede heranalyse; geen parallelle subagents; één Codex-lijn.
+  - RED: reproduceer met werkelijk ongewijzigde 32.4.59-publisher dat een exact geldige next-release candidate in Processing niet gepubliceerd kan worden.
+  - GREEN: minimale publisherfix maakt exact die case mogelijk zonder Processed/COMPLETE-semantiek te verzwakken.
+  - NEGATIVE: foreign/unproven/stale candidate blijft fail-closed.
+  - IDENTITY: release_id, generation, version, artifact SHA en target-manifest SHA blijven exact gefenced.
+  - OWNERSHIP: geen tweede lifecycle-owner/publisherpad.
+  - REGRESSION: bestaande 32.4.59 publisher/releasecontroller en relevante historische releasefamilies blijven GREEN.
+  - ARTIFACT: canonical build + fresh-extract gates uitsluitend nadat source/regressions GREEN zijn.
+  - CODEX MODEL GATE: gpt-5.6-terra + medium; anders BLOCKED_MODEL_POLICY.
 - acceptance_criteria:
-  - NAS-handover, NAS-ledger en rejected-60 evidence zijn exact geladen.
-  - Geen bewezen werk is opnieuw uitgevoerd.
-  - Geen ZIP is blind gebouwd.
-  - Het exacte hervatpunt is machine- en mensleesbaar vastgelegd.
-  - Daarna is de volgende taak begrensd genoeg voor Codex of expliciet als Work-only gemarkeerd.
+  - Root cause is met ongewijzigde 32.4.59-code RED bewezen.
+  - 398b2aa wordt nergens als buildbasis of oplossing gebruikt.
+  - Minimale publisherfix is gericht GREEN en bewaart alle identity/ownership/Processing-invarianten.
+  - Vereiste regressies + fresh-extract zijn GREEN.
+  - Er is hoogstens een gecontroleerde publisher-fix kandidaat; geen live installatie zonder expliciete goedkeuring.
+  - Na latere live installatie moet een echte Incoming E2E aantonen dat volgende-release-publicatie werkt voordat 32.4.60 hervat.
 - stop_conditions:
-  - UI/Peter reports <=25% remaining session/week budget before a new large phase: checkpoint and STOP unless Peter explicitly authorizes continued spend.
-  - NAS-bronnen niet rechtstreeks bereikbaar of niet volledig leesbaar: BLOCKED_NAS_CHECKPOINT_ACCESS.
-  - Conflict tussen NAS-handover en repositorywaarheid: BLOCKED_SOURCE_CONFLICT.
-  - Elke vraag om productie/restart/terminal voordat de handover die stap expliciet vereist.
+  - UI/Peter reports <=25% remaining before a new large phase: checkpoint and STOP unless Peter explicitly authorizes continued spend.
+  - Fix vereist alsnog een tweede releasepad/bootstrap-actuator of bredere architectuurwijziging: BLOCKED_SCOPE_EXPANSION.
+  - Exacte 32.4.59 buildbasis/identity ontbreekt: BLOCKED_PREDECESSOR_IDENTITY.
+  - Productie-installatie/restart/recreate/NAS live mutation nodig: STOP_FOR_PRODUCTION_APPROVAL.
   - Codex kan Terra + medium niet afdwingen: BLOCKED_MODEL_POLICY.
 - production_authority: NO
-- architecture_authority: NO
-- predecessor_artifact_required: AS_DEFINED_BY_NAS_HANDOVER
-- predecessor_artifact_identity: MUST_BE_READ_FROM_NAS_HANDOVER
+- architecture_authority: YES_LIMITED_TO_EXISTING_59_PUBLISHER_FIX
+- predecessor_artifact_required: YES
+- predecessor_artifact_identity: MUST_USE_EXACT_VERIFIED_32.4.59_BASIS_FROM_NAS_HANDOVER
 - checkpoint_writeback_required: YES
 
-## Bindende hervatregel
-Niet opnieuw beginnen. Niet eerst zomaar een ZIP bouwen. NAS-handover is voor 32.4.60 de technische bronwaarheid.
+## Bindend besluit
+Incoming-keten werkend krijgen is nu prioriteit 1. Replacement 32.4.60 wordt niet verder gebouwd totdat de actieve 32.4.59-publishercorrectie gecontroleerd is ontwikkeld, getest en later met expliciete productieautoriteit live bewezen is.
