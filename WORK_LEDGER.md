@@ -1,3 +1,12 @@
+## 2026-09-20 — Chat/Work/Codex bridge smoke COMPLETE_GREEN
+- PR #9 is open, mergeable and intentionally unmerged as durable bridge evidence.
+- Work step 1/2 GREEN: mandatory repository files read autonomously; isolated GitHub write/read-back proven.
+- Codex step 2/2 GREEN: AGENTS.md applied before execution; gpt-5.6-terra + medium used; no fallback.
+- PR #9 complete diff contains only AGENT_RESULT.md and CODEX_BRIDGE_PROBE.md; no source/tests/32.4.60/runtime/NAS/HA/production changes.
+- GitHub PR-event Work review is enabled and has registered a successful run after the Codex PR update.
+- No Peter terminal, restart, protected production action or manual transport of project content was required.
+- Bridge smoke is closed. Next active work is 32.4.60 resume from exact NAS checkpoint sources; do not restart research or blindly build a ZIP.
+
 ## 2026-09-20 — Agent bridge v1
 - Peter gaf expliciet akkoord voor de Chat/Spock → Work → Codex architectuurlaag.
 - `AGENTS.md`, `AGENT_TASK.md` en `AGENT_RESULT.md` toegevoegd op geïsoleerde branch `agent-bridge-v1`.
