@@ -30,3 +30,10 @@ Only `EnergieProject_v32.4.58_repo_hotfix_final.zip` SHA256 `c9d67b5aec5e800a5db
 5. Only after explicit production authorization: final 59 ZIP to Incoming and live E2E.
 
 No production action, restart, manual JSON edit or terminal by Peter occurred during development.
+
+
+## Agent bridge v1
+- Losse development-branch: `agent-bridge-v1`; geen productie- of releasecode gewijzigd.
+- Nieuwe contractfiles: `AGENTS.md`, `AGENT_TASK.md`, `AGENT_RESULT.md`.
+- Doel: persistente Chat/Spock → Work → Codex overdracht zonder Peter als transportlaag.
+- Branch blijft gescheiden van main totdat read-back/self-audit en PR-controle GREEN zijn.
