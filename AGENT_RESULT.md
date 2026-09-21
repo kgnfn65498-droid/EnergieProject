@@ -33,3 +33,11 @@ Schema: v1
 - python compile: GREEN
 - patch_sha256_excluding_coordination_docs: a9e2afd2d53e92cf14682460560c34b59443fcd7def46a62ea52d1300b8eea3e
 - note: local commit IDs are local evidence only; Work must create repository commit on its own branch.
+
+## Executable branch handoff
+- branch: platformtest-executor-v1
+- draft_pr: 10
+- head_sha: 33f0788b479600ffe39e978df7168991dc5d26d7
+- status: SOURCE_IMPLEMENTATION_READY_FOR_WORK_TEST
+- next_action: Work tests/fixes PR #10 branch autonomously. Do not probe live QNAP for the missing executor in this phase.
+- valid_next_stop: STOP_FOR_PLATFORMTEST_DEPLOY_APPROVAL after source/tests GREEN, or a genuine code/safety blocker proven on PR #10.
