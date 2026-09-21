@@ -82,3 +82,13 @@ Geen succesclaim zonder read-back/verificatie van de geschreven toestand.
 - Bij een blocker wordt eerst vastgesteld of het een echte technische/safety blocker is of een fout/tegenstrijdigheid in de taakdefinitie.
 - Na elke taakwijziging volgt read-back van de effectieve AGENT_TASK voordat Work/Codex opnieuw wordt gestart.
 - Reeds bewezen werk wordt niet opnieuw uitgevoerd door een coördinatiefout.
+
+
+## Autonome doorwerkregel
+- Work/Codex-runs stoppen niet voor gewone voortgangsrapportage, checkpointing of een ontbrekende capability die juist binnen de actieve taak gebouwd moet worden.
+- Een checkpoint is persistente opslag, geen stopmoment.
+- Na iedere geslaagde substap gaat de agent automatisch door naar de volgende substap.
+- Stop alleen bij: expliciet vereiste protected-action approval, aantoonbare scope/safety blocker, model-policy blocker, ontbrekende harde bron/artifact die niet uit bestaande toegestane bronnen kan worden verkregen, of fase COMPLETE.
+- "Niet geïnstalleerd" is geen blocker wanneer de actieve taak precies is om die capability te implementeren.
+- Voor iedere BLOCKED-uitkomst voert de agent eerst een contradiction/self-causation check uit: als de blokkade door AGENT_TASK/AGENTS-formulering zelf ontstaat, corrigeert hij de interpretatie binnen doel en safety boundaries en gaat door.
+- Peter is nooit de technische transportlaag tussen Chat, Work en Codex.
