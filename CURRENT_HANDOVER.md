@@ -111,3 +111,11 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 - `WORK_KNOWLEDGE_BOOTSTRAP.md` is toegevoegd als retrievalcontract.
 - Voor 32.4.60 voert Work vóór code een eenmalige KB-inventaris uit via Master Index + Development Manifest en maakt daarna een taakgerichte readset.
 - Historische lessons zijn ontwerp-/regressieconstraint; actuele handover/live runtime blijft statusautoriteit.
+
+
+## 2026-09-21 — les uit 29da2de: executor-readiness vóór handoff
+- Work stopte correct omdat de platformruntime de full suite vóór processtart blokkeerde; een indirecte route was eveneens verboden.
+- Regiefout zat vóór de handoff: Spock had niet bewezen dat de gekozen Work-runtime alle verplichte fasen daadwerkelijk mocht uitvoeren.
+- Nieuwe permanente regel: vóór grote Work-handoff wordt per fase een EXECUTOR_READINESS_MATRIX bewezen.
+- Niet alleen testcode/offline guard, maar ook host/platformpolicy, artifacttoegang, output/build/fresh-extract en audit/readback moeten vooraf GREEN zijn.
+- Zolang één noodzakelijke pre-protected fase BLOCKED is, blijft Spock eigenaar van de voorbereiding en krijgt Work geen nieuwe 'Verder'-opdracht.
