@@ -28,8 +28,10 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check             "pytest>=8,<10"             "reportlab>=4.4,<5"             "pypdf>=5,<6"             "PyYAML>=6,<7"             "websocket-client>=1.8,<2"             "XlsxWriter>=3,<4"
 
-      - name: Prove repository offline guard in parent and child Python
+      - name: Install fail-closed offline guard at interpreter startup
         run: |
+          SITE_DIR="$(python -c 'import site; print(site.getsitepackages()[0])')"
+          printf "import sys; sys.path.insert(0, r'%s'); import offline_test_guard; offline_test_guard.install_offline_guard()\n" "$GITHUB_WORKSPACE" > "$SITE_DIR/energie_offline_guard.pth"
           python - <<'PY'
           import socket, subprocess, sys
           assert getattr(socket.socket.connect, "_energie_offline_guard", False) is True
@@ -69,6 +71,12 @@ jobs:
           test -f /tmp/energie_fresh_extract/MANIFEST.sha256
           test -f /tmp/energie_fresh_extract/SHA256SUMS.json
           echo FRESH_EXTRACT_CREATED
+
+      - name: Rebind offline guard to fresh extract
+        run: |
+          SITE_DIR="$(python -c 'import site; print(site.getsitepackages()[0])')"
+          printf "import sys; sys.path.insert(0, r'%s'); import offline_test_guard; offline_test_guard.install_offline_guard()\n" "/tmp/energie_fresh_extract" > "$SITE_DIR/energie_offline_guard.pth"
+          PYTHONPATH=/tmp/energie_fresh_extract python -c "import socket; assert getattr(socket.socket.connect, '_energie_offline_guard', False) is True; print('FRESH_OFFLINE_GUARD_GREEN')"
 
       - name: Full fresh-extract pytest suite
         working-directory: /tmp/energie_fresh_extract
