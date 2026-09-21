@@ -97,3 +97,11 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 - Bundle candidate 33bea325 is not a full 60 identity, but its PUBLISHING/pre-target publication fix and offline guard are mandatory ingredients of the real 60.
 - Work must merge those with the exact existing NAS replacement-60 handover/ledger and produce one coherent 32.4.60 artifact.
 - Once fully GREEN, use one bounded Work+terminal bootstrap only to cross the old live-59 bootstrap boundary; then standard autonomous Incoming must take over permanently.
+
+## 2026-09-21 — stille autonome 60-uitvoering
+- Peter wil geen voortgangscommentaar of vijfminuten-stops meer.
+- Spock doet alle voorbereiding vóór Work-handoff.
+- Work is daarna end-to-end owner en laat Codex zelfstandig codeproblemen oplossen; checkpoints zijn persistent maar stil.
+- Peter wordt pas geroepen bij echte blocker, protected production approval, of eindresultaat.
+- 32.4.60 krijgt vóór bootstrap een Work self-audit, daarna onafhankelijke Spock-audit en daarna één bounded Codex-audit als Usage Guard dit toelaat.
+- Na bootstrap-approval blijft Work doorlopen tot exact live E2E GREEN tot en met GitHub + HA + COMPLETE.
