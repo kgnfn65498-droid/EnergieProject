@@ -1,3 +1,11 @@
+## 2026-09-21 — Narrow platformtest_run architecture approved
+- Peter explicitly authorized one narrow platformtest_run intent in the existing standard QNAP handoff/control path.
+- Approval is test-only and fail-closed; it is not a generic Docker, shell, NAS, HA or production capability.
+- Mandatory fences: existing approved test image/runtime only; hard no-network isolation; exact candidate/test identity; isolated ephemeral workspace; immutable result evidence; no production/runtime/HA/Incoming/Processed writes; no restart/recreate/reboot; no host python; no generic command passthrough; no privilege broadening.
+- Existing watcher_recreate and native_mcp_reload behavior must remain unchanged and unreachable from platformtest_run.
+- Latest safe blocker checkpoint remains 96aae268403aadf737b68a76228f5d0e3e6760b4; candidate identity remains 33bea32534c5114aefe822afe252a6555bc55e58.
+- After capability TDD/regressions GREEN, resume the same platform-isolated full suite; do not repeat offline-guard work.
+
 ## 2026-09-21 — Standard QNAP handoff blocked: platformtest intent missing
 - Work stopped at checkpoint 96aae268403aadf737b68a76228f5d0e3e6760b4 before full-suite execution.
 - Candidate transfer identity remains 33bea32534c5114aefe822afe252a6555bc55e58.
