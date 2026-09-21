@@ -62,3 +62,11 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 - Hard boundaries: approved test image/runtime only; no network; exact candidate/test identity; ephemeral isolated workspace; immutable evidence output; no production/runtime/HA/Incoming/Processed write; no restart/recreate/reboot; no generic shell/docker passthrough; no host python; no privilege broadening.
 - Latest safe blocker checkpoint before implementation: `96aae268403aadf737b68a76228f5d0e3e6760b4`.
 - Once the narrow capability is TDD/regression GREEN, resume the existing full-suite checkpoint directly and do not repeat already-proven offline-guard work.
+
+## 2026-09-21 — platformtest intent must be activated, not merely coded
+- Candidate inspection confirmed current live-source contract: control_plane.py allowlists only watcher_recreate/native_mcp_reload and process_once has no platformtest consumer.
+- The existing energie-control-plane loads the synced mounted Python source at process start.
+- Therefore Work must not retry the QNAP platform full-suite until the capability has been implemented, synced to the canonical ControlPlane source, and loaded by the existing control-plane with exact fingerprint read-back.
+- Build/test of the capability is authorized. Live source-sync/restart is still protected and requires a separate explicit Peter approval.
+- Canonical activation route, after approval: existing control_plane_source_sync + tools/control_plane_bootstrap.ensure_control_plane_current(), at most one restart of the existing energie-control-plane, then health/fingerprint + platformtest preflight.
+- Only after PLATFORMTEST_INTENT_LIVE_GREEN resume Work checkpoint ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e and candidate 33bea32534c5114aefe822afe252a6555bc55e58.
