@@ -1,3 +1,13 @@
+## 2026-09-21 — Restored original plan: one combined real 32.4.60
+- Separate same-version 32.4.59 publisher hotfix is abandoned; its rejection was correct because live and candidate were both 32.4.59.
+- Candidate 33bea325 was inspected directly: it is still version 32.4.59, but it already contains the required PUBLISHING/pre-target publisher correction plus repository offline guard.
+- Those changes now become part of the real replacement 32.4.60.
+- Work must additionally load and apply the exact saved 32.4.60 NAS handover/ledger and rejected-60 evidence; do not reconstruct/re-research.
+- Final development path: combined 60 -> full suite -> canonical build -> exact fresh-extract -> validated EnergieProject_v32.4.60.zip.
+- Then one explicitly approved, bounded Work+terminal bootstrap may be used once to cross the live-59 chicken-and-egg boundary. It is not a permanent alternate route.
+- After 60 is live, the standard Incoming/ReleaseController/GitHub/HA chain must be autonomous again.
+- Previously planned replacement 60 is NOT renamed to 61; 60 remains the target containing all required fixes.
+
 ## 2026-09-21 — Rejected cause proven: same-version preflight
 - Exact rejected 32.4.59 publisher-fix artifact reproduces BLOCKED candidate_version_not_newer against current App 32.4.59.
 - Incoming itself did what the standard controller requires; no alternate ingress is needed.
