@@ -6,6 +6,7 @@ import hashlib
 import http.client
 import json
 import os
+import re
 import socket
 import time
 from datetime import datetime, timezone
@@ -13,12 +14,18 @@ from pathlib import Path
 from urllib.parse import quote, urlencode
 from control_plane_release_bridge import authorize_release_native_reconcile, authorize_release_native_request, release_result_fields
 
-ALLOWED_ACTIONS = {'watcher_recreate', 'native_mcp_reload'}
+ALLOWED_ACTIONS = {'watcher_recreate', 'native_mcp_reload', 'platformtest_run'}
 WATCHER_CONTAINER = 'energie-release-watcher'
 MCP_CONTAINER = 'energie-filesystem-mcp'
 WATCHER_IMAGE = 'python:3.12-slim'
 WATCHER_COMMAND = ['sh', '/energy/App/tools/release_watcher.sh']
 WATCHER_CAPS = ['DAC_OVERRIDE', 'DAC_READ_SEARCH', 'FOWNER']
+PLATFORMTEST_IMAGE = 'energie-filesystem-mcp:runtime-v1'
+PLATFORMTEST_PROFILE = 'publisher_full_suite_v1'
+PLATFORMTEST_COMMAND = ['python3', '-m', 'pytest', '-q', '-p', 'no:cacheprovider']
+PLATFORMTEST_REQUEST_SCHEMA = 'energie_platformtest_run_request_v1'
+PLATFORMTEST_RESULT_SCHEMA = 'energie_platformtest_run_result_v1'
+PLATFORMTEST_TIMEOUT_SECONDS = 3 * 60 * 60
 RUNTIME_FINGERPRINT_FILES = ('control_plane.py', 'qnap_control_plane_bootstrap.py', 'control_plane_release_bridge.py', 'release_scoped_auth.py')
 
 def _loaded_runtime_fingerprint() -> str:
@@ -73,6 +80,19 @@ class DockerUnixClient:
         finally:
             conn.close()
 
+    def _request_raw(self, method: str, path: str, *, ok=(200, 201, 204), timeout: float | None = None):
+        conn = _UnixHTTPConnection(self.socket_path, self.timeout if timeout is None else float(timeout))
+        try:
+            conn.request(method, path, body=None, headers={})
+            response = conn.getresponse()
+            raw = response.read()
+            if response.status not in ok:
+                detail = raw.decode('utf-8', errors='replace')[:1000]
+                raise RuntimeError(f'Docker Engine HTTP {response.status}: {detail}')
+            return raw
+        finally:
+            conn.close()
+
     def ping(self):
         conn = _UnixHTTPConnection(self.socket_path, self.timeout)
         try:
@@ -120,6 +140,11 @@ class DockerUnixClient:
     def restart_container(self, name: str, timeout: int = 30):
         safe = quote(name, safe='')
         return self._request('POST', f'/containers/{safe}/restart?t={int(timeout)}', ok=(204,))
+
+    def container_logs(self, name: str) -> str:
+        safe = quote(name, safe='')
+        raw = self._request_raw('GET', f'/containers/{safe}/logs?stdout=1&stderr=1', ok=(200,))
+        return raw.decode('utf-8', errors='replace')
 
 
 def _load_json(path: Path) -> dict:
@@ -237,6 +262,83 @@ def load_control_plane_native_request(inbox: Path, approved_queue: Path):
     if str(approval.get('command_id') or '').strip() != command_id:
         raise RuntimeError('control-plane native MCP command/approval mismatch')
     return request, approval
+
+
+def load_platformtest_request(inbox: Path) -> dict:
+    request = _load_json(Path(inbox) / 'control_plane' / 'requests' / 'platformtest_run.json')
+    allowed = {'schema', 'request_id', 'action', 'candidate_sha', 'test_profile'}
+    if set(request) != allowed:
+        raise RuntimeError('platformtest request bevat onbekende/ontbrekende velden')
+    if request.get('schema') != PLATFORMTEST_REQUEST_SCHEMA:
+        raise RuntimeError('platformtest request schema ongeldig')
+    if request.get('action') != 'platformtest_run':
+        raise RuntimeError('platformtest action ongeldig')
+    request_id = str(request.get('request_id') or '').lower()
+    candidate = str(request.get('candidate_sha') or '').lower()
+    profile = str(request.get('test_profile') or '')
+    if len(request_id) != 32 or any(ch not in '0123456789abcdef' for ch in request_id):
+        raise RuntimeError('platformtest request_id ongeldig')
+    if len(candidate) != 40 or any(ch not in '0123456789abcdef' for ch in candidate):
+        raise RuntimeError('platformtest candidate_sha ongeldig')
+    if profile != PLATFORMTEST_PROFILE:
+        raise RuntimeError('platformtest profile niet toegestaan')
+    return request
+
+
+def platformtest_create_payload(host_project_root: str, request: dict) -> dict:
+    host_root = str(host_project_root).rstrip('/')
+    if host_root != '/share/Energie_NAS/EnergieProject':
+        raise RuntimeError('onverwachte host project-root')
+    candidate = str(request['candidate_sha']).lower()
+    workspace = f'{host_root}/Data/03_Systeem/Projectmanager/Staging/PlatformTest/{candidate}'
+    return {
+        'Image': PLATFORMTEST_IMAGE,
+        'Cmd': list(PLATFORMTEST_COMMAND),
+        'WorkingDir': '/workspace',
+        'Tty': True,
+        'Labels': {
+            'com.energie.component': 'platformtest',
+            'com.energie.request_id': str(request['request_id']),
+            'com.energie.candidate_sha': candidate,
+            'com.energie.test_profile': PLATFORMTEST_PROFILE,
+        },
+        'HostConfig': {
+            'Binds': [f'{workspace}:/workspace:ro'],
+            'NetworkMode': 'none',
+            'ReadonlyRootfs': True,
+            'CapDrop': ['ALL'],
+            'SecurityOpt': ['no-new-privileges'],
+            'Tmpfs': {'/tmp': 'rw,noexec,nosuid,nodev,size=256m'},
+            'AutoRemove': False,
+        },
+    }
+
+
+def _pytest_counts(logs: str) -> dict:
+    counts = {'passed': 0, 'failed': 0, 'skipped': 0, 'errors': 0}
+    patterns = {
+        'passed': r'(\d+) passed',
+        'failed': r'(\d+) failed',
+        'skipped': r'(\d+) skipped',
+        'errors': r'(\d+) error(?:s)?',
+    }
+    for key, pattern in patterns.items():
+        matches = re.findall(pattern, logs or '', flags=re.IGNORECASE)
+        if matches:
+            counts[key] = int(matches[-1])
+    return counts
+
+
+def terminal_result(result_path: Path, request_id: str) -> bool:
+    try:
+        result = _load_json(Path(result_path))
+    except Exception:
+        return False
+    return (
+        str(result.get('request_id') or '') == str(request_id)
+        and result.get('status') in {'GREEN', 'RED'}
+    )
+
 
 def watcher_create_payload(host_project_root: str) -> dict:
     host_root = str(host_project_root).rstrip('/')
@@ -504,6 +606,81 @@ class ControlPlane:
         })
         return self._write_native_result(result)
 
+    def run_platformtest(self) -> dict:
+        request = load_platformtest_request(self.inbox)
+        request_id = str(request['request_id'])
+        candidate = str(request['candidate_sha']).lower()
+        container = f'energie-platformtest-{request_id[:12]}'
+        result_path = self.result_root / 'results' / 'platformtest_run.json'
+
+        self.docker.ping()
+        self.docker.inspect_image(PLATFORMTEST_IMAGE)
+        if self.docker.inspect_container(container) is not None:
+            raise RuntimeError('platformtest containernaam is al bezet; fail-closed')
+
+        payload = platformtest_create_payload(self.host_project_root, request)
+        created = False
+        logs = ''
+        exit_code = None
+        error = None
+        cleanup_ok = False
+        try:
+            self.docker.create_container(container, payload)
+            created = True
+            self.docker.start_container(container)
+            deadline = time.monotonic() + PLATFORMTEST_TIMEOUT_SECONDS
+            while time.monotonic() < deadline:
+                self._write_runtime_marker()
+                info = self.docker.inspect_container(container)
+                if not isinstance(info, dict):
+                    raise RuntimeError('platformtest container verdween voor readback')
+                state = info.get('State') if isinstance(info.get('State'), dict) else {}
+                if state.get('Running') is not True:
+                    exit_code = int(state.get('ExitCode') if state.get('ExitCode') is not None else -1)
+                    break
+                time.sleep(1.0)
+            else:
+                error = 'platformtest timeout'
+            try:
+                logs = self.docker.container_logs(container)
+            except Exception as exc:
+                if error is None:
+                    error = f'platformtest logs readback failed: {type(exc).__name__}:{exc}'
+        except Exception as exc:
+            error = f'{type(exc).__name__}:{exc}'
+        finally:
+            if created:
+                try:
+                    self.docker.remove_container(container, force=True)
+                    cleanup_ok = True
+                except Exception as exc:
+                    cleanup_ok = False
+                    if error is None:
+                        error = f'platformtest cleanup failed: {type(exc).__name__}:{exc}'
+
+        ok = exit_code == 0 and error is None and cleanup_ok
+        result = {
+            'schema': PLATFORMTEST_RESULT_SCHEMA,
+            'action': 'platformtest_run',
+            'request_id': request_id,
+            'candidate_sha': candidate,
+            'test_profile': PLATFORMTEST_PROFILE,
+            'image': PLATFORMTEST_IMAGE,
+            'container': container,
+            'network_mode': 'none',
+            'exit_code': exit_code,
+            'test_counts': _pytest_counts(logs),
+            'logs_sha256': hashlib.sha256(logs.encode('utf-8', errors='replace')).hexdigest(),
+            'production_modified': False,
+            'container_removed': cleanup_ok,
+            'status': 'GREEN' if ok else 'RED',
+            'ok': ok,
+            'error': error,
+            'finished_at': datetime.now(timezone.utc).isoformat(),
+        }
+        _atomic_json(result_path, result)
+        return result
+
     def _write_runtime_marker(self) -> None:
         now = time.time()
         _atomic_json(self.inbox / 'control_plane' / 'runtime.json', {
@@ -583,6 +760,28 @@ class ControlPlane:
                     _atomic_json(native_result, {
                         'schema':'energie_control_plane_result_v1','action':'native_mcp_reload',
                         'status':'RED','ok':False,'error':str(exc)
+                    })
+        platformtest_request = self.inbox / 'control_plane' / 'requests' / 'platformtest_run.json'
+        if platformtest_request.is_file() and not platformtest_request.is_symlink():
+            platformtest_result = self.result_root / 'results' / 'platformtest_run.json'
+            request_probe = _optional_json(platformtest_request)
+            request_id = str(request_probe.get('request_id') or '')
+            if request_id and not terminal_result(platformtest_result, request_id):
+                try:
+                    results.append(self.run_platformtest())
+                except RuntimeError as exc:
+                    _atomic_json(platformtest_result, {
+                        'schema': PLATFORMTEST_RESULT_SCHEMA,
+                        'action': 'platformtest_run',
+                        'request_id': request_id,
+                        'candidate_sha': str(request_probe.get('candidate_sha') or '').lower(),
+                        'test_profile': str(request_probe.get('test_profile') or ''),
+                        'network_mode': 'none',
+                        'production_modified': False,
+                        'status': 'RED',
+                        'ok': False,
+                        'error': str(exc),
+                        'finished_at': datetime.now(timezone.utc).isoformat(),
                     })
         return results
 
