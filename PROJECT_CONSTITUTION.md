@@ -71,3 +71,13 @@ Daarna uitsluitend aanvullende runtime-evidence die voor de eerstvolgende stap n
 - Reviews zijn head-SHA-idempotent: dezelfde onveranderde PR-head krijgt niet opnieuw een volledige agentreview.
 - Bij door UI/Peter gemelde budgetdruk gelden de drempels uit AGENTS.md. Agents gokken nooit naar resterende quota.
 - Budgetbesparing mag testwaarheid, releaseveiligheid of verplichte regressies niet omzeilen; in dat geval checkpointen en stoppen.
+
+
+## Executor-readiness vóór Work-handoff
+- Spock/Chat mag een grote Work-taak pas overdragen nadat voor ELKE verplichte uitvoerfase aantoonbaar is vastgesteld dat de toegewezen executor die fase daadwerkelijk mag en kan uitvoeren.
+- Een plan of instructie is geen bewijs van uitvoerbaarheid. Vereist bewijs omvat waar relevant: tool/capability beschikbaar, artifact/read access, branch/ref access, platform policy toegestaan, netwerkgrenzen, test-runner toegestaan, build/output-opslag mogelijk, fresh-extract mogelijk, audit/readback mogelijk en protected-action boundary correct gemarkeerd.
+- Deze controle gebeurt vóór de handoff, niet pas nadat Work midden in de taak vastloopt.
+- Voor elke grote taak wordt een machine-/mensleesbare `EXECUTOR_READINESS_MATRIX` bijgehouden met minimaal: fase, executor, vereiste capability, bewijs, status GREEN/BLOCKED, fallback die NIET als veiligheidsomweg geldt, en protected approval JA/NEE.
+- Work mag alleen starten wanneer alle vóór de eerstvolgende protected boundary benodigde rijen GREEN zijn.
+- Als één verplichte rij BLOCKED is, blijft Spock eigenaar van het voorbereidend probleem en wordt Work niet gestart met de verwachting dat Work een platform-/toegangsbeperking zelf oplost.
+- Een platform-policyblocker mag nooit worden opgelost door een omweg, indirecte herstart, guard-verzwakking of een nieuwe executorroute die uitsluitend is bedoeld om dezelfde beveiliging te omzeilen.
