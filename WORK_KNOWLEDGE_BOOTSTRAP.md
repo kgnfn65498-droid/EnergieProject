@@ -83,6 +83,13 @@ Historische lessons zijn ontwerp- en regressieconstraints; actuele handover/runt
 19. Een normale release moet uiteindelijk zijn: ZIP -> Incoming -> één ReleaseController -> install/rollback primitive -> runtime-align -> verify -> ACCEPTED -> GitHub/HA delivery -> COMPLETE.
 20. Projectkennis bewaart niet alleen wat is besloten, maar ook waarom, welke alternatieven zijn verworpen, welke gevolgen gelden en welke open acties blijven.
 
+21. **Executor-readiness is een releasevoorwaarde vóór Work-handoff.** Vanaf checkpoint 29da2de is bewezen dat een inhoudelijk correcte taak alsnog onuitvoerbaar kan zijn doordat de Work-platformpolicy de verplichte full suite vóór processtart blokkeert. Spock moet daarom vóór overdracht elke verplichte fase tegen de echte executor/tool/policy valideren.
+22. **"De offline guard bestaat" is niet hetzelfde als "de platformruntime accepteert de test".** Zowel code-level safety als platform-level execution permission moeten afzonderlijk GREEN zijn.
+23. **Een blocker die voorspelbaar was uit capability/policy hoort bij voorbereiding, niet bij uitvoering.** Work mag niet als ontdekkingsmechanisme worden gebruikt voor toegangs-, executor- of sandboxbeperkingen die vooraf te testen zijn.
+24. **Fallbacks worden vooraf geclassificeerd.** Een veilige alternatieve executor mag alleen als hij vooraf contractueel is toegestaan; een route die enkel de platformbeveiliging omzeilt is verboden.
+25. **Handoff-readiness moet machineleesbaar zijn.** Een `EXECUTOR_READINESS_MATRIX` voorkomt dat sessies opnieuw moeten interpreteren of een fase werkelijk uitvoerbaar is.
+
+
 ## Work retrieval-procedure
 Bij start van een grote release-/architectuurtaak:
 1. Lees AGENTS.md, PROJECT_CONSTITUTION.md, CURRENT_HANDOVER.md, WORK_LEDGER.md, AGENT_TASK.md en dit bestand.
