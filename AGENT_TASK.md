@@ -3,7 +3,7 @@
 Status: ACTIVE
 Schema: v1
 
-- task_id: STANDARD-V60-CANDIDATE-CLOSURE-2026-09-21
+- task_id: REPLACEMENT-32.4.60-COMBINED-CLOSURE-2026-09-21
 - mode: DEVELOPMENT
 - reasoning: HOOG
 - work_model: SOL-LIGHT
@@ -11,67 +11,96 @@ Schema: v1
 - codex_reasoning: medium
 - max_parallel_codex_runs: 1
 - owner: WORK_AUTONOMOUS
-- step: FULL_SUITE_TO_CANDIDATE_ZIP
-- candidate_sha: 33bea32534c5114aefe822afe252a6555bc55e58
+- step: BUILD_REAL_32.4.60
+- release_target: 32.4.60
+- publisher_fix_source_candidate: 33bea32534c5114aefe822afe252a6555bc55e58
+- publisher_fix_bundle_sha256: 06793fc120d299e065b673578a16b52d71da4ab4e5c78de74d2fd1a9b07fd5e1
 - resume_checkpoint: ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e
 
-## Doel
-Ga terug naar de bewezen standaard ontwikkel-/releasevoorbereidingsroute die honderden eerdere ZIPs gebruikte:
-candidate source -> normale geïsoleerde Work/Codex testomgeving -> full pytest suite -> canonical build -> exact fresh-extract -> validatie -> kandidaat-ZIP.
-Pas daarna, na de normale release-approval, gaat de ZIP via Incoming -> ReleaseController -> Processing -> installatie/runtime-align -> VERIFYING -> ACCEPTED -> COMPLETE.
+## Besluit
+De aparte 32.4.59 publisher-hotfix wordt NIET meer uitgebracht. De zojuist rejected 32.4.59 ZIP is afgesloten als verkeerde releasevorm: dezelfde versie als live 59 kan volgens de standaard preflight nooit installeren.
 
-## Bindende route
-1. Gebruik de reeds aanwezige kandidaat/overdracht voor `33bea32534c5114aefe822afe252a6555bc55e58`.
-2. Gebruik GEEN QNAP platformtest/containerexecutor als ontwikkelvoorwaarde.
-3. Gebruik GEEN `platformtest_run`, control-plane source-sync of control-plane restart voor deze v60-candidate.
-4. PR #10 / merge `ff480024ea74b237f4088b578db98e22ad9ac63d` is NIET onderdeel van de v60-candidate en mag niet naar QNAP worden geactiveerd.
-5. Draai de full pytest suite in de normale Work/Codex development runtime met de reeds ingebouwde repository offline guard. Externe/private netwerktoegang moet fail-closed blijven.
-6. Als een test faalt door de Work-hostomgeving zelf, herstel uitsluitend de test-harness/guard zodat dezelfde veiligheidsassertie behouden blijft; geen skip/xfail/delete/weaken.
-7. Herhaal NIET het reeds bewezen publisher TDD-onderzoek of de 83/83 regressies tenzij een nieuwe full-suite failure rechtstreeks naar die code wijst.
-8. Bij full-suite GREEN: voer de bestaande canonical build uit.
-9. Fresh-extract exact de gebouwde ZIP en draai de voorgeschreven release-/incoming-/manifest-/integriteitsregressies op die extractie.
-10. Verifieer ZIP CRC, manifest/SHA256, release-identiteit, root-layout en source/fresh-extract-equivalentie.
-11. Lever één kandidaat-ZIP + changelog + korte instructie op.
-12. STOP pas bij:
-   - `CANDIDATE_ZIP_READY_FOR_RELEASE_APPROVAL`, of
-   - een echte code/artifact/safety blocker die na concrete uitvoering overblijft.
+We keren terug naar het oorspronkelijke plan:
+1. bouw EEN echte replacement 32.4.60 die zowel de publisher/Incoming-correctie als alle reeds vastgelegde 32.4.60-herstelpunten bevat;
+2. gebruik daarna éénmalig de eerder afgesproken gecontroleerde Work + terminal bootstrap om 32.4.60 door de huidige 32.4.59-kip-ei grens te krijgen;
+3. vanaf live 32.4.60 moet de normale Incoming -> ReleaseController -> GitHub -> HA keten weer autonoom werken zonder structurele terminalroute.
+
+## Verplichte bronnen
+Work leest eerst, zonder bewezen onderzoek te herhalen:
+- op NAS: `Data/03_Systeem/Projectmanager/CURRENT_HANDOVER_32_4_60_WORK_CODEX.md`
+- op NAS: `Data/03_Systeem/Projectmanager/WORK_LEDGER_32_4_60.md`
+- complete rejected-60 evidence/checkpoints
+- bundle/candidate `33bea32534c5114aefe822afe252a6555bc55e58` voor de reeds bewezen publisherfix + repository offline guard
+
+## Wat uit 33bea325 verplicht in 60 moet zitten
+De kandidaat 33bea325 is technisch GEEN volledige 60; hij staat nog op release-identiteit 32.4.59. Hij bevat wel bewezen noodzakelijke 60-onderdelen:
+- expliciete ReleaseController `PUBLISHING` fase vóór INSTALLING;
+- exact fenced pre-target GitHub publication vanuit Processing;
+- release_id + generation + target version + artifact SHA + target-manifest SHA + predecessor identity;
+- publisher verwijdert contract niet en verplaatst niets zelf naar Processed;
+- HA delivery blijft exact fenced;
+- repository-wide offline pytest guard + child-process propagation.
+Deze wijzigingen worden onderdeel van de echte 32.4.60, niet van een aparte live 59-hotfix.
+
+## Wat daarnaast uit het bestaande 32.4.60 checkpoint moet komen
+Work moet alle reeds vastgelegde replacement-60 eisen en defectdekking uit de NAS handover/ledger toepassen. Geen reconstructie uit chat en geen nieuw architectuuronderzoek. Oude/rejected 60 artifacts zijn evidence, niet herbruikbare releaseartifact.
+
+## Release-identiteit
+De uiteindelijke artifact moet overal coherent 32.4.60 zijn:
+- VERSIE.txt
+- release_test_contract/current release identity
+- Home Assistant add-on config version
+- app/main identity
+- mode entrypoint target release
+- PM/release metadata waar contractueel vereist
+- changelog/build-basis/manifest/SHA256SUMS
+Geen 32.4.59 artifact mag opnieuw naar Incoming.
+
+## Ontwikkel- en acceptatiepad
+1. Load exact NAS 60 checkpoint + publisherfix bundle.
+2. Combineer alleen bewezen noodzakelijke changes; klein/root-cause-first.
+3. TDD/regressies voor alle defectfamilies uit 60 handover.
+4. Volledige pytest suite in normale Work/Codex development runtime met offline guard.
+5. Geen skip/xfail/delete/weaken om GREEN te krijgen.
+6. Canonical release build voor 32.4.60.
+7. Exact fresh-extract.
+8. ZIP CRC + manifest + SHA256SUMS + release identity + root-layout + source/extract-equivalentie.
+9. Fresh-extract regressies incl. Incoming/ReleaseController/PUBLISHING/GitHub/HA contract.
+10. Produceer één kandidaat `EnergieProject_v32.4.60.zip` + changelog + korte instructie.
+11. STOP bij `V60_READY_FOR_ONE_TIME_BOOTSTRAP_APPROVAL`.
+
+## Eenmalige bootstrap — alleen voorbereiden, nog niet uitvoeren
+De huidige live 32.4.59 kan een N+1 candidate niet zelf pre-target publiceren. Daarom mag de echte 60 NIET worden afgekeurd omdat 59 deze nieuwe 60-functie nog niet bezit.
+
+Na kandidaat-GREEN wordt één exact gecontroleerd terminal/Work-bootstrapplan gebruikt, zoals eerder afgesproken:
+- geen permanente alternatieve releaseketen;
+- geen tweede publisher/lifecycle owner;
+- geen handmatige state-fabricatie;
+- alleen de minimale eenmalige stap die nodig is om exact geverifieerde 32.4.60 over de 59 bootstrapgrens te krijgen;
+- daarna neemt de 32.4.60 ReleaseController/publisher de standaardketen over;
+- elke terminalactie benoemt terminal, stap X/Y en exacte readback;
+- maximaal drie terminalcommando's;
+- geen host-python op QNAP;
+- geen NAS/HA reboot;
+- productie-uitvoering pas na één expliciete bootstrap-approval voor exact SHA256 van de GREEN 60 ZIP.
+
+## Na live 60
+Verplicht live bewijs:
+`Incoming/claim -> Processing -> PUBLISHING exact -> INSTALLING -> INSTALLED -> RUNTIME_ALIGNING -> VERIFYING -> ACCEPTED -> Processed -> GitHub exact -> HA exact -> COMPLETE`.
+Daarna moet een volgende release weer zonder terminal-bootstrap via Incoming kunnen lopen.
 
 ## Niet toegestaan
-- geen nieuwe architectuur;
-- geen nieuwe executor/handoff/containerroute;
-- geen QNAP/HA/productiewijziging;
-- geen NAS-upload;
-- geen rechtenwijziging;
-- geen host-python op QNAP;
-- geen restart/recreate/reboot;
-- geen handmatige technische transporttaak voor Peter;
-- geen tussentijdse stop voor gewone checkpoints/status.
+- aparte 32.4.59 publisher-hotfix opnieuw bouwen/installeren;
+- rejected 32.4.59 ZIP opnieuw gebruiken;
+- permanente platformtest/containerexecutor-route als releasevoorwaarde;
+- nieuwe parallelle publisher;
+- nieuwe lifecycle-owner;
+- rechtenwijzigingen;
+- handmatige JSON/state fabrication;
+- Peter als technische transportlaag;
+- tussentijds stoppen voor gewone commentaar/checkpoints.
 
-## Reeds bewezen
-- canonical 32.4.59 artifact identity/integrity GREEN;
-- publisherfix targeted regressions 83/83 GREEN;
-- full suite collection 1,974 tests;
-- repository offline guard ontwikkeld en gericht GREEN;
-- candidate bundle SHA256 06793fc120d299e065b673578a16b52d71da4ab4e5c78de74d2fd1a9b07fd5e1;
-- candidate SHA 33bea32534c5114aefe822afe252a6555bc55e58.
-
-## Autonome doorwerkregel
-Work/Codex gaat zonder tussentijdse gebruikersactie door van full suite naar build naar fresh-extract naar kandidaat-ZIP zolang er geen echte blocker ontstaat. Checkpoints worden persistent opgeslagen zonder de run te beëindigen.
-
-## 2026-09-21 — Peter approved exact 32.4.59 publisher-fix release
-- Explicit release approval granted for artifact: EnergieProject_v32.4.59_publisher_fix_final.zip
-- Exact SHA256: 23b9814d916c84d82ce4690291ec894c7550306a92a4eec494b6797a60a1a741
-- Approved ingress: standard Inbox/incoming only.
-- Do not rename, unpack, mutate, or substitute the artifact.
-- After placement, existing ReleaseController owns the chain autonomously.
-
-## 2026-09-21 — live 32.4.59 publisher-fix rejected by standard preflight
-- User confirmed the exact approved ZIP reached Rejected.
-- Standard preflight reproduced locally against current App 32.4.59:
-  - status: BLOCKED
-  - blocker: candidate_version_not_newer
-  - current_version: 32.4.59
-  - candidate_version: 32.4.59
-  - exact rejected artifact SHA256: 23b9814d916c84d82ce4690291ec894c7550306a92a4eec494b6797a60a1a741
-- This is not an Incoming transport failure. The controller correctly rejected a same-version candidate.
-- Standard correction: re-version this already-validated publisher-fix artifact to 32.4.60, regenerate canonical manifests, fresh-extract validate, then use normal Incoming. The previously planned replacement v60 moves to v61; no alternate route.
+## Stopvoorwaarden
+Work werkt autonoom door tot:
+- `V60_READY_FOR_ONE_TIME_BOOTSTRAP_APPROVAL`; of
+- een echte code/artifact/safety blocker die niet door taaktekst of ontbrekende implementatie-instructie wordt veroorzaakt.
