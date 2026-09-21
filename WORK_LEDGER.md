@@ -1,3 +1,11 @@
+## 2026-09-21 — Work resume from 811ade95
+- 32.4.60 identity is GREEN; targeted regressions 26/26 GREEN.
+- Full suite did not run because the platform preflight could not prove private-NAS access impossible.
+- This is treated first as an in-scope harness/provability problem, not a user-facing blocker.
+- Work must delegate one bounded fix to Codex Terra/Medium, preserve all tests/offline guard, rerun full suite, then continue build/fresh-extract/audits without user commentary.
+- QNAP platformtest/containerexecutor remains forbidden as a v60 development detour.
+- GitHub Full Access destructive-action gate from AGENTS.md applies to every write.
+
 ## 2026-09-21 — Work Knowledge Base bootstrap formalized
 - Review van historische handovers bevestigt dat belangrijke ontwikkellessen vanaf 32.4.40+ verspreid staan over Projectmanager Development_Lessons, HARD_REQUIREMENT, architectuuraudits en worklogs.
 - Work had hiervoor nog geen expliciete verplichte retrievalstap in AGENTS.md; dat gat is nu gesloten.
