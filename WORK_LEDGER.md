@@ -1,3 +1,14 @@
+## 2026-09-21 — 32.4.59 publisher fix targeted GREEN; full-suite test isolation next
+- Work verified exact predecessor artifact: EnergieProject_v32.4.59(2).zip, 5,968,217 bytes, SHA256 42a70f18…d68715c, 536 files, version 32.4.59, manifest SHA 21c22a6c…bc06f1, predecessor hotfix SHA c9d67b5a…9755e4.
+- Preparation checkpoint reported as 1aed641; publisher-fix checkpoint reported as 0f79011.
+- TDD RED proven against unchanged exact 32.4.59 artifact.
+- Minimal publisher fix implemented; targeted regressions 83/83 GREEN; compilation and diff check GREEN.
+- 398b2aa remains REJECTED / DO_NOT_USE.
+- Full suite deliberately not executed because one test would contact private NAS 192.168.1.200:8000.
+- Decision: do not grant live NAS access for development tests. Make that test hermetic with local fixture/mock/fake while preserving assertions; no skip/xfail/weakening.
+- After isolation: affected tests -> full required suite -> canonical build -> exact fresh-extract. No production install until explicit approval.
+- No candidate ZIP, NAS/HA/Incoming write, restart, or production action occurred.
+
 ## 2026-09-20 — Decision: Incoming chain first via 32.4.59 publisher fix
 - Work fully loaded the NAS 32.4.60 handover/ledger and rejected-60 evidence, then correctly stopped with BLOCKED_SCOPE_EXPANSION.
 - Proven blocker: the actually active unchanged 32.4.59 publisher only publishes the active version from Processed, so it cannot publish a next-release candidate from Processing before installation.
