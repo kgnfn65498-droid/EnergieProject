@@ -15,3 +15,9 @@ Schema: v1
 - production_action_performed: NO
 - restart_performed: NO
 - user_transport_required: NO
+
+- rejected_live_diagnosis: candidate_version_not_newer
+- rejected_current_version: 32.4.59
+- rejected_candidate_version: 32.4.59
+- rejected_sha256: 23b9814d916c84d82ce4690291ec894c7550306a92a4eec494b6797a60a1a741
+- correction_route: STANDARD_REVERSION_TO_32.4.60_THEN_INCOMING
