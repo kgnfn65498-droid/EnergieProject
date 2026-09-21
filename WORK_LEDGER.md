@@ -1,3 +1,10 @@
+## 2026-09-21 — Work Knowledge Base bootstrap formalized
+- Review van historische handovers bevestigt dat belangrijke ontwikkellessen vanaf 32.4.40+ verspreid staan over Projectmanager Development_Lessons, HARD_REQUIREMENT, architectuuraudits en worklogs.
+- Work had hiervoor nog geen expliciete verplichte retrievalstap in AGENTS.md; dat gat is nu gesloten.
+- `WORK_KNOWLEDGE_BOOTSTRAP.md` definieert canonieke paden, prioriteitsregels, kernlessen en een eenmalige inventory/readset-procedure.
+- Voor 32.4.60 moet Work vóór implementatie Master Index + Development Manifest inventariseren en daarna alleen taakrelevante bronnen lezen.
+- Historische lessons sturen ontwerp/regressiedekking, maar overschrijven nooit actuele handover/live readback.
+
 ## 2026-09-21 — Silent autonomous execution + dual independent audit bound
 - New binding communication contract: no intermediate user commentary during preparation/development/testing/audit/live observation.
 - Spock completes preparation before handoff; Work owns execution end-to-end and delegates fixable code defects to Codex without user transport.
