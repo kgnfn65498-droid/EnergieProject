@@ -1,3 +1,11 @@
+## 2026-09-21 — platformtest activation path corrected
+- Exact candidate inspection confirmed why repeated Work retries could never succeed: live control-plane currently allowlists only watcher_recreate/native_mcp_reload and process_once has no platformtest consumer.
+- The live energie-control-plane mounts synced source read-only and loads code at process start; source code changes are not active until loaded runtime fingerprint is refreshed.
+- Existing canonical mechanisms already exist: tools/control_plane_source_sync.py for exact source sync and tools/control_plane_bootstrap.py::ensure_control_plane_current() for fingerprint-gated, at-most-one restart of the existing control-plane.
+- New hard sequence: 3A1 implement fixed-function platformtest_run; 3A2 targeted regressions/fingerprint; 3A3 STOP_FOR_PLATFORMTEST_DEPLOY_APPROVAL; 3A4 only after explicit Peter approval source-sync + bounded restart + health/fingerprint/preflight; 3B only after PLATFORMTEST_INTENT_LIVE_GREEN run the network-none full suite.
+- No further full-suite retry is allowed while the live intent is absent.
+- Production authority remains NO until the separate 3A4 approval.
+
 ## 2026-09-21 — Coordination correction: missing platformtest intent is implementation target
 - Work stopped again at checkpoint ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e because AGENT_TASK simultaneously required platformtest_run implementation and contained a stop condition for the intent being absent.
 - This contradiction is corrected.
