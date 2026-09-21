@@ -42,6 +42,9 @@ Schema: v1
   - NAS/HA/productie tijdens ontwikkeling
   - model- en Usage Guard-beleid
 - proven_facts:
+  - Platform-isolated full-suite handoff is currently BLOCKED because the required platformtest intent is not installed in the existing QNAP handoff/control path.
+  - Candidate/source inspection confirms current control-plane allowlist has only watcher_recreate and native_mcp_reload; command gateway has no platformtest action. Fail-closed refusal is therefore expected and correct.
+  - Checkpoint reported by Work for this blocker: 96aae268403aadf737b68a76228f5d0e3e6760b4.
   - Work reported exact predecessor ZIP verified: EnergieProject_v32.4.59(2).zip, 5,968,217 bytes, SHA256 42a70f18…d68715c, ZIP integrity GREEN with 536 files, version 32.4.59, manifest SHA 21c22a6c…bc06f1, predecessor 32.4.58 hotfix SHA c9d67b5a…9755e4.
   - Work reported preparation checkpoint 1aed641.
   - Work/Codex reported publisher-fix checkpoint 0f79011.
@@ -89,6 +92,7 @@ Schema: v1
   - Er is hoogstens een gecontroleerde publisher-fix kandidaat; geen live installatie zonder expliciete goedkeuring.
   - Na latere live installatie moet een echte Incoming E2E aantonen dat volgende-release-publicatie werkt voordat 32.4.60 hervat.
 - stop_conditions:
+  - Missing platformtest intent remains unresolved: BLOCKED_PLATFORMTEST_INTENT_MISSING. Do not use manual NAS upload, permission changes, live-network test access, host-python, or alternate isolation route.
   - Test isolation would require production credentials, live NAS/HA access, disabling assertions, skip/xfail, or broad architecture change: BLOCKED_TEST_ISOLATION.
   - UI/Peter reports <=25% remaining before a new large phase: checkpoint and STOP unless Peter explicitly authorizes continued spend.
   - Fix vereist alsnog een tweede releasepad/bootstrap-actuator of bredere architectuurwijziging: BLOCKED_SCOPE_EXPANSION.
@@ -97,6 +101,7 @@ Schema: v1
   - Codex kan Terra + medium niet afdwingen: BLOCKED_MODEL_POLICY.
 - production_authority: NO
 - architecture_authority: YES_LIMITED_TO_EXISTING_59_PUBLISHER_FIX_AND_TEST_INFRA_OFFLINE_GUARD
+- platformtest_architecture_authority: NOT_YET_APPROVED
 - predecessor_artifact_required: YES
 - predecessor_artifact_identity: MUST_USE_EXACT_VERIFIED_32.4.59_BASIS_FROM_NAS_HANDOVER
 - checkpoint_writeback_required: YES
