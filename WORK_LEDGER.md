@@ -1,3 +1,13 @@
+## 2026-09-21 — Silent local executor proven GREEN
+- Spock proved a no-email/no-GitHub-Actions development executor using a clean isolated venv.
+- Candidate 33bea source exposed two real full-suite compatibility defects not covered by the 26 targeted tests: historical 57 GreenAdapter lacked pre_target_publication; historical watcher practical test depended on incidental startup timing.
+- Minimal test-compatibility corrections preserve assertions: add explicit publish step to GreenAdapter/call sequence; make restart test's no-claim window explicit with 20 stable polls.
+- Source full suite accounted for all 1981 tests: 1979 passed, 2 skipped, 0 failed.
+- Canonical build + CRC + fresh-extract GREEN.
+- Fresh-extract full suite: 1979 passed, 2 skipped, 0 failed.
+- Proof artifact SHA 1cdd4e9a6fa89c9183661ffdeaec956001c31490dcc34a1380c147f71df4b70b is executor evidence only, not release authority.
+- Remaining preparation blocker is source transport: exact Work checkpoint 29da2de is not published to GitHub. Work must perform source-export-only, without PR/Actions/merge/force/main/production, before Spock can test the actual 32.4.60 source.
+
 ## 2026-09-21 — Lesson: informed approval requires explicit risk disclosure
 - The executor-readiness GitHub Actions probe exposed a coordination failure: the action was technically bounded, but user-visible GitHub failure notifications/email were not disclosed before execution.
 - New permanent rule: approvals for external, destructive, potentially destructive, costly or user-visible actions must be preceded by a concise risk/benefit disclosure.
