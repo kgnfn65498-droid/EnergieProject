@@ -1,3 +1,11 @@
+## 2026-09-21 — Silent autonomous execution + dual independent audit bound
+- New binding communication contract: no intermediate user commentary during preparation/development/testing/audit/live observation.
+- Spock completes preparation before handoff; Work owns execution end-to-end and delegates fixable code defects to Codex without user transport.
+- Checkpoints persist silently.
+- Peter is contacted only for a genuine blocker, exact protected production approval, or terminal result.
+- Release 32.4.60 acceptance before production now requires Work self-audit + independent Spock audit + one bounded Codex audit when Usage Guard permits.
+- After exact bootstrap approval, Work must continue through full live Incoming -> GitHub -> HA -> COMPLETE without periodic stops.
+
 ## 2026-09-21 — Restored original plan: one combined real 32.4.60
 - Separate same-version 32.4.59 publisher hotfix is abandoned; its rejection was correct because live and candidate were both 32.4.59.
 - Candidate 33bea325 was inspected directly: it is still version 32.4.59, but it already contains the required PUBLISHING/pre-target publisher correction plus repository offline guard.
