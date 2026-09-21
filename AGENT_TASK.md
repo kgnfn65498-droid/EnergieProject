@@ -11,8 +11,8 @@ Schema: v1
 - codex_model: gpt-5.6-terra
 - codex_reasoning: medium
 - codex_model_fallback: FORBIDDEN
-- owner: WORK_AUTONOMOUS_ON_PR10_UNTIL_GREEN_OR_REAL_CODE_BLOCKER
-- step: IMPLEMENT_AND_VERIFY_PLATFORMTEST_CAPABILITY
+- owner: SPOCK_PENDING_PROTECTED_ACTIVATION_APPROVAL
+- step: STOP_FOR_PLATFORMTEST_DEPLOY_APPROVAL
 - goal: Bouw en test nu daadwerkelijk de reeds goedgekeurde narrow platformtest_run capability in de bestaande QNAP handoff/control-plane. NIET opnieuw controleren of de intent al bestaat; het ontbreken ervan is de RED-baseline en juist het implementatiedoel.
 - exact_resume_checkpoint: ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e
 - projectmanager_ingress_id: 28494cbae40341e788aa569b2361bf6e
@@ -173,3 +173,16 @@ Spock-local verificatie:
 - Do not repeat those suites unless PR10 changes further.
 - Local ChatGPT container cannot be used as final full-suite authority for offline-child bootstrap because /opt/python-hooks/sitecustomize.py shadows repository sitecustomize.py.
 - Final full-suite authority remains the approved QNAP image with NETWORK=NONE.
+
+## PR10 MERGED
+- PR #10 merged to main.
+- Merge SHA: ff480024ea74b237f4088b578db98e22ad9ac63d
+- Narrow platformtest_run source implementation is now in main.
+- Development/source phase is complete enough to reach the protected activation boundary.
+- DO NOT ask Work to retry live QNAP execution yet.
+- Next action requires Peter approval for the already-defined protected activation only:
+  1. canonical control-plane source sync;
+  2. at most one bounded restart of existing energie-control-plane if loaded fingerprint mismatches;
+  3. health + loaded fingerprint readback;
+  4. platformtest preflight;
+  5. then Work resumes candidate 33bea325 at checkpoint ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e for the NETWORK=NONE full suite.
