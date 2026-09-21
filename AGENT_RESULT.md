@@ -1,23 +1,17 @@
 # AGENT_RESULT — EnergieProject
 
-Status: IN_PROGRESS_STANDARD_ROUTE
+Status: ACTIVE_REAL_V60
 Schema: v1
 
-- task_id: STANDARD-V60-CANDIDATE-CLOSURE-2026-09-21
-- executor: SPOCK
-- status: IN_PROGRESS_STANDARD_ROUTE
-- candidate_sha: 33bea32534c5114aefe822afe252a6555bc55e58
-- resume_checkpoint: ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e
-- route: STANDARD_WORK_CODEX_FULL_SUITE_BUILD_FRESH_EXTRACT_ZIP
-- qnap_platformtest_executor_required: NO
-- platformtest_run_activation_for_v60: FORBIDDEN
-- next_action: Work runs the normal full suite in its development runtime with repository offline guard, fixes genuine failures without weakening tests, then canonical build -> fresh-extract -> candidate ZIP.
-- production_action_performed: NO
-- restart_performed: NO
+- task_id: REPLACEMENT-32.4.60-COMBINED-CLOSURE-2026-09-21
+- status: ACTIVE_REAL_V60
+- separate_32_4_59_hotfix: ABANDONED
+- rejected_59_reason: candidate_version_not_newer
+- target_release: 32.4.60
+- publisher_fix_source_candidate: 33bea32534c5114aefe822afe252a6555bc55e58
+- publisher_fix_scope_verified: PUBLISHING pre-target publication + exact fencing + offline guard
+- full_replacement_60_source_of_truth: NAS CURRENT_HANDOVER_32_4_60_WORK_CODEX.md + WORK_LEDGER_32_4_60.md
+- next_action: Work combines the proven publisher fix with the saved replacement-60 checkpoint, runs full suite, canonical build, fresh-extract and produces exact 32.4.60 ZIP.
+- next_valid_stop: V60_READY_FOR_ONE_TIME_BOOTSTRAP_APPROVAL
+- production_execution_authorized_now: NO
 - user_transport_required: NO
-
-- rejected_live_diagnosis: candidate_version_not_newer
-- rejected_current_version: 32.4.59
-- rejected_candidate_version: 32.4.59
-- rejected_sha256: 23b9814d916c84d82ce4690291ec894c7550306a92a4eec494b6797a60a1a741
-- correction_route: STANDARD_REVERSION_TO_32.4.60_THEN_INCOMING
