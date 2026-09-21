@@ -1,3 +1,14 @@
+## 2026-09-21 — Coordination correction: missing platformtest intent is implementation target
+- Work stopped again at checkpoint ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e because AGENT_TASK simultaneously required platformtest_run implementation and contained a stop condition for the intent being absent.
+- This contradiction is corrected.
+- From ca7c0b4 onward there are two hard phases:
+  - 3A: Codex implements and regression-tests the narrow approved platformtest_run capability in the existing handoff/control path.
+  - 3B: only after persistent read-back proves capability GREEN may Work invoke the platform-isolated full suite.
+- Missing platformtest_run before phase 3A is the expected RED baseline, not a blocker.
+- No full-suite retry is allowed before source/read-back + focused tests prove the intent exists.
+- Existing safety fences and no-production authority remain unchanged.
+- Offline-guard work and 83/83 publisher regressions must not be repeated without new evidence.
+
 ## 2026-09-21 — Narrow platformtest_run architecture approved
 - Peter explicitly authorized one narrow platformtest_run intent in the existing standard QNAP handoff/control path.
 - Approval is test-only and fail-closed; it is not a generic Docker, shell, NAS, HA or production capability.
