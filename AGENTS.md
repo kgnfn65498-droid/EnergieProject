@@ -8,6 +8,7 @@ Lees vóór analyse, codewijziging, test, packaging, cleanup of releaseactie:
 2. CURRENT_HANDOVER.md
 3. WORK_LEDGER.md
 4. AGENT_TASK.md
+5. WORK_KNOWLEDGE_BOOTSTRAP.md
 
 PROJECT_CONSTITUTION.md is leidend bij conflict.
 
@@ -117,3 +118,10 @@ Geen succesclaim zonder read-back/verificatie van de geschreven toestand.
 - Daarna voert Codex exact één onafhankelijke bounded audit uit met Terra/Medium, mits geen door UI/Peter gemelde budgetgrens dit volgens Usage Guard verbiedt. Codex wijzigt niets tijdens audit zonder concrete bevinding; bij een echte bevinding gaat die terug naar Work voor fix -> retest -> re-audit.
 - Als geen laag-budgetsignaal bestaat, wordt de Codex-audit uitgevoerd; quota worden niet vooraf verbrand aan brede duplicatieve reviews.
 - Peter wordt pas benaderd nadat alle beschikbare verplichte audits GREEN zijn en het exacte artifact-SHA vaststaat.
+
+## Knowledge Base retrieval — verplicht voor Work
+- Voor grote release-/architectuurtaken inventariseert Work eerst de canonieke Knowledge Base volgens `WORK_KNOWLEDGE_BOOTSTRAP.md`.
+- Alleen CURRENT_HANDOVER/WORK_LEDGER lezen is onvoldoende wanneer Development_Lessons, HARD_REQUIREMENT, ADR of architecture-audit relevant kan zijn.
+- Work leest eerst `Knowledge_Base_Master_Index.md` en `00_DEVELOPMENT_MANIFEST.md`, maakt daarna één taakgerichte readset en gebruikt die als ontwerp-/regressieconstraint.
+- De volledige KB wordt niet bij iedere substap opnieuw gelezen; één inventaris + gerichte retrieval voorkomt token-/tijdverspilling.
+- Als NAS-readback tijdelijk niet beschikbaar is, mag Work niet doen alsof de canonieke KB is gelezen. Het legt exact vast welke bronreadback nog ontbreekt vóór definitieve architectuur/release-acceptatie.
