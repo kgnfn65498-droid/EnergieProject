@@ -83,3 +83,10 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 - Verify health + exact loaded fingerprint + platformtest preflight.
 - Then immediately resume Work task 891b10287eb34f55971f7d01016b38bf from ca7c0b4 for candidate 33bea325 NETWORK=NONE full-suite.
 - No additional user transport or repeated approval request.
+
+## 2026-09-21 — v60 route reset to standard
+- Do not use the QNAP platformtest/containerexecutor route for v60.
+- Do not activate PR #10/platformtest_run on QNAP.
+- Resume candidate 33bea325 via normal Work/Codex development execution: full suite with existing offline guard -> canonical build -> exact fresh-extract -> validation -> candidate ZIP.
+- Only then use the normal Incoming/ReleaseController production path after explicit release approval.
+- No user technical copy/paste or intermediate confirmation is required during development.
