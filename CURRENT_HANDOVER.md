@@ -76,3 +76,10 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 - Source phase is complete; live runtime has not been changed.
 - Do not retry Work/QNAP execution until protected activation is approved and live fingerprint readback proves the new control-plane code is loaded.
 - After approval: canonical source sync -> at most one bounded restart of existing energie-control-plane if fingerprint mismatch -> health/fingerprint/preflight -> PLATFORMTEST_INTENT_LIVE_GREEN -> Work resumes candidate 33bea325 from ca7c0b4.
+
+## 2026-09-21 — activation approved
+- Peter granted the previously requested exact platformtest activation.
+- Work/local executor may now perform canonical control-plane source-sync + ensure_control_plane_current(), including at most one bounded restart of existing energie-control-plane if fingerprint mismatches.
+- Verify health + exact loaded fingerprint + platformtest preflight.
+- Then immediately resume Work task 891b10287eb34f55971f7d01016b38bf from ca7c0b4 for candidate 33bea325 NETWORK=NONE full-suite.
+- No additional user transport or repeated approval request.
