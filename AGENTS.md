@@ -202,3 +202,21 @@ Pas wanneer deze check GREEN is mag Spock zeggen dat Work zelfstandig tot het af
 - Reason: workflow runs can generate unwanted GitHub notifications/mail and consume CI resources.
 - Prefer silent read-only checks or an already-approved executor path.
 - Existing failed/queued runs may still produce delayed notifications; do not create another run merely to verify that runs are stopped.
+
+
+## Approval disclosure contract — risico eerst, toestemming daarna
+- Peter is geneigd agentadvies te vertrouwen. Daarom mag geen approval-vraag voor een actie met extern, destructief, potentieel destructief, kostbaar of gebruikerszichtbaar neveneffect worden gesteld zonder voorafgaande risico-uitleg.
+- Iedere approval-vraag bevat vóór de vraag minimaal:
+  1. **Wat gebeurt er precies?**
+  2. **Waarom is het nodig?**
+  3. **Voordeel / verwacht resultaat.**
+  4. **Concrete risico's en neveneffecten**, inclusief waar relevant: mails/notificaties, externe zichtbaarheid, CI-/computegebruik, kosten/credits, data-exposure, wijzigingen aan repo/branches/history, productie-impact, restarts/downtime, permissions/secrets, rate limits en onverwachte vervolgacties.
+  5. **Worst case** in gewone taal.
+  6. **Reversibiliteit / herstelpad.**
+  7. **Veiliger alternatief**, indien aanwezig.
+  8. **Aanbevolen keuze**, met expliciete reden.
+- Een actie mag niet als "veilig" of "laag risico" worden gepresenteerd als er relevante gebruikerszichtbare side-effects bestaan. Gebruik in dat geval: "technisch begrensd, maar met de volgende risico's/neveneffecten".
+- Approval-taal mag niet sturend of bagatelliserend zijn. Geen "dit is veilig, akkoord?" wanneer relevante risico's nog niet genoemd zijn.
+- Voor GitHub Actions geldt expliciet: mogelijke mails/notificaties, CI-minuten/compute, workflow-side-effects en zichtbaarheid van failures ALTIJD vooraf benoemen.
+- Voor acties met `Allow all actions` geldt deze disclosure bovenop de bestaande destructieve-actiegate.
+- Als risico's niet betrouwbaar kunnen worden vastgesteld, vraag nog geen approval; eerst read-only onderzoeken.
