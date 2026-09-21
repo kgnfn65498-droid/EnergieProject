@@ -1,3 +1,12 @@
+## 2026-09-21 — Development lesson: prove executor readiness before handoff
+- Root lesson from checkpoint 29da2de: correct code/test instructions are insufficient if the assigned Work runtime cannot legally start a mandatory phase.
+- The full suite was rejected before pytest despite the repository offline guard; indirect restart/bypass was also forbidden.
+- Therefore platform-level permission and code-level offline safety are separate gates and both must be proven.
+- New mandatory `EXECUTOR_READINESS_MATRIX` validates source/artifact access, branch/ref access, test start permission, network/sandbox policy, canonical build/output, fresh-extract, artifact validation, audit readback, Codex availability, GitHub permissions and protected-action boundaries.
+- Predictable executor/sandbox/access blockers are now Spock preparation failures, not Work execution blockers.
+- Work is not to be started again for 32.4.60 until full-suite + build + fresh-extract executor capability is proven in advance.
+- Fallbacks must be pre-authorized and may not exist solely to bypass platform safety.
+
 ## 2026-09-21 — Genuine platform blocker proven at 29da2de
 - Work correctly stopped after the explicitly allowed full-suite restart was again refused before process start by platform protection because private-NAS access to 192.168.1.200:8000 could not be permitted.
 - The platform also forbids an indirect restart/bypass route.
