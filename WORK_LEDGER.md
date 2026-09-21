@@ -1,3 +1,13 @@
+## 2026-09-21 — Peter approved repository-wide offline test guard
+- Work reported 1,974 tests safely collected and targeted publisher regressions 83/83 GREEN.
+- Full suite remained blocked because tests could reach private NAS endpoint 192.168.1.200:8000.
+- Peter approved route 1: repository-wide test-infrastructure protection that blocks live/private/external network access by default.
+- No permission is granted for tests to contact NAS/HA.
+- Guard must be deterministic and fail closed; no skip/xfail/delete/assertion weakening.
+- Localhost/in-process fixtures/fakes may be used only where deterministic test contracts require them.
+- After guard GREEN: full suite -> canonical build -> exact fresh-extract -> candidate ZIP.
+- Latest reported Work checkpoint before guard implementation: 71f0068.
+
 ## 2026-09-21 — 32.4.59 publisher fix targeted GREEN; full-suite test isolation next
 - Work verified exact predecessor artifact: EnergieProject_v32.4.59(2).zip, 5,968,217 bytes, SHA256 42a70f18…d68715c, 536 files, version 32.4.59, manifest SHA 21c22a6c…bc06f1, predecessor hotfix SHA c9d67b5a…9755e4.
 - Preparation checkpoint reported as 1aed641; publisher-fix checkpoint reported as 0f79011.
