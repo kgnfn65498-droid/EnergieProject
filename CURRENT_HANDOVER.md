@@ -119,3 +119,10 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 - Nieuwe permanente regel: vóór grote Work-handoff wordt per fase een EXECUTOR_READINESS_MATRIX bewezen.
 - Niet alleen testcode/offline guard, maar ook host/platformpolicy, artifacttoegang, output/build/fresh-extract en audit/readback moeten vooraf GREEN zijn.
 - Zolang één noodzakelijke pre-protected fase BLOCKED is, blijft Spock eigenaar van de voorbereiding en krijgt Work geen nieuwe 'Verder'-opdracht.
+
+
+## 2026-09-21 — informed-approval lesson
+- Peter explicitly requires risk disclosure before being asked to approve impactful actions because he is likely to trust a concise agent recommendation.
+- Every future approval request must state concrete downside/side-effects before asking for "akkoord".
+- GitHub Actions is a specific example: mail/notifications, CI resource use and visible workflow failures must be disclosed in advance.
+- This is now a permanent project rule, not a one-off preference.
