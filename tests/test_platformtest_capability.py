@@ -74,6 +74,7 @@ def test_platformtest_payload_is_fixed_network_none_and_read_only():
     assert payload['Image'] == 'energie-filesystem-mcp:runtime-v1'
     assert payload['Cmd'] == ['python3', '-m', 'pytest', '-q', '-p', 'no:cacheprovider']
     assert payload['WorkingDir'] == '/workspace'
+    assert payload['Env'] == ['PYTHONPATH=/workspace']
     host = payload['HostConfig']
     assert host['NetworkMode'] == 'none'
     assert host['ReadonlyRootfs'] is True
