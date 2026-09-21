@@ -1,3 +1,12 @@
+## 2026-09-21 — Genuine platform blocker proven at 29da2de
+- Work correctly stopped after the explicitly allowed full-suite restart was again refused before process start by platform protection because private-NAS access to 192.168.1.200:8000 could not be permitted.
+- The platform also forbids an indirect restart/bypass route.
+- Existing offline guard stayed unchanged; targeted 32.4.60 regressions remain 26/26 GREEN.
+- No NAS/HA/production action occurred; build/fresh-extract correctly did not start.
+- This now satisfies the project's definition of a genuine environment/platform blocker. It is no longer an instruction/harness self-caused stop.
+- Next step is NOT another "Verder" in the same Work runtime. A compliant executor is required for the exact existing offline-guarded full suite.
+- Do not bypass the platform, do not weaken guards, and do not revive QNAP platformtest/containerexecutor merely to evade the restriction.
+
 ## 2026-09-21 — Work resume from 811ade95
 - 32.4.60 identity is GREEN; targeted regressions 26/26 GREEN.
 - Full suite did not run because the platform preflight could not prove private-NAS access impossible.
