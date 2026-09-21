@@ -105,3 +105,9 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 - Peter wordt pas geroepen bij echte blocker, protected production approval, of eindresultaat.
 - 32.4.60 krijgt vóór bootstrap een Work self-audit, daarna onafhankelijke Spock-audit en daarna één bounded Codex-audit als Usage Guard dit toelaat.
 - Na bootstrap-approval blijft Work doorlopen tot exact live E2E GREEN tot en met GitHub + HA + COMPLETE.
+
+## 2026-09-21 — Work krijgt expliciete Knowledge Base bootstrap
+- Grote Work-taken mogen niet alleen op handover/ledger draaien; de canonieke Project-KB en Projectmanager Development_Lessons zijn verplichte ontwikkelinput.
+- `WORK_KNOWLEDGE_BOOTSTRAP.md` is toegevoegd als retrievalcontract.
+- Voor 32.4.60 voert Work vóór code een eenmalige KB-inventaris uit via Master Index + Development Manifest en maakt daarna een taakgerichte readset.
+- Historische lessons zijn ontwerp-/regressieconstraint; actuele handover/live runtime blijft statusautoriteit.
