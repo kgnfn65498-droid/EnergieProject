@@ -13,3 +13,11 @@ Schema: v1
 - production_action_performed: NO
 - restart_performed: NO
 - terminal_required_from_peter: NO
+
+
+## Projectmanager ingress
+- ingress_id: 28494cbae40341e788aa569b2361bf6e
+- status: PROPOSED_TO_LOCAL_PROJECTMANAGER
+- user_transport_required: NO
+- work_resume_checkpoint: ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e
+- rule: do not retry Work/full-suite until the testhandoff is actually available/live.
