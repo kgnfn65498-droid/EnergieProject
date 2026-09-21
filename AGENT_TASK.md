@@ -11,8 +11,8 @@ Schema: v1
 - codex_model: gpt-5.6-terra
 - codex_reasoning: medium
 - codex_model_fallback: FORBIDDEN
-- owner: SPOCK_PENDING_PROTECTED_ACTIVATION_APPROVAL
-- step: STOP_FOR_PLATFORMTEST_DEPLOY_APPROVAL
+- owner: WORK_AUTONOMOUS_PROTECTED_ACTIVATION
+- step: ACTIVATE_PLATFORMTEST_THEN_RESUME_FULL_SUITE
 - goal: Bouw en test nu daadwerkelijk de reeds goedgekeurde narrow platformtest_run capability in de bestaande QNAP handoff/control-plane. NIET opnieuw controleren of de intent al bestaat; het ontbreken ervan is de RED-baseline en juist het implementatiedoel.
 - exact_resume_checkpoint: ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e
 - projectmanager_ingress_id: 28494cbae40341e788aa569b2361bf6e
@@ -186,3 +186,17 @@ Spock-local verificatie:
   3. health + loaded fingerprint readback;
   4. platformtest preflight;
   5. then Work resumes candidate 33bea325 at checkpoint ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e for the NETWORK=NONE full suite.
+
+
+## PETER ACTIVATION APPROVAL — GRANTED
+- Peter explicitly approved the protected platformtest activation on 2026-09-21.
+- Approval scope is EXACTLY:
+  1. canonical `control_plane_source_sync.sync_control_plane_source(project_root)`;
+  2. `control_plane_bootstrap.ensure_control_plane_current(project_root)`;
+  3. at most one bounded restart of the EXISTING `energie-control-plane` only if exact loaded fingerprint mismatches;
+  4. readback: container running/healthy + exact expected/loaded fingerprint;
+  5. platformtest contract/preflight;
+  6. on GREEN, immediately resume Work task `891b10287eb34f55971f7d01016b38bf` from checkpoint `ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e` and run the NETWORK=NONE full-suite.
+- No additional approval is required for those exact steps.
+- Still forbidden: recreate control-plane, build/pull image, restart any other container/service, NAS reboot, HA restart, generic shell/docker execution, production release install.
+- After activation GREEN, Work MUST continue autonomously: full-suite -> canonical build -> fresh-extract -> validation -> candidate ZIP. Stop only on a genuine technical/safety blocker or the next separately protected production/release boundary.
