@@ -11,13 +11,12 @@ Schema: v1
 - codex_model: gpt-5.6-terra
 - codex_reasoning: medium
 - codex_model_fallback: FORBIDDEN
-- owner: WORK
-- step: 1/1
+- owner: WORK_AUTONOMOUS_UNTIL_REAL_BLOCKER_OR_PHASE_COMPLETE
+- step: IMPLEMENT_AND_VERIFY_PLATFORMTEST_CAPABILITY
 - goal: Bouw en test nu daadwerkelijk de reeds goedgekeurde narrow platformtest_run capability in de bestaande QNAP handoff/control-plane. NIET opnieuw controleren of de intent al bestaat; het ontbreken ervan is de RED-baseline en juist het implementatiedoel.
 - exact_resume_checkpoint: ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e
 - projectmanager_ingress_id: 28494cbae40341e788aa569b2361bf6e
-- projectmanager_ingress_status: PROPOSED_TO_LOCAL_PROJECTMANAGER
-- work_wakeup_gate: TESTHANDOFF_ACTUALLY_AVAILABLE
+- projectmanager_ingress_status: INFORMATIONAL_ONLY_NOT_A_GATE
 - candidate_sha: 33bea32534c5114aefe822afe252a6555bc55e58
 
 - scope:
@@ -70,3 +69,19 @@ Schema: v1
 ## Belangrijk
 Het ontbreken van platformtest_run is GEEN blocker in deze taak. Dat is de starttoestand die nu gecodeerd moet worden.
 Work mag deze taak niet afsluiten met "intent niet geïnstalleerd" zonder eerst de implementatie + gerichte tests uit te voeren.
+
+
+## AUTONOME UITVOERREGEL — bindend
+- Work start bij deze taak DIRECT met uitvoering. Geen nieuwe availability-check, handoff-check, ingress-check of "bestaat de intent al?"-check als aparte stopstap.
+- Het ontbreken van `platformtest_run` is de RED-baseline en moet in dezelfde Work-run worden opgelost.
+- Work delegeert zo nodig direct aan Codex (Terra/Medium), leest daarna het resultaat terug en gaat zelfstandig door met de volgende stap.
+- Work stopt NIET voor tussentijdse statuscommentaren, checkpoints of omdat een eerder benoemde capability nog niet bestaat.
+- Checkpoints worden tussentijds persistent geschreven zonder de run te beëindigen.
+- Work gaat door totdat één van deze echte eindtoestanden is bereikt:
+  1. `STOP_FOR_PLATFORMTEST_DEPLOY_APPROVAL`: capability broncode + gerichte tests volledig GREEN; alleen protected live activatie ontbreekt.
+  2. `BLOCKED_SCOPE_EXPANSION`: de gevraagde fixed-function capability blijkt technisch onmogelijk zonder generieke shell/docker/NAS-capability of productie-write buiten goedgekeurde scope.
+  3. `BLOCKED_MODEL_POLICY`: Terra/Medium kan aantoonbaar niet worden afgedwongen.
+  4. COMPLETE voor deze ontwikkelfase.
+- Geen andere BLOCKED-status is toegestaan zolang het probleem met code/tests binnen de goedgekeurde scope oplosbaar is.
+- Een blocker mag niet voortkomen uit de taaktekst zelf. Bij tegenstrijdige instructies geldt: doel + safety boundaries + deze autonome uitvoerregel hebben voorrang; corrigeer de interne interpretatie en ga door.
+- Peter hoeft geen technische tekst, checkpoint, commando of handoff tussen Chat/Work/Codex te transporteren.
