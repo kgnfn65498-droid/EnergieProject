@@ -124,3 +124,13 @@ Work werkt autonoom door tot:
 - Daarna één compacte vraag aan Peter voor exact de bounded bootstrap van exact die ZIP/SHA.
 - Na akkoord: Work voert de volledige eenmalige bootstrap uit en observeert zonder tussencommentaar tot live keten `Incoming/Processing/PUBLISHING/INSTALLING/INSTALLED/RUNTIME_ALIGNING/VERIFYING/ACCEPTED/Processed/GitHub/HA/COMPLETE` aantoonbaar GREEN is.
 - Als live een codefout blijkt: Work legt evidence vast, Codex repareert binnen scope, Work retest/rebuildt; Peter wordt pas opnieuw benaderd wanneer een NIEUWE protected productieactie voor een gewijzigd artifact nodig is.
+
+## Verplichte Knowledge Base preflight voor 32.4.60
+Vóór verdere implementatie:
+1. lees `WORK_KNOWLEDGE_BOOTSTRAP.md`;
+2. inventariseer de canonieke Project-KB via `Knowledge_Base_Master_Index.md`;
+3. inventariseer Projectmanager `Development_Lessons` via `00_DEVELOPMENT_MANIFEST.md`;
+4. lees alle taakrelevante lessons/requirements/ADR/worklogs voor release, Incoming, publisher, RuntimeV2, permissions, control-plane, autonomie en 53/54/55/56 defectfamilies;
+5. leg éénmalig de daadwerkelijk gelezen bronpaden + overgenomen constraints vast in WORK_LEDGER/AGENT_RESULT;
+6. pas daarna code aan.
+Dit is voorbereidend werk en GEEN stop-/commentaarmoment voor Peter.
