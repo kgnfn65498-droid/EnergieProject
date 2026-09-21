@@ -1,3 +1,12 @@
+## 2026-09-21 — Returned v60 to proven standard ZIP route
+- Peter correctly flagged that the QNAP platformtest/containerexecutor path was an unnecessary deviation from the long-proven release workflow.
+- For v60, platformtest_run/QNAP test executor/control-plane activation is no longer a prerequisite and must not be activated.
+- Standard development route restored: candidate 33bea325 -> normal Work/Codex full pytest suite with repository offline guard -> canonical build -> exact fresh-extract -> ZIP validation -> candidate ZIP.
+- Standard production route remains unchanged after approval: Incoming -> ReleaseController -> Processing -> install/runtime-align -> VERIFYING -> ACCEPTED -> COMPLETE.
+- PR #10 remains repository-only evidence/code but is explicitly excluded from v60 candidate activation.
+- No NAS/HA/productive action performed.
+- Work must continue autonomously and may stop only at candidate-ZIP-ready or a genuine execution blocker.
+
 ## 2026-09-21 — Peter approved exact platformtest live activation
 - Explicit approval received for the exact protected activation previously defined.
 - Allowed now: canonical control-plane source sync; ensure_control_plane_current; at most one bounded restart of existing energie-control-plane only on fingerprint mismatch; health/fingerprint/preflight readback.
