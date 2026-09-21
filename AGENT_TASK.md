@@ -166,3 +166,36 @@ GitHub full-access safety is mandatory throughout:
 - Full Access never expands production/NAS/HA/release authority.
 
 No progress commentary to Peter while the above path remains executable.
+
+
+## PRE-HANDOFF HOLD — executor-readiness moet eerst door Spock worden opgelost
+Actuele Work-checkpoint:
+- `29da2de404299cc0a4a49224ba431fec5b0feb4c`
+- branch: `work/replacement-32.4.60-combined`
+- release identity: 32.4.60 GREEN
+- targeted regressions: 26/26 GREEN
+- full-suite process start: BLOCKED by platform policy before pytest
+- private target cited by platform: `192.168.1.200:8000`
+- indirect retry/bypass: forbidden by platform
+- NAS/HA/production touched: NO
+- build/fresh-extract: NOT STARTED
+
+### EXECUTOR_READINESS_MATRIX — current state
+| Fase | Executor | Capability/bewijs | Status | Protected approval |
+|---|---|---|---|---|
+| KB/checkpoint/source retrieval | Work/GitHub/NAS read path | eerder gebruikt; opnieuw exact readback vóór resume | GREEN | NO |
+| 32.4.60 identity + targeted regressions | huidige Work runtime | checkpoint 29da2de; 26/26 GREEN | GREEN | NO |
+| Full pytest suite | huidige Work runtime | processtart tweemaal geweigerd door platformpolicy | BLOCKED | NO |
+| Canonical build | nog niet toegestaan te starten vóór full-suite GREEN | capability moet vóór nieuwe handoff worden bewezen | BLOCKED_PRECONDITION | NO |
+| Exact fresh-extract | zelfde executor als build tenzij vooraf anders bewezen | capability moet vóór nieuwe handoff worden bewezen | BLOCKED_PRECONDITION | NO |
+| Artifact CRC/manifest/identity validation | gekozen build executor | capability moet vóór nieuwe handoff worden bewezen | BLOCKED_PRECONDITION | NO |
+| Work self-audit | Work | afhankelijk van artifact | BLOCKED_PRECONDITION | NO |
+| Spock audit | Chat/GitHub/file readback | beschikbaar zodra artifact/evidence bestaat | GREEN_PENDING_INPUT | NO |
+| Codex bounded audit | Terra/Medium | modelpolicy reeds vastgelegd; effectieve beschikbaarheid vóór audit verifiëren | GREEN_PENDING_INPUT | NO |
+| One-time live bootstrap | Work + bounded terminal/NAS path | pas na exact ZIP/SHA en expliciete Peter approval | PROTECTED_LATER | YES |
+
+### Spock-opdracht vóór enige nieuwe Work-instructie
+- Identificeer en bewijs een executor die de bestaande offline-guarded FULL suite werkelijk mag starten zonder platformbeveiliging te omzeilen en zonder NAS/HA/productie te raken.
+- Bewijs in diezelfde uitvoeromgeving óók build, output-opslag, exact fresh-extract en artifact-validatie vóór Work opnieuw wordt gestart.
+- Pas de matrix naar GREEN aan met concreet bewijs.
+- Geen nieuwe 'Verder'-instructie naar Work zolang full-suite/build/fresh-extract executor-readiness niet GREEN is.
