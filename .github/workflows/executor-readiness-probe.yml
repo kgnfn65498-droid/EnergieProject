@@ -1,0 +1,78 @@
+name: executor-readiness-probe
+
+on:
+  push:
+    branches:
+      - executor-readiness-probe-20260921
+
+permissions:
+  contents: read
+
+jobs:
+  prove-executor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --disable-pip-version-check             "pytest>=8,<10"             "reportlab>=4.4,<5"             "pypdf>=5,<6"             "PyYAML>=6,<7"             "websocket-client>=1.8,<2"             "XlsxWriter>=3,<4"
+
+      - name: Prove repository offline guard in parent and child Python
+        run: |
+          python - <<'PY'
+          import socket, subprocess, sys
+          assert getattr(socket.socket.connect, "_energie_offline_guard", False) is True
+          result = subprocess.run(
+              [sys.executable, "-c",
+               "import socket; print(getattr(socket.socket.connect, '_energie_offline_guard', False))"],
+              text=True, capture_output=True, check=True,
+          )
+          assert result.stdout.strip() == "True", result.stdout
+          print("OFFLINE_GUARD_PARENT_CHILD_GREEN")
+          PY
+
+      - name: Full source pytest suite
+        run: pytest -q
+
+      - name: Canonical release build
+        run: |
+          rm -f /tmp/EnergieProject_executor_probe.zip
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, str(Path.cwd() / "tools"))
+          from release_artifact_builder import build_release_artifact
+          result = build_release_artifact(Path.cwd(), Path("/tmp/EnergieProject_executor_probe.zip"))
+          assert result["status"] == "GREEN", result
+          print(result)
+          PY
+          unzip -t /tmp/EnergieProject_executor_probe.zip >/tmp/executor_zip_test.txt
+          tail -n 1 /tmp/executor_zip_test.txt
+
+      - name: Exact fresh extract
+        run: |
+          rm -rf /tmp/energie_fresh_extract
+          mkdir -p /tmp/energie_fresh_extract
+          unzip -q /tmp/EnergieProject_executor_probe.zip -d /tmp/energie_fresh_extract
+          test -f /tmp/energie_fresh_extract/VERSIE.txt
+          test -f /tmp/energie_fresh_extract/MANIFEST.sha256
+          test -f /tmp/energie_fresh_extract/SHA256SUMS.json
+          echo FRESH_EXTRACT_CREATED
+
+      - name: Full fresh-extract pytest suite
+        working-directory: /tmp/energie_fresh_extract
+        env:
+          PYTHONPATH: /tmp/energie_fresh_extract
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: pytest -q
