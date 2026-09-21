@@ -125,3 +125,13 @@ Geen succesclaim zonder read-back/verificatie van de geschreven toestand.
 - Work leest eerst `Knowledge_Base_Master_Index.md` en `00_DEVELOPMENT_MANIFEST.md`, maakt daarna één taakgerichte readset en gebruikt die als ontwerp-/regressieconstraint.
 - De volledige KB wordt niet bij iedere substap opnieuw gelezen; één inventaris + gerichte retrieval voorkomt token-/tijdverspilling.
 - Als NAS-readback tijdelijk niet beschikbaar is, mag Work niet doen alsof de canonieke KB is gelezen. Het legt exact vast welke bronreadback nog ontbreekt vóór definitieve architectuur/release-acceptatie.
+
+
+## Tijdelijke GitHub Full Access — extra veiligheidscontrole
+- GitHub staat tijdelijk op `Allow all actions` uitsluitend voor de actieve 32.4.60-ontwikkeling en stabilisatie.
+- Vóór iedere GitHub-schrijfactie voert Spock/Work/Codex twee controles uit:
+  1. pre-write: juiste repository, branch/ref, doelbestand(en), actuele SHA/base, scope en beoogde wijziging controleren; geen bredere write dan nodig;
+  2. post-write: exact commit-/contentresultaat teruglezen en controleren op onverwachte bestanden, branch, scope of side-effects.
+- Bij twijfel over target, branch, scope, merge, delete, force/update of beschermde release-/productiegrens: niet schrijven totdat de ambiguïteit is opgelost.
+- `Allow all actions` is geen verruiming van productie-, NAS-, HA-, restart- of releaseautoriteit.
+- Na aantoonbaar live COMPLETE van 32.4.60 moet GitHub terug naar `Use my default` / normale `Allow low-risk actions`.
