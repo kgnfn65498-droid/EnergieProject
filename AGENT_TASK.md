@@ -17,10 +17,11 @@ Schema: v1
 - codex_reasoning: medium
 - codex_plan_reasoning: medium
 - codex_model_fallback: FORBIDDEN
-- step: 2/3
+- step: 3/3
 - owner: WORK
 - goal: Maak eerst de bestaande Incoming-keten structureel werkend door de minimale noodzakelijke publisher-correctie op de werkelijk actieve 32.4.59-voorganger te ontwikkelen en volledig te verifiëren. Replacement 32.4.60 blijft daarna pas aan de beurt.
 - scope:
+  0. REPOSITORY-WIDE OFFLINE TEST GUARD is explicitly approved by Peter for test infrastructure only. Implement one deterministic default-deny network guard for the test suite so tests cannot contact private/external endpoints unless an individual test explicitly uses a local-only fixture/fake approved by the test contract.
   0. Hermetic full-suite unblock is now the immediate next step. Do not revisit the already-GREEN publisher implementation unless the isolated test exposes a real regression.
   1. Hervat vanaf het reeds door Work geladen NAS-checkpoint en de rejected-60 evidence. Geen brede heranalyse.
   2. Leg vóór codewijziging het bewezen blockercheckpoint duurzaam vast: actieve ongewijzigde 32.4.59-publisher kan alleen de actieve versie uit Processed publiceren en kan daardoor geen volgende candidate uit Processing publiceren vóór installatie.
@@ -60,6 +61,11 @@ Schema: v1
   - Geen ZIP, NAS-write, HA-write, Incoming-write, productieactie, restart of terminalactie vond bij die blocker plaats.
   - Baseline vóór deze fix: App 59 / HA 59 / GitHub 59 / Processing leeg.
 - required_tests:
+  - OFFLINE GUARD RED: prove at least one representative test would attempt a real network connection without the guard.
+  - OFFLINE GUARD GREEN: repository-wide test execution blocks outbound/private network connections by default.
+  - LOCAL TEST TRAFFIC: localhost/in-process fakes may be allowed only where required by deterministic fixtures; no access to 192.168.1.200:8000 or other live NAS/HA endpoints.
+  - NO WEAKENING: no skip, xfail, deletion, assertion weakening, or conditional bypass of existing behavioral tests.
+  - GUARD REGRESSION: add a regression proving live/private-network attempts fail closed during tests.
   - TEST ISOLATION GATE: identify the exact test/path that would contact 192.168.1.200:8000. Make the test hermetic using a local fixture/mock/fake or dependency injection while preserving the same behavioral assertions. Do NOT skip, xfail, delete, weaken, or conditionally bypass the test.
   - NETWORK SAFETY: full suite/build/fresh-extract must run with no live NAS/HA/private-network dependency. Unexpected external-network access is a test failure.
   - ISOLATION REGRESSION: add/retain proof that the tested publisher behavior is exercised against deterministic local evidence and cannot silently fall back to a live NAS.
@@ -90,7 +96,7 @@ Schema: v1
   - Productie-installatie/restart/recreate/NAS live mutation nodig: STOP_FOR_PRODUCTION_APPROVAL.
   - Codex kan Terra + medium niet afdwingen: BLOCKED_MODEL_POLICY.
 - production_authority: NO
-- architecture_authority: YES_LIMITED_TO_EXISTING_59_PUBLISHER_FIX
+- architecture_authority: YES_LIMITED_TO_EXISTING_59_PUBLISHER_FIX_AND_TEST_INFRA_OFFLINE_GUARD
 - predecessor_artifact_required: YES
 - predecessor_artifact_identity: MUST_USE_EXACT_VERIFIED_32.4.59_BASIS_FROM_NAS_HANDOVER
 - checkpoint_writeback_required: YES
