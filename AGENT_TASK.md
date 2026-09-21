@@ -21,6 +21,7 @@ Schema: v1
 - owner: WORK
 - goal: Maak eerst de bestaande Incoming-keten structureel werkend door de minimale noodzakelijke publisher-correctie op de werkelijk actieve 32.4.59-voorganger te ontwikkelen en volledig te verifiëren. Replacement 32.4.60 blijft daarna pas aan de beurt.
 - scope:
+  0. PLATFORMTEST CAPABILITY SCOPE: Peter explicitly approved one narrow `platformtest_run` intent in the existing standard QNAP handoff/control path. This approval is limited to isolated test execution for the current candidate and future equivalent test-only runs under the same safety contract; it is not a generic Docker/NAS execution capability.
   0. REPOSITORY-WIDE OFFLINE TEST GUARD is explicitly approved by Peter for test infrastructure only. Implement one deterministic default-deny network guard for the test suite so tests cannot contact private/external endpoints unless an individual test explicitly uses a local-only fixture/fake approved by the test contract.
   0. Hermetic full-suite unblock is now the immediate next step. Do not revisit the already-GREEN publisher implementation unless the isolated test exposes a real regression.
   1. Hervat vanaf het reeds door Work geladen NAS-checkpoint en de rejected-60 evidence. Geen brede heranalyse.
@@ -64,6 +65,14 @@ Schema: v1
   - Geen ZIP, NAS-write, HA-write, Incoming-write, productieactie, restart of terminalactie vond bij die blocker plaats.
   - Baseline vóór deze fix: App 59 / HA 59 / GitHub 59 / Processing leeg.
 - required_tests:
+  - PLATFORMTEST INTENT TDD: prove current handoff rejects `platformtest_run` before implementation, then add the smallest allowlisted path needed to accept exactly that intent.
+  - PLATFORMTEST NETWORK: execution must enforce `--network none` / equivalent hard no-network isolation; private/external access must be impossible.
+  - PLATFORMTEST IMAGE: only the pre-approved existing test image/runtime may execute; no image pull/install/build as part of the handoff action.
+  - PLATFORMTEST INPUT FENCE: bind execution to exact candidate identity, exact test command/profile, immutable working copy, and explicit test-only output contract.
+  - PLATFORMTEST WRITE FENCE: no writes to production/runtime/HA/Incoming/Processed/project source; only isolated ephemeral test workspace and immutable result evidence.
+  - PLATFORMTEST SIDE-EFFECT FENCE: no restart/recreate/reboot, no service mutation, no host python, no shell passthrough, no generic docker command, no privilege broadening.
+  - PLATFORMTEST RESULT: return exit status, test counts, timestamps, candidate identity and evidence digest; fail closed on missing/mismatched identity.
+  - PLATFORMTEST REGRESSION: existing watcher_recreate/native_mcp_reload behavior remains unchanged; platformtest_run cannot invoke them or any other action.
   - OFFLINE GUARD RED: prove at least one representative test would attempt a real network connection without the guard.
   - OFFLINE GUARD GREEN: repository-wide test execution blocks outbound/private network connections by default.
   - LOCAL TEST TRAFFIC: localhost/in-process fakes may be allowed only where required by deterministic fixtures; no access to 192.168.1.200:8000 or other live NAS/HA endpoints.
@@ -92,6 +101,7 @@ Schema: v1
   - Er is hoogstens een gecontroleerde publisher-fix kandidaat; geen live installatie zonder expliciete goedkeuring.
   - Na latere live installatie moet een echte Incoming E2E aantonen dat volgende-release-publicatie werkt voordat 32.4.60 hervat.
 - stop_conditions:
+  - platformtest_run implementation exceeds the narrow allowlisted test-only handoff contract, requires generic shell/docker/NAS access, or touches production/runtime state: BLOCKED_SCOPE_EXPANSION.
   - Missing platformtest intent remains unresolved: BLOCKED_PLATFORMTEST_INTENT_MISSING. Do not use manual NAS upload, permission changes, live-network test access, host-python, or alternate isolation route.
   - Test isolation would require production credentials, live NAS/HA access, disabling assertions, skip/xfail, or broad architecture change: BLOCKED_TEST_ISOLATION.
   - UI/Peter reports <=25% remaining before a new large phase: checkpoint and STOP unless Peter explicitly authorizes continued spend.
@@ -101,7 +111,7 @@ Schema: v1
   - Codex kan Terra + medium niet afdwingen: BLOCKED_MODEL_POLICY.
 - production_authority: NO
 - architecture_authority: YES_LIMITED_TO_EXISTING_59_PUBLISHER_FIX_AND_TEST_INFRA_OFFLINE_GUARD
-- platformtest_architecture_authority: NOT_YET_APPROVED
+- platformtest_architecture_authority: APPROVED_NARROW_PLATFORMTEST_RUN_ONLY
 - predecessor_artifact_required: YES
 - predecessor_artifact_identity: MUST_USE_EXACT_VERIFIED_32.4.59_BASIS_FROM_NAS_HANDOVER
 - checkpoint_writeback_required: YES
