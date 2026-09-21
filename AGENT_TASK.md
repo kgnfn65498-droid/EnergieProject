@@ -17,8 +17,8 @@ Schema: v1
 - codex_reasoning: medium
 - codex_plan_reasoning: medium
 - codex_model_fallback: FORBIDDEN
-- step: 3/3
-- owner: WORK
+- step: 3A/3B
+- owner: CODEX
 - goal: Maak eerst de bestaande Incoming-keten structureel werkend door de minimale noodzakelijke publisher-correctie op de werkelijk actieve 32.4.59-voorganger te ontwikkelen en volledig te verifiëren. Replacement 32.4.60 blijft daarna pas aan de beurt.
 - scope:
   0. PLATFORMTEST CAPABILITY SCOPE: Peter explicitly approved one narrow `platformtest_run` intent in the existing standard QNAP handoff/control path. This approval is limited to isolated test execution for the current candidate and future equivalent test-only runs under the same safety contract; it is not a generic Docker/NAS execution capability.
@@ -65,6 +65,7 @@ Schema: v1
   - Geen ZIP, NAS-write, HA-write, Incoming-write, productieactie, restart of terminalactie vond bij die blocker plaats.
   - Baseline vóór deze fix: App 59 / HA 59 / GitHub 59 / Processing leeg.
 - required_tests:
+  - ANTI-LOOP GATE: before attempting any full-suite handoff, prove by source/read-back and focused tests that platformtest_run is actually implemented and accepted. If not, continue capability implementation; do not retry execution.
   - PLATFORMTEST INTENT TDD: prove current handoff rejects `platformtest_run` before implementation, then add the smallest allowlisted path needed to accept exactly that intent.
   - PLATFORMTEST NETWORK: execution must enforce `--network none` / equivalent hard no-network isolation; private/external access must be impossible.
   - PLATFORMTEST IMAGE: only the pre-approved existing test image/runtime may execute; no image pull/install/build as part of the handoff action.
@@ -102,7 +103,6 @@ Schema: v1
   - Na latere live installatie moet een echte Incoming E2E aantonen dat volgende-release-publicatie werkt voordat 32.4.60 hervat.
 - stop_conditions:
   - platformtest_run implementation exceeds the narrow allowlisted test-only handoff contract, requires generic shell/docker/NAS access, or touches production/runtime state: BLOCKED_SCOPE_EXPANSION.
-  - Missing platformtest intent remains unresolved: BLOCKED_PLATFORMTEST_INTENT_MISSING. Do not use manual NAS upload, permission changes, live-network test access, host-python, or alternate isolation route.
   - Test isolation would require production credentials, live NAS/HA access, disabling assertions, skip/xfail, or broad architecture change: BLOCKED_TEST_ISOLATION.
   - UI/Peter reports <=25% remaining before a new large phase: checkpoint and STOP unless Peter explicitly authorizes continued spend.
   - Fix vereist alsnog een tweede releasepad/bootstrap-actuator of bredere architectuurwijziging: BLOCKED_SCOPE_EXPANSION.
@@ -118,3 +118,21 @@ Schema: v1
 
 ## Bindend besluit
 Incoming-keten werkend krijgen is nu prioriteit 1. Replacement 32.4.60 wordt niet verder gebouwd totdat de actieve 32.4.59-publishercorrectie gecontroleerd is ontwikkeld, getest en later met expliciete productieautoriteit live bewezen is.
+
+## Verplichte volgorde vanaf checkpoint ca7c0b4
+### Fase 3A — eerst capability implementeren
+1. NIET opnieuw proberen de full-suite te starten.
+2. Gebruik checkpoint `ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e` als hoogste veilige hervatpunt.
+3. Implementeer in de bestaande standaard QNAP handoff/control code exact één nieuwe allowlisted intent: `platformtest_run`.
+4. TDD: huidige weigering = RED-baseline; daarna minimale implementatie; daarna gerichte capability-regressies.
+5. Verifieer alle reeds vastgelegde fences: geen generieke shell/docker, hard no-network, exact candidate/test identity, ephemeral workspace, immutable evidence, geen NAS/HA/productiewrites, geen restart/recreate.
+6. Schrijf capability-GREEN checkpoint persistent weg.
+7. STOP fase 3A als de capability niet volledig GREEN is.
+
+### Fase 3B — pas na capability GREEN
+1. Laat Work read-back bevestigen dat `platformtest_run` daadwerkelijk bestaat en alle capability-regressies GREEN zijn.
+2. Start dan pas de reeds afgesproken platformgeïsoleerde full-suite voor kandidaat `33bea32534c5114aefe822afe252a6555bc55e58`.
+3. Herhaal offline-guardwerk, publisher-RED/GREEN of 83/83-regressies niet tenzij nieuw bewijs daar expliciet om vraagt.
+4. Bij full-suite GREEN: canonical build → exact fresh-extract → kandidaat-ZIP.
+5. Geen productie-installatie zonder expliciete toestemming van Peter.
+
