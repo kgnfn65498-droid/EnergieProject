@@ -81,3 +81,10 @@ Daarna uitsluitend aanvullende runtime-evidence die voor de eerstvolgende stap n
 - Work mag alleen starten wanneer alle vóór de eerstvolgende protected boundary benodigde rijen GREEN zijn.
 - Als één verplichte rij BLOCKED is, blijft Spock eigenaar van het voorbereidend probleem en wordt Work niet gestart met de verwachting dat Work een platform-/toegangsbeperking zelf oplost.
 - Een platform-policyblocker mag nooit worden opgelost door een omweg, indirecte herstart, guard-verzwakking of een nieuwe executorroute die uitsluitend is bedoeld om dezelfde beveiliging te omzeilen.
+
+
+## Informed approval — bindend
+- Expliciete toestemming is alleen geldig als de relevante risico's en gebruikerszichtbare neveneffecten vooraf duidelijk zijn gemaakt.
+- Voor beschermde of potentieel impactvolle acties geeft Spock vóór de approval-vraag een beknopte risico-afweging: doel, voordeel, risico's, worst case, reversibiliteit, veiliger alternatief en aanbeveling.
+- Externe side-effects zoals GitHub-mails/notificaties, CI-/computegebruik, kosten/credits, zichtbare failures, restarts, downtime, permissions, data-exposure of irreversibele repositorywijzigingen worden expliciet genoemd wanneer ze redelijkerwijs mogelijk zijn.
+- Geen approval verkrijgen door risico's te verzwijgen, te bagatelliseren of uitsluitend het voordeel te benadrukken.
