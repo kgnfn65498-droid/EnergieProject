@@ -6,7 +6,7 @@ from release_controller_state import load_release_controller_state, release_acti
 
 
 class CommandProcessor:
-    def __init__(self, commands, decisions, mode_store, task_store, *, audit=None, mode_bridge=None, approved_actions=None, project_cr_service=None, nas_container_cr_service=None, conversation_intake=None, project_root=None):
+    def __init__(self, commands, decisions, mode_store, task_store, *, audit=None, mode_bridge=None, approved_actions=None, project_cr_service=None, nas_container_cr_service=None, platform_test_service=None, conversation_intake=None, project_root=None):
         self.commands = commands
         self.decisions = decisions
         self.mode = mode_store
@@ -16,6 +16,7 @@ class CommandProcessor:
         self.approved_actions = approved_actions
         self.project_cr_service = project_cr_service
         self.nas_container_cr_service = nas_container_cr_service
+        self.platform_test_service = platform_test_service
         self.conversation_intake = conversation_intake
         self.project_root = project_root
 
@@ -478,6 +479,26 @@ class CommandProcessor:
                         })
                         recovery['watcher_recreate_command_id'] = queued.get('id')
                 result = {'ok': True, 'executed': True, 'action': 'release_recover', 'recovery': recovery}
+            elif action == 'platformtest_run':
+                if self.platform_test_service is None:
+                    raise RuntimeError('platformtest service is niet geconfigureerd; fail closed')
+                result = dict(self.platform_test_service.run(
+                    candidate_sha=str(item.get('candidate_sha') or ''),
+                    test_profile=str(item.get('test_profile') or 'publisher_full_suite_v1'),
+                ) or {})
+                if result.get('status') == 'PENDING':
+                    pending = self.commands.requeue(item['id'], result=result)
+                    self._audit('command.external_executor_pending', pending, result)
+                    return pending
+                if (
+                    result.get('status') != 'GREEN'
+                    or result.get('ok') is not True
+                    or result.get('network_mode') != 'none'
+                    or result.get('production_modified') is not False
+                ):
+                    raise RuntimeError('platformtest gaf geen GREEN geïsoleerd resultaat')
+                result['executed'] = True
+                result['action'] = 'platformtest_run'
             elif action == 'project_cr_create':
                 if self.project_cr_service is None:
                     raise RuntimeError('EnergieProject CR service is niet geconfigureerd; fail closed')
