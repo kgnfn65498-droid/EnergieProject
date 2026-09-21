@@ -1,3 +1,13 @@
+## 2026-09-21 — PR10 verified on exact transferred candidate
+- Exact bundle SHA 33bea325 materialized locally.
+- PR10 changes replayed on candidate.
+- 8/8 platformtest capability tests GREEN.
+- 128/128 relevant control-plane/PM/release regressions GREEN after fixture-only 32.4.57 adapter alignment for already-existing PUBLISHING phase.
+- Local full-suite hit one host-environment mismatch: /opt/python-hooks/sitecustomize.py shadows repository sitecustomize.py in ChatGPT container child processes.
+- This host mismatch does not validate or invalidate QNAP runtime; final full suite must still run in the approved QNAP NETWORK=NONE image.
+- PR10 payload now explicitly sets PYTHONPATH=/workspace.
+- No production action performed.
+
 ## 2026-09-21 — Fixed platformtest executor source implemented on PR #10
 - Branch platformtest-executor-v1 created from current main.
 - Added Projectmanager platform_test_service, command gateway/ingress/processor/orchestrator wiring, and fixed-function Docker executor in existing control-plane.
