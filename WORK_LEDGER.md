@@ -1,3 +1,11 @@
+## 2026-09-21 — Peter approved exact platformtest live activation
+- Explicit approval received for the exact protected activation previously defined.
+- Allowed now: canonical control-plane source sync; ensure_control_plane_current; at most one bounded restart of existing energie-control-plane only on fingerprint mismatch; health/fingerprint/preflight readback.
+- No second approval is required for those exact steps.
+- After PLATFORMTEST_INTENT_LIVE_GREEN, Work task 891b10287eb34f55971f7d01016b38bf must immediately resume candidate 33bea325 from ca7c0b4 and continue NETWORK=NONE full suite -> build -> fresh-extract -> validation -> candidate ZIP.
+- Still forbidden: generic shell/docker, recreate, image pull/build, any other restart, NAS/HA reboot/restart, release install.
+- Peter is not a transport layer; no technical copy/paste is required.
+
 ## 2026-09-21 — PR #10 merged; protected activation boundary reached
 - PR #10 merged to main at ff480024ea74b237f4088b578db98e22ad9ac63d.
 - platformtest_run fixed-function NETWORK=NONE executor is now in repository main.
