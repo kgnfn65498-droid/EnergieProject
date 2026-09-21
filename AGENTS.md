@@ -135,3 +135,23 @@ Geen succesclaim zonder read-back/verificatie van de geschreven toestand.
 - Bij twijfel over target, branch, scope, merge, delete, force/update of beschermde release-/productiegrens: niet schrijven totdat de ambiguïteit is opgelost.
 - `Allow all actions` is geen verruiming van productie-, NAS-, HA-, restart- of releaseautoriteit.
 - Na aantoonbaar live COMPLETE van 32.4.60 moet GitHub terug naar `Use my default` / normale `Allow low-risk actions`.
+
+
+## GitHub destructieve-actiegate — verplicht bij Full Access
+- Alleen-lezen GitHub-acties vallen buiten deze gate.
+- Iedere GitHub-write wordt vóór uitvoering geclassificeerd als:
+  - `LOW_RISK_WRITE`: kleine, begrensde, eenvoudig terug te draaien wijziging binnen de actieve taak;
+  - `POTENTIALLY_DESTRUCTIVE`: kan bestaande code/state/geschiedenis overschrijven, verwijderen, samenvoegen of moeilijker herstel veroorzaken;
+  - `DESTRUCTIVE_OR_HIGH_IMPACT`: delete, force/history rewrite, merge naar protected/main met brede impact, branch/tag removal, repository-/permission-/secret-/workflow-instellingen, of vergelijkbare onomkeerbare/brede wijziging.
+- Voor `POTENTIALLY_DESTRUCTIVE` en `DESTRUCTIVE_OR_HIGH_IMPACT` moet vóór de tool-call expliciet intern worden afgewogen:
+  1. **Doel/noodzaak** — welk concreet probleem lost deze actie op en is zij nu echt nodig?
+  2. **Voordeel** — welk aantoonbaar resultaat levert de actie op?
+  3. **Nadeel/worst case** — wat kan verloren, overschreven, verkeerd gemerged of moeilijk herstelbaar worden?
+  4. **Reversibiliteit** — bestaat er een exacte rollback/revert/reference naar de vorige toestand?
+  5. **Veiliger alternatief** — kan hetzelfde doel bereikt worden via read-only controle, feature branch, nieuwe commit, PR, append-only evidence of kleinere scoped write?
+  6. **Targetbewijs** — repo, branch/ref, base SHA, files, diff/scope en actuele taakautoriteit zijn exact vastgesteld.
+- Alleen uitvoeren wanneer het voordeel aantoonbaar opweegt tegen het risico, geen veiliger gelijkwaardig alternatief bestaat, targetbewijs volledig is en de actie binnen de actuele autorisatie valt.
+- Bij gelijke geschiktheid geldt de voorkeur: `read-only > nieuwe branch/commit > kleine reversible write > merge > overwrite/delete/force`.
+- `Allow all actions` geeft NOOIT impliciete toestemming voor high-impact/destructieve acties die volgens projectregels expliciete approval vereisen.
+- Na iedere potentieel destructieve write: read-back van commit/ref/diff uitvoeren en controleren dat uitsluitend de bedoelde scope is veranderd. Bij afwijking onmiddellijk stoppen en eerst herstelpad bepalen.
+- Deze gate is bedoeld als extra kwaliteitscontrole, niet als reden om Work iedere paar minuten bij Peter te laten stoppen. Alleen als de actie buiten bestaande autorisatie valt of risico/target niet eenduidig kan worden gemaakt, is nieuwe toestemming nodig.
