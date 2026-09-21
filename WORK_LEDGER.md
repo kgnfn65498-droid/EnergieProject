@@ -1,3 +1,13 @@
+## 2026-09-21 — Spock implemented exact platformtest blueprint locally
+- Exact basis materialized from transferred git bundle: 33bea32534c5114aefe822afe252a6555bc55e58.
+- Implemented fixed-function platformtest_run across PM gateway/ingress/processor/orchestrator/service and existing control-plane.
+- Hard isolation: exact local image energie-filesystem-mcp:runtime-v1; fixed pytest profile; read-only candidate bind; NetworkMode=none; read-only rootfs; CapDrop ALL; no-new-privileges; tmpfs-only temp; no pull/build/install or generic shell/docker input.
+- Added exact request/result identity fencing and immutable evidence summary.
+- New capability tests 7/7 GREEN; focused set 58/58 GREEN; broad related subset 969 passed, 2 skipped, 0 failed; compile GREEN.
+- Six initially observed 32.4.57 failures were stale GreenAdapter fixture assumptions after already-proven PUBLISHING phase introduction; fixture aligned, no product gate weakened.
+- Work now has an exact implementation blueprint and must code/test/commit it without re-research; next legitimate stop is STOP_FOR_PLATFORMTEST_DEPLOY_APPROVAL.
+- No NAS/HA/source-sync/restart/production action performed.
+
 ## 2026-09-21 — Autonomous execution contract hardened
 - Repeated stop loop traced to coordination text, especially a stale Work wakeup/testhandoff gate.
 - That gate is removed as an execution blocker.
