@@ -55,3 +55,10 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 - Last reported Work checkpoint: a59780d.
 - Develop the smallest 32.4.59 publisher correction under the existing single ReleaseController/identity-fencing architecture. No second publisher, bootstrap actuator or rescue path.
 - No live install until explicit production authorization. Replacement 32.4.60 stays paused until the corrected 59 publisher is live and Incoming E2E is proven GREEN.
+
+## 2026-09-21 — platformtest_run authorization
+- Peter explicitly approved a narrow test-only `platformtest_run` intent in the existing standard QNAP handoff/control path.
+- Purpose: execute the already-approved platform-isolated full suite for candidate `33bea32534c5114aefe822afe252a6555bc55e58` without manual NAS upload, permission changes, live-network access or alternate execution routes.
+- Hard boundaries: approved test image/runtime only; no network; exact candidate/test identity; ephemeral isolated workspace; immutable evidence output; no production/runtime/HA/Incoming/Processed write; no restart/recreate/reboot; no generic shell/docker passthrough; no host python; no privilege broadening.
+- Latest safe blocker checkpoint before implementation: `96aae268403aadf737b68a76228f5d0e3e6760b4`.
+- Once the narrow capability is TDD/regression GREEN, resume the existing full-suite checkpoint directly and do not repeat already-proven offline-guard work.
