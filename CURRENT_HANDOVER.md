@@ -126,3 +126,10 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 - Every future approval request must state concrete downside/side-effects before asking for "akkoord".
 - GitHub Actions is a specific example: mail/notifications, CI resource use and visible workflow failures must be disclosed in advance.
 - This is now a permanent project rule, not a one-off preference.
+
+## 2026-09-21 — local executor GREEN, waiting only for exact Work source export
+- A silent local executor is now proven for offline full suite, canonical build, exact fresh-extract and fresh-extract full suite.
+- Proof basis 33bea required two compatibility fixes: explicit historical GreenAdapter PUBLISHING support and explicit watcher restart stable-poll window.
+- Both source and fresh-extract suites close 1979 passed / 2 skipped / 0 failed.
+- No GitHub Actions are needed or allowed.
+- The only remaining pre-handoff input is the exact current Work 32.4.60 source at checkpoint 29da2de. Work must publish that exact branch to GitHub without PR, workflow, merge, force, main update or production action.
