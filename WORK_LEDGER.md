@@ -1,3 +1,11 @@
+## 2026-09-21 — PR #10 merged; protected activation boundary reached
+- PR #10 merged to main at ff480024ea74b237f4088b578db98e22ad9ac63d.
+- platformtest_run fixed-function NETWORK=NONE executor is now in repository main.
+- Source validation evidence retained: 8/8 capability GREEN; 128/128 relevant regressions GREEN on exact candidate 33bea325; earlier broader subset 969 passed, 2 skipped, 0 failed.
+- No live NAS/HA/source-sync/restart/production action performed.
+- Status is now exactly STOP_FOR_PLATFORMTEST_DEPLOY_APPROVAL.
+- Next protected activation, after Peter approval only: canonical control-plane source sync; at most one bounded restart of existing energie-control-plane if loaded fingerprint mismatches; read back health + exact fingerprint; run preflight; then Work resumes NETWORK=NONE full suite from ca7c0b4.
+
 ## 2026-09-21 — PR10 verified on exact transferred candidate
 - Exact bundle SHA 33bea325 materialized locally.
 - PR10 changes replayed on candidate.
