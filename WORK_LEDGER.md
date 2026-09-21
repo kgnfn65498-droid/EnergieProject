@@ -1,3 +1,9 @@
+## 2026-09-21 — Rejected cause proven: same-version preflight
+- Exact rejected 32.4.59 publisher-fix artifact reproduces BLOCKED candidate_version_not_newer against current App 32.4.59.
+- Incoming itself did what the standard controller requires; no alternate ingress is needed.
+- Corrective action is standard semver bump to 32.4.60 for this publisher fix, with canonical rebuild + fresh-extract verification.
+- The previously planned replacement 32.4.60 becomes 32.4.61 after predecessor fix proves live E2E.
+
 ## 2026-09-21 — Returned v60 to proven standard ZIP route
 - Peter correctly flagged that the QNAP platformtest/containerexecutor path was an unnecessary deviation from the long-proven release workflow.
 - For v60, platformtest_run/QNAP test executor/control-plane activation is no longer a prerequisite and must not be activated.
