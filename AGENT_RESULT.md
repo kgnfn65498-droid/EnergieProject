@@ -23,3 +23,17 @@ Schema: v1
 - platform_full_suite_preflight: BLOCKED_BEFORE_PYTEST
 - disposition: CONTINUE_WITH_BOUNDED_OFFLINE_PROVABILITY_FIX
 - next_valid_user_contact: V60_READY_FOR_ONE_TIME_BOOTSTRAP_APPROVAL or BLOCKED_PLATFORM_POLICY_PROVEN
+
+- platform_blocker_checkpoint_29da2de: PROVEN_GENUINE
+- checkpoint: 29da2de404299cc0a4a49224ba431fec5b0feb4c
+- branch: work/replacement-32.4.60-combined
+- full_suite_process_started: NO
+- platform_reason: possible access to 192.168.1.200:8000
+- indirect_restart_or_bypass_allowed: NO
+- offline_guard_modified: NO
+- targeted_regressions: 26/26 GREEN
+- nas_ha_production_touched: NO
+- build_started: NO
+- fresh_extract_started: NO
+- disposition: BLOCKED_PLATFORM_POLICY_PROVEN
+- next_required_capability: an executor that permits the existing offline-guarded full suite without bypassing platform safety or touching private NAS/HA.
