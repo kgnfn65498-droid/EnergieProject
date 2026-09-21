@@ -57,3 +57,10 @@ Pas daarna, na de normale release-approval, gaat de ZIP via Incoming -> ReleaseC
 
 ## Autonome doorwerkregel
 Work/Codex gaat zonder tussentijdse gebruikersactie door van full suite naar build naar fresh-extract naar kandidaat-ZIP zolang er geen echte blocker ontstaat. Checkpoints worden persistent opgeslagen zonder de run te beëindigen.
+
+## 2026-09-21 — Peter approved exact 32.4.59 publisher-fix release
+- Explicit release approval granted for artifact: EnergieProject_v32.4.59_publisher_fix_final.zip
+- Exact SHA256: 23b9814d916c84d82ce4690291ec894c7550306a92a4eec494b6797a60a1a741
+- Approved ingress: standard Inbox/incoming only.
+- Do not rename, unpack, mutate, or substitute the artifact.
+- After placement, existing ReleaseController owns the chain autonomously.
