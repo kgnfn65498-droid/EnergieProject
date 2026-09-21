@@ -74,3 +74,11 @@ Geen succesclaim zonder read-back/verificatie van de geschreven toestand.
 - Bij <=25% resterend budget: checkpoint en STOP vóór een nieuwe grote Work/Codex-fase, tenzij Peter expliciet toestemming geeft door te gaan.
 - Credits of zwaardere modellen worden nooit automatisch ingezet om een budgetgrens te omzeilen.
 - Budgetbesparing mag verplichte tests, releasegates of bewijsvoering nooit verzwakken; checkpoint en stop in plaats van gates overslaan.
+
+## Coördinatie-sanity-check
+- Vóór iedere overdracht naar Work of Codex controleert Spock/Chat de volledige actieve AGENT_TASK op interne tegenspraken tussen doel, fasevolgorde, scope, required_tests en stop_conditions.
+- Een ontbrekende capability die in de actuele fase juist gebouwd/geïmplementeerd moet worden, mag NIET tegelijk als stopcriterium voor diezelfde fase gelden.
+- Elke fase bevat expliciete preconditions: een vervolgfase mag pas starten nadat de vorige fase aantoonbaar en persistent GREEN is.
+- Bij een blocker wordt eerst vastgesteld of het een echte technische/safety blocker is of een fout/tegenstrijdigheid in de taakdefinitie.
+- Na elke taakwijziging volgt read-back van de effectieve AGENT_TASK voordat Work/Codex opnieuw wordt gestart.
+- Reeds bewezen werk wordt niet opnieuw uitgevoerd door een coördinatiefout.
