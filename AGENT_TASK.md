@@ -9,9 +9,7 @@ Schema: v1
 - reasoning: HOOG
 - work_model: SOL-LIGHT
 - usage_guard: CONSERVE
-- usage_signal: 34% five-hour budget remaining reported by Peter; weekly 90% remaining
-- five_hour_reset_gate: reset shown at 23:51 local; safe large-phase start not before 23:55 local on 2026-09-20
-- pre_reset_large_task_rule: before 23:55 local, do not start any new phase reasonably expected to consume >25 percentage points of the five-hour budget; checkpoint and WAIT_USAGE_RESET instead
+- usage_signal: current post-reset budget not yet reported; remain in CONSERVE mode
 - max_parallel_codex_runs: 1
 - usage_execution_rule: one bounded active task only; no broad re-analysis; checkpoint before each next large phase
 - duplicate_pr_head_review: FORBIDDEN
@@ -19,10 +17,11 @@ Schema: v1
 - codex_reasoning: medium
 - codex_plan_reasoning: medium
 - codex_model_fallback: FORBIDDEN
-- step: 1/3
+- step: 2/3
 - owner: WORK
 - goal: Maak eerst de bestaande Incoming-keten structureel werkend door de minimale noodzakelijke publisher-correctie op de werkelijk actieve 32.4.59-voorganger te ontwikkelen en volledig te verifiëren. Replacement 32.4.60 blijft daarna pas aan de beurt.
 - scope:
+  0. Hermetic full-suite unblock is now the immediate next step. Do not revisit the already-GREEN publisher implementation unless the isolated test exposes a real regression.
   1. Hervat vanaf het reeds door Work geladen NAS-checkpoint en de rejected-60 evidence. Geen brede heranalyse.
   2. Leg vóór codewijziging het bewezen blockercheckpoint duurzaam vast: actieve ongewijzigde 32.4.59-publisher kan alleen de actieve versie uit Processed publiceren en kan daardoor geen volgende candidate uit Processing publiceren vóór installatie.
   3. Markeer commit 398b2aa expliciet als REJECTED/DO_NOT_USE omdat de test ten onrechte toekomstige aangepaste code als actieve 59-code gebruikte.
@@ -42,6 +41,14 @@ Schema: v1
   - NAS/HA/productie tijdens ontwikkeling
   - model- en Usage Guard-beleid
 - proven_facts:
+  - Work reported exact predecessor ZIP verified: EnergieProject_v32.4.59(2).zip, 5,968,217 bytes, SHA256 42a70f18…d68715c, ZIP integrity GREEN with 536 files, version 32.4.59, manifest SHA 21c22a6c…bc06f1, predecessor 32.4.58 hotfix SHA c9d67b5a…9755e4.
+  - Work reported preparation checkpoint 1aed641.
+  - Work/Codex reported publisher-fix checkpoint 0f79011.
+  - TDD RED was proven against the unchanged exact 32.4.59 ZIP.
+  - Minimal publisher fix was implemented; targeted regressions 83/83 GREEN; compilation and diff control GREEN.
+  - 398b2aa remained excluded.
+  - No candidate ZIP was built and no NAS/HA/Incoming/production/restart action occurred.
+  - Full suite was not run because one test would contact private NAS endpoint 192.168.1.200:8000; that live-network dependency must be removed from the test path rather than granted access.
   - Peter heeft optie 1 expliciet gekozen: eerst afzonderlijke voorganger-/publisher-update voor 59; daarna replacement 60.
   - Hoogste prioriteit is een werkelijk werkende Incoming-keten.
   - NAS-checkpoints en volledige rejected-60 evidence zijn door Work geladen.
@@ -53,6 +60,11 @@ Schema: v1
   - Geen ZIP, NAS-write, HA-write, Incoming-write, productieactie, restart of terminalactie vond bij die blocker plaats.
   - Baseline vóór deze fix: App 59 / HA 59 / GitHub 59 / Processing leeg.
 - required_tests:
+  - TEST ISOLATION GATE: identify the exact test/path that would contact 192.168.1.200:8000. Make the test hermetic using a local fixture/mock/fake or dependency injection while preserving the same behavioral assertions. Do NOT skip, xfail, delete, weaken, or conditionally bypass the test.
+  - NETWORK SAFETY: full suite/build/fresh-extract must run with no live NAS/HA/private-network dependency. Unexpected external-network access is a test failure.
+  - ISOLATION REGRESSION: add/retain proof that the tested publisher behavior is exercised against deterministic local evidence and cannot silently fall back to a live NAS.
+  - AFTER ISOLATION: rerun the affected test(s), the 83 targeted regressions if impacted, then the complete required suite.
+  - ONLY AFTER FULL SUITE GREEN: canonical publisher-fix build and exact fresh-extract verification.
   - PREDECESSOR ARTIFACT ACCESS GATE: before any Codex/code work, verify that the exact canonical 32.4.59 predecessor ZIP named/identified by the NAS handover is directly readable. If readable, use it and continue. If not readable, STOP as BLOCKED_PREDECESSOR_ARTIFACT_MISSING and request that exact ZIP from Peter; do not substitute GitHub source, runtime copy, reconstructed tree, or another artifact.
   - USAGE GATE: hergebruik geladen evidence; geen brede heranalyse; geen parallelle subagents; één Codex-lijn.
   - RED: reproduceer met werkelijk ongewijzigde 32.4.59-publisher dat een exact geldige next-release candidate in Processing niet gepubliceerd kan worden.
@@ -71,6 +83,7 @@ Schema: v1
   - Er is hoogstens een gecontroleerde publisher-fix kandidaat; geen live installatie zonder expliciete goedkeuring.
   - Na latere live installatie moet een echte Incoming E2E aantonen dat volgende-release-publicatie werkt voordat 32.4.60 hervat.
 - stop_conditions:
+  - Test isolation would require production credentials, live NAS/HA access, disabling assertions, skip/xfail, or broad architecture change: BLOCKED_TEST_ISOLATION.
   - UI/Peter reports <=25% remaining before a new large phase: checkpoint and STOP unless Peter explicitly authorizes continued spend.
   - Fix vereist alsnog een tweede releasepad/bootstrap-actuator of bredere architectuurwijziging: BLOCKED_SCOPE_EXPANSION.
   - Exacte 32.4.59 buildbasis/identity ontbreekt: BLOCKED_PREDECESSOR_IDENTITY.
