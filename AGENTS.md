@@ -92,3 +92,28 @@ Geen succesclaim zonder read-back/verificatie van de geschreven toestand.
 - "Niet geïnstalleerd" is geen blocker wanneer de actieve taak precies is om die capability te implementeren.
 - Voor iedere BLOCKED-uitkomst voert de agent eerst een contradiction/self-causation check uit: als de blokkade door AGENT_TASK/AGENTS-formulering zelf ontstaat, corrigeert hij de interpretatie binnen doel en safety boundaries en gaat door.
 - Peter is nooit de technische transportlaag tussen Chat, Work en Codex.
+
+
+## Stille autonome uitvoer — bindend
+- Gebruikerscommunicatie is GEEN tussenstap in development, testing, audit, build of live-observatie.
+- Spock/Chat bereidt eerst alle analyse, scope, bronnen, checkpoints, acceptatiecriteria en uitvoercontracten volledig voor voordat Work wordt ingeschakeld.
+- Na overdracht is Work uitvoeringsowner en blijft Work doorwerken; Work delegeert codeproblemen zelfstandig aan Codex binnen de actieve scope en neemt het resultaat daarna terug over.
+- Peter krijgt GEEN voortgangscommentaar, checkpointmelding, "ik ga nu...", "verder?", tussenresultaat of herhaalde statusvraag.
+- Persistente checkpoints gaan naar AGENT_RESULT/WORK_LEDGER/CURRENT_HANDOVER zonder de run te beëindigen en zonder Peter als transportlaag.
+- Een agent mag niet stoppen op "taak aangemaakt", "handoff klaar", "wacht op Work", "wacht op Codex", "kan nog verder", of een capability/codegebrek dat binnen de actieve taak gerepareerd mag worden.
+- Bij een oplosbare test/codefout: Work -> Codex (Terra/Medium) -> fix -> regressie -> Work hervat automatisch.
+- Bij een omgevingsprobleem: eerst aantonen dat het werkelijk buiten de toegestane Work/Codex-omgeving ligt en geen instructie-/harnessprobleem is; pas daarna BLOCKED.
+- Peter wordt alleen geroepen bij:
+  1. een echte beschermde productieactie waarvoor expliciete toestemming contractueel vereist is;
+  2. een echte onoplosbare scope/safety/artifact/model-blocker;
+  3. definitief eindresultaat/acceptatie.
+- Zodra Peter een exact beschermde actie goedkeurt, geldt die toestemming voor de volledige vooraf omschreven bounded keten; niet na iedere substap opnieuw vragen.
+- Na protected approval voert Work de gehele goedgekeurde keten uit en observeert tot terminale GREEN/COMPLETE of een echte blocker. Geen tussentijdse commentaren.
+
+## Dubbele eind-audit voor releases
+- Een releasekandidaat is nog NIET klaar voor Peter zodra build/tests alleen GREEN zijn.
+- Eerst voert Work zijn eigen acceptance/self-audit uit op bron, regressies, full-suite, artifact, fresh-extract en release-identiteit.
+- Daarna voert Spock een onafhankelijke grondige audit uit op diff/scope, regressiedekking, release-architectuur, artifact-identiteit, fresh-extract, Incoming/ReleaseController/GitHub/HA-contract en bootstrapplan.
+- Daarna voert Codex exact één onafhankelijke bounded audit uit met Terra/Medium, mits geen door UI/Peter gemelde budgetgrens dit volgens Usage Guard verbiedt. Codex wijzigt niets tijdens audit zonder concrete bevinding; bij een echte bevinding gaat die terug naar Work voor fix -> retest -> re-audit.
+- Als geen laag-budgetsignaal bestaat, wordt de Codex-audit uitgevoerd; quota worden niet vooraf verbrand aan brede duplicatieve reviews.
+- Peter wordt pas benaderd nadat alle beschikbare verplichte audits GREEN zijn en het exacte artifact-SHA vaststaat.
