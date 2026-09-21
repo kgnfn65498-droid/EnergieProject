@@ -104,3 +104,23 @@ Daarna moet een volgende release weer zonder terminal-bootstrap via Incoming kun
 Work werkt autonoom door tot:
 - `V60_READY_FOR_ONE_TIME_BOOTSTRAP_APPROVAL`; of
 - een echte code/artifact/safety blocker die niet door taaktekst of ontbrekende implementatie-instructie wordt veroorzaakt.
+
+
+## Communicatie- en auditcontract voor deze 32.4.60
+- SILENT_MODE=ON.
+- Spock rondt vóór Work-handoff alle voorbereidende analyse/instructies af; daarna geen nieuwe ontwerpvragen aan Peter.
+- Work is end-to-end uitvoeringsowner vanaf handoff tot `V60_READY_FOR_ONE_TIME_BOOTSTRAP_APPROVAL`.
+- Code/testproblemen binnen scope worden door Work zelfstandig naar één Codex-lane Terra/Medium gestuurd, opgelost, opnieuw getest en door Work hervat.
+- Work stopt niet voor gewone status, checkpoints, handoffs, "volgende stap", of omdat Codex klaar is.
+- Voor Peter zichtbaar eindpunt vóór productie is pas bereikt na:
+  1. full-suite GREEN;
+  2. canonical build GREEN;
+  3. exact fresh-extract GREEN;
+  4. Work self-audit GREEN;
+  5. Spock onafhankelijke grondige audit GREEN;
+  6. één Codex onafhankelijke audit GREEN als Usage Guard dat toelaat;
+  7. exact ZIP-SHA256 + bounded bootstrapplan vastgelegd.
+- Bij een auditbevinding: terug naar Work/Codex fix-loop; Peter niet tussentijds informeren tenzij echte blocker.
+- Daarna één compacte vraag aan Peter voor exact de bounded bootstrap van exact die ZIP/SHA.
+- Na akkoord: Work voert de volledige eenmalige bootstrap uit en observeert zonder tussencommentaar tot live keten `Incoming/Processing/PUBLISHING/INSTALLING/INSTALLED/RUNTIME_ALIGNING/VERIFYING/ACCEPTED/Processed/GitHub/HA/COMPLETE` aantoonbaar GREEN is.
+- Als live een codefout blijkt: Work legt evidence vast, Codex repareert binnen scope, Work retest/rebuildt; Peter wordt pas opnieuw benaderd wanneer een NIEUWE protected productieactie voor een gewijzigd artifact nodig is.
