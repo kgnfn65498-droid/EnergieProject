@@ -1,3 +1,10 @@
+## 2026-09-21 — Testhandoff follow-up submitted directly to Projectmanager
+- Ingress-ID: 28494cbae40341e788aa569b2361bf6e
+- Status: PROPOSED_TO_LOCAL_PROJECTMANAGER
+- Peter no longer needs to copy/paste any technical handoff.
+- Work remains parked at ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e until the testhandoff is actually available.
+- Do not re-run the same availability/blocker check in Work before that condition is true.
+
 ## 2026-09-21 — platformtest activation path corrected
 - Exact candidate inspection confirmed why repeated Work retries could never succeed: live control-plane currently allowlists only watcher_recreate/native_mcp_reload and process_once has no platformtest consumer.
 - The live energie-control-plane mounts synced source read-only and loads code at process start; source code changes are not active until loaded runtime fingerprint is refreshed.
