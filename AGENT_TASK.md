@@ -109,7 +109,7 @@ Schema: v1
   - Exacte 32.4.59 buildbasis/identity ontbreekt: BLOCKED_PREDECESSOR_IDENTITY.
   - Productie-installatie/restart/recreate/NAS live mutation nodig: STOP_FOR_PRODUCTION_APPROVAL.
   - Codex kan Terra + medium niet afdwingen: BLOCKED_MODEL_POLICY.
-- production_authority: NO
+- production_authority: NO — capability build/test only; live source-sync/restart requires a separate explicit Peter approval
 - architecture_authority: YES_LIMITED_TO_EXISTING_59_PUBLISHER_FIX_AND_TEST_INFRA_OFFLINE_GUARD
 - platformtest_architecture_authority: APPROVED_NARROW_PLATFORMTEST_RUN_ONLY
 - predecessor_artifact_required: YES
@@ -136,3 +136,54 @@ Incoming-keten werkend krijgen is nu prioriteit 1. Replacement 32.4.60 wordt nie
 4. Bij full-suite GREEN: canonical build → exact fresh-extract → kandidaat-ZIP.
 5. Geen productie-installatie zonder expliciete toestemming van Peter.
 
+
+
+## platformtest_run — exacte implementatie- en activatievolgorde
+
+### Bewezen bronfeiten
+- `tools/control_plane/control_plane.py` heeft momenteel `ALLOWED_ACTIONS = {'watcher_recreate', 'native_mcp_reload'}`.
+- `ControlPlane.process_once()` consumeert momenteel alleen watcher- en native-MCP requests.
+- `slimmemeterportal_import/rootfs/app/projectmanager_v2/command_gateway.py` kent geen platformtest-intent.
+- De live `energie-control-plane` mount `Data/03_Systeem/Projectmanager/ControlPlane` read-only en laadt Python-code bij processtart.
+- `tools/control_plane_source_sync.py` is de bestaande canonieke source-sync.
+- `tools/control_plane_bootstrap.py::ensure_control_plane_current()` is de bestaande bounded route die synced source + loaded-runtime fingerprint vergelijkt en maximaal één restart van de reeds bestaande `energie-control-plane` uitvoert wanneer nodig.
+- Daarom is “broncode GREEN” NIET hetzelfde als “intent live beschikbaar”.
+
+### Fase 3A1 — capability bouwen, geen live actie
+1. Wijzig alleen de bestaande standaard handoff/control-plane route; geen nieuw executorpad.
+2. Voeg exact één allowlisted intent/action toe: `platformtest_run`.
+3. Gebruik een vast request/result-schema onder de bestaande `Inbox/control_plane/requests` en `results` boundary.
+4. Testactie is fixed-function: geen shelltekst, geen arbitraire command-array van de caller, geen willekeurige image/container/path.
+5. De executor mag uitsluitend de reeds goedgekeurde lokale EnergieProject testimage/runtime gebruiken en moet Docker `NetworkMode=none` hard zetten.
+6. Geen image pull/build/install, geen host-python, geen privilegeverbreding.
+7. Geen writes naar App/runtime/HA/Incoming/Processing/Processed; alleen de canonieke handoff-workspace die de bestaande QNAP-handoff zelf aanlevert + tijdelijk containerwerk + immutable result-evidence.
+8. Exacte candidate SHA + test profile moeten in request én result terugkomen; mismatch = fail-closed.
+9. Voeg alleen de Docker-API primitives toe die voor deze fixed test-run nodig zijn (create/start/wait/read fixed result/remove); geen generic exec API.
+10. TDD RED→GREEN + gerichte regressies voor allowlist, NetworkMode=none, input fencing, side-effect fencing en bestaande watcher/native acties.
+
+### Fase 3A2 — source/artifact verificatie
+1. Bewijs source/read-back GREEN voor de nieuwe intent.
+2. Bewijs dat bestaande watcher_recreate/native_mcp_reload regressies ongewijzigd GREEN blijven.
+3. Leg exacte control-plane runtime fingerprint vast die na activatie verwacht wordt.
+4. Geen full-suite poging en geen live QNAP-mutatie in deze fase.
+
+### Fase 3A3 — verplichte protected-action grens
+- STOP met status `STOP_FOR_PLATFORMTEST_DEPLOY_APPROVAL`.
+- De intent is op dat moment alleen gebouwd/getest, nog NIET live beschikbaar.
+- Vraag Peter exact om toestemming voor:
+  1. bestaande control-plane source-sync via de bestaande canonieke sync;
+  2. maximaal één bounded restart van uitsluitend de bestaande `energie-control-plane` als loaded fingerprint niet matcht;
+  3. read-back van container health + exact loaded fingerprint.
+- Geen recreate, geen nieuw image, geen NAS reboot, geen HA restart.
+
+### Fase 3A4 — alleen na expliciete productieautoriteit
+1. Voer exact de bestaande source-sync + bounded control-plane reload uit.
+2. Verifieer health en exact loaded runtime fingerprint.
+3. Verifieer daarna met een NO-OP/contractpreflight dat `platformtest_run` door de standaard handoff wordt herkend, zonder de full suite al te starten.
+4. Schrijf persistent `PLATFORMTEST_INTENT_LIVE_GREEN`.
+
+### Fase 3B — pas na PLATFORMTEST_INTENT_LIVE_GREEN
+- Work hervat vanaf checkpoint `ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e`.
+- Start de bestaande candidate `33bea32534c5114aefe822afe252a6555bc55e58` via de standaard QNAP-handoff met hard NETWORK=NONE.
+- Herhaal geen offline-guardwerk of reeds bewezen publisher-regressies.
+- Full suite GREEN → canonical build → exact fresh-extract → kandidaat-ZIP.
