@@ -1,3 +1,12 @@
+## 2026-09-21 — Fixed platformtest executor source implemented on PR #10
+- Branch platformtest-executor-v1 created from current main.
+- Added Projectmanager platform_test_service, command gateway/ingress/processor/orchestrator wiring, and fixed-function Docker executor in existing control-plane.
+- Hard safety contract encoded: fixed image/profile, exact candidate identity, NetworkMode=none, read-only bind/rootfs, CapDrop ALL, no-new-privileges, tmpfs only, no pull/build/install, no generic caller command/path/image.
+- Added tests/test_platformtest_capability.py.
+- Draft PR #10 head 33f0788b479600ffe39e978df7168991dc5d26d7.
+- This removes the previous "connector has no containerexecutor" as a valid development-phase blocker: Work must test/fix this source branch first.
+- No live NAS/HA/source-sync/restart/production action performed.
+
 ## 2026-09-21 — Spock implemented exact platformtest blueprint locally
 - Exact basis materialized from transferred git bundle: 33bea32534c5114aefe822afe252a6555bc55e58.
 - Implemented fixed-function platformtest_run across PM gateway/ingress/processor/orchestrator/service and existing control-plane.
