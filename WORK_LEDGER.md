@@ -1,3 +1,13 @@
+## 2026-09-21 — Standard QNAP handoff blocked: platformtest intent missing
+- Work stopped at checkpoint 96aae268403aadf737b68a76228f5d0e3e6760b4 before full-suite execution.
+- Candidate transfer identity remains 33bea32534c5114aefe822afe252a6555bc55e58.
+- Existing QNAP handoff refused the platform-isolated test request fail-closed because no platformtest intent is installed/allowlisted.
+- Candidate/source inspection confirms control-plane ALLOWED_ACTIONS currently contains only watcher_recreate and native_mcp_reload; command_gateway has no platformtest action.
+- This is a tooling/architecture capability gap, not a publisher-test failure.
+- No NAS upload, rights change, host-python, live-network access, alternative isolation route, GitHub/HA/build/release/production action was used.
+- Offline-guard work remains proven and must not be repeated.
+- Next step requires explicit architecture authorization for one narrow fail-closed platformtest intent in the existing standard handoff path.
+
 ## 2026-09-21 — Peter approved repository-wide offline test guard
 - Work reported 1,974 tests safely collected and targeted publisher regressions 83/83 GREEN.
 - Full suite remained blocked because tests could reach private NAS endpoint 192.168.1.200:8000.
