@@ -15,6 +15,9 @@ Schema: v1
 - step: 1/1
 - goal: Bouw en test nu daadwerkelijk de reeds goedgekeurde narrow platformtest_run capability in de bestaande QNAP handoff/control-plane. NIET opnieuw controleren of de intent al bestaat; het ontbreken ervan is de RED-baseline en juist het implementatiedoel.
 - exact_resume_checkpoint: ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e
+- projectmanager_ingress_id: 28494cbae40341e788aa569b2361bf6e
+- projectmanager_ingress_status: PROPOSED_TO_LOCAL_PROJECTMANAGER
+- work_wakeup_gate: TESTHANDOFF_ACTUALLY_AVAILABLE
 - candidate_sha: 33bea32534c5114aefe822afe252a6555bc55e58
 
 - scope:
