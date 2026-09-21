@@ -11,7 +11,7 @@ Schema: v1
 - codex_model: gpt-5.6-terra
 - codex_reasoning: medium
 - codex_model_fallback: FORBIDDEN
-- owner: WORK_AUTONOMOUS_UNTIL_REAL_BLOCKER_OR_PHASE_COMPLETE
+- owner: WORK_AUTONOMOUS_ON_PR10_UNTIL_GREEN_OR_REAL_CODE_BLOCKER
 - step: IMPLEMENT_AND_VERIFY_PLATFORMTEST_CAPABILITY
 - goal: Bouw en test nu daadwerkelijk de reeds goedgekeurde narrow platformtest_run capability in de bestaande QNAP handoff/control-plane. NIET opnieuw controleren of de intent al bestaat; het ontbreken ervan is de RED-baseline en juist het implementatiedoel.
 - exact_resume_checkpoint: ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e
@@ -148,3 +148,20 @@ Spock-local verificatie:
 - Bij GREEN: commit de capability en schrijf exact changed_files + commit SHA + testbewijs terug.
 - Daarna STOP uitsluitend met `STOP_FOR_PLATFORMTEST_DEPLOY_APPROVAL`.
 - Geen full-suite, NAS-sync, restart of productieactie vóór die approval.
+
+
+## EXECUTABLE HANDOFF NOW AVAILABLE
+- Development branch: `platformtest-executor-v1`
+- Draft PR: #10
+- Head SHA: `33f0788b479600ffe39e978df7168991dc5d26d7`
+- This branch contains the missing fixed-function container executor itself. Therefore Work MUST NOT query the live QNAP connector for a pre-existing containerexecutor before testing this branch.
+- Work action now:
+  1. check out/read PR #10 branch;
+  2. run `tests/test_platformtest_capability.py`;
+  3. run relevant control-plane/PM/release regressions;
+  4. correct any failures on the same branch;
+  5. continue until capability source/tests are GREEN;
+  6. persist exact test evidence and final branch SHA;
+  7. then STOP only at `STOP_FOR_PLATFORMTEST_DEPLOY_APPROVAL`.
+- The live QNAP connector is intentionally NOT used until after source/tests are GREEN and explicit protected live activation approval is granted.
+- A result saying "QNAP connector has no containerexecutor" is INVALID for this phase, because implementing that executor is the current branch task.
