@@ -4,18 +4,18 @@ Status: IN_PROGRESS
 Schema: v1
 
 - task_id: INCOMING-CHAIN-32.4.59-PUBLISHER-FIX-2026-09-20
-- executor: SPOCK
+- executor: WORK_AND_CODEX
 - status: IN_PROGRESS
-- branch: pending WORK/CODEX isolated branch
-- commit: decision checkpoint persisted on main
-- changed_files: AGENT_TASK.md; AGENT_RESULT.md; WORK_LEDGER.md; CURRENT_HANDOVER.md
-- root_cause: Active unchanged 32.4.59 publisher cannot publish a next-release candidate from Processing before installation; prior proposed test invalidly exercised future modified code as if already active.
-- tests_run: NAS checkpoint/rejected-60 review performed by Work before decision
-- test_result: BLOCKED_SCOPE_EXPANSION was correctly raised; Peter selected predecessor/publisher-fix option 1
+- branch: local Work/Codex branch; persistence/read-back required before release claim
+- commit: publisher-fix checkpoint reported as 0f79011; preparation checkpoint reported as 1aed641
+- changed_files: minimal publisher fix + focused regression/test evidence; exact diff to be persisted/read back by Work
+- root_cause: Active unchanged 32.4.59 publisher could not publish a next-release candidate from Processing before installation. Minimal fix now targeted-GREEN. Remaining blocker is a non-hermetic test that would contact private NAS 192.168.1.200:8000 during the full suite.
+- tests_run: exact predecessor ZIP verification; TDD RED against unchanged 32.4.59; targeted publisher regressions 83/83 GREEN; compilation and diff control GREEN
+- test_result: TARGETED_GREEN / FULL_SUITE_BLOCKED_BY_LIVE_NETWORK_TEST
 - acceptance_criteria_status: PARTIAL
-- blockers: publisher fix development/test/artifact gates pending; production install explicitly not authorized
-- checkpoint: NAS evidence loaded; 398b2aa rejected; a59780d is the last reported local checkpoint; Incoming-chain repair is priority 1
-- next_action: WORK persists its local checkpoint if needed, then CODEX performs one bounded TDD implementation of the minimal active-59 publisher fix on Terra/Medium
+- blockers: full suite cannot be considered valid until the live-NAS-dependent test is made hermetic without weakening/skipping it
+- checkpoint: predecessor ZIP exact-match GREEN; 398b2aa excluded; minimal publisher fix at reported checkpoint 0f79011; no candidate ZIP built
+- next_action: Work/Codex isolate the offending test with deterministic local fixture/mock/fake, prove no live NAS access, run affected + full regressions, then canonical build and exact fresh-extract
 - production_action_performed: NO
 - restart_performed: NO
 - terminal_required_from_peter: NO
