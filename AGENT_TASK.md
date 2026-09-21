@@ -134,3 +134,35 @@ Vóór verdere implementatie:
 5. leg éénmalig de daadwerkelijk gelezen bronpaden + overgenomen constraints vast in WORK_LEDGER/AGENT_RESULT;
 6. pas daarna code aan.
 Dit is voorbereidend werk en GEEN stop-/commentaarmoment voor Peter.
+
+
+## Work resume instruction — checkpoint 811ade95 (bindend)
+Resume exact Work checkpoint:
+- checkpoint: `811ade95e42699a4d0d150772f0aa0d0e9a4432b`
+- Work branch: `work/replacement-32.4.60-combined`
+- release identity 32.4.60: RED -> GREEN
+- targeted regressions: 26/26 GREEN
+- current obstacle: platform preflight blocked the full suite before pytest because private-NAS access could not be proven impossible.
+
+This is NOT yet a valid user-facing blocker.
+
+Required continuation:
+1. Work remains execution owner and continues silently.
+2. Hand the exact preflight evidence to one Codex lane (`gpt-5.6-terra`, medium).
+3. Codex makes the smallest test-harness/provability correction needed so the full suite is structurally network-offline and private-NAS access is impossible/provably absent.
+4. Preserve all assertions and the existing repository offline guard.
+5. Allowed corrections include: dependency injection, explicit fake/local endpoints, removal of accidental live private-NAS defaults from test collection/import paths, or preventing network-capable production adapters from initializing during offline tests.
+6. Forbidden: skip/xfail/delete/weaken tests; disable/bypass platform safety; hide network behavior; QNAP platformtest/containerexecutor detour; NAS/HA mutation; new release architecture.
+7. Re-run the FULL suite in the normal Work/Codex development runtime.
+8. If platform preflight blocks again, capture exact reason and perform one more bounded contradiction/provability analysis. Continue if fixable inside harness/task scope.
+9. Only report `BLOCKED_PLATFORM_POLICY_PROVEN` if the suite is demonstrably network-free yet the platform itself still refuses execution and no allowed in-scope proof/harness change can satisfy it.
+10. On full-suite GREEN continue automatically through canonical build -> exact fresh-extract -> artifact validation -> Work self-audit -> Spock audit -> bounded Codex audit -> `V60_READY_FOR_ONE_TIME_BOOTSTRAP_APPROVAL`.
+
+GitHub full-access safety is mandatory throughout:
+- Before each GitHub write classify risk per AGENTS.md.
+- For potentially destructive/destructive actions explicitly weigh necessity, benefit, worst case, reversibility, safer alternative and exact target evidence.
+- Prefer read-only/new branch/new commit over merge/overwrite/delete/force.
+- Perform post-write readback.
+- Full Access never expands production/NAS/HA/release authority.
+
+No progress commentary to Peter while the above path remains executable.
