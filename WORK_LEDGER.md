@@ -1,3 +1,10 @@
+## 2026-09-21 — Lesson: informed approval requires explicit risk disclosure
+- The executor-readiness GitHub Actions probe exposed a coordination failure: the action was technically bounded, but user-visible GitHub failure notifications/email were not disclosed before execution.
+- New permanent rule: approvals for external, destructive, potentially destructive, costly or user-visible actions must be preceded by a concise risk/benefit disclosure.
+- Required fields: exact action, necessity, benefit, concrete risks/side effects, worst case, reversibility, safer alternative and recommendation.
+- User-visible side effects (mail/notifications, CI consumption, costs/credits, external failure visibility, restarts/downtime, permission changes, data exposure) are first-class risks.
+- If risk cannot be established confidently, remain read-only and investigate before asking for approval.
+
 ## 2026-09-21 — Development lesson: prove executor readiness before handoff
 - Root lesson from checkpoint 29da2de: correct code/test instructions are insufficient if the assigned Work runtime cannot legally start a mandatory phase.
 - The full suite was rejected before pytest despite the repository offline guard; indirect restart/bypass was also forbidden.
