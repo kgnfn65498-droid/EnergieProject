@@ -165,3 +165,11 @@ Spock-local verificatie:
   7. then STOP only at `STOP_FOR_PLATFORMTEST_DEPLOY_APPROVAL`.
 - The live QNAP connector is intentionally NOT used until after source/tests are GREEN and explicit protected live activation approval is granted.
 - A result saying "QNAP connector has no containerexecutor" is INVALID for this phase, because implementing that executor is the current branch task.
+
+## VERIFIED PRE-WORK EVIDENCE
+- Exact transferred candidate 33bea325 was materialized and PR10 replayed locally.
+- 8/8 new platformtest tests GREEN.
+- 128/128 relevant control-plane/PM/release regressions GREEN.
+- Do not repeat those suites unless PR10 changes further.
+- Local ChatGPT container cannot be used as final full-suite authority for offline-child bootstrap because /opt/python-hooks/sitecustomize.py shadows repository sitecustomize.py.
+- Final full-suite authority remains the approved QNAP image with NETWORK=NONE.
