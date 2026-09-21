@@ -45,3 +45,15 @@ Schema: v1
 - next_owner: SPOCK_PREPARATION
 - next_work_handoff_allowed: NO
 - release_resume_condition: FULL_SUITE_BUILD_FRESH_EXTRACT_EXECUTOR_READINESS_GREEN
+
+- spock_executor_proof: GREEN
+- executor_basis: 33bea32534c5114aefe822afe252a6555bc55e58
+- executor_source_suite: 1979 passed, 2 skipped, 0 failed after 2 compatibility fixes
+- executor_build: GREEN
+- executor_fresh_extract: GREEN
+- executor_fresh_extract_suite: 1979 passed, 2 skipped, 0 failed
+- proof_artifact_sha256: 1cdd4e9a6fa89c9183661ffdeaec956001c31490dcc34a1380c147f71df4b70b
+- proof_artifact_release_authority: NONE
+- current_exact_60_source_available_to_spock: NO
+- next_action: Work source-export-only from checkpoint 29da2de to remote branch work/replacement-32.4.60-combined
+- github_actions_allowed: NO
