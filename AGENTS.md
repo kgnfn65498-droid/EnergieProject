@@ -155,3 +155,44 @@ Geen succesclaim zonder read-back/verificatie van de geschreven toestand.
 - `Allow all actions` geeft NOOIT impliciete toestemming voor high-impact/destructieve acties die volgens projectregels expliciete approval vereisen.
 - Na iedere potentieel destructieve write: read-back van commit/ref/diff uitvoeren en controleren dat uitsluitend de bedoelde scope is veranderd. Bij afwijking onmiddellijk stoppen en eerst herstelpad bepalen.
 - Deze gate is bedoeld als extra kwaliteitscontrole, niet als reden om Work iedere paar minuten bij Peter te laten stoppen. Alleen als de actie buiten bestaande autorisatie valt of risico/target niet eenduidig kan worden gemaakt, is nieuwe toestemming nodig.
+
+
+## Pre-handoff executor-readiness gate — verplicht
+Vóór iedere substantiële Work-handoff voert Spock een volledige uitvoerbaarheidscontrole uit.
+
+De `EXECUTOR_READINESS_MATRIX` bevat per verplichte fase:
+- fase/stap;
+- beoogde executor;
+- exacte tool/capability;
+- bron/artifact die nodig is;
+- platform-/netwerk-/sandboxrestricties;
+- write/output-mogelijkheid;
+- bewijs dat de stap daadwerkelijk uitvoerbaar is;
+- status `GREEN` of `BLOCKED`;
+- protected approval nodig: JA/NEE;
+- veilige fallback, alleen als die contractueel toegestaan is en geen bypass vormt.
+
+Minimaal te bewijzen vóór Work start:
+1. required sources/checkpoints zijn bereikbaar;
+2. branch/ref/artifact-transfer is uitvoerbaar;
+3. verplichte testvorm kan werkelijk starten in de gekozen runtime;
+4. netwerk-/private-NAS-policy is compatibel met die testvorm;
+5. canonical build kan in die runtime output schrijven;
+6. exact fresh-extract kan daar worden uitgevoerd;
+7. artifact-validatie/readback kan daar worden uitgevoerd;
+8. Codex kan binnen modelbeleid worden aangeroepen indien codefix nodig is;
+9. GitHub reads/writes die de taak vereist zijn toegestaan binnen de actuele permission mode;
+10. alle protected productieacties liggen buiten de ontwikkelrun en hebben een expliciete latere approval boundary.
+
+Een 'waarschijnlijk', 'zou moeten', eerdere historische werking, of alleen een geschreven instructie telt niet als bewijs.
+Als een verplichte capability niet aantoonbaar beschikbaar is, is dat een **Spock pre-handoff blocker**, geen Work-blocker.
+
+### Handoff quality check
+Vóór overdracht controleert Spock daarnaast:
+- geen interne tegenspraak tussen scope, forbidden-actions, stopcriteria en noodzakelijke uitvoerstappen;
+- geen afhankelijkheid van een capability die pas ná de handoff ontdekt/gebouwd moet worden, tenzij het bouwen ervan expliciet de taak is én de omgeving daarvoor aantoonbaar uitvoerbaar is;
+- geen verborgen menselijke transportstap voor Peter;
+- geen niet-geteste fallback die tijdens falen alsnog als nieuwe architectuurroute kan ontstaan;
+- duidelijke terminale successtaat en maximaal één eerstvolgende protected approval boundary.
+
+Pas wanneer deze check GREEN is mag Spock zeggen dat Work zelfstandig tot het afgesproken eindpunt kan doorwerken.
