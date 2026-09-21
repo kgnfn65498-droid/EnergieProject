@@ -295,6 +295,7 @@ def platformtest_create_payload(host_project_root: str, request: dict) -> dict:
         'Image': PLATFORMTEST_IMAGE,
         'Cmd': list(PLATFORMTEST_COMMAND),
         'WorkingDir': '/workspace',
+        'Env': ['PYTHONPATH=/workspace'],
         'Tty': True,
         'Labels': {
             'com.energie.component': 'platformtest',
