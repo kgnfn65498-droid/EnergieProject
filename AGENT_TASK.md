@@ -85,3 +85,66 @@ Work mag deze taak niet afsluiten met "intent niet geïnstalleerd" zonder eerst 
 - Geen andere BLOCKED-status is toegestaan zolang het probleem met code/tests binnen de goedgekeurde scope oplosbaar is.
 - Een blocker mag niet voortkomen uit de taaktekst zelf. Bij tegenstrijdige instructies geldt: doel + safety boundaries + deze autonome uitvoerregel hebben voorrang; corrigeer de interne interpretatie en ga door.
 - Peter hoeft geen technische tekst, checkpoint, commando of handoff tussen Chat/Work/Codex te transporteren.
+
+
+## SPOCK IMPLEMENTATION BLUEPRINT — bewezen lokaal op kandidaat 33bea325
+Spock heeft de ontbrekende capability inmiddels zelf uitgewerkt op exact kandidaat `33bea32534c5114aefe822afe252a6555bc55e58`. Work/Codex hoeft dit NIET opnieuw te ontwerpen; voer dit blueprint uit, test en commit.
+
+Exacte codepunten:
+1. `slimmemeterportal_import/rootfs/app/projectmanager_v2/command_gateway.py`
+   - voeg veilige intent toe: `platformtest_run -> action platformtest_run -> allowed_without_approval=True`.
+2. `command_ingress.py`
+   - sta alleen extra velden `candidate_sha` en `test_profile` toe.
+3. Nieuw: `platform_test_service.py`
+   - fixed schemas `energie_platformtest_run_request_v1` / `energie_platformtest_run_result_v1`;
+   - exact profiel `publisher_full_suite_v1`;
+   - candidate SHA exact 40 hex;
+   - workspace exact onder `Data/03_Systeem/Projectmanager/Staging/PlatformTest/<candidate_sha>`;
+   - request exact naar `Inbox/control_plane/requests/platformtest_run.json`;
+   - non-blocking PENDING/result readback; geen shell/image/path input van caller.
+4. `command_processor.py`
+   - injecteer `platform_test_service`;
+   - route `platformtest_run` non-blocking; PENDING => requeue;
+   - alleen GREEN accepteren als `production_modified is False` en `network_mode == 'none'`.
+5. `orchestrator.py`
+   - configureer `ConfiguredPlatformTestService(config.project_root)` en injecteer in CommandProcessor.
+6. `tools/control_plane/control_plane.py`
+   - `ALLOWED_ACTIONS` uitbreiden met exact `platformtest_run`;
+   - vaste image `energie-filesystem-mcp:runtime-v1`;
+   - vast profiel `publisher_full_suite_v1`;
+   - vaste command `python3 -m pytest -q -p no:cacheprovider`;
+   - Docker client alleen uitbreiden met fixed `wait_container` en `container_logs`;
+   - validator weigert onbekende velden, fout schema/action/SHA/profiel;
+   - host workspace exact `/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/Staging/PlatformTest/<sha>`;
+   - create payload: bind workspace read-only naar `/workspace`, `NetworkMode=none`, `ReadonlyRootfs=True`, `CapDrop=['ALL']`, `no-new-privileges`, alleen tmpfs /tmp;
+   - geen pull/build/install API;
+   - containernaam `energie-platformtest-<request_id-prefix>`;
+   - resultaat bevat candidate/profile/image/container/network_mode/exit_code/test_counts/logs_sha256/production_modified=False;
+   - nonzero exit => RED; container altijd cleanup.
+7. Nieuw: `tests/test_platformtest_capability.py`
+   - gateway route;
+   - canonical workspace + request;
+   - bad SHA/profile/missing workspace fail-closed;
+   - exact image/profile/network none/ro/capdrop/no-new-privileges;
+   - extra fields + identity mismatch fail-closed;
+   - nonzero pytest exit => RED;
+   - CommandProcessor non-blocking route.
+8. `tests/test_v32457_required_acceptance.py`
+   - bestaande GreenAdapter-fixture aanvullen met `pre_target_publication`; verwachte calls inclusief `publish`. Dit is testfixture-alignment met reeds bestaande publisherfix, geen nieuwe productarchitectuur.
+
+Spock-local verificatie:
+- capability gericht: 7/7 GREEN;
+- control-plane/PM gerichte set: 58/58 GREEN;
+- brede relevante PM/control-plane/release subset: 969 passed, 2 skipped, 0 failed;
+- python compile GREEN.
+- eerdere 6 failures in `test_v32457_required_acceptance.py` waren uitsluitend stale fixture-mismatch door de reeds toegevoegde PUBLISHING-fase; na fixture-alignment volledig GREEN.
+- patch inhoud SHA256 vanaf basis `c36866b97ce9779d46c2b7a96c2cac942a729430` exclusief coördinatiedocs: `a9e2afd2d53e92cf14682460560c34b59443fcd7def46a62ea52d1300b8eea3e`.
+
+### Verplichte Work-uitvoering vanaf nu
+- Start NIET met opnieuw onderzoeken of platformtest_run bestaat.
+- Implementeer bovenstaande blueprint op de bestaande kandidaatbranch/checkpoint.
+- Gebruik één Codex-lane Terra/Medium.
+- Draai eerst de 7 capabilitytests, daarna de relevante control-plane/PM/release regressies.
+- Bij GREEN: commit de capability en schrijf exact changed_files + commit SHA + testbewijs terug.
+- Daarna STOP uitsluitend met `STOP_FOR_PLATFORMTEST_DEPLOY_APPROVAL`.
+- Geen full-suite, NAS-sync, restart of productieactie vóór die approval.
