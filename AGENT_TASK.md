@@ -64,3 +64,14 @@ Work/Codex gaat zonder tussentijdse gebruikersactie door van full suite naar bui
 - Approved ingress: standard Inbox/incoming only.
 - Do not rename, unpack, mutate, or substitute the artifact.
 - After placement, existing ReleaseController owns the chain autonomously.
+
+## 2026-09-21 — live 32.4.59 publisher-fix rejected by standard preflight
+- User confirmed the exact approved ZIP reached Rejected.
+- Standard preflight reproduced locally against current App 32.4.59:
+  - status: BLOCKED
+  - blocker: candidate_version_not_newer
+  - current_version: 32.4.59
+  - candidate_version: 32.4.59
+  - exact rejected artifact SHA256: 23b9814d916c84d82ce4690291ec894c7550306a92a4eec494b6797a60a1a741
+- This is not an Incoming transport failure. The controller correctly rejected a same-version candidate.
+- Standard correction: re-version this already-validated publisher-fix artifact to 32.4.60, regenerate canonical manifests, fresh-extract validate, then use normal Incoming. The previously planned replacement v60 moves to v61; no alternate route.
