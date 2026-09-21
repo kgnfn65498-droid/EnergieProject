@@ -70,3 +70,9 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 - Build/test of the capability is authorized. Live source-sync/restart is still protected and requires a separate explicit Peter approval.
 - Canonical activation route, after approval: existing control_plane_source_sync + tools/control_plane_bootstrap.ensure_control_plane_current(), at most one restart of the existing energie-control-plane, then health/fingerprint + platformtest preflight.
 - Only after PLATFORMTEST_INTENT_LIVE_GREEN resume Work checkpoint ca7c0b427359bb4563a0f8dffbdcce0c5f17d32e and candidate 33bea32534c5114aefe822afe252a6555bc55e58.
+
+## 2026-09-21 — PR10 merged / activation approval boundary
+- Narrow platformtest_run executor merged via PR #10 at ff480024ea74b237f4088b578db98e22ad9ac63d.
+- Source phase is complete; live runtime has not been changed.
+- Do not retry Work/QNAP execution until protected activation is approved and live fingerprint readback proves the new control-plane code is loaded.
+- After approval: canonical source sync -> at most one bounded restart of existing energie-control-plane if fingerprint mismatch -> health/fingerprint/preflight -> PLATFORMTEST_INTENT_LIVE_GREEN -> Work resumes candidate 33bea325 from ca7c0b4.
