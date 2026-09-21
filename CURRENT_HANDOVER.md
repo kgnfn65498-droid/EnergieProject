@@ -90,3 +90,10 @@ No production action, restart, manual JSON edit or terminal by Peter occurred du
 - Resume candidate 33bea325 via normal Work/Codex development execution: full suite with existing offline guard -> canonical build -> exact fresh-extract -> validation -> candidate ZIP.
 - Only then use the normal Incoming/ReleaseController production path after explicit release approval.
 - No user technical copy/paste or intermediate confirmation is required during development.
+
+## 2026-09-21 — Original combined 32.4.60 plan restored
+- Do not ship a separate 32.4.59 publisher hotfix.
+- The rejected 59 artifact proved only the same-version preflight gate.
+- Bundle candidate 33bea325 is not a full 60 identity, but its PUBLISHING/pre-target publication fix and offline guard are mandatory ingredients of the real 60.
+- Work must merge those with the exact existing NAS replacement-60 handover/ledger and produce one coherent 32.4.60 artifact.
+- Once fully GREEN, use one bounded Work+terminal bootstrap only to cross the old live-59 bootstrap boundary; then standard autonomous Incoming must take over permanently.
