@@ -196,3 +196,9 @@ Vóór overdracht controleert Spock daarnaast:
 - duidelijke terminale successtaat en maximaal één eerstvolgende protected approval boundary.
 
 Pas wanneer deze check GREEN is mag Spock zeggen dat Work zelfstandig tot het afgesproken eindpunt kan doorwerken.
+
+## GitHub Actions / notificatiegate
+- Start, create, enable, rerun or otherwise trigger NO GitHub Actions workflow for probes, tests, builds or audits without Peter's explicit prior approval.
+- Reason: workflow runs can generate unwanted GitHub notifications/mail and consume CI resources.
+- Prefer silent read-only checks or an already-approved executor path.
+- Existing failed/queued runs may still produce delayed notifications; do not create another run merely to verify that runs are stopped.
