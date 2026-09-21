@@ -89,6 +89,11 @@ Historische lessons zijn ontwerp- en regressieconstraints; actuele handover/runt
 24. **Fallbacks worden vooraf geclassificeerd.** Een veilige alternatieve executor mag alleen als hij vooraf contractueel is toegestaan; een route die enkel de platformbeveiliging omzeilt is verboden.
 25. **Handoff-readiness moet machineleesbaar zijn.** Een `EXECUTOR_READINESS_MATRIX` voorkomt dat sessies opnieuw moeten interpreteren of een fase werkelijk uitvoerbaar is.
 
+26. **Approval moet geïnformeerd zijn, niet alleen expliciet.** De GitHub Actions-probe van 2026-09-21 was technisch begrensd maar had een niet-vooraf benoemd gebruikersside-effect: mislukte workflow-runs stuurden GitHub-notificaties/mail. Daarom geldt voortaan: vóór iedere approval-vraag voor een actie met externe/zichtbare/impactvolle effecten worden voordeel, concrete risico's, worst case, reversibiliteit en veiliger alternatief genoemd.
+27. **"Technisch veilig" is niet hetzelfde als "zonder gebruikersimpact".** Notificaties, CI-verbruik, kosten, zichtbare failures, rate limits en externe statuswijzigingen tellen ook als risico/neveneffect.
+28. **Bij onzeker risico eerst read-only onderzoek.** Geen toestemming vragen op basis van een onvolledige risico-inschatting.
+
+
 
 ## Work retrieval-procedure
 Bij start van een grote release-/architectuurtaak:
