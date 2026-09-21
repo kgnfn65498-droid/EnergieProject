@@ -15,3 +15,11 @@ Schema: v1
 - next_valid_stop: V60_READY_FOR_ONE_TIME_BOOTSTRAP_APPROVAL
 - production_execution_authorized_now: NO
 - user_transport_required: NO
+
+- resume_checkpoint_811ade95: ACTIVE
+- resume_branch: work/replacement-32.4.60-combined
+- release_identity_32_4_60: GREEN
+- targeted_regressions: 26/26 GREEN
+- platform_full_suite_preflight: BLOCKED_BEFORE_PYTEST
+- disposition: CONTINUE_WITH_BOUNDED_OFFLINE_PROVABILITY_FIX
+- next_valid_user_contact: V60_READY_FOR_ONE_TIME_BOOTSTRAP_APPROVAL or BLOCKED_PLATFORM_POLICY_PROVEN
