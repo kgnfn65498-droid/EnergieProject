@@ -1,21 +1,21 @@
 # AGENT_RESULT — EnergieProject
 
-Status: IN_PROGRESS
+Status: BLOCKED_PLATFORMTEST_INTENT_MISSING
 Schema: v1
 
 - task_id: INCOMING-CHAIN-32.4.59-PUBLISHER-FIX-2026-09-20
 - executor: WORK_AND_CODEX
-- status: IN_PROGRESS
-- branch: local Work/Codex branch; persistence/read-back required before release claim
-- commit: latest reported checkpoint 71f0068
-- changed_files: minimal publisher fix + focused regressions + pending test-infrastructure offline guard
-- root_cause: Publisher fix is targeted-GREEN, but full-suite execution is unsafe because tests can reach live private NAS endpoint 192.168.1.200:8000.
-- tests_run: 1,974 tests safely collected; targeted publisher regressions 83/83 GREEN
-- test_result: TARGETED_GREEN / FULL_SUITE_BLOCKED_PENDING_OFFLINE_GUARD
-- acceptance_criteria_status: PARTIAL
-- blockers: repository-wide offline test guard not yet implemented/verified
-- checkpoint: Peter approved route 1: repository-wide default-deny offline test protection; no permission granted for live NAS access
-- next_action: WORK/CODEX implement and verify offline guard without weakening tests, then full suite → canonical build → exact fresh-extract → candidate ZIP
+- status: BLOCKED_PLATFORMTEST_INTENT_MISSING
+- branch: candidate transfer at 33bea32534c5114aefe822afe252a6555bc55e58; Work blocker checkpoint 96aae268403aadf737b68a76228f5d0e3e6760b4
+- commit: 96aae268403aadf737b68a76228f5d0e3e6760b4 reported as latest safe blocker checkpoint
+- changed_files: no new project/runtime changes performed after blocker
+- root_cause: Existing QNAP handoff has no installed/allowlisted platformtest intent. Current project control-plane allowlist only supports watcher_recreate and native_mcp_reload, and the command gateway exposes no platformtest action. The requested isolated full-suite execution therefore correctly fails closed.
+- tests_run: no full suite started after handoff refusal
+- test_result: targeted publisher regressions remain 83/83 GREEN; platform-isolated full suite NOT RUN
+- acceptance_criteria_status: PARTIAL_BLOCKED
+- blockers: a new narrow platformtest capability would be required in the existing standard QNAP handoff path; that is a separate architecture decision and is not yet authorized
+- checkpoint: candidate 33bea325 is preserved; offline-guard work is not to be repeated; no alternative route attempted
+- next_action: obtain explicit architecture authorization for one narrow fail-closed platformtest intent in the existing handoff path, then implement/test that capability before resuming the same full-suite checkpoint
 - production_action_performed: NO
 - restart_performed: NO
 - terminal_required_from_peter: NO
