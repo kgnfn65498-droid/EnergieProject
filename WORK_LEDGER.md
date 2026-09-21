@@ -1,3 +1,12 @@
+## 2026-09-21 — Autonomous execution contract hardened
+- Repeated stop loop traced to coordination text, especially a stale Work wakeup/testhandoff gate.
+- That gate is removed as an execution blocker.
+- Work must now implement platformtest_run directly and continue through focused GREEN verification in the same run.
+- Intermediate checkpoints persist without ending the run.
+- Allowed stop states are limited to protected live-deploy approval, genuine scope/safety expansion, model-policy failure, or phase completion.
+- Missing platformtest_run is explicitly RED baseline, never a blocker.
+- Peter is not required to transport technical text/checkpoints between Chat, Work and Codex.
+
 ## 2026-09-21 — Testhandoff follow-up submitted directly to Projectmanager
 - Ingress-ID: 28494cbae40341e788aa569b2361bf6e
 - Status: PROPOSED_TO_LOCAL_PROJECTMANAGER
