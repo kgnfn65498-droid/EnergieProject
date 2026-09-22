@@ -197,10 +197,11 @@ def test_watcher_bootstrap_has_local_socket_hardening_and_minimum_fs_caps():
         '--network none', '--cap-drop ALL', '--security-opt no-new-privileges',
         '/var/run/docker.sock:/var/run/docker.sock',
         '--cap-add DAC_OVERRIDE', '--cap-add DAC_READ_SEARCH', '--cap-add FOWNER',
-        'CAPABILITY_MARKER',
     ):
         assert token in source
     assert '--privileged' not in source
+    assert 'CAPABILITY_MARKER' not in source
+    assert 'nas_container_cr_local' not in source
 
 
 def test_watcher_runs_cr_hotfix_before_local_nas_request_and_probes_capability():

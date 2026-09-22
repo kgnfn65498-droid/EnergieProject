@@ -84,7 +84,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.59"
+APP_VERSION = "32.4.60"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -20151,6 +20151,8 @@ def _load_github_publication_contract(options=None):
         "target_manifest_sha256",
         "processed_zip",
         "processed_zip_sha256",
+        "release_id",
+        "generation",
     )
     missing = [key for key in required if not str(contract.get(key) or "").strip()]
     if missing:
@@ -20167,19 +20169,51 @@ def _load_github_publication_contract(options=None):
         live_version = (NAS_PROJECT_ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip()
     except Exception as exc:
         return False, contract, f"Live VERSIE.txt onleesbaar: {exc}"
-    if live_version != str(contract.get("version")):
-        return False, contract, f"Live versie {live_version!r} wijkt af van contractversie {contract.get('version')!r}."
     processed_name = Path(str(contract.get("processed_zip"))).name
     if processed_name != str(contract.get("processed_zip")):
         return False, contract, "processed_zip bevat een ongeldig pad."
-    processed = NAS_RELEASE_ARCHIVE / processed_name
-    if not processed.is_file():
-        return False, contract, f"Processed release ontbreekt: {processed_name}"
-    actual_sha = sha256_file(processed)
+    source_stage = str(contract.get("source_stage") or "processed")
+    if source_stage == "processed":
+        if live_version != str(contract.get("version")):
+            return False, contract, f"Live versie {live_version!r} wijkt af van contractversie {contract.get('version')!r}."
+        source = NAS_RELEASE_ARCHIVE / processed_name
+        missing_message = f"Processed release ontbreekt: {processed_name}"
+    elif source_stage == "processing_pre_target":
+        predecessor_version = str(contract.get("predecessor_version") or "")
+        predecessor_manifest = str(contract.get("predecessor_manifest_sha256") or "")
+        expected_version = str(contract.get("expected_previous_version") or "")
+        expected_manifest = str(contract.get("expected_previous_manifest_sha256") or "")
+        if not predecessor_version or not predecessor_manifest:
+            return False, contract, "Pre-target publicatiecontract mist predecessoridentiteit."
+        if predecessor_version != expected_version or predecessor_manifest != expected_manifest:
+            return False, contract, "Pre-target predecessoridentiteit wijkt af van het contract."
+        if live_version != predecessor_version:
+            return False, contract, "Live versie wijkt af van gefencete pre-target predecessor."
+        if _manifest_file_sha256(NAS_PROJECT_ROOT) != predecessor_manifest:
+            return False, contract, "Live predecessor-manifest wijkt af van pre-target contract."
+        controller = NAS_RELEASE_ROOT / "release_controller/current.json"
+        try:
+            current = json.loads(controller.read_text(encoding="utf-8"))
+        except Exception:
+            current = {}
+        identity = ("release_id", "generation")
+        if not isinstance(current, dict) or any(str(current.get(key) or "") != str(contract.get(key) or "") for key in identity):
+            return False, contract, "Pre-target controlleridentiteit wijkt af van publicatiecontract."
+        if str(current.get("to_version") or "") != str(contract.get("version") or "") or str(current.get("artifact_sha256") or "") != str(contract.get("processed_zip_sha256") or ""):
+            return False, contract, "Pre-target controllerartifact wijkt af van publicatiecontract."
+        if str(current.get("phase") or "") != "PUBLISHING" or str(current.get("status") or "") not in {"ACTIVE", "WAITING"}:
+            return False, contract, "Pre-target controllerfase is niet publicatiegerechtigd."
+        source = NAS_RELEASE_PROCESSING / processed_name
+        missing_message = f"Processing release ontbreekt: {processed_name}"
+    else:
+        return False, contract, "Onbekende publicatiebronfase."
+    if not source.is_file() or source.is_symlink():
+        return False, contract, missing_message
+    actual_sha = sha256_file(source)
     if actual_sha != str(contract.get("processed_zip_sha256")):
-        return False, contract, "Processed release SHA256 wijkt af van publicatiecontract."
+        return False, contract, "Publicatiebron SHA256 wijkt af van publicatiecontract."
     contract = dict(contract)
-    contract["processed_path"] = str(processed)
+    contract["processed_path"] = str(source)
     return True, contract, "Gevalideerd publicatiecontract gereed."
 
 

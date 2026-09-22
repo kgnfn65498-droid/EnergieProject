@@ -29,6 +29,7 @@ def test_58_01_controller_service_has_no_legacy_install_adoption():
 
 def test_58_02_controller_evidence_is_semantically_deduplicated():
     class A:
+        def pre_target_publication(self, s): return Outcome.green('same', 'same')
         def install(self, s): return Outcome.green('same', 'same')
         def runtime_align(self, s): return Outcome.green('same')
         def verify_live(self, s): return Outcome.green('same')
@@ -38,7 +39,7 @@ def test_58_02_controller_evidence_is_semantically_deduplicated():
     c = ReleaseController()
     s = c.new_state(from_version='32.4.57', to_version='32.4.58', artifact_sha256='a'*64, artifact_name='x.zip')
     c.mark_verified(s, ['same', 'same'])
-    for _ in range(8): c.cycle(s, A())
+    for _ in range(9): c.cycle(s, A())
     assert s.evidence == ['same']
 
 

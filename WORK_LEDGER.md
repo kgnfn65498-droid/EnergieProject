@@ -1,52 +1,16 @@
-## 2026-09-21 — Silent local executor proven GREEN
-- Spock proved a no-email/no-GitHub-Actions development executor using a clean isolated venv.
-- Candidate 33bea source exposed two real full-suite compatibility defects not covered by the 26 targeted tests: historical 57 GreenAdapter lacked pre_target_publication; historical watcher practical test depended on incidental startup timing.
-- Minimal test-compatibility corrections preserve assertions: add explicit publish step to GreenAdapter/call sequence; make restart test's no-claim window explicit with 20 stable polls.
-- Source full suite accounted for all 1981 tests: 1979 passed, 2 skipped, 0 failed.
-- Canonical build + CRC + fresh-extract GREEN.
-- Fresh-extract full suite: 1979 passed, 2 skipped, 0 failed.
-- Proof artifact SHA 1cdd4e9a6fa89c9183661ffdeaec956001c31490dcc34a1380c147f71df4b70b is executor evidence only, not release authority.
-- Remaining preparation blocker is source transport: exact Work checkpoint 29da2de is not published to GitHub. Work must perform source-export-only, without PR/Actions/merge/force/main/production, before Spock can test the actual 32.4.60 source.
-
-## 2026-09-21 — Lesson: informed approval requires explicit risk disclosure
-- The executor-readiness GitHub Actions probe exposed a coordination failure: the action was technically bounded, but user-visible GitHub failure notifications/email were not disclosed before execution.
-- New permanent rule: approvals for external, destructive, potentially destructive, costly or user-visible actions must be preceded by a concise risk/benefit disclosure.
-- Required fields: exact action, necessity, benefit, concrete risks/side effects, worst case, reversibility, safer alternative and recommendation.
-- User-visible side effects (mail/notifications, CI consumption, costs/credits, external failure visibility, restarts/downtime, permission changes, data exposure) are first-class risks.
-- If risk cannot be established confidently, remain read-only and investigate before asking for approval.
-
-## 2026-09-21 — Development lesson: prove executor readiness before handoff
-- Root lesson from checkpoint 29da2de: correct code/test instructions are insufficient if the assigned Work runtime cannot legally start a mandatory phase.
-- The full suite was rejected before pytest despite the repository offline guard; indirect restart/bypass was also forbidden.
-- Therefore platform-level permission and code-level offline safety are separate gates and both must be proven.
-- New mandatory `EXECUTOR_READINESS_MATRIX` validates source/artifact access, branch/ref access, test start permission, network/sandbox policy, canonical build/output, fresh-extract, artifact validation, audit readback, Codex availability, GitHub permissions and protected-action boundaries.
-- Predictable executor/sandbox/access blockers are now Spock preparation failures, not Work execution blockers.
-- Work is not to be started again for 32.4.60 until full-suite + build + fresh-extract executor capability is proven in advance.
-- Fallbacks must be pre-authorized and may not exist solely to bypass platform safety.
-
-## 2026-09-21 — Genuine platform blocker proven at 29da2de
-- Work correctly stopped after the explicitly allowed full-suite restart was again refused before process start by platform protection because private-NAS access to 192.168.1.200:8000 could not be permitted.
-- The platform also forbids an indirect restart/bypass route.
-- Existing offline guard stayed unchanged; targeted 32.4.60 regressions remain 26/26 GREEN.
-- No NAS/HA/production action occurred; build/fresh-extract correctly did not start.
-- This now satisfies the project's definition of a genuine environment/platform blocker. It is no longer an instruction/harness self-caused stop.
-- Next step is NOT another "Verder" in the same Work runtime. A compliant executor is required for the exact existing offline-guarded full suite.
-- Do not bypass the platform, do not weaken guards, and do not revive QNAP platformtest/containerexecutor merely to evade the restriction.
-
-## 2026-09-21 — Work resume from 811ade95
-- 32.4.60 identity is GREEN; targeted regressions 26/26 GREEN.
-- Full suite did not run because the platform preflight could not prove private-NAS access impossible.
-- This is treated first as an in-scope harness/provability problem, not a user-facing blocker.
-- Work must delegate one bounded fix to Codex Terra/Medium, preserve all tests/offline guard, rerun full suite, then continue build/fresh-extract/audits without user commentary.
-- QNAP platformtest/containerexecutor remains forbidden as a v60 development detour.
-- GitHub Full Access destructive-action gate from AGENTS.md applies to every write.
-
 ## 2026-09-21 — Work Knowledge Base bootstrap formalized
 - Review van historische handovers bevestigt dat belangrijke ontwikkellessen vanaf 32.4.40+ verspreid staan over Projectmanager Development_Lessons, HARD_REQUIREMENT, architectuuraudits en worklogs.
 - Work had hiervoor nog geen expliciete verplichte retrievalstap in AGENTS.md; dat gat is nu gesloten.
 - `WORK_KNOWLEDGE_BOOTSTRAP.md` definieert canonieke paden, prioriteitsregels, kernlessen en een eenmalige inventory/readset-procedure.
 - Voor 32.4.60 moet Work vóór implementatie Master Index + Development Manifest inventariseren en daarna alleen taakrelevante bronnen lezen.
 - Historische lessons sturen ontwerp/regressiedekking, maar overschrijven nooit actuele handover/live readback.
+
+## 2026-09-21 — Replacement 32.4.60 combined source checkpoint
+- New isolated branch `work/replacement-32.4.60-combined` starts from current `origin/main` and imports only the mandatory 33bea325 commits for pre-target PUBLISHING/fencing and the repository offline guard; stale candidate documentation and platformtest changes are not carried forward.
+- New release identity contract was TDD RED on 32.4.59 values, then GREEN for 32.4.60 in the release contract, root version, add-on config, app, mode entrypoint and changelogs.
+- Focused combined regression set is 26/26 GREEN, including 7 offline-guard tests and publisher/controller ownership tests. No NAS/HA/runtime/production action occurred.
+- The normal full suite is blocked before execution by the host safety layer as possible private-NAS access even with the existing guard. This is a platform authorization boundary, not a test failure. Do not retry or work around it; resume from this checkpoint only when an authorized executor accepts the guarded full suite.
+- Peter subsequently authorized one normal local retry while expressly retaining the no-NAS/HA/production boundary. The host rejected it before pytest began for the same potential `192.168.1.200:8000` access and forbade workaround/indirect execution. The failure is therefore an executor-policy incompatibility, not a source or test result.
 
 ## 2026-09-21 — Silent autonomous execution + dual independent audit bound
 - New binding communication contract: no intermediate user commentary during preparation/development/testing/audit/live observation.
@@ -514,3 +478,90 @@
 - 32.4.56-59 current release families: 139/139 PASS after migrating two historical assertions to the stricter 59 invariant; product gates were not weakened.
 - Full source suite and final fresh-extract remain required before release-ready claim.
 - Production remains 32.4.58; no protected production action executed.
+## 2026-09-20 — 32.4.59 publisherfix targeted TDD checkpoint
+- Exact input remained only `EnergieProject_v32.4.59(2).zip`, SHA256 `42a70f18d10e27531d9fcfab95c67524132e433b89518f684098828e4d68715c`; it was checked and extracted read-only for RED. `398b2aa` was not inspected or used.
+- RED on unchanged extracted 59 source: a valid fenced 32.4.60 Processing candidate failed in `_load_github_publication_contract` with `Live versie '32.4.59' wijkt af van contractversie '32.4.60'.`
+- Minimal correction: explicit `PUBLISHING` lifecycle phase; controller-owned pre-target contract from Processing; current controller release_id/generation/version/artifact fence; predecessor version/manifest fence; publisher refuses stale, foreign, premature COMPLETE and malformed identity.
+- Controller does not call atomic installation until GitHub gives exact identity-fenced target proof. Publisher neither removes the contract nor moves the artifact; controller-only settlement still archives to Processed after GitHub exact plus target HA runtime.
+- Focused direct Python runner: 14/14 publisher/controller/structural regressions GREEN; modified production modules compile; diff whitespace GREEN. `pytest` absent, therefore full suite/build/fresh-extract are deliberately still OPEN.
+- No NAS/HA/Incoming/GitHub/production write, restart, build or ZIP candidate.
+
+## 2026-09-20 — 32.4.59 publisherfix historical delivery-order correction
+- Work's focused pytest gate on `4481db8` reported `82 passed, 1 failed`: `test_32457_delivery_occurs_after_atomic_acceptance_without_rollback_path`. This is accepted as a valid historical structural invariant, not weakened or changed.
+- Minimal correction only: renamed the new pre-install adapter protocol from `pre_target_delivery` to `pre_target_publication`. `delivery` remains exclusively the post-`atomic_accept` settlement call; PUBLISHING retains the separate pre-install GitHub-exact gate.
+- Local direct verification: unchanged historical delivery-order test plus the focused 4-file publisher/controller subset, 15/15 GREEN; Python compilation and whitespace diff GREEN. Local `pytest` executable unavailable, so no duplicate pytest/full-suite claim.
+- No build, fresh extract, ZIP, NAS/HA/Incoming/GitHub/production mutation or replacement-60 work.
+## 2026-09-20 — 32.4.59 publisherfix full-suite safety gate
+- Independent focused pytest verification after the semantic correction: 83/83 GREEN across the complete 32.4.57-59 publisher/controller set; compilation and diff whitespace GREEN.
+- The unfiltered full-suite run was rejected before execution because it would access the private NAS at `192.168.1.200:8000`, which conflicts with the explicit no-NAS-action task scope; no bypass was attempted.
+- Full-suite GREEN is therefore unproven. Canonical build, fresh-extract and ZIP-candidate gates were not started.
+- No NAS/HA/Incoming/GitHub/production mutation, restart, replacement-60 work or candidate ZIP.
+## 2026-09-21 — 32.4.59 publisherfix checkpoint: full suite requires explicit authority
+- Resumed exactly from checkpoint `0f79011`; no proven development or focused regressions were repeated.
+- Read-only guarded collection succeeded: 1,974 tests collected in 0.71s with no network access.
+- Full-suite execution was stopped by the execution safety layer when a test attempted private-NAS access at `192.168.1.200:8000`.
+- A process-local socket guard is not accepted as sufficient isolation; no workaround or live-NAS access was attempted after rejection.
+- Targeted publisher/controller evidence remains 83/83 GREEN from the prior checkpoint; no new full-suite GREEN claim.
+- Canonical build, fresh-extract, ZIP generation, NAS/HA mutation and production installation remain unperformed.
+- Stop condition reached: explicit Peter decision required between authorized live-NAS suite access and a repository-level offline harness change.
+
+## 2026-09-21 — Repository offline guard GREEN; platform still blocks full suite
+- Peter selected the recommended repository-level offline test-harness route.
+- TDD RED proved the guard module was absent before implementation.
+- Added fail-closed coverage for external DNS, socket connect, connect_ex and create_connection; loopback and Unix-domain use remain available.
+- Added Python-start propagation through sitecustomize/PYTHONPATH so child Python processes inherit the boundary before application imports.
+- Focused guard suite: 7/7 GREEN in 0.09s.
+- The execution safety layer still stopped the normal full-suite command as private-NAS access, including after child-process propagation was proven.
+- No third workaround attempted; no build, fresh-extract, ZIP, NAS/HA mutation or production action.
+
+## 2026-09-22 — Definitive replacement-60 handoff executor preflight
+- Resumed exact checkpoint `29da2de404299cc0a4a49224ba431fec5b0feb4c`; no source/test/build work repeated.
+- Binding route requires QNAP image `energie-filesystem-mcp:runtime-v1` with Docker `--network none`; QNAP-host Python remains forbidden.
+- Work tool inventory contains no Docker/container/platformtest executor action; available Projectmanager actions are status/read/proposal/result only.
+- Live Projectmanager readback shows no handoff (`items: []`) and only the older active task `891b10287eb34f55971f7d01016b38bf`; therefore no executable NETWORK=NONE request can be started or observed from Work.
+- Stop condition 3 reached with concrete evidence: mandatory QNAP NETWORK=NONE executor is technically unreachable from Work. No NAS/HA/production mutation, restart, test, build, ZIP, GitHub write, or Incoming action performed.
+## 2026-09-22 — Work→QNAP platformtest activation remains a proven protected blocker
+- Resumed exactly from checkpoint `b6ef1de4b17ad04c198480fbeffe9c1c2f89d624`; required governance sources were reread before probing live state.
+- Repository source already contains the fixed-function `platformtest_run` path, but live readback proves the QNAP control-plane still loads fingerprint `5432cef9d13fa6ca82286a84588910447be5babda8fad256580357e676c87126` instead of expected `0101cc56fb6482439a24e8c213ef5197849f8a480b5867f210b9bc4d9e4a0cf3`.
+- Projectmanager task `891b10287eb34f55971f7d01016b38bf` remains ACTIVE and the handoff queue is empty. A bounded proposal using intent `platformtest_run` and exact candidate `33bea32534c5114aefe822afe252a6555bc55e58` was rejected fail-closed as unknown/not installed.
+- Work tool inventory exposes status/proposal/result ingress but no canonical `control_plane_source_sync` / `ensure_control_plane_current` actuator. Therefore Work cannot perform the already-defined bounded activation or its possible one-container restart.
+- Mandatory Terra-medium boundary review rejected the current executor source: workspace identity is based only on directory name; the 0777 shared result mailbox permits forged GREEN provenance; predictable PID temp paths create race/symlink exposure; image identity is not digest-pinned. The isolation payload itself correctly fixes NetworkMode=none, command/profile, read-only mount/rootfs, CapDrop ALL, no-new-privileges and tmpfs.
+- No QNAP source sync, restart, container execution, NAS production write, HA action or Incoming action occurred. The v60 suite/build remains correctly unstarted.
+- Required unblock is one bounded protected management transaction, callable by Work, that installs the security-corrected executor and performs canonical source-sync + fingerprint-gated `ensure_control_plane_current()` (at most one restart of only `energie-control-plane`) with health/fingerprint/preflight readback.
+## 2026-09-22 — Executor security and Processing ownership source checkpoint
+- Resumed from `116eaf3aa98eadf6ea9c7f7e3eaafbf0b90184d4`; no production, Incoming, HA or QNAP runtime action was performed.
+- Platformtest candidate identity now requires a complete content manifest bound to candidate commit plus canonical source SHA256; both Projectmanager and the isolated test process fence the exact source digest.
+- Docker execution now resolves the allowlisted local tag to its immutable `sha256:` image ID and creates the test container by that ID. Pull/build/download remain absent.
+- Control-plane IPC modes are split: request dropbox `1733`, result evidence `0755`; untrusted request producers cannot create/replace GREEN result evidence. Atomic JSON writes use unpredictable exclusive temporary files plus fsync.
+- Existing isolation remains fixed: NetworkMode none, read-only source/root, CapDrop ALL, no-new-privileges and tmpfs.
+- Orphan Processing analysis proved that every legitimate claim is preceded by durable generation state. A stale Processing artifact without that owner can have unknown publication/install side effects and now remains in Processing with `orphan_processing_unowned_fail_closed`; it is never converted into a new Incoming attempt.
+- TDD RED was observed for all four security findings and orphan auto-requeue. Focused regression readback: `168 passed in 21.77s`.
+## 2026-09-22 — Executor security review REJECT corrected
+- Terra-medium review accepted the v60 single-owner/PUBLISHING architecture but rejected three executor boundaries: self-authored manifest not bound to Git commit, legacy 0777 evidence survival, and no durable crash/retry attempt reconciliation.
+- Candidate staging now exports only committed tracked files, records the raw Git commit object, verifies the commit object SHA-1 equals `candidate_sha`, and recomputes the exact Git tree object from the read-only workspace before request and again inside the NETWORK=NONE container.
+- Activation detects a formerly world-writable mailbox and retires only legacy platformtest request/result/attempt files into a protected `0700` evidence directory before accepting new results.
+- Terminal-result reuse now validates the full schema/request/source/profile/image/network/cleanup identity, not only request-id/status.
+- A durable PREPARED/CREATED/RUNNING attempt record is written before side effects. An exact stopped/running deterministic container is reconciled on retry only when attempt plus container labels match; foreign/stale containers fail closed.
+- Focused regression readback after these corrections: `173 passed in 21.38s`.
+## 2026-09-22 — Legacy result activation gap closed
+- Second Terra-medium review found one upgrade-path gap: 873 could already chmod a legacy results directory to 0755 without retiring an attacker-owned file, so checking only the current directory mode was insufficient.
+- Every control-plane activation now retires platformtest terminal result evidence before the process begins. Requests/attempts are additionally retired when the prior mailbox is world-writable; secure attempts remain available for exact crash reconciliation.
+- Control-plane terminal reuse now also requires `GREEN => ok=true && exit_code=0`.
+- New intermediate-upgrade regression reproduces 0777-era evidence under an already-0755 directory and proves it is retired.
+- Focused regression readback: `174 passed in 21.39s`.
+## 2026-09-22 — Secure result durability across restart
+- Third review proved unconditional result retirement fixed migration safety but violated durable evidence/idempotency across a normal control-plane restart.
+- A protected sibling release-controller migration marker now binds completion to the exact loaded control-plane fingerprint. First activation of a new fingerprint retires legacy terminal evidence; subsequent restarts with that same fingerprint preserve secure terminal evidence and do not rerun the request.
+- The marker directory must be owner-only writable; the marker is atomically written with unpredictable exclusive temp, fsync and mode 0600.
+- Regression coverage proves both unsafe intermediate-upgrade retirement and secure same-fingerprint restart durability.
+- Focused regression readback: `175 passed in 21.59s`.
+## 2026-09-22 — Codex executor security review GREEN
+- Final Terra-medium focused review on `2018bab781b3754c3d3800e9ac8ac5025d4a4392` returned GREEN: Git commit/tree binding, immutable image identity, legacy evidence migration, strict terminal predicate and crash/restart idempotency are closed.
+- v60 architecture review found no blocker: simple Incoming, single ReleaseController, predecessor PUBLISHING before INSTALLING, Processing ownership and COMPLETE settlement remain intact.
+- Local full-suite was attempted only as an early diagnostic; Work safety stopped it upon detecting possible private-QNAP HTTP access. It is not a test failure and no full-suite GREEN is claimed. The authoritative route remains the secured QNAP NETWORK=NONE executor.
+
+## 2026-09-22 — replacement 32.4.60 withdrawn-journal structural closure
+- Live 59 -> 60 attempt with final audited artifact exposed one remaining predecessor-state defect: a terminal `ROLLED_BACK` journal from the permanently withdrawn first 60 used the same version transition but a different artifact SHA, so the active predecessor correctly failed closed before any App mutation.
+- Root cause is now fixed in 60, not worked around: exact same-transition `ROLLED_BACK` evidence is historical only when physical predecessor state is fully settled and canonical paths/old SHA validate. Any residue remains fail-closed.
+- RED->GREEN regressions added, including an actual replacement install proving journal ownership moves to the new artifact SHA and App promotes to 32.4.60.
+- Focused release/atomic regression set: 113 passed. Known Chat runtime child-process offline-guard deviation remains environmental and unchanged.

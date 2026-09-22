@@ -1,10 +1,54 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 from pathlib import Path
+import json
 import os
 import sys
+import tempfile
 import control_plane as cp
 QNAP_PHYSICAL_PROJECT_ROOT = "/share/Energie_NAS/EnergieProject"
+
+
+def _security_migration_current(inbox: Path) -> bool:
+    marker = Path(inbox) / 'release_controller/platformtest_security_migration_v1.json'
+    try:
+        if marker.is_symlink() or not marker.is_file():
+            return False
+        value = json.loads(marker.read_text(encoding='utf-8'))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    return value == {
+        'schema': 'energie_platformtest_security_migration_v1',
+        'status': 'GREEN',
+        'control_plane_fingerprint': cp.LOADED_RUNTIME_FINGERPRINT,
+    }
+
+
+def _write_security_migration(inbox: Path) -> None:
+    directory = Path(inbox) / 'release_controller'
+    if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+        raise RuntimeError('onveilige release-controller evidence map')
+    directory.mkdir(parents=True, exist_ok=True)
+    if directory.stat().st_mode & 0o022:
+        raise RuntimeError('release-controller evidence map is schrijfbaar buiten eigenaar')
+    marker = directory / 'platformtest_security_migration_v1.json'
+    if marker.is_symlink():
+        raise RuntimeError('onveilige platformtest security-migratiemarkering')
+    payload = {
+        'schema': 'energie_platformtest_security_migration_v1',
+        'status': 'GREEN',
+        'control_plane_fingerprint': cp.LOADED_RUNTIME_FINGERPRINT,
+    }
+    fd, name = tempfile.mkstemp(prefix='.platformtest-security-', dir=str(directory))
+    temporary = Path(name)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            handle.write(json.dumps(payload, sort_keys=True) + '\n')
+            handle.flush(); os.fsync(handle.fileno())
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, marker)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _ensure_control_plane_mailboxes(inbox: Path) -> dict:
@@ -17,16 +61,56 @@ def _ensure_control_plane_mailboxes(inbox: Path) -> dict:
     """
     inbox = Path(inbox)
     root = inbox / 'control_plane'
-    paths = (root, root / 'requests', root / 'results')
-    for path in paths:
+    previous_world_writable = any(
+        path.exists() and bool(path.stat().st_mode & 0o002)
+        for path in (root, root / 'requests', root / 'results')
+        if not path.is_symlink()
+    )
+    migration_current = _security_migration_current(inbox)
+    modes = {root: 0o755, root / 'requests': 0o1733, root / 'results': 0o755}
+    for path, mode in modes.items():
         if path.is_symlink():
             raise RuntimeError(f'onveilige control-plane mailbox symlink: {path}')
         if path.exists() and not path.is_dir():
             raise RuntimeError(f'control-plane mailbox is geen directory: {path}')
         path.mkdir(parents=True, exist_ok=True)
-        os.chmod(path, 0o777)
-        if path.stat().st_mode & 0o777 != 0o777:
+        os.chmod(path, mode)
+        if path.stat().st_mode & 0o7777 != mode:
             raise RuntimeError(f'control-plane mailbox mode readback mismatch: {path}')
+
+    retired = False
+    # Result evidence is cheap to reproduce and must never survive a process
+    # activation boundary: an earlier 0777 generation may already have changed
+    # the directory to 0755 while leaving an attacker-owned file behind.
+    # Attempts are preserved only across an already-secure restart so an exact
+    # running/stopped container can be reconciled.
+    retire_targets = [] if migration_current else [(root / 'results', 'platformtest_run.json')]
+    if previous_world_writable:
+        retire_targets.extend([
+            (root / 'requests', 'platformtest_run.json'),
+            (root / 'results', 'platformtest_attempt.json'),
+        ])
+    if retire_targets:
+        stale = root / 'stale_activation'
+        if stale.is_symlink() or (stale.exists() and not stale.is_dir()):
+            raise RuntimeError('onveilige control-plane stale-evidence map')
+        stale.mkdir(mode=0o700, exist_ok=True)
+        os.chmod(stale, 0o700)
+        for directory, name in retire_targets:
+            source = directory / name
+            if not source.exists():
+                continue
+            if source.is_symlink() or not source.is_file():
+                raise RuntimeError(f'onveilige legacy platformtest evidence: {source}')
+            index = 0
+            target = stale / (name + '.retired')
+            while target.exists():
+                index += 1
+                target = stale / (name + f'.retired.{index}')
+            os.replace(source, target)
+            os.chmod(target, 0o600)
+            retired = True
+    _write_security_migration(inbox)
 
     probe = root / 'requests' / f'.control_plane_write_probe.{os.getpid()}'
     try:
@@ -42,7 +126,11 @@ def _ensure_control_plane_mailboxes(inbox: Path) -> dict:
             probe.unlink(missing_ok=True)
         except OSError:
             pass
-    return {'root': str(root), 'requests': str(root/'requests'), 'results': str(root/'results'), 'mode': '0777'}
+    return {
+        'root': str(root), 'requests': str(root/'requests'), 'results': str(root/'results'),
+        'root_mode': '0755', 'requests_mode': '1733', 'results_mode': '0755',
+        'legacy_platformtest_evidence_retired': retired,
+    }
 
 
 def _argv_value(flag: str, default: str) -> str:

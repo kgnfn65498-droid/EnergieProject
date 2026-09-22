@@ -1,6 +1,6 @@
 # Changelog
 
-## 32.4.59 — structural autonomous publication closure
+## 32.4.60 — combined autonomous publisher closure
 
 - Publication delivery is exact identity-fenced; HA version alone cannot close delivery.
 - ReleaseController owns exact publication-contract settlement.

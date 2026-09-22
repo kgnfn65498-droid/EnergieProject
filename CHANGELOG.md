@@ -1,5 +1,8 @@
-## 32.4.59 — structural autonomous publication closure
+## 32.4.60 — combined autonomous publisher closure
 
+- Projectmanager release-state observatie accepteert de verplichte `PUBLISHING` fase, zodat fencing/health tijdens pre-target publicatie niet foutief uitvalt.
+- De actieve watcher-bootstrap initialiseert of gate niet langer op NAS Container CR mailbox/capability; de watcher-containercontractcontrole blijft verplicht.
+- Historische pre-57 NAS-CR mailboxcontracten blijven alleen als regressie-fixture behouden en zijn geen actieve releasegate.
 - Publication delivery is exact identity-fenced; HA version alone cannot close delivery.
 - ReleaseController owns exact publication-contract settlement.
 - Processing remains transactional until delivery is proven COMPLETE.
@@ -1949,3 +1952,9 @@
 - Rapportpagina uit v10.5.37 blijft aanwezig.
 
 - Transition-state secure-read hardening: current.json en alle bekende consumers weigeren symlinks/niet-reguliere state fail-closed via lstat + O_NOFOLLOW + fstat identity check.
+
+## 32.4.60 final structural closure — withdrawn same-transition retry
+- A fully settled `ROLLED_BACK` atomic journal from a withdrawn/rejected artifact no longer blocks a replacement artifact for the exact same `from_version -> to_version` transition.
+- The exception is fail-closed: predecessor `App` must still be active, canonical candidate/rollback paths must be absent, journal paths must match exactly and the withdrawn artifact SHA must be valid.
+- Any filesystem residue, malformed identity or path mismatch still returns `atomic_artifact_mismatch`.
+- Added regression proving the replacement proceeds through atomic install and rewrites the journal to the new artifact identity.

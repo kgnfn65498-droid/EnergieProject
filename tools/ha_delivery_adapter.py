@@ -1,5 +1,5 @@
 from __future__ import annotations
-import hashlib,json,os,time
+import hashlib,json,os,time,zipfile
 from pathlib import Path
 from release_controller import Outcome,ReleaseState
 
@@ -53,6 +53,24 @@ class HADelivery:
     def _manifest_sha(self,p):
         if not Path(p).is_file():raise RuntimeError('manifest_missing')
         return _sha(Path(p))
+    def _target_manifest_sha(self,artifact):
+        try:
+            with zipfile.ZipFile(artifact) as archive:
+                return hashlib.sha256(archive.read('MANIFEST.sha256')).hexdigest()
+        except Exception as exc:raise RuntimeError('target_manifest_missing_or_invalid') from exc
+    def _pre_target_contract(self,s,artifact):
+        active=self.root/'App'
+        active_version=(active/'VERSIE.txt').read_text(encoding='utf-8').strip() if (active/'VERSIE.txt').is_file() else ''
+        predecessor=active if active_version==s.from_version else self.root/f'App.__rollback_{s.from_version}'
+        previous_manifest=self._manifest_sha(predecessor/'MANIFEST.sha256')
+        return {'schema':'energie_ha_publication_contract_v2','status':'publication_required',
+            'source_stage':'processing_pre_target','version':s.to_version,
+            'repository':'https://github.com/kgnfn65498-droid/EnergieProject','branch':'main',
+            'expected_previous_version':s.from_version,'expected_previous_manifest_sha256':previous_manifest,
+            'predecessor_version':s.from_version,'predecessor_manifest_sha256':previous_manifest,
+            'target_manifest_sha256':self._target_manifest_sha(artifact),
+            'processed_zip':artifact.name,'processed_zip_sha256':s.artifact_sha256,
+            'release_id':s.release_id,'generation':s.generation}
     def _contract(self,s,artifact):
         rollback=self.root/f'App.__rollback_{s.from_version}'
         return {'schema':'energie_ha_publication_contract_v2','status':'publication_required','version':s.to_version,
@@ -70,7 +88,7 @@ class HADelivery:
         existing=_json(marker)
         if not existing:
             _atomic(marker,payload);return payload
-        core=('version','repository','branch','expected_previous_version','expected_previous_manifest_sha256','target_manifest_sha256','processed_zip','processed_zip_sha256')
+        core=('source_stage','version','repository','branch','expected_previous_version','expected_previous_manifest_sha256','predecessor_version','predecessor_manifest_sha256','target_manifest_sha256','processed_zip','processed_zip_sha256')
         if any(existing.get(k)!=payload.get(k) for k in core):raise RuntimeError('publication_contract_conflict')
         if str(existing.get('release_id') or '')!=s.release_id or str(existing.get('generation') or '')!=s.generation:
             raise RuntimeError('publication_contract_fence_conflict')
@@ -83,10 +101,29 @@ class HADelivery:
         # Reuse exact fenced delivery reconciliation. A COMPLETE state may only
         # settle its own still-open contract; foreign/unproven state fails closed.
         return self.align(s)
+    def prepare_pre_target(self,s:ReleaseState)->Outcome:
+        marker=self.root/'Inbox/ha_publication_required.json'
+        try:
+            artifact=self._active_artifact(s)
+            if artifact.parent.name!='processing':return Outcome.blocked('pre_target_artifact_not_processing')
+            payload=self._pre_target_contract(s,artifact)
+            self._ensure_contract(s,payload,marker)
+        except Exception as exc:return Outcome.blocked(str(exc),'inspect exact pre-target publication ownership; do not delete foreign state')
+        pub=_json(self.root/'Inbox/github_publication_state.json')
+        if self._publisher_exact(pub,payload):return Outcome.green('github_pre_target_exact')
+        elapsed=max(0.0,time.time()-float(s.phase_started_at_epoch or time.time()))
+        if elapsed>=self.timeout:
+            if pub.get('published') is False and self._identity_matches(pub,payload):
+                return Outcome.blocked('github_pre_target_publication_failed','inspect exact publisher evidence; do not create a second release')
+            return Outcome.blocked('github_pre_target_identity_timeout','inspect exact publisher evidence; do not install before GitHub target is exact')
+        return Outcome.waiting('github_pre_target_pending','pre_target_publication_contract_ready')
     def align(self,s:ReleaseState)->Outcome:
         marker=self.root/'Inbox/ha_publication_required.json'
         try:
-            artifact=self._active_artifact(s);payload=self._contract(s,artifact);self._ensure_contract(s,payload,marker)
+            artifact=self._active_artifact(s)
+            existing=_json(marker)
+            payload=self._pre_target_contract(s,artifact) if existing.get('source_stage')=='processing_pre_target' else self._contract(s,artifact)
+            self._ensure_contract(s,payload,marker)
         except Exception as exc:return Outcome.blocked(str(exc),'inspect exact publication ownership; do not delete foreign state')
         pub=_json(self.root/'Inbox/github_publication_state.json')
         ha=_json(self.root/'Inbox/ha_runtime/current.json')

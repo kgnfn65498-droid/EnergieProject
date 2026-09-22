@@ -137,10 +137,12 @@ def test_slow_partial_copy_is_never_claimed_and_full_stable_zip_is_claimed_once(
 def test_watcher_restart_before_claim_never_double_claims(tmp_path: Path):
     root,env=_make_root(tmp_path)
     target=root/'Inbox/incoming/EnergieProject_v32.4.55.zip'; target.write_bytes(_valid_zip(tmp_path/'unused'))
+    env['ENERGIE_ZIP_STABLE_POLLS'] = '30'
     first=_start(root,env)
-    time.sleep(1.3)
+    time.sleep(0.4)
     assert _claims(root)==[]
     _stop(first)
+    env['ENERGIE_ZIP_STABLE_POLLS'] = '3'
     second=_start(root,env)
     try:
         assert _wait_for(lambda: len(_claims(root))==1, timeout=7)

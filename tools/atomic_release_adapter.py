@@ -24,7 +24,23 @@ class AtomicReleaseAdapter:
         j_to=str(j.get('to_version') or '')
         j_sha=str(j.get('artifact_sha256') or '').lower()
         if j_from==s.from_version and j_to==s.to_version:
-            if j_sha!=s.artifact_sha256.lower():raise RuntimeError('atomic_artifact_mismatch')
+            if j_sha!=s.artifact_sha256.lower():
+                # A withdrawn/rejected artifact may leave a terminal ROLLED_BACK
+                # journal for the same version transition. A replacement artifact
+                # is allowed only when the filesystem proves that rollback is fully
+                # settled: the predecessor App is active, no candidate/rollback
+                # paths remain, the old artifact identity is well-formed and the
+                # journal paths are exactly the canonical paths for this transition.
+                # Any residue or malformed identity remains fail-closed.
+                if str(j.get('state') or '')=='ROLLED_BACK':
+                    active=(paths.app/'VERSIE.txt').read_text(encoding='utf-8').strip() if (paths.app/'VERSIE.txt').is_file() else ''
+                    old_sha_ok=(len(j_sha)==64 and all(c in '0123456789abcdef' for c in j_sha))
+                    paths_ok=(str(j.get('candidate_path') or '')==paths.candidate.name and
+                              str(j.get('rollback_path') or '')==paths.rollback.name)
+                    settled=(active==s.from_version and not paths.candidate.exists() and not paths.rollback.exists())
+                    if old_sha_ok and paths_ok and settled:
+                        return None
+                raise RuntimeError('atomic_artifact_mismatch')
             return j
         # A single global atomic journal intentionally survives acceptance. For N+1,
         # accept it only as historical evidence when it is exactly the immediately
@@ -116,6 +132,7 @@ class AtomicReleaseAdapter:
                 return Outcome.rolled_back('atomic_install_rolled_back','source_app_restored',*ev)
             return Outcome.blocked('atomic_install_failed:'+type(exc).__name__,rollback=True)
     def runtime_align(self,s):return self.native.align(s)
+    def pre_target_publication(self,s):return self.ha.prepare_pre_target(s)
     def verify_live(self,s):
         try:
             paths=self._paths(s);j=self.atomic.reconcile_state(paths)

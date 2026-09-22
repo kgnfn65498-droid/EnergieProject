@@ -8,6 +8,7 @@ import json
 import os
 import re
 import socket
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,7 +23,45 @@ WATCHER_COMMAND = ['sh', '/energy/App/tools/release_watcher.sh']
 WATCHER_CAPS = ['DAC_OVERRIDE', 'DAC_READ_SEARCH', 'FOWNER']
 PLATFORMTEST_IMAGE = 'energie-filesystem-mcp:runtime-v1'
 PLATFORMTEST_PROFILE = 'publisher_full_suite_v1'
-PLATFORMTEST_COMMAND = ['python3', '-m', 'pytest', '-q', '-p', 'no:cacheprovider']
+PLATFORMTEST_RUNNER = r'''import hashlib,json,os,pathlib,pytest,sys
+root=pathlib.Path('/workspace')
+mp=root/'.energie-platformtest-source.json'
+m=json.loads(mp.read_text(encoding='utf-8'))
+assert m.get('schema')=='energie_platformtest_source_v1'
+assert m.get('candidate_sha')==os.environ['ENERGIE_CANDIDATE_SHA']
+actual=[]
+for p in sorted(root.rglob('*')):
+    if p==mp: continue
+    assert not p.is_symlink()
+    if p.is_dir(): continue
+    assert p.is_file()
+    actual.append({'path':p.relative_to(root).as_posix(),'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'size':p.stat().st_size,'mode':'100755' if p.stat().st_mode & 0o111 else '100644'})
+canonical=json.dumps(actual,separators=(',',':'),sort_keys=True).encode()
+digest=hashlib.sha256(canonical).hexdigest()
+assert actual==m.get('files') and digest==m.get('source_sha256')==os.environ['ENERGIE_SOURCE_SHA256']
+commit=bytes.fromhex(m['git_commit_hex'])
+candidate=hashlib.sha1(b'commit '+str(len(commit)).encode()+b'\0'+commit).hexdigest()
+assert candidate==m['candidate_sha']==os.environ['ENERGIE_CANDIDATE_SHA']
+def tree_sha(prefix=''):
+    children={}
+    for entry in actual:
+        rel=entry['path']
+        if prefix:
+            if not rel.startswith(prefix+'/'): continue
+            rel=rel[len(prefix)+1:]
+        head,sep,_=rel.partition('/')
+        children.setdefault(head,[] if sep else entry)
+    raw=bytearray()
+    for name,value in sorted(children.items(),key=lambda item:(item[0]+('/' if isinstance(item[1],list) else '')).encode()):
+        if isinstance(value,list): mode='40000'; oid=tree_sha(prefix+'/'+name if prefix else name)
+        else:
+            data=(root/value['path']).read_bytes();mode=value['mode'];oid=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+        raw.extend(mode.encode()+b' '+name.encode()+b'\0'+bytes.fromhex(oid))
+    data=bytes(raw);return hashlib.sha1(b'tree '+str(len(data)).encode()+b'\0'+data).hexdigest()
+expected_tree=next(line[5:].decode() for line in commit.splitlines() if line.startswith(b'tree '))
+assert tree_sha()==expected_tree
+sys.exit(pytest.main(['-q','-p','no:cacheprovider']))'''
+PLATFORMTEST_COMMAND = ['python3', '-c', PLATFORMTEST_RUNNER]
 PLATFORMTEST_REQUEST_SCHEMA = 'energie_platformtest_run_request_v1'
 PLATFORMTEST_RESULT_SCHEMA = 'energie_platformtest_run_result_v1'
 PLATFORMTEST_TIMEOUT_SECONDS = 3 * 60 * 60
@@ -160,9 +199,13 @@ def _atomic_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_symlink():
         raise RuntimeError(f'onveilig symlinkdoel: {path}')
-    temp = path.with_name(path.name + f'.tmp-{os.getpid()}')
+    fd, temp_name = tempfile.mkstemp(prefix=f'.{path.name}.tmp-', dir=str(path.parent))
+    temp = Path(temp_name)
     try:
-        temp.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n')
+            handle.flush()
+            os.fsync(handle.fileno())
         os.replace(temp, path)
     finally:
         try:
@@ -266,7 +309,7 @@ def load_control_plane_native_request(inbox: Path, approved_queue: Path):
 
 def load_platformtest_request(inbox: Path) -> dict:
     request = _load_json(Path(inbox) / 'control_plane' / 'requests' / 'platformtest_run.json')
-    allowed = {'schema', 'request_id', 'action', 'candidate_sha', 'test_profile'}
+    allowed = {'schema', 'request_id', 'action', 'candidate_sha', 'source_sha256', 'test_profile'}
     if set(request) != allowed:
         raise RuntimeError('platformtest request bevat onbekende/ontbrekende velden')
     if request.get('schema') != PLATFORMTEST_REQUEST_SCHEMA:
@@ -275,32 +318,42 @@ def load_platformtest_request(inbox: Path) -> dict:
         raise RuntimeError('platformtest action ongeldig')
     request_id = str(request.get('request_id') or '').lower()
     candidate = str(request.get('candidate_sha') or '').lower()
+    source_sha256 = str(request.get('source_sha256') or '').lower()
     profile = str(request.get('test_profile') or '')
     if len(request_id) != 32 or any(ch not in '0123456789abcdef' for ch in request_id):
         raise RuntimeError('platformtest request_id ongeldig')
     if len(candidate) != 40 or any(ch not in '0123456789abcdef' for ch in candidate):
         raise RuntimeError('platformtest candidate_sha ongeldig')
+    if len(source_sha256) != 64 or any(ch not in '0123456789abcdef' for ch in source_sha256):
+        raise RuntimeError('platformtest source_sha256 ongeldig')
     if profile != PLATFORMTEST_PROFILE:
         raise RuntimeError('platformtest profile niet toegestaan')
     return request
 
 
-def platformtest_create_payload(host_project_root: str, request: dict) -> dict:
+def platformtest_create_payload(host_project_root: str, request: dict, *, image_id: str) -> dict:
     host_root = str(host_project_root).rstrip('/')
     if host_root != '/share/Energie_NAS/EnergieProject':
         raise RuntimeError('onverwachte host project-root')
     candidate = str(request['candidate_sha']).lower()
+    if not re.fullmatch(r'sha256:[0-9a-f]{64}', str(image_id or '').lower()):
+        raise RuntimeError('platformtest immutable image identity ongeldig')
     workspace = f'{host_root}/Data/03_Systeem/Projectmanager/Staging/PlatformTest/{candidate}'
     return {
-        'Image': PLATFORMTEST_IMAGE,
+        'Image': str(image_id).lower(),
         'Cmd': list(PLATFORMTEST_COMMAND),
         'WorkingDir': '/workspace',
-        'Env': ['PYTHONPATH=/workspace'],
+        'Env': [
+            'PYTHONPATH=/workspace',
+            f'ENERGIE_CANDIDATE_SHA={candidate}',
+            f'ENERGIE_SOURCE_SHA256={request["source_sha256"]}',
+        ],
         'Tty': True,
         'Labels': {
             'com.energie.component': 'platformtest',
             'com.energie.request_id': str(request['request_id']),
             'com.energie.candidate_sha': candidate,
+            'com.energie.source_sha256': str(request['source_sha256']),
             'com.energie.test_profile': PLATFORMTEST_PROFILE,
         },
         'HostConfig': {
@@ -330,14 +383,24 @@ def _pytest_counts(logs: str) -> dict:
     return counts
 
 
-def terminal_result(result_path: Path, request_id: str) -> bool:
+def terminal_result(result_path: Path, request: dict) -> bool:
     try:
         result = _load_json(Path(result_path))
     except Exception:
         return False
     return (
-        str(result.get('request_id') or '') == str(request_id)
+        result.get('schema') == PLATFORMTEST_RESULT_SCHEMA
+        and result.get('action') == 'platformtest_run'
+        and str(result.get('request_id') or '') == str(request.get('request_id') or '')
+        and str(result.get('candidate_sha') or '') == str(request.get('candidate_sha') or '')
+        and str(result.get('source_sha256') or '') == str(request.get('source_sha256') or '')
+        and result.get('test_profile') == request.get('test_profile')
+        and re.fullmatch(r'sha256:[0-9a-f]{64}', str(result.get('image_id') or '').lower()) is not None
+        and result.get('network_mode') == 'none'
+        and result.get('production_modified') is False
+        and result.get('container_removed') is True
         and result.get('status') in {'GREEN', 'RED'}
+        and (result.get('status') != 'GREEN' or (result.get('ok') is True and result.get('exit_code') == 0))
     )
 
 
@@ -613,22 +676,45 @@ class ControlPlane:
         candidate = str(request['candidate_sha']).lower()
         container = f'energie-platformtest-{request_id[:12]}'
         result_path = self.result_root / 'results' / 'platformtest_run.json'
+        attempt_path = self.result_root / 'results' / 'platformtest_attempt.json'
 
         self.docker.ping()
-        self.docker.inspect_image(PLATFORMTEST_IMAGE)
-        if self.docker.inspect_container(container) is not None:
-            raise RuntimeError('platformtest containernaam is al bezet; fail-closed')
+        image = self.docker.inspect_image(PLATFORMTEST_IMAGE)
+        image_id = str(image.get('Id') or '').lower() if isinstance(image, dict) else ''
+        if not re.fullmatch(r'sha256:[0-9a-f]{64}', image_id):
+            raise RuntimeError('platformtest lokale image heeft geen immutable digest identity')
+        payload = platformtest_create_payload(self.host_project_root, request, image_id=image_id)
+        existing = self.docker.inspect_container(container)
+        attempt = _optional_json(attempt_path)
+        expected_attempt = {
+            'schema': 'energie_platformtest_attempt_v1',
+            'request_id': request_id,
+            'candidate_sha': candidate,
+            'source_sha256': request['source_sha256'],
+            'test_profile': PLATFORMTEST_PROFILE,
+            'image_id': image_id,
+        }
+        if existing is not None:
+            labels = existing.get('Config', {}).get('Labels', {}) if isinstance(existing, dict) else {}
+            if any(attempt.get(key) != value for key, value in expected_attempt.items()):
+                raise RuntimeError('platformtest bestaand container-attempt mismatch; fail-closed')
+            if labels.get('com.energie.request_id') != request_id or labels.get('com.energie.source_sha256') != request['source_sha256']:
+                raise RuntimeError('platformtest bestaand container identity mismatch; fail-closed')
+        else:
+            _atomic_json(attempt_path, {**expected_attempt, 'status': 'PREPARED', 'container': container})
 
-        payload = platformtest_create_payload(self.host_project_root, request)
-        created = False
+        created = existing is not None
         logs = ''
         exit_code = None
         error = None
         cleanup_ok = False
         try:
-            self.docker.create_container(container, payload)
-            created = True
-            self.docker.start_container(container)
+            if existing is None:
+                self.docker.create_container(container, payload)
+                created = True
+                _atomic_json(attempt_path, {**expected_attempt, 'status': 'CREATED', 'container': container})
+                self.docker.start_container(container)
+                _atomic_json(attempt_path, {**expected_attempt, 'status': 'RUNNING', 'container': container})
             deadline = time.monotonic() + PLATFORMTEST_TIMEOUT_SECONDS
             while time.monotonic() < deadline:
                 self._write_runtime_marker()
@@ -665,8 +751,10 @@ class ControlPlane:
             'action': 'platformtest_run',
             'request_id': request_id,
             'candidate_sha': candidate,
+            'source_sha256': request['source_sha256'],
             'test_profile': PLATFORMTEST_PROFILE,
             'image': PLATFORMTEST_IMAGE,
+            'image_id': image_id,
             'container': container,
             'network_mode': 'none',
             'exit_code': exit_code,
@@ -680,6 +768,10 @@ class ControlPlane:
             'finished_at': datetime.now(timezone.utc).isoformat(),
         }
         _atomic_json(result_path, result)
+        try:
+            attempt_path.unlink(missing_ok=True)
+        except OSError:
+            pass
         return result
 
     def _write_runtime_marker(self) -> None:
@@ -767,7 +859,7 @@ class ControlPlane:
             platformtest_result = self.result_root / 'results' / 'platformtest_run.json'
             request_probe = _optional_json(platformtest_request)
             request_id = str(request_probe.get('request_id') or '')
-            if request_id and not terminal_result(platformtest_result, request_id):
+            if request_id and not terminal_result(platformtest_result, request_probe):
                 try:
                     results.append(self.run_platformtest())
                 except RuntimeError as exc:

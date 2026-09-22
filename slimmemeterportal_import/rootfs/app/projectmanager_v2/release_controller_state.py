@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json,stat
 from pathlib import Path
-VALID_PHASES={'DETECTED','VERIFIED','INSTALLING','INSTALLED','RUNTIME_ALIGNING','VERIFYING','ACCEPTED','COMPLETE'}
+VALID_PHASES={'DETECTED','VERIFIED','PUBLISHING','INSTALLING','INSTALLED','RUNTIME_ALIGNING','VERIFYING','ACCEPTED','COMPLETE'}
 VALID_STATUS={'ACTIVE','WAITING','BLOCKED','COMPLETE','ROLLED_BACK'}
 def load_release_controller_state(project_root:Path|str):
     path=Path(project_root)/'Inbox/release_controller/current.json'

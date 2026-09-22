@@ -118,17 +118,12 @@ class ReleaseControllerService:
         if len(items)>1:return IngressDecision('BLOCKED','multiple_processing_items')
         p=items[0];age=max(0.0,time.time()-p.stat().st_mtime)
         if age<self.ingress_stale_seconds:return IngressDecision('WAITING','orphan_processing_grace')
-        incoming_items=_regular_zips(self.root/'Inbox/incoming')
-        if incoming_items:return IngressDecision('BLOCKED','incoming_and_orphan_processing_conflict')
-        processed=self.root/'Inbox/processed'/p.name
-        if processed.is_file() and not processed.is_symlink() and _sha(processed)==_sha(p):
-            self._quarantine(p,'duplicates','orphan-processed-duplicate')
-            return IngressDecision('WAITING','orphan_processing_duplicate_quarantined')
-        target=self.root/'Inbox/incoming'/p.name
-        if target.exists():return IngressDecision('BLOCKED','orphan_processing_requeue_target_exists')
-        os.replace(p,target)
-        self.samples.pop(p.name,None);self.counts.pop(p.name,None)
-        return IngressDecision('WAITING','orphan_processing_requeued')
+        # A legitimate claim always persists its generation before Incoming is
+        # atomically moved to Processing. Without that durable owner, neither
+        # publication nor installation side effects can be disproved. Keep the
+        # artifact in its ownership location and fail closed; never manufacture
+        # a new release attempt by moving it back to Incoming.
+        return IngressDecision('BLOCKED','orphan_processing_unowned_fail_closed')
     def _incoming_decision(self):
         incoming=self.root/'Inbox/incoming';items=_regular_zips(incoming)
         if not items:return None,None
@@ -220,7 +215,7 @@ def build_adapter(root:Path):
     return AtomicReleaseAdapter(root,atomic_app_swap,native,delivery)
 
 def main()->int:
-    p=argparse.ArgumentParser(description='Energie 32.4.59 single-owner release controller')
+    p=argparse.ArgumentParser(description='Energie 32.4.60 single-owner release controller')
     p.add_argument('--root',required=True);p.add_argument('--interval',type=float,default=5.0);p.add_argument('--stable-polls',type=int,default=3)
     p.add_argument('--ingress-stale-seconds',type=int,default=600)
     args=p.parse_args();root=Path(args.root)

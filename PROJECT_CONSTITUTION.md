@@ -21,7 +21,7 @@ De historische releaseketen blijft uitsluitend relevant om de reeds live 32.4.56
 ### Vanaf 32.4.57
 - Incoming blijft de release-authority.
 - Één ReleaseController bezit de lifecycle via `Inbox/release_controller/current.json`.
-- Canonieke fasen: DETECTED → VERIFIED → INSTALLING → INSTALLED → RUNTIME_ALIGNING → VERIFYING → ACCEPTED → COMPLETE.
+- Canonieke fasen: DETECTED → VERIFIED → PUBLISHING → INSTALLING → INSTALLED → RUNTIME_ALIGNING → VERIFYING → ACCEPTED → COMPLETE.
 - Status is apart: ACTIVE / WAITING / BLOCKED / COMPLETE / ROLLED_BACK.
 - `atomic_app_swap.py` blijft de install/rollback primitive en journal-evidence, maar is geen tweede lifecycle-owner.
 - Operating mode, release_validation_hold, oude release_transition, CR, CLEARUP/hygiene, PM FINAL/self-audit, watcher heartbeat/contract, CommandIngress en stale PM tasks zijn geen release-critical gates.
@@ -71,20 +71,3 @@ Daarna uitsluitend aanvullende runtime-evidence die voor de eerstvolgende stap n
 - Reviews zijn head-SHA-idempotent: dezelfde onveranderde PR-head krijgt niet opnieuw een volledige agentreview.
 - Bij door UI/Peter gemelde budgetdruk gelden de drempels uit AGENTS.md. Agents gokken nooit naar resterende quota.
 - Budgetbesparing mag testwaarheid, releaseveiligheid of verplichte regressies niet omzeilen; in dat geval checkpointen en stoppen.
-
-
-## Executor-readiness vóór Work-handoff
-- Spock/Chat mag een grote Work-taak pas overdragen nadat voor ELKE verplichte uitvoerfase aantoonbaar is vastgesteld dat de toegewezen executor die fase daadwerkelijk mag en kan uitvoeren.
-- Een plan of instructie is geen bewijs van uitvoerbaarheid. Vereist bewijs omvat waar relevant: tool/capability beschikbaar, artifact/read access, branch/ref access, platform policy toegestaan, netwerkgrenzen, test-runner toegestaan, build/output-opslag mogelijk, fresh-extract mogelijk, audit/readback mogelijk en protected-action boundary correct gemarkeerd.
-- Deze controle gebeurt vóór de handoff, niet pas nadat Work midden in de taak vastloopt.
-- Voor elke grote taak wordt een machine-/mensleesbare `EXECUTOR_READINESS_MATRIX` bijgehouden met minimaal: fase, executor, vereiste capability, bewijs, status GREEN/BLOCKED, fallback die NIET als veiligheidsomweg geldt, en protected approval JA/NEE.
-- Work mag alleen starten wanneer alle vóór de eerstvolgende protected boundary benodigde rijen GREEN zijn.
-- Als één verplichte rij BLOCKED is, blijft Spock eigenaar van het voorbereidend probleem en wordt Work niet gestart met de verwachting dat Work een platform-/toegangsbeperking zelf oplost.
-- Een platform-policyblocker mag nooit worden opgelost door een omweg, indirecte herstart, guard-verzwakking of een nieuwe executorroute die uitsluitend is bedoeld om dezelfde beveiliging te omzeilen.
-
-
-## Informed approval — bindend
-- Expliciete toestemming is alleen geldig als de relevante risico's en gebruikerszichtbare neveneffecten vooraf duidelijk zijn gemaakt.
-- Voor beschermde of potentieel impactvolle acties geeft Spock vóór de approval-vraag een beknopte risico-afweging: doel, voordeel, risico's, worst case, reversibiliteit, veiliger alternatief en aanbeveling.
-- Externe side-effects zoals GitHub-mails/notificaties, CI-/computegebruik, kosten/credits, zichtbare failures, restarts, downtime, permissions, data-exposure of irreversibele repositorywijzigingen worden expliciet genoemd wanneer ze redelijkerwijs mogelijk zijn.
-- Geen approval verkrijgen door risico's te verzwijgen, te bagatelliseren of uitsluitend het voordeel te benadrukken.

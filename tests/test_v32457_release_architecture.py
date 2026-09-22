@@ -53,9 +53,9 @@ def test_32457_identity_is_consistent():
     assert 'APP_VERSION = "32.4.57"' in _text(legacy/"main.py")
 
 
-def test_32457_has_exact_eight_release_phases_and_separate_status():
+def test_32457_has_exact_nine_release_phases_and_separate_status():
     assert [p.value for p in Phase] == [
-        "DETECTED","VERIFIED","INSTALLING","INSTALLED",
+        "DETECTED","VERIFIED","PUBLISHING","INSTALLING","INSTALLED",
         "RUNTIME_ALIGNING","VERIFYING","ACCEPTED","COMPLETE",
     ]
     assert [s.value for s in Status] == ["ACTIVE","WAITING","BLOCKED","COMPLETE","ROLLED_BACK"]
@@ -351,7 +351,7 @@ def test_32457_canonical_state_store_rejects_symlink(tmp_path):
         raise AssertionError('canonical controller StateStore must reject symlink reads')
 
 
-def test_32457_side_effect_phase_is_persistable_before_install_or_runtime_call():
+def test_32457_side_effect_phase_is_persistable_before_publication_install_or_runtime_call():
     calls=[]
     class Adapter:
         def install(self,s):calls.append('install');return None
@@ -363,9 +363,9 @@ def test_32457_side_effect_phase_is_persistable_before_install_or_runtime_call()
     )
     controller.mark_verified(state,['artifact'])
     controller.cycle(state,Adapter())
-    assert state.phase=='INSTALLING'
+    assert state.phase=='PUBLISHING'
     assert calls==[]
-    state.phase='INSTALLED';state.status='ACTIVE';state.step=4
+    state.phase='INSTALLED';state.status='ACTIVE';state.step=5
     controller.cycle(state,Adapter())
     assert state.phase=='RUNTIME_ALIGNING'
     assert calls==[]

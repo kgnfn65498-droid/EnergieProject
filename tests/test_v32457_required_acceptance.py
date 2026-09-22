@@ -35,6 +35,7 @@ class GreenAdapter:
         self.calls=[]
     def _green(self,name):
         self.calls.append(name);return Outcome.green(name+':green')
+    def pre_target_publication(self,s):return self._green('publish')
     def install(self,s):return self._green('install')
     def runtime_align(self,s):return self._green('runtime')
     def verify_live(self,s):return self._green('verify')
@@ -80,7 +81,7 @@ def test_required_01_single_controller_completes_without_terminal():
     c,s=_prepared();a=GreenAdapter()
     _complete(c,s,a)
     assert s.status=='COMPLETE'
-    assert a.calls==['install','runtime','verify','accept','delivery']
+    assert a.calls==['publish','install','runtime','verify','accept','delivery']
 
 
 # 2. Native MCP mismatch -> automatic allowlisted request/readback -> GREEN.
@@ -272,14 +273,15 @@ def test_required_15_simulated_service_e2e_one_zip_zero_extra_approval(tmp_path)
 
 
 # 32.4.55 retained: orphan Processing recovers inside the same controller, no recovery daemon.
-def test_regression_55_orphan_processing_requeued_after_stale_grace(tmp_path):
+def test_regression_orphan_processing_without_durable_owner_fails_closed(tmp_path):
     p=tmp_path/'Inbox/processing/orphan.zip';p.parent.mkdir(parents=True);p.write_bytes(b'orphan')
     old=time.time()-120;os.utime(p,(old,old))
     service=ReleaseControllerService(tmp_path,GreenAdapter(),stable_polls=2,ingress_stale_seconds=30)
     result=service._reconcile_idle_processing()
-    assert result.reason=='orphan_processing_requeued'
-    assert (tmp_path/'Inbox/incoming/orphan.zip').is_file()
-    assert not p.exists()
+    assert result.status=='BLOCKED'
+    assert result.reason=='orphan_processing_unowned_fail_closed'
+    assert p.is_file()
+    assert not (tmp_path/'Inbox/incoming/orphan.zip').exists()
 
 
 # 32.4.55 retained: stable corrupt Incoming is quarantined after bounded stale grace.

@@ -171,8 +171,9 @@ def test_nas_bridge_contract_owned_by_bootstrap_watcher_and_probe_has_no_false_c
     watcher = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
     probe = (TOOLS / 'nas_cr_local_probe.py').read_text(encoding='utf-8')
     service = (PM / 'nas_container_cr_service.py').read_text(encoding='utf-8')
-    assert 'ensure_nas_cr_mailbox_contract' in bootstrap
-    assert 'chmod 0777 "$NAS_CR_LOCAL_DIR"' in bootstrap
+    assert 'ensure_nas_cr_mailbox_contract' not in bootstrap
+    assert 'chmod 0777 "$NAS_CR_LOCAL_DIR"' not in bootstrap
+    assert 'CAPABILITY_READY=' not in bootstrap
     assert 'ensure_nas_cr_mailbox_contract' in watcher
     assert 'chmod 0777 "$NAS_CR_LOCAL_DIR"' in watcher
     process = watcher[watcher.index('process_nas_container_cr_local(){'):watcher.index('process_project_clearup_move(){')]
@@ -416,8 +417,8 @@ def test_watcher_mailbox_contract_rejects_symlink_and_regular_file_without_touch
 
 
 def test_bootstrap_mailbox_contract_rejects_symlink_and_regular_file_without_touching_target(tmp_path):
-    bootstrap = (TOOLS / 'bootstrap_release_watcher_container.sh').read_text(encoding='utf-8')
-    fn = _extract_shell_function(bootstrap, 'ensure_nas_cr_mailbox_contract')
+    legacy_watcher = (ROOT / 'tests/fixtures/pre57/release_watcher.sh').read_text(encoding='utf-8')
+    fn = _extract_shell_function(legacy_watcher, 'ensure_nas_cr_mailbox_contract')
 
     external = tmp_path / 'external'
     external.mkdir()
