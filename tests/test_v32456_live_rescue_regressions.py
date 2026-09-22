@@ -51,15 +51,17 @@ def test_same_version_publication_requests_official_store_reload_then_self_rebui
     assert block.index('/addons/reload') < block.index('/addons/self/rebuild')
 
 
-def test_successful_same_version_publication_records_rebuild_request_before_controller_contract_cleanup():
-    # 32.4.59 strengthens the old rescue invariant: the publisher may request the
-    # same-version rebuild, but only ReleaseController settles the exact contract.
+def test_successful_target_publication_keeps_delivery_separate_before_controller_contract_cleanup():
+    # Historical ownership invariant remains: only ReleaseController settles the
+    # exact publication contract. 32.4.61 replaces unsupported same-version
+    # rebuild delivery with the store target-update route without weakening that fence.
     source = (APP / 'main.py').read_text(encoding='utf-8')
     start = source.index('def publish_github_release(')
     end = source.index('\ndef _write_github_publish_state', start)
     block = source[start:end]
-    assert '_request_supervisor_same_version_rebuild' in block
-    assert 'same_version_rebuild' in block
+    assert '_request_supervisor_target_update' in block
+    assert 'ha_delivery' in block
+    assert '_request_supervisor_same_version_rebuild' not in block
     assert 'HA_PUBLICATION_REQUIRED.unlink()' not in block
 
 

@@ -84,7 +84,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.61"
+APP_VERSION = "32.4.62"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -20395,11 +20395,13 @@ def _request_supervisor_target_update(token: str, target_version: str) -> dict[s
             body = response.read().decode("utf-8", errors="replace")
         return body
 
+    current_endpoint = "/store/reload"
     try:
-        body = request_json("/store/reload")
-        steps.append({"endpoint": "/store/reload", "ok": True, "body": body[:500]})
+        body = request_json(current_endpoint)
+        steps.append({"endpoint": current_endpoint, "ok": True, "body": body[:500]})
 
-        info_body = request_json("/addons/self/info", method="GET", payload=None)
+        current_endpoint = "/addons/self/info"
+        info_body = request_json(current_endpoint, method="GET", payload=None)
         info = json.loads(info_body or "{}")
         data = info.get("data") if isinstance(info, dict) and isinstance(info.get("data"), dict) else info
         slug = str(data.get("slug") if isinstance(data, dict) else "").strip()
@@ -20408,13 +20410,13 @@ def _request_supervisor_target_update(token: str, target_version: str) -> dict[s
                     "failed_endpoint": "/addons/self/info", "error": "invalid_or_missing_addon_slug"}
         steps.append({"endpoint": "/addons/self/info", "ok": True, "slug": slug})
 
-        endpoint = f"/store/addons/{slug}/update"
+        current_endpoint = f"/store/addons/{slug}/update"
         update_payload = json.dumps({"backup": False, "background": True}).encode("utf-8")
-        body = request_json(endpoint, payload=update_payload)
-        steps.append({"endpoint": endpoint, "ok": True, "body": body[:500]})
+        body = request_json(current_endpoint, payload=update_payload)
+        steps.append({"endpoint": current_endpoint, "ok": True, "body": body[:500]})
     except Exception as exc:
         return {"status": "RED", "requested": False, "steps": steps,
-                "failed_endpoint": steps[-1]["endpoint"] if steps else "/store/reload",
+                "failed_endpoint": current_endpoint,
                 "error": f"{type(exc).__name__}: {exc}"}
     return {"status": "GREEN", "requested": True, "target_version": target_version, "steps": steps}
 

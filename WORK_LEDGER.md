@@ -1,3 +1,8 @@
+## 2026-09-22 — 32.4.62 audit closure + autonomous successor
+- Basis: audit-fixed 32.4.61 source; live productie bleef tijdens development onaangeraakt.
+- V61 auditbevindingen (stale rebuild-regressies + failed_endpoint diagnostic) opgenomen in normale opvolger.
+- Expliciete 61→62 regressies toegevoegd voor predecessor pre-target publicatie en Processing→Processed uitsluitend na exact HA-runtimebewijs.
+
 ## 2026-09-22 — 32.4.61 fast publisher/delivery root-cause fix
 - Exact buildbasis: live V60 d8d11f252c0671b0ec7f810e6a01cfff84c765a0cb5913d5987b95ecffe5a4bb.
 - Root cause: `/addons/self/rebuild` is only supported for local-build apps; its HTTP 400 incorrectly reset proven GitHub publication to `published=false`.

@@ -1,3 +1,12 @@
+## 32.4.62 — audit closure and autonomous successor release
+
+- Incorporates the V61 audit fixes as a normal successor release.
+- Removes stale active regression expectations for `/addons/self/rebuild`; historical behavior remains fixture-only.
+- Keeps GitHub publication proof independent from Home Assistant delivery outcome.
+- Preserves Processing ownership until exact GitHub + exact HA runtime settlement, then archives to Processed.
+- Adds explicit 61→62 bootstrap/settlement regressions so target code is not required before GitHub publication.
+- Correctly reports the exact failing Supervisor endpoint for target-update diagnostics.
+
 ## 32.4.61 — publisher delivery separation closure
 
 - GitHub publication proof is now independent from Home Assistant delivery/update outcome.

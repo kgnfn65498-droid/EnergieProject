@@ -65,11 +65,12 @@ def test_58_05_addon_has_supervisor_api_permission_and_manager_role():
     assert 'hassio_role: manager' in text
 
 
-def test_58_06_publisher_uses_supported_store_reload_not_addons_reload():
+def test_58_06_publisher_uses_supported_store_target_update_not_rebuild():
     text = _text(APP / 'main.py')
     assert '"/store/reload"' in text or "'/store/reload'" in text
     assert '"/addons/reload"' not in text and "'/addons/reload'" not in text
-    assert '/addons/self/rebuild' in text
+    assert '/store/addons/' in text
+    assert '/addons/self/rebuild' not in text
 
 
 def test_58_07_empty_snapshot_is_collector_error_without_false_live_source_cascade(tmp_path):

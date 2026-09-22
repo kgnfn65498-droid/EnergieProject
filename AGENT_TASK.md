@@ -1,30 +1,26 @@
-# AGENT_TASK — EnergieProject 32.4.61
+# AGENT_TASK — EnergieProject 32.4.62
 
-- task_id: V61-FAST-ROOT-CAUSE-2026-09-22
+- task_id: V62-AUDIT-CLOSURE-AUTONOMOUS-SUCCESSOR-2026-09-22
 - mode: DEVELOPMENT
 - thinking: MEDIUM
 - owner: ChatGPT/Spock
-- step: 1/1
 - production_authority: NO
 
 ## Doel
-Maak één minimale 32.4.61 die de bewezen V60 publisher/HA-delivery fout structureel oplost.
+Maak 32.4.62 als schone opvolger van live 32.4.61 en neem de volledige V61-auditclosure op.
 
 ## Scope
-- GitHub exact bewijs nooit terugdraaien door HA delivery/rebuild fout.
-- Gebruik officiële Supervisor store update-route; geen `/addons/self/rebuild`.
-- Delivery-status apart van `published/target_exact`.
-- Exact GitHub + exact HA runtime mag controller settlement GREEN sluiten.
-- Native opvolger gebruikt 9 fasen met PUBLISHING vóór INSTALLING.
-- Geen nieuwe publisher/controller/watcher, cleanup of productieactie.
+- stale rebuild-regressies structureel vervangen door V61/V62 store-update invariant;
+- exact failing Supervisor endpoint diagnosticeren;
+- 61→62 pre-target bootstrap expliciet bewijzen vanuit predecessorpublisher;
+- GitHub exact bewijs nooit terugdraaien door HA-deliveryfout;
+- Processing blijft owner totdat GitHub exact + HA runtime exact zijn; pas dan Processed/COMPLETE;
+- geen tweede publisher/controller/watcher en geen nieuwe releasegate.
 
 ## Acceptatie
-- gerichte regressies GREEN;
-- release-identiteit 32.4.61 coherent;
+- release-identiteit 32.4.62 coherent;
+- gerichte en bredere release-regressies GREEN;
 - canonical ZIP + manifest/SHA/CRC/layout GREEN;
-- exact fresh-extract gerichte regressies GREEN;
-- finale onafhankelijke artifact-audit op exact ZIP-SHA;
-- geen wijziging na finale audit.
-
-## Stop
-V61_READY_FOR_RELEASE_APPROVAL of echte safety/artifact blocker.
+- exact fresh-extract regressies GREEN;
+- finale artifact-audit op exact SHA;
+- geen productieactie tijdens build/audit.

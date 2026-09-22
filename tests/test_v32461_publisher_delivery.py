@@ -107,6 +107,38 @@ def test_supervisor_target_update_uses_store_update_not_rebuild(monkeypatch):
     assert payload == {"backup": False, "background": True}
 
 
+
+
+def test_supervisor_target_update_reports_exact_failing_update_endpoint(monkeypatch):
+    calls = []
+
+    class Response:
+        def __init__(self, body: str):
+            self._body = body.encode()
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self):
+            return self._body
+
+    def fake_urlopen(request, timeout=15):
+        calls.append(request.full_url)
+        if request.full_url.endswith('/store/reload'):
+            return Response(json.dumps({"result": "ok", "data": {}}))
+        if request.full_url.endswith('/addons/self/info'):
+            return Response(json.dumps({"data": {"slug": "abc123_slimmemeterportal_import"}}))
+        raise RuntimeError('update failed')
+
+    monkeypatch.setattr(main.urllib.request, 'urlopen', fake_urlopen)
+    monkeypatch.setattr(main, 'APP_VERSION', '32.4.60')
+    result = main._request_supervisor_target_update('token', '32.4.61')
+
+    assert result['status'] == 'RED'
+    assert result['failed_endpoint'] == '/store/addons/abc123_slimmemeterportal_import/update'
+    assert result['error'] == 'RuntimeError: update failed'
+
+
 def test_supervisor_target_update_skips_when_running_target(monkeypatch):
     monkeypatch.setattr(main, "APP_VERSION", "32.4.61")
     result = main._request_supervisor_target_update("token", "32.4.61")
