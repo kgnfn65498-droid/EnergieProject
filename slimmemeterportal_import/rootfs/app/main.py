@@ -84,7 +84,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.60"
+APP_VERSION = "32.4.61"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -20366,33 +20366,72 @@ def _verify_github_remote_baseline(contract, worktree: Path):
 
 
 
-def _request_supervisor_same_version_rebuild(token: str) -> dict[str, Any]:
-    """Refresh the official add-on store and rebuild this same-version add-on.
+def _request_supervisor_target_update(token: str, target_version: str) -> dict[str, Any]:
+    """Reload the store and request an asynchronous update to the exact target.
 
-    This route is used only after the validated GitHub target for the already
-    installed version is proven current. It does not invent a QNAP/Git path.
+    GitHub publication evidence is independent from this delivery request.  The
+    Supervisor rebuild endpoint is intentionally not used: Home Assistant only
+    supports rebuild for local-build apps, while EnergieProject is delivered
+    from the custom add-on store.
     """
     token = str(token or "").strip()
+    target_version = str(target_version or "").strip()
     if not token:
         return {"status": "SKIPPED", "requested": False, "reason": "supervisor_token_missing"}
+    if APP_VERSION == target_version:
+        return {"status": "ALREADY_TARGET", "requested": False, "target_version": target_version}
+
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     steps = []
-    for endpoint in ("/store/reload", "/addons/self/rebuild"):
+
+    def request_json(endpoint: str, *, method: str = "POST", payload: bytes | None = b"{}"):
         request = urllib.request.Request(
             "http://supervisor" + endpoint,
-            data=b"{}",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            method="POST",
+            data=payload,
+            headers=headers,
+            method=method,
         )
-        try:
-            with urllib.request.urlopen(request, timeout=15) as response:
-                body = response.read().decode("utf-8", errors="replace")
-            steps.append({"endpoint": endpoint, "ok": True, "body": body[:500]})
-        except Exception as exc:
-            return {
-                "status": "RED", "requested": False, "steps": steps,
-                "failed_endpoint": endpoint, "error": f"{type(exc).__name__}: {exc}",
-            }
-    return {"status": "GREEN", "requested": True, "steps": steps}
+        with urllib.request.urlopen(request, timeout=15) as response:
+            body = response.read().decode("utf-8", errors="replace")
+        return body
+
+    try:
+        body = request_json("/store/reload")
+        steps.append({"endpoint": "/store/reload", "ok": True, "body": body[:500]})
+
+        info_body = request_json("/addons/self/info", method="GET", payload=None)
+        info = json.loads(info_body or "{}")
+        data = info.get("data") if isinstance(info, dict) and isinstance(info.get("data"), dict) else info
+        slug = str(data.get("slug") if isinstance(data, dict) else "").strip()
+        if not slug or not re.fullmatch(r"[A-Za-z0-9_.-]+", slug):
+            return {"status": "RED", "requested": False, "steps": steps,
+                    "failed_endpoint": "/addons/self/info", "error": "invalid_or_missing_addon_slug"}
+        steps.append({"endpoint": "/addons/self/info", "ok": True, "slug": slug})
+
+        endpoint = f"/store/addons/{slug}/update"
+        update_payload = json.dumps({"backup": False, "background": True}).encode("utf-8")
+        body = request_json(endpoint, payload=update_payload)
+        steps.append({"endpoint": endpoint, "ok": True, "body": body[:500]})
+    except Exception as exc:
+        return {"status": "RED", "requested": False, "steps": steps,
+                "failed_endpoint": steps[-1]["endpoint"] if steps else "/store/reload",
+                "error": f"{type(exc).__name__}: {exc}"}
+    return {"status": "GREEN", "requested": True, "target_version": target_version, "steps": steps}
+
+
+def _mark_github_target_exact(result: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
+    """Persist exact GitHub identity independently from Home Assistant delivery."""
+    result.update({
+        "published": True,
+        "publication_contract_removed": False,
+        "target_exact": True,
+        "release_id": contract.get("release_id"),
+        "generation": contract.get("generation"),
+        "processed_zip": contract.get("processed_zip"),
+        "processed_zip_sha256": contract.get("processed_zip_sha256"),
+        "target_manifest_sha256": contract.get("target_manifest_sha256"),
+    })
+    return result
 
 def publish_github_release(options=None):
     options = options or {}
@@ -20430,19 +20469,12 @@ def publish_github_release(options=None):
             "version": contract.get("version"),
             "message": "GitHub-publicatie reeds exact aanwezig",
         }
-        result["same_version_rebuild"] = _request_supervisor_same_version_rebuild(os.environ.get("SUPERVISOR_TOKEN", ""))
-        if result["same_version_rebuild"].get("status") == "RED":
-            result["published"] = False
-            result["message"] = "GitHub target is exact, maar officiële store reload/rebuild kon niet worden aangevraagd"
-            _write_github_publish_state(result)
-            return result
-        result.update({
-            "publication_contract_removed": False, "target_exact": True,
-            "release_id": contract.get("release_id"), "generation": contract.get("generation"),
-            "processed_zip": contract.get("processed_zip"),
-            "processed_zip_sha256": contract.get("processed_zip_sha256"),
-            "target_manifest_sha256": contract.get("target_manifest_sha256"),
-        })
+        _mark_github_target_exact(result, contract)
+        result["ha_delivery"] = _request_supervisor_target_update(
+            os.environ.get("SUPERVISOR_TOKEN", ""), str(contract.get("version") or "")
+        )
+        if result["ha_delivery"].get("status") == "RED":
+            result["message"] = "GitHub target exact; Home Assistant updateverzoek mislukt"
         _write_github_publish_state(result)
         return result
 
@@ -20491,19 +20523,12 @@ def publish_github_release(options=None):
     else:
         result["message"] = f"GitHub-publicatie mislukt: {err or out}"
     if result.get("published"):
-        result["same_version_rebuild"] = _request_supervisor_same_version_rebuild(os.environ.get("SUPERVISOR_TOKEN", ""))
-        if result["same_version_rebuild"].get("status") == "RED":
-            result["published"] = False
-            result["message"] = "Publicatie geslaagd, maar officiële store reload/rebuild kon niet worden aangevraagd"
-            _write_github_publish_state(result)
-            return result
-        result.update({
-            "publication_contract_removed": False, "target_exact": True,
-            "release_id": contract.get("release_id"), "generation": contract.get("generation"),
-            "processed_zip": contract.get("processed_zip"),
-            "processed_zip_sha256": contract.get("processed_zip_sha256"),
-            "target_manifest_sha256": contract.get("target_manifest_sha256"),
-        })
+        _mark_github_target_exact(result, contract)
+        result["ha_delivery"] = _request_supervisor_target_update(
+            os.environ.get("SUPERVISOR_TOKEN", ""), str(contract.get("version") or "")
+        )
+        if result["ha_delivery"].get("status") == "RED":
+            result["message"] = "GitHub-publicatie geslaagd; Home Assistant updateverzoek mislukt"
     _write_github_publish_state(result)
     return result
 

@@ -1,3 +1,16 @@
+# AGENT_RESULT — 32.4.61
+
+- status: V61_READY_FOR_RELEASE_APPROVAL
+- source_basis: exact live V60 artifact SHA d8d11f252c0671b0ec7f810e6a01cfff84c765a0cb5913d5987b95ecffe5a4bb
+- scope: publisher proof/delivery separation + official HA store update
+- focused_regressions: 69 passed
+- fresh_extract_focused_regressions: 69 passed
+- full_suite_note: current Chat/container child-process offline guard remains environmental (known V60 deviation); no test weakening applied
+- artifact_audit: pending exact final build/readback
+- production_actions: none
+
+---
+
 # AGENT_RESULT — EnergieProject
 
 Status: V60_SOURCE_SECURITY_GREEN_QNAP_ACTIVATION_PENDING

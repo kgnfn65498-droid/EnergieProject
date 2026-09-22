@@ -1,3 +1,10 @@
+## 2026-09-22 — 32.4.61 fast publisher/delivery root-cause fix
+- Exact buildbasis: live V60 d8d11f252c0671b0ec7f810e6a01cfff84c765a0cb5913d5987b95ecffe5a4bb.
+- Root cause: `/addons/self/rebuild` is only supported for local-build apps; its HTTP 400 incorrectly reset proven GitHub publication to `published=false`.
+- Repair: GitHub exact identity is fenced/persisted independently; HA delivery uses store reload + self slug discovery + asynchronous `/store/addons/<slug>/update`.
+- HA delivery failure cannot erase `published=true/target_exact=true`; controller still requires exact HA runtime before COMPLETE.
+- Focused release/publisher regression set GREEN: 69 passed. No existing test weakened.
+
 ## 2026-09-21 — Work Knowledge Base bootstrap formalized
 - Review van historische handovers bevestigt dat belangrijke ontwikkellessen vanaf 32.4.40+ verspreid staan over Projectmanager Development_Lessons, HARD_REQUIREMENT, architectuuraudits en worklogs.
 - Work had hiervoor nog geen expliciete verplichte retrievalstap in AGENTS.md; dat gat is nu gesloten.
