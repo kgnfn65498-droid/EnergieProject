@@ -1,3 +1,6 @@
+## 32.4.66
+- Controller-owned publication settlement is now explicit in shared observability state; manual HA update behavior is unchanged.
+
 ## 32.4.65
 - Consolidatie/hygiene bovenop live bewezen V64.
 - Exact predecessor-provenance en manual-HA releasecontract behouden.

@@ -1,3 +1,9 @@
+## 2026-09-23 — 32.4.66 observability/handover closure
+
+- V65 deep audit had two non-blocking hygiene findings: static CURRENT_HANDOVER status could become stale after live completion, and `publication_contract_removed=false` in publisher state was semantically ambiguous after controller settlement.
+- V66 makes handover status runtime-authoritative instead of static and makes controller settlement explicit in shared publication state.
+- No release architecture or manual-HA behavior is changed.
+
 ## 2026-09-23 — 32.4.65 consolidation/hygiene
 
 - V64 deep audit: release-chain GREEN; geen reparatierelease vereist.

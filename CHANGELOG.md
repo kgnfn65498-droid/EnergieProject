@@ -1,3 +1,12 @@
+## 32.4.66 — settlement observability and non-stale handover
+
+- Makes CURRENT_HANDOVER state-neutral: mutable live status is read only from canonical runtime JSON.
+- Clarifies publication contract ownership: publisher opens/preserves the contract; ReleaseController records exact final settlement.
+- Adds explicit `publication_contract_settled`, `publication_contract_active` and `contract_settled_by` observability while retaining the legacy compatibility field.
+- Makes Projectmanager publication health accept explicit controller settlement truth.
+- Adds exact V65 predecessor provenance and V65→V66 plus V66→synthetic V67 regressions.
+- Keeps manual HA update, Processing ownership and COMPLETE-only Processed semantics unchanged.
+
 ## 32.4.65 — consolidation, exact predecessor provenance and handover hygiene
 
 - Keeps the live-proven V64 release architecture unchanged.

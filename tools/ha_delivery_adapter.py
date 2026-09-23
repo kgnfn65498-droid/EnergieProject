@@ -138,6 +138,20 @@ class HADelivery:
                 marker.unlink()
                 if marker.exists():return Outcome.blocked('publication_contract_settlement_readback_failed')
                 self._archive_complete(s)
+                # The publisher deliberately never owns contract removal. Once the
+                # controller has settled the exact fenced contract, update the shared
+                # publication state so observability reports current settlement truth
+                # instead of leaving the legacy publisher-side False value behind.
+                settled=dict(pub)
+                settled.update({
+                    'publication_contract_removed':True,
+                    'publication_contract_settled':True,
+                    'publication_contract_active':False,
+                    'contract_settled_by':'release_controller',
+                    'settled_release_id':s.release_id,
+                    'settled_generation':s.generation,
+                })
+                _atomic(self.root/'Inbox/github_publication_state.json',settled)
             except Exception as exc:return Outcome.blocked(str(exc))
             return Outcome.green('github_target_exact','ha_runtime_current','publication_contract_settled','processed_archived')
         if pub_exact:

@@ -26,11 +26,11 @@
     },
     {
       "path": "AGENT_RESULT.md",
-      "sha256": "c6e11a77a421bbe6b653f94eb3de6c945e4994373656b9120ad0fce96914ed82"
+      "sha256": "da0046c0d6bc24acb3174817dbd154a7b74e2c180a436e0d012c782475e0523e"
     },
     {
       "path": "AGENT_TASK.md",
-      "sha256": "13a992ef3f6ca2416ea0b1751785fcca93defdfc94ad4a673918e7e566685bf1"
+      "sha256": "6bc857c9e6bb5f35ca8abeff7d611e31ff49fcc3c699223782a50b5f1ecb925c"
     },
     {
       "path": "BASELINE_32.4.59.json",
@@ -38,11 +38,11 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "635ceeb9b7aaa6f13f6fc7f9024722d95dae132ebadd4ab82bdb0447d56cc3f7"
+      "sha256": "7a073ad53d35ca47a509ffa1c56daa3d580aa093a5b538e00f1747c35c8f5656"
     },
     {
       "path": "CURRENT_HANDOVER.md",
-      "sha256": "3bc64bb4291c31f784763dda426666d21748996c47abf17eedfd1d23e2dd3ba6"
+      "sha256": "5a1991f47c509406e263f7ca1f48a91de62d1c680f9a6ee92d69efd4bbb6804e"
     },
     {
       "path": "INSTALL.md",
@@ -54,7 +54,7 @@
     },
     {
       "path": "PLATFORM_QUALIFICATION.md",
-      "sha256": "4c787960135d4e1de0a575bb8d70ada1f710f11dd13e74d3ed317824b3bc0413"
+      "sha256": "6be8a4bca1fae6318b8e4f19988c4cf1e98d4ef9315274db15d9a5e9c4998101"
     },
     {
       "path": "PROJECT_AFSPRAKEN.md",
@@ -70,7 +70,7 @@
     },
     {
       "path": "RELEASE_ACCEPTANCE.md",
-      "sha256": "3692bbd0f686a51e5839ebcbb91f4d0f5b60ceafe70d4d259b2800ff9059b91a"
+      "sha256": "88ee96897adcc05086ff2285614d45dc93bff3ed921e0ba8b0e1960c1c453932"
     },
     {
       "path": "ROADMAP_V10.md",
@@ -82,7 +82,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "966fc04c9317ab6f84c298cf97f0823e5e0346c7eb4f516cfa49ed3a2c8d01d5"
+      "sha256": "27cfb0cf5ad4f4980d8772f36bee80c8006a1d9e4b527bbe9f891ba778bac77e"
     },
     {
       "path": "WORK_KNOWLEDGE_BOOTSTRAP.md",
@@ -90,7 +90,7 @@
     },
     {
       "path": "WORK_LEDGER.md",
-      "sha256": "c0bfd3cc2a53161598d3022f70a3edf185c07cc5416e7575f15db7dd08b84653"
+      "sha256": "718519d0bb72f3586cbebfb0ce13768b0cd171dc50e140a14e6f5ae8edf5504c"
     },
     {
       "path": "conftest.py",
@@ -278,7 +278,7 @@
     },
     {
       "path": "release_test_contract.py",
-      "sha256": "58faac723bb339ff2ed4af708fe1dfb84df805f676fbbe1977368b92b3d26814"
+      "sha256": "d1043c7484373747e0a58f8e97b614c19b09d18a18a24e7870302e439ff4fc50"
     },
     {
       "path": "repository.yaml",
@@ -290,7 +290,7 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "630f1e3c99a68b3854f07b0b9711bba6148f308d2aa8d1222f0e906d99e4369c"
+      "sha256": "ae02ec1df32e323015012c2ead25de3e9eb5008888f7cc3d27dd0ca3492d375b"
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -306,7 +306,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "86e1bdc35dc32377f4ab606afb79c94d4b3e52f1fec283ff7e52b4ee9735b5e9"
+      "sha256": "80de9591190f3e6793544c4326c4de5624047669df537d5dc0997f635eaff066"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -358,11 +358,11 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "35814b8555f2d50078ba9fcb77324b76a635530ce31f79cd1585b63463df018c"
+      "sha256": "7c6990d0904cfa61b0643fb5be5825f493959d94f4c4a8a87762fefabfdd1767"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
-      "sha256": "5e226f95f1078d559d3ae0f74c1d4350971a908bcea7d0af5f603818d9da4999"
+      "sha256": "0d06b00fe7c3b11a60cc47962131fb1e2f1b678974c73672890507f167c1a359"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/month_closure_truth.py",
@@ -734,7 +734,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/runtime_sources.py",
-      "sha256": "f56183c63fe611e7845cbeadf4cef2e3741b2e7fa84ccdcb8cfccbb4153312ca"
+      "sha256": "33b7d6e75b0a4110250145a845683be00aaba21e3cf643eac7e020008a9013d7"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/runtime_truth.py",
@@ -1111,6 +1111,14 @@
     {
       "path": "tests/fixtures/v64_predecessor/main.py",
       "sha256": "ee26e4a1ff2ede372ab576f256433ceb6f2865ff042ffdecc20a09b0d80d6877"
+    },
+    {
+      "path": "tests/fixtures/v65_predecessor/PROVENANCE.json",
+      "sha256": "7b9a35d58a8579fc0c136877d0d8d038c723785b69426902e91891932be5a1dc"
+    },
+    {
+      "path": "tests/fixtures/v65_predecessor/main.py",
+      "sha256": "35814b8555f2d50078ba9fcb77324b76a635530ce31f79cd1585b63463df018c"
     },
     {
       "path": "tests/test_complete_crash_recovery_runtime.py",
@@ -2014,7 +2022,7 @@
     },
     {
       "path": "tests/test_v32460_release_identity.py",
-      "sha256": "0cb805286dcde49c9589b90ec4d5fb235dc920f651f94fec24180f87ed3696d4"
+      "sha256": "4bca3f2aeecefd6a111ec38b7b451a0e8b4e67a6b8d7ac2d111cc5df1063ef3e"
     },
     {
       "path": "tests/test_v32461_publisher_delivery.py",
@@ -2034,7 +2042,11 @@
     },
     {
       "path": "tests/test_v32465_consolidation.py",
-      "sha256": "d73f549c6f0244ec1615093256b9094dc8519fc62d611851d7016e3f70e0749d"
+      "sha256": "5e4b3aa74e4c0231157d540699dc0c1fa5bb9cb5188fe1717d7c6b81c7f65d5a"
+    },
+    {
+      "path": "tests/test_v32466_observability_handover.py",
+      "sha256": "e064ff953cb48f9c20b8d37a0ad0479eb2a6e997cc8d75787e7d5badee06782f"
     },
     {
       "path": "tests/test_v3246_ha_startup_boundary.py",
@@ -2118,7 +2130,7 @@
     },
     {
       "path": "tools/ha_delivery_adapter.py",
-      "sha256": "b3e2583756d6d3fbaa89d80765404ad1778e9bb81e8ba94f33c65758cd99f870"
+      "sha256": "bde1980ceebffc2cd78faf1e9fc16cb669508a5def9173ecfb0c6ce94a65d4fb"
     },
     {
       "path": "tools/ingress_policy.py",
@@ -2194,7 +2206,7 @@
     },
     {
       "path": "tools/release_controller_service.py",
-      "sha256": "5a413dae2e59ad1c0e301c8158ea7de444eec25ba8612b8b0fe4d8a6beb9a19d"
+      "sha256": "b8fc0f1533fc6c2d32b6d7e060cc0d58fdb3423ab13040977c2dc841733d6f21"
     },
     {
       "path": "tools/release_ingress_recovery.py",

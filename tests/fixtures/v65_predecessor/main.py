@@ -84,7 +84,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.66"
+APP_VERSION = "32.4.65"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -20404,13 +20404,7 @@ def _mark_github_target_exact(result: dict[str, Any], contract: dict[str, Any]) 
     """Persist exact GitHub identity independently from Home Assistant delivery."""
     result.update({
         "published": True,
-        # Compatibility field: False means the publisher did not remove the
-        # controller-owned contract. ReleaseController flips it to True only
-        # after exact GitHub + exact HA runtime settlement.
         "publication_contract_removed": False,
-        "publication_contract_settled": False,
-        "publication_contract_active": True,
-        "contract_settled_by": None,
         "target_exact": True,
         "release_id": contract.get("release_id"),
         "generation": contract.get("generation"),
@@ -20453,9 +20447,6 @@ def publish_github_release(options=None):
             "published": True,
             "already_published": True,
             "publication_contract_removed": False,
-            "publication_contract_settled": False,
-            "publication_contract_active": True,
-            "contract_settled_by": None,
             "version": contract.get("version"),
             "message": "GitHub-publicatie reeds exact aanwezig",
         }

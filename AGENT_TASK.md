@@ -1,6 +1,6 @@
-# AGENT_TASK — EnergieProject 32.4.65
+# AGENT_TASK — EnergieProject 32.4.66
 
-- task_id: V65-CONSOLIDATION-AND-PROVENANCE-2026-09-23
+- task_id: V66-OBSERVABILITY-AND-HANDOVER-CLOSURE-2026-09-23
 - mode: DEVELOPMENT
 - thinking: MEDIUM
 - owner: ChatGPT/Spock
@@ -8,31 +8,28 @@
 - production_authority: NO
 
 ## Doel
-Maak 32.4.65 als consolidatie-/hygienerelease bovenop exact V64, zonder nieuwe releaseketenarchitectuur.
+Los de twee niet-blokkerende V65-auditbevindingen op zonder de live-bewezen releasearchitectuur te wijzigen.
 
 ## Scope
-- CURRENT_HANDOVER terugbrengen tot één actuele status;
-- predecessor-provenance verbeteren: exact V64 `main.py` als frozen fixture plus artifact/source SHA;
-- V64→V65 predecessor-boundary testen met die exacte fixture;
-- V65→synthetische V66 N+1-regressie;
-- release acceptance en host-capability Platform Qualification verder expliciteren;
-- bestaande Processing/Processed- en manual-HA-semantiek ongewijzigd behouden.
+- CURRENT_HANDOVER state-neutraal maken; runtime JSON is statusautoriteit;
+- shared GitHub publication state na controller-settlement expliciet bijwerken;
+- legacy `publication_contract_removed` compatibel houden maar ondubbelzinnige settlementvelden toevoegen;
+- runtime_sources laten rapporteren op expliciete controller-settlementtruth;
+- release acceptance en host-capability Platform Qualification strikt gescheiden houden;
+- exact V65 predecessor-artifact/source fixture en 65→66 regression;
+- V66→synthetische V67 N+1 regression;
+- manual-HA, Processing/Processed en single-owner invarianten behouden.
 
 ## Niet wijzigen
+- geen automatische HA update/install/rebuild;
 - geen tweede publisher/controller/watcher;
-- geen automatische Home Assistant update/install/rebuild;
 - geen transition bridge;
-- geen cleanup/CR/mode als releasegate;
+- geen cleanup/CR/mode releasegate;
 - geen productie/NAS/HA/Incoming actie tijdens build/audit.
 
 ## Acceptatie
-- exacte V64 predecessor-source fixture cryptografisch gebonden;
-- gerichte V65 regressies GREEN;
-- moderne release-regressies GREEN;
-- source + exact fresh-extract;
-- canonical ZIP, CRC, manifest, SHA256SUMS en release-identiteit GREEN;
-- finale onafhankelijke artifact-audit op exact SHA;
-- geen wijziging na finale audit.
-
-## Stop
-V65_READY_FOR_INCOMING of echte safety/artifact blocker.
+- settlement observability exact/idempotent en identity-fenced;
+- statische handover bevat geen mutable live-statusclaim;
+- release-regressies source + fresh extract GREEN;
+- canonical ZIP/CRC/manifest/SHA256SUMS/identity GREEN;
+- finale artifact-audit op exact SHA.

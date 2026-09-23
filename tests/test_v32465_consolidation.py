@@ -20,6 +20,7 @@ from release_controller import Phase, ReleaseController
 V64_ARTIFACT_SHA = "875939a6d2112b69cf0b6da37d6c36216c80494aec00bbd78fdf59c37ea6acce"
 V64_MAIN_SHA = "ee26e4a1ff2ede372ab576f256433ceb6f2865ff042ffdecc20a09b0d80d6877"
 FIXTURE = ROOT / "tests/fixtures/v64_predecessor/main.py"
+V65_FIXTURE = ROOT / "tests/fixtures/v65_predecessor/main.py"
 
 
 def _load_exact_v64_main():
@@ -122,6 +123,11 @@ def test_v64_to_v65_waits_then_settles_only_after_exact_manual_ha_target(tmp_pat
 
 
 def test_v65_n_plus_one_predecessor_contract_for_synthetic_v66(monkeypatch):
+    spec = importlib.util.spec_from_file_location("v65_exact_predecessor_main", V65_FIXTURE)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
     calls = []
 
     class Response:
@@ -133,9 +139,9 @@ def test_v65_n_plus_one_predecessor_contract_for_synthetic_v66(monkeypatch):
         calls.append(request.full_url)
         return Response()
 
-    monkeypatch.setattr(main.urllib.request, "urlopen", fake_urlopen)
-    assert main.APP_VERSION == "32.4.65"
-    result = main._request_supervisor_target_update("token", "32.4.66")
+    monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+    assert mod.APP_VERSION == "32.4.65"
+    result = mod._request_supervisor_target_update("token", "32.4.66")
     assert result["status"] == "GREEN"
     assert result["requested"] is False
     assert result["manual_ha_update_required"] is True
@@ -158,9 +164,9 @@ def test_v65_to_v66_manual_wait_and_complete_contract_is_regression_proven(tmp_p
 
 def test_current_handover_is_single_current_authority_and_historical_59_not_embedded():
     text = (ROOT / "CURRENT_HANDOVER.md").read_text(encoding="utf-8")
-    assert text.startswith("# CURRENT HANDOVER — EnergieProject 32.4.65")
+    assert text.startswith("# CURRENT HANDOVER — EnergieProject 32.4.66")
     assert "# CURRENT HANDOVER — EnergieProject 32.4.59" not in text
-    assert "875939a6d2112b69cf0b6da37d6c36216c80494aec00bbd78fdf59c37ea6acce" in text
+    assert "e00a7fc0dfc81d3dfe7dbac6bac3cef213a987f207ad4d0d62588450b0bc9152" in text
 
 
 def test_platform_qualification_is_explicitly_not_release_gate_and_no_test_weakening_contract():
@@ -169,5 +175,5 @@ def test_platform_qualification_is_explicitly_not_release_gate_and_no_test_weake
     assert "niet verwijderd" in text
     assert "niet" in text and "verzwakt" in text
     acceptance = (ROOT / "RELEASE_ACCEPTANCE.md").read_text(encoding="utf-8")
-    assert "32.4.65" in acceptance
-    assert "exact V64 predecessor-artifact" in acceptance
+    assert "32.4.66" in acceptance
+    assert "exact V65 predecessor" in acceptance

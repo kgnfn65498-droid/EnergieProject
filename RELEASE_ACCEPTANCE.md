@@ -1,17 +1,20 @@
-# Release Acceptance — 32.4.65
+# Release Acceptance — 32.4.66
 
-Release Acceptance toetst alleen de productie-releaseketen en de identiteit/fencing die daarvoor nodig zijn. Platform Qualification is apart en mag Release Acceptance niet kunstmatig groen of rood maken.
+Release Acceptance toetst de productie-releaseketen en de V66 observability-fix.
 
-Verplichte V65-invarianten:
-- exact V64 predecessor-artifact is cryptografisch gebonden aan SHA `875939a6d2112b69cf0b6da37d6c36216c80494aec00bbd78fdf59c37ea6acce`;
-- frozen predecessor-source is een byte-exacte kopie van V64 `slimmemeterportal_import/rootfs/app/main.py`, met aparte source-SHA;
-- predecessor publiceert opvolger naar exact GitHub target;
-- enige Supervisor-actuator na publicatie is `/store/reload`;
-- geen `/store/addons/<slug>/update`, install, rebuild of tweede actuatorpad;
-- GitHub exact + predecessor HA runtime => duurzaam `WAITING_MANUAL_HA_UPDATE`;
-- Processing blijft transactioneel owner tijdens die wachtfase;
-- exact HA target => settlement, Processed, COMPLETE;
-- settlement/archive blijft crash-safe en idempotent;
-- N+1-regressie bewijst dat V65 zelf hetzelfde contract voor synthetische V66 uitvoert.
+Verplicht:
+- exact V65 predecessor artifact `e00a7fc0dfc81d3dfe7dbac6bac3cef213a987f207ad4d0d62588450b0bc9152` en byte-exact predecessor `main.py` `35814b8555f2d50078ba9fcb77324b76a635530ce31f79cd1585b63463df018c`;
+- predecessor publiceert V66 exact en roept na publicatie alleen `/store/reload` aan;
+- geen automatische HA update/install/rebuild;
+- GitHub exact + HA predecessor => `WAITING_MANUAL_HA_UPDATE` en artifact blijft Processing;
+- exact HA V66 => contract unlink + exact Processed archive + COMPLETE;
+- na settlement wordt `github_publication_state.json` controller-authoritative bijgewerkt met:
+  - `publication_contract_removed=true` (legacy compatibility),
+  - `publication_contract_settled=true`,
+  - `publication_contract_active=false`,
+  - `contract_settled_by=release_controller`,
+  - exact release_id/generation settlement fencing;
+- CURRENT_HANDOVER bevat geen mutable DEVELOPMENT/WAITING/COMPLETE-statusclaim;
+- V66→synthetische V67 N+1 contract GREEN.
 
-Release Acceptance vereist source- én exact-fresh-extract GREEN voor de releaseketenset. Een monolithische platform/full-suite GREEN is geen vereiste wanneer uitsluitend vooraf gedocumenteerde host-capability beperkingen optreden buiten de actieve releaseketen.
+Platform Qualification blijft apart; bekende restricted-host failures buiten de actieve releaseketen worden niet verborgen en niet als release GREEN geclaimd.

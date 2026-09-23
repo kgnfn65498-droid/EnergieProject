@@ -230,9 +230,13 @@ class RuntimeCollector:
         local_head = str(publication.get('local_head') or '').strip()
         exact_target_proof = publication.get('already_published') is True
         pushed_target_proof = bool(remote_head and local_head and remote_head == local_head)
+        contract_settled = bool(
+            publication.get('publication_contract_settled') is True
+            or publication.get('publication_contract_removed') is True
+        )
         publication_proven = bool(
             publication.get('published') is True
-            and publication.get('publication_contract_removed') is True
+            and contract_settled
             and (exact_target_proof or pushed_target_proof)
         )
         if publication_proven:
@@ -298,6 +302,9 @@ class RuntimeCollector:
                 'remote_head': publication.get('remote_head'),
                 'local_head': publication.get('local_head'),
                 'publication_contract_removed': publication.get('publication_contract_removed'),
+                'publication_contract_settled': publication.get('publication_contract_settled'),
+                'publication_contract_active': publication.get('publication_contract_active'),
+                'contract_settled_by': publication.get('contract_settled_by'),
             },
             'legacy_publisher': {
                 'status': legacy_publisher.get('status'),

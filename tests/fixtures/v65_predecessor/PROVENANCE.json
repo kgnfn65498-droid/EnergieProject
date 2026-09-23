@@ -1,0 +1,7 @@
+{
+  "artifact": "EnergieProject_v32.4.65.zip",
+  "artifact_sha256": "e00a7fc0dfc81d3dfe7dbac6bac3cef213a987f207ad4d0d62588450b0bc9152",
+  "source_path": "slimmemeterportal_import/rootfs/app/main.py",
+  "source_sha256": "35814b8555f2d50078ba9fcb77324b76a635530ce31f79cd1585b63463df018c",
+  "version": "32.4.65"
+}
