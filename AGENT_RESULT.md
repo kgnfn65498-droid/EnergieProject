@@ -1,19 +1,23 @@
-# AGENT_RESULT — EnergieProject 32.4.63
+# AGENT_RESULT — EnergieProject 32.4.64
 
-STATUS: V63_FINAL_ARTIFACT_GREEN
+STATUS: V64_READY_FOR_INCOMING
 
-- source_basis: exact 32.4.62 artifact SHA `0d29c432f5c457fc429f327df15d95023313d5eca68c08f8dce8c1e5951ea385`
-- scope: exact GitHub publication plus explicit durable wait for Peter's manual Home Assistant update
-- focused_release_tests: 45 passed
-- repository_suite: 2013 passed, 2 skipped, 3 host-capability failures in `test_v32453_final_closure`
-- automatic_ha_update: disabled
-- supervisor_calls_after_publication: `/store/reload` only
-- completion_fence: exact GitHub target plus exact HA target runtime
-- processing ownership: proven to remain in Processing until GitHub exact + HA runtime exact, then archive to Processed only at COMPLETE
-- predecessor bootstrap: 62 publisher can publish 63 and refresh the store without target code already running
-- canonical build, ZIP CRC, manifest, SHA256SUMS, layout and exact fresh-extract: GREEN
-- Codex final audit: runtime/artifact checks GREEN; stale result metadata corrected before final rebuild
+- source_basis: exact 32.4.62 artifact plus audited V63 manual-boundary delta reconstructed from live 32.4.63 readback
+- live_v63_artifact_sha256: `e0af96f555b4fef61667e17cd5c0fc81324e9edbd0257c5bc1a174e1e3b6c913`
+- scope: complete release-chain closure; predecessor proof; N+1 proof; manual HA wait; crash/idempotent settlement
+- focused_chain_tests_source: 64/64 GREEN
+- modern_v56_to_v64_release_group_source: 200/200 GREEN
+- broader_stable_release_compatible_groups_source: 1796 passed, 2 skipped, 0 failed
+- focused_chain_tests_fresh_extract: 64/64 GREEN
+- modern_v56_to_v64_release_group_fresh_extract: 200/200 GREEN
+- active_ha_actuator: `/store/reload` only
+- automatic_ha_update_install_rebuild: disabled/absent
+- processing_semantics: transactional owner until exact GitHub + exact HA target runtime
+- processed_semantics: COMPLETE-only archive
+- n_plus_one_proof: V64 predecessor -> synthetic V65 GREEN
+- crash_reconciliation: archive-before-COMPLETE and repeated COMPLETE reconciliation GREEN
+- platform_qualification: explicitly separate; no regression deletion, skip, xfail or weakening
+- full_suite_note: restricted Chat host prevents a monolithic full-suite GREEN claim; known host/legacy capability cases remain documented in PLATFORM_QUALIFICATION.md
 - production_actions: none
 - incoming_actions: none
 - ha_actions: none
-- full_suite_note: source and exact fresh-extract each reached 2013 passed, 2 skipped; the same 3 Work-host capability failures in `test_v32453_final_closure` are outside release code and no test was weakened

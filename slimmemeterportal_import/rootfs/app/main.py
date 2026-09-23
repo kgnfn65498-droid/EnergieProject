@@ -84,7 +84,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.63"
+APP_VERSION = "32.4.64"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -20393,14 +20393,12 @@ def _request_supervisor_target_update(token: str, target_version: str) -> dict[s
     try:
         body = request_json(current_endpoint)
         steps.append({"endpoint": current_endpoint, "ok": True, "body": body[:500]})
-
     except Exception as exc:
         return {"status": "RED", "requested": False, "steps": steps,
                 "failed_endpoint": current_endpoint,
                 "error": f"{type(exc).__name__}: {exc}"}
     return {"status": "GREEN", "requested": False, "store_refreshed": True,
             "manual_ha_update_required": True, "target_version": target_version, "steps": steps}
-
 
 def _mark_github_target_exact(result: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
     """Persist exact GitHub identity independently from Home Assistant delivery."""

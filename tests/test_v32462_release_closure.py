@@ -32,7 +32,7 @@ def _contract62() -> dict:
     }
 
 
-def test_61_predecessor_can_publish_62_and_request_target_update(monkeypatch, tmp_path):
+def test_historical_publisher_publication_keeps_delivery_separate(monkeypatch, tmp_path):
     """The active N publisher, not N+1 code, must cross the pre-target boundary."""
     contract = _contract62()
     stage = tmp_path / "stage"
@@ -50,7 +50,7 @@ def test_61_predecessor_can_publish_62_and_request_target_update(monkeypatch, tm
     monkeypatch.setattr(main, "_classify_github_remote_baseline", lambda *args, **kwargs: (True, "target_exact", "ok"))
     updates = []
     monkeypatch.setattr(main, "_request_supervisor_target_update", lambda token, target: updates.append(target) or {
-        "status": "GREEN", "requested": True, "target_version": target
+        "status": "GREEN", "requested": False, "store_refreshed": True, "manual_ha_update_required": True, "target_version": target
     })
     written = []
     monkeypatch.setattr(main, "_write_github_publish_state", lambda payload: written.append(dict(payload)))
@@ -80,7 +80,7 @@ def test_61_predecessor_delivery_failure_cannot_erase_62_publication(monkeypatch
     monkeypatch.setattr(main, "_prepare_validated_publication_source", lambda c: (True, stage, "ok"))
     monkeypatch.setattr(main, "_classify_github_remote_baseline", lambda *args, **kwargs: (True, "target_exact", "ok"))
     monkeypatch.setattr(main, "_request_supervisor_target_update", lambda *args, **kwargs: {
-        "status": "RED", "requested": False, "failed_endpoint": "/store/addons/x/update", "error": "HTTP 400"
+        "status": "RED", "requested": False, "failed_endpoint": "/store/reload", "error": "HTTP 400"
     })
     monkeypatch.setattr(main, "_write_github_publish_state", lambda payload: None)
     result = main.publish_github_release({"github_publication_enabled": True, "github_repository_ssh": "x", "github_branch": "main"})

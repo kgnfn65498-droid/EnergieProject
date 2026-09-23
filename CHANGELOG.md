@@ -1,8 +1,11 @@
-## 32.4.63 — explicit manual Home Assistant update boundary
+## 32.4.64 — release-chain closure and predecessor-proof hardening
 
-- Publishes the exact successor from the active predecessor and refreshes the Home Assistant add-on store.
-- Keeps automatic add-on updates disabled and waits durably for the owner's manual update.
-- Settles Processing to Processed/COMPLETE only after exact target runtime identity.
+- Closes the V63 audit gap with a frozen V63 predecessor contract instead of simulating a predecessor by changing only APP_VERSION.
+- Keeps Home Assistant updates explicitly manual: predecessor publication refreshes only `/store/reload`, never update/install/rebuild endpoints.
+- Adds 63→64 and synthetic 64→65 predecessor-boundary regression coverage.
+- Adds crash/idempotency regressions around manual HA wait, archive settlement and COMPLETE reconciliation.
+- Defines `Processing` as transactional ownership until exact GitHub + exact HA runtime; `Processed` means fully COMPLETE.
+- Separates release acceptance from host-capability Platform Qualification failures without weakening either test family.
 
 ## 32.4.62 — audit closure and autonomous successor release
 

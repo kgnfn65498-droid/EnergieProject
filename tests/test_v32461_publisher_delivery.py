@@ -71,7 +71,7 @@ def test_target_exact_keeps_publication_green_when_ha_delivery_is_red(monkeypatc
     assert written[-1]["target_exact"] is True
 
 
-def test_supervisor_target_update_only_refreshes_store_for_manual_update(monkeypatch):
+def test_supervisor_target_update_refreshes_store_only_and_requires_manual_update(monkeypatch):
     calls = []
 
     class Response:
@@ -86,52 +86,37 @@ def test_supervisor_target_update_only_refreshes_store_for_manual_update(monkeyp
 
     def fake_urlopen(request, timeout=15):
         calls.append((request.full_url, request.get_method(), request.data))
-        return Response(json.dumps({"result": "ok", "data": {"job_id": "job-1"}}))
+        return Response(json.dumps({"result": "ok", "data": {}}))
 
     monkeypatch.setattr(main.urllib.request, "urlopen", fake_urlopen)
-    monkeypatch.setattr(main, "APP_VERSION", "32.4.60")
-    result = main._request_supervisor_target_update("token", "32.4.61")
+    monkeypatch.setattr(main, "APP_VERSION", "32.4.64")
+    result = main._request_supervisor_target_update("token", "32.4.65")
 
     assert result["status"] == "GREEN"
     assert result["requested"] is False
     assert result["store_refreshed"] is True
     assert result["manual_ha_update_required"] is True
-    urls = [url for url, _method, _data in calls]
-    assert urls == ["http://supervisor/store/reload"]
+    assert [url for url, _method, _data in calls] == ["http://supervisor/store/reload"]
 
 
-
-
-def test_supervisor_target_update_reports_store_refresh_failure(monkeypatch):
-    calls = []
-
-    class Response:
-        def __init__(self, body: str):
-            self._body = body.encode()
-        def __enter__(self):
-            return self
-        def __exit__(self, *args):
-            return False
-        def read(self):
-            return self._body
-
+def test_supervisor_target_update_reports_store_reload_failure_exactly(monkeypatch):
     def fake_urlopen(request, timeout=15):
-        calls.append(request.full_url)
-        raise RuntimeError('store refresh failed')
+        raise RuntimeError("reload failed")
 
-    monkeypatch.setattr(main.urllib.request, 'urlopen', fake_urlopen)
-    monkeypatch.setattr(main, 'APP_VERSION', '32.4.60')
-    result = main._request_supervisor_target_update('token', '32.4.61')
+    monkeypatch.setattr(main.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(main, "APP_VERSION", "32.4.64")
+    result = main._request_supervisor_target_update("token", "32.4.65")
 
-    assert result['status'] == 'RED'
-    assert result['failed_endpoint'] == '/store/reload'
-    assert result['error'] == 'RuntimeError: store refresh failed'
+    assert result["status"] == "RED"
+    assert result["requested"] is False
+    assert result["failed_endpoint"] == "/store/reload"
+    assert result["error"] == "RuntimeError: reload failed"
 
 
 def test_supervisor_target_update_skips_when_running_target(monkeypatch):
-    monkeypatch.setattr(main, "APP_VERSION", "32.4.61")
-    result = main._request_supervisor_target_update("token", "32.4.61")
-    assert result == {"status": "ALREADY_TARGET", "requested": False, "target_version": "32.4.61"}
+    monkeypatch.setattr(main, "APP_VERSION", "32.4.64")
+    result = main._request_supervisor_target_update("token", "32.4.64")
+    assert result == {"status": "ALREADY_TARGET", "requested": False, "target_version": "32.4.64"}
 
 
 def test_delivery_settles_on_exact_github_and_exact_ha_even_with_ha_delivery_red(tmp_path):

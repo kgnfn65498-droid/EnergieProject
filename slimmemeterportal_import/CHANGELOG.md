@@ -1,6 +1,7 @@
 # Changelog
 
-## 32.4.63 — explicit manual Home Assistant update boundary
+## 32.4.64
 
-- Refreshes the add-on store without requesting automatic install, update, rebuild, or self-info actions.
-- Waits durably for the manual Home Assistant update and settles only on exact target runtime identity.
+- Release-chain closure: manual HA update boundary, predecessor proof and N+1 regression coverage.
+- Processing stays owned until exact GitHub + exact HA runtime; no automatic HA update/install/rebuild call.
+- Crash/idempotent settlement and COMPLETE reconciliation are covered before release.

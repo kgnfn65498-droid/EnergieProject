@@ -1,3 +1,10 @@
+## 2026-09-23 — 32.4.64 release-chain closure candidate
+
+- V64 closes the V63 predecessor-proof audit gap and adds N+1 proof before release.
+- HA add-on update remains explicit/manual; active predecessor only refreshes `/store/reload`.
+- Processing remains owner until exact GitHub + exact HA runtime; only COMPLETE archives to Processed.
+- Release Acceptance and host-capability Platform Qualification are separate, documented contracts; no test is weakened.
+
 # CURRENT HANDOVER — EnergieProject 32.4.59
 
 Datum: 2026-09-20
