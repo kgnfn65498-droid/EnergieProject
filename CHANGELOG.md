@@ -1,3 +1,10 @@
+## 32.5.2 — HA runtime identity reconciliation fix
+
+- Fixes mode_entrypoint runtime override that still forced APP_VERSION to 32.4.67.
+- HA runtime marker and Projectmanager startup now use 32.5.2 consistently.
+- This allows the release controller to prove the manually updated HA runtime and complete processing -> processed.
+- Retains the 32.5.1 Clear-Up tooling; no Clear-Up deletion occurs during installation.
+
 ## 32.5.1 — Clear-Up infrastructure and canonical packaging correction
 
 - Adds reusable fail-closed Clear-Up tooling for ClearUp_001.
