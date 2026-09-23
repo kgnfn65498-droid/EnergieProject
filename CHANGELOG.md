@@ -1,3 +1,10 @@
+## 32.5.1 — Clear-Up infrastructure and canonical packaging correction
+
+- Adds reusable fail-closed Clear-Up tooling for ClearUp_001.
+- Recovery ZIP is mandatory before deletion; apply rechecks dependencies and complete live-tree hashes.
+- Corrects the rejected 32.5.0 packaging error by using canonical release identity and manifests.
+- Installation itself performs no Clear-Up deletion.
+
 ## 32.4.67 — complete settlement reconciliation and executor-boundary closure
 
 - Fixes the V66 live-audit gap by separating predecessor transition execution from target post-COMPLETE reconciliation.

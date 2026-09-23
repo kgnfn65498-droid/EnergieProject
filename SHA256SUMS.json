@@ -38,7 +38,11 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "bceefd0b86522576e794b06811f7020d82980d3fdec213cc834e5326e6f09612"
+      "sha256": "458cd01364615925c43250266ae5c35c0c2f26044381b3fc2f87df9c4004798f"
+    },
+    {
+      "path": "CLEARUP_32.5.1.md",
+      "sha256": "0e8669f790c4f9c46f77777729485164998c2724db860e8bfb04ca5ef311a262"
     },
     {
       "path": "CURRENT_HANDOVER.md",
@@ -82,7 +86,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "a19ad28cada6e3e9319ee932204ea50a7d77dbc0b6e3215b1b3fdb1180f661c3"
+      "sha256": "2da9642e9dce726de795e8712486f88c5983148ed04b0a8d97030fe29c38eeb1"
     },
     {
       "path": "WORK_KNOWLEDGE_BOOTSTRAP.md",
@@ -306,7 +310,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "aabcf9e1e406ccaab2eaaf4315729a0f46dc43a4c06aa5082061d593b4506a19"
+      "sha256": "5c2fa9c18a455e1802c648425485b4a636b1002e55632e9979478664683b180f"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -358,7 +362,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "2c0e36a6ae4b6cf6ffe569f0baee25861ab46a18cf187eb13cd16b7dcc7b3ca7"
+      "sha256": "8e0d6cf2a5bb218bd7b2e70cfc279fee8ec77efc8672ad31a430c7d2660ecbf4"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
@@ -2103,6 +2107,14 @@
     {
       "path": "tools/bootstrap_release_watcher_container.sh",
       "sha256": "b79f76a5052d7d4cbab0a5a8f768e561e15d7f9e0f0ef81d95e4b93b7eee7aba"
+    },
+    {
+      "path": "tools/clearup_dependency_guard.py",
+      "sha256": "805fe63bf812caa6ec2351371c072039c35462a2b4b547c87364d224569c68ec"
+    },
+    {
+      "path": "tools/clearup_executor.py",
+      "sha256": "1bd0f6c2918a435d50b250d0c34850c43c788b5d96eeb1ffb427c3410f847ff3"
     },
     {
       "path": "tools/control_plane/control_plane.py",
