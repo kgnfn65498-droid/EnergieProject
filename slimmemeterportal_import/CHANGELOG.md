@@ -1,3 +1,7 @@
+## 32.4.65
+- Consolidatie/hygiene bovenop live bewezen V64.
+- Exact predecessor-provenance en manual-HA releasecontract behouden.
+
 # Changelog
 
 ## 32.4.64

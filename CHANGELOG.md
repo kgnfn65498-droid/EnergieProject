@@ -1,3 +1,12 @@
+## 32.4.65 — consolidation, exact predecessor provenance and handover hygiene
+
+- Keeps the live-proven V64 release architecture unchanged.
+- Replaces the hand-distilled predecessor-boundary approach with a frozen byte-exact copy of the V64 publisher source plus artifact/source SHA binding.
+- Adds real V64→V65 predecessor-provenance regression coverage and V65→synthetic V66 N+1 coverage.
+- Cleans `CURRENT_HANDOVER.md` so one current state is authoritative instead of embedding the old 32.4.59 handover.
+- Formalizes Platform Qualification as separate from Release Acceptance without deleting, xfail-ing, skipping or weakening tests.
+- Preserves manual Home Assistant update semantics: publication refreshes only `/store/reload`; Processing settles only after exact HA target runtime.
+
 ## 32.4.64 — release-chain closure and predecessor-proof hardening
 
 - Closes the V63 audit gap with a frozen V63 predecessor contract instead of simulating a predecessor by changing only APP_VERSION.

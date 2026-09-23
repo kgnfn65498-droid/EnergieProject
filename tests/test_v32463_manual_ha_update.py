@@ -36,7 +36,7 @@ def test_predecessor_publisher_only_refreshes_store_after_github_target(monkeypa
     assert [url for url, _method, _data in calls] == ["http://supervisor/store/reload"]
 
 
-def _root(tmp_path, predecessor="32.4.63", target="32.4.64"):
+def _root(tmp_path, predecessor="32.4.64", target="32.4.65"):
     root=tmp_path; inbox=root/"Inbox"; processing=inbox/"processing"; runtime=inbox/"ha_runtime"
     processing.mkdir(parents=True); runtime.mkdir()
     app=root/"App"; app.mkdir()
@@ -60,7 +60,7 @@ def _root(tmp_path, predecessor="32.4.63", target="32.4.64"):
 
 def test_exact_github_with_predecessor_ha_runtime_waits_without_timeout(tmp_path):
     root,state,delivery,artifact,runtime=_root(tmp_path)
-    (runtime/"current.json").write_text(json.dumps({"version":"32.4.63"}))
+    (runtime/"current.json").write_text(json.dumps({"version":"32.4.64"}))
     outcome=delivery.align(state)
     assert outcome.status=="WAITING"
     assert outcome.reason=="WAITING_MANUAL_HA_UPDATE"
@@ -70,7 +70,7 @@ def test_exact_github_with_predecessor_ha_runtime_waits_without_timeout(tmp_path
 
 def test_exact_target_runtime_settles_manual_wait_and_archives_processing(tmp_path):
     root,state,delivery,artifact,runtime=_root(tmp_path)
-    (runtime/"current.json").write_text(json.dumps({"version":"32.4.64"}))
+    (runtime/"current.json").write_text(json.dumps({"version":"32.4.65"}))
     outcome=delivery.align(state)
     assert outcome.status=="GREEN"
     assert not artifact.exists()

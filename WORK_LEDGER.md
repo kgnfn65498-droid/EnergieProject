@@ -1,3 +1,12 @@
+## 2026-09-23 — 32.4.65 consolidation/hygiene
+
+- V64 deep audit: release-chain GREEN; geen reparatierelease vereist.
+- V65 is daarom bewust geen nieuwe releasearchitectuur.
+- Exact V64 artifact SHA `875939a6d2112b69cf0b6da37d6c36216c80494aec00bbd78fdf59c37ea6acce` is buildbasis.
+- V64 `main.py` wordt byte-exact als predecessor-fixture opgenomen met aparte source-SHA; hiermee vervalt de zwakkere handmatig gedistilleerde predecessor-provenance voor nieuwe opvolgers.
+- CURRENT_HANDOVER is opgeschoond naar één actuele autoriteit; historie blijft in ledger/changelog/staging.
+- Release Acceptance en Platform Qualification blijven strikt gescheiden zonder tests te verzwakken.
+
 ## 2026-09-23 — 32.4.64 release-chain closure
 
 - V63 audit found that its predecessor test simulated 32.4.62 by changing APP_VERSION inside target code; live evidence proved actual 62 still attempted automatic Supervisor update and received HTTP 403.

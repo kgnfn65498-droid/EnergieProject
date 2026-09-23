@@ -1,22 +1,17 @@
-# Release Acceptance — 32.4.64
+# Release Acceptance — 32.4.65
 
-Release Acceptance validates the production release chain itself. It is distinct from Platform Qualification tests that depend on host capabilities such as child-process preexec, AF_UNIX sockets, uid/gid switching, or legacy local-runtime import topology.
+Release Acceptance toetst alleen de productie-releaseketen en de identiteit/fencing die daarvoor nodig zijn. Platform Qualification is apart en mag Release Acceptance niet kunstmatig groen of rood maken.
 
-Required V64 release invariants:
-- one ReleaseController lifecycle owner;
-- PUBLISHING before INSTALLING;
-- predecessor publishes successor to exact GitHub target;
-- predecessor Supervisor action is only `/store/reload`;
-- no automatic `/store/addons/<slug>/update`, install, rebuild, or second actuator path;
-- exact GitHub + predecessor HA runtime => durable `WAITING_MANUAL_HA_UPDATE`;
-- Processing remains transactional owner during that wait;
-- exact GitHub + exact HA target runtime => contract settlement, archive to Processed, COMPLETE;
-- settlement/archive is crash-safe and idempotent;
-- synthetic N+1 regression proves 32.4.64 already behaves correctly as predecessor for 32.4.65.
+Verplichte V65-invarianten:
+- exact V64 predecessor-artifact is cryptografisch gebonden aan SHA `875939a6d2112b69cf0b6da37d6c36216c80494aec00bbd78fdf59c37ea6acce`;
+- frozen predecessor-source is een byte-exacte kopie van V64 `slimmemeterportal_import/rootfs/app/main.py`, met aparte source-SHA;
+- predecessor publiceert opvolger naar exact GitHub target;
+- enige Supervisor-actuator na publicatie is `/store/reload`;
+- geen `/store/addons/<slug>/update`, install, rebuild of tweede actuatorpad;
+- GitHub exact + predecessor HA runtime => duurzaam `WAITING_MANUAL_HA_UPDATE`;
+- Processing blijft transactioneel owner tijdens die wachtfase;
+- exact HA target => settlement, Processed, COMPLETE;
+- settlement/archive blijft crash-safe en idempotent;
+- N+1-regressie bewijst dat V65 zelf hetzelfde contract voor synthetische V66 uitvoert.
 
-Source acceptance evidence before canonical build:
-- focused V56/V58/V60/V61/V62/V63/V64 chain set: 64/64 GREEN;
-- modern V56–V64 release group: 200/200 GREEN;
-- broader stable release-compatible groups: 1796 passed, 2 skipped, no failures.
-
-The exact fresh-extract run must repeat the release-chain acceptance set before final artifact approval.
+Release Acceptance vereist source- én exact-fresh-extract GREEN voor de releaseketenset. Een monolithische platform/full-suite GREEN is geen vereiste wanneer uitsluitend vooraf gedocumenteerde host-capability beperkingen optreden buiten de actieve releaseketen.

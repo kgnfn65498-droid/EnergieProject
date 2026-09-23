@@ -1,6 +1,6 @@
-# AGENT_TASK — EnergieProject 32.4.64
+# AGENT_TASK — EnergieProject 32.4.65
 
-- task_id: V64-RELEASE-CHAIN-CLOSURE-2026-09-23
+- task_id: V65-CONSOLIDATION-AND-PROVENANCE-2026-09-23
 - mode: DEVELOPMENT
 - thinking: MEDIUM
 - owner: ChatGPT/Spock
@@ -8,32 +8,31 @@
 - production_authority: NO
 
 ## Doel
-Maak 32.4.64 als complete afsluiting van de Incoming/GitHub/HA-releaseketen, zodat opvolgende releases geen nieuwe releaseketenreparaties nodig hebben.
+Maak 32.4.65 als consolidatie-/hygienerelease bovenop exact V64, zonder nieuwe releaseketenarchitectuur.
 
 ## Scope
-- echte V63-predecessorgrens als frozen fixture/contract bewijzen;
-- 63→64: GitHub exact, uitsluitend `/store/reload`, geen update/install/rebuild;
-- duurzame `WAITING_MANUAL_HA_UPDATE` zolang HA predecessor draait;
-- Processing blijft owner tot GitHub exact + HA runtime exact;
-- settlement naar Processed/COMPLETE exact één keer;
-- N+1-proef: V64 als predecessor naar synthetische V65;
-- crash/restart/idempotency rond PUBLISHING, manual-wait, archive en COMPLETE;
-- oude releasepaden actief uitsluiten;
-- release acceptance en host-capability Platform Qualification expliciet scheiden.
+- CURRENT_HANDOVER terugbrengen tot één actuele status;
+- predecessor-provenance verbeteren: exact V64 `main.py` als frozen fixture plus artifact/source SHA;
+- V64→V65 predecessor-boundary testen met die exacte fixture;
+- V65→synthetische V66 N+1-regressie;
+- release acceptance en host-capability Platform Qualification verder expliciteren;
+- bestaande Processing/Processed- en manual-HA-semantiek ongewijzigd behouden.
 
 ## Niet wijzigen
 - geen tweede publisher/controller/watcher;
 - geen automatische Home Assistant update/install/rebuild;
+- geen transition bridge;
 - geen cleanup/CR/mode als releasegate;
-- geen productie/NAS/HA/Incoming actie.
+- geen productie/NAS/HA/Incoming actie tijdens build/audit.
 
 ## Acceptatie
-- gerichte releaseketenregressies GREEN;
-- bredere release-auditregressies GREEN;
+- exacte V64 predecessor-source fixture cryptografisch gebonden;
+- gerichte V65 regressies GREEN;
+- moderne release-regressies GREEN;
 - source + exact fresh-extract;
 - canonical ZIP, CRC, manifest, SHA256SUMS en release-identiteit GREEN;
 - finale onafhankelijke artifact-audit op exact SHA;
 - geen wijziging na finale audit.
 
 ## Stop
-V64_READY_FOR_INCOMING of echte safety/artifact blocker.
+V65_READY_FOR_INCOMING of echte safety/artifact blocker.

@@ -215,7 +215,7 @@ def build_adapter(root:Path):
     return AtomicReleaseAdapter(root,atomic_app_swap,native,delivery)
 
 def main()->int:
-    p=argparse.ArgumentParser(description='Energie 32.4.64 single-owner release controller')
+    p=argparse.ArgumentParser(description='Energie 32.4.65 single-owner release controller')
     p.add_argument('--root',required=True);p.add_argument('--interval',type=float,default=5.0);p.add_argument('--stable-polls',type=int,default=3)
     p.add_argument('--ingress-stale-seconds',type=int,default=600)
     args=p.parse_args();root=Path(args.root)

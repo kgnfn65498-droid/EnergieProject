@@ -114,9 +114,9 @@ def test_supervisor_target_update_reports_store_reload_failure_exactly(monkeypat
 
 
 def test_supervisor_target_update_skips_when_running_target(monkeypatch):
-    monkeypatch.setattr(main, "APP_VERSION", "32.4.64")
-    result = main._request_supervisor_target_update("token", "32.4.64")
-    assert result == {"status": "ALREADY_TARGET", "requested": False, "target_version": "32.4.64"}
+    monkeypatch.setattr(main, "APP_VERSION", "32.4.65")
+    result = main._request_supervisor_target_update("token", "32.4.65")
+    assert result == {"status": "ALREADY_TARGET", "requested": False, "target_version": "32.4.65"}
 
 
 def test_delivery_settles_on_exact_github_and_exact_ha_even_with_ha_delivery_red(tmp_path):
