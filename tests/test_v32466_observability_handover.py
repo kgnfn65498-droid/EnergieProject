@@ -108,7 +108,7 @@ def test_manual_wait_does_not_prematurely_mark_contract_settled(tmp_path):
 
 def test_static_handover_has_no_mutable_live_status_claim():
     text=(ROOT/"CURRENT_HANDOVER.md").read_text()
-    assert text.startswith("# CURRENT HANDOVER — EnergieProject 32.4.66")
+    assert text.startswith("# CURRENT HANDOVER — EnergieProject 32.4.67")
     assert "Status: DEVELOPMENT" not in text
     assert "Status: WAITING" not in text
     assert "Status: COMPLETE" not in text
@@ -117,14 +117,20 @@ def test_static_handover_has_no_mutable_live_status_claim():
 
 
 def test_v66_to_synthetic_v67_keeps_manual_ha_boundary(monkeypatch):
+    # Historical V66 predecessor proof must execute frozen V66 code, never the
+    # mutable current target release module.
+    fixture=ROOT/"tests/fixtures/v66_predecessor/main.py"
+    spec=importlib.util.spec_from_file_location("v66_historical_predecessor",fixture)
+    mod=importlib.util.module_from_spec(spec); assert spec and spec.loader
+    sys.modules[spec.name]=mod; spec.loader.exec_module(mod)
     calls=[]
     class Response:
         def __enter__(self): return self
         def __exit__(self,*args): return False
         def read(self): return b'{"result":"ok"}'
     def fake(request,timeout=15): calls.append(request.full_url); return Response()
-    monkeypatch.setattr(main.urllib.request,"urlopen",fake)
-    assert main.APP_VERSION == "32.4.66"
-    result=main._request_supervisor_target_update("token","32.4.67")
+    monkeypatch.setattr(mod.urllib.request,"urlopen",fake)
+    assert mod.APP_VERSION == "32.4.66"
+    result=mod._request_supervisor_target_update("token","32.4.67")
     assert result["status"] == "GREEN" and result["requested"] is False
     assert calls == ["http://supervisor/store/reload"]

@@ -1,3 +1,6 @@
+## 32.4.67
+- COMPLETE settlement observability is now exact, self-healing and executor-boundary aware; manual HA update behavior is unchanged.
+
 ## 32.4.66
 - Controller-owned publication settlement is now explicit in shared observability state; manual HA update behavior is unchanged.
 

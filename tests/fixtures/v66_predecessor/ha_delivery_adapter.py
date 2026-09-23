@@ -95,93 +95,12 @@ class HADelivery:
         return existing
     def _publisher_exact(self,pub,payload):
         return bool(pub.get('published') is True and pub.get('target_exact') is True and pub.get('remote_head') and self._identity_matches(pub,payload))
-    def _completed_settlement_expected(self,s:ReleaseState):
-        if str(getattr(s,'status',''))!='COMPLETE' or str(getattr(s,'phase',''))!='COMPLETE':
-            raise RuntimeError('completed_reconcile_requires_complete_state')
-        required={'github_target_exact','ha_runtime_current','publication_contract_settled','processed_archived'}
-        if not required.issubset(set(getattr(s,'evidence',[]) or [])):
-            raise RuntimeError('completed_reconcile_evidence_incomplete')
-        active=self.root/'App/VERSIE.txt'
-        if active.is_symlink() or not active.is_file() or active.read_text(encoding='utf-8').strip()!=s.to_version:
-            raise RuntimeError('completed_reconcile_app_version_mismatch')
-        ha=_json(self.root/'Inbox/ha_runtime/current.json')
-        if str(ha.get('version') or '')!=s.to_version:
-            raise RuntimeError('completed_reconcile_ha_version_mismatch')
-        processed=self.root/'Inbox/processed'/s.artifact_name
-        if processed.is_symlink() or not processed.is_file():
-            raise RuntimeError('completed_reconcile_processed_missing_or_unsafe')
-        if _sha(processed)!=s.artifact_sha256:
-            raise RuntimeError('completed_reconcile_processed_hash_mismatch')
-        pub_path=self.root/'Inbox/github_publication_state.json'
-        pub=_json(pub_path)
-        if not pub:
-            raise RuntimeError('completed_reconcile_publication_missing_or_invalid')
-        exact={
-            'version':s.to_version,'release_id':s.release_id,'generation':s.generation,
-            'processed_zip':s.artifact_name,'processed_zip_sha256':s.artifact_sha256,
-            'target_manifest_sha256':self._target_manifest_sha(processed),
-        }
-        if pub.get('published') is not True or pub.get('target_exact') is not True:
-            raise RuntimeError('completed_reconcile_publication_not_exact')
-        if any(str(pub.get(k) or '')!=str(v) for k,v in exact.items()):
-            raise RuntimeError('completed_reconcile_publication_identity_mismatch')
-        remote=str(pub.get('remote_head') or '').strip();local=str(pub.get('local_head') or '').strip()
-        if not remote or not local or remote!=local:
-            raise RuntimeError('completed_reconcile_git_head_mismatch')
-        marker=self.root/'Inbox/ha_publication_required.json'
-        if marker.exists():
-            current=_json(marker)
-            if not current or not self._identity_matches(current,exact):
-                raise RuntimeError('completed_reconcile_foreign_contract')
-        return pub_path,pub,exact
-
-    def _normalize_settlement_observability(self,s:ReleaseState)->Outcome:
-        try:
-            pub_path,pub,_=self._completed_settlement_expected(s)
-            expected={
-                'publication_contract_removed':True,
-                'publication_contract_settled':True,
-                'publication_contract_active':False,
-                'contract_settled_by':'release_controller',
-                'settled_release_id':s.release_id,
-                'settled_generation':s.generation,
-            }
-            if all(pub.get(k)==v for k,v in expected.items()):
-                return Outcome.green('completed_delivery_settled','settlement_observability_exact')
-            updated=dict(pub);updated.update(expected);_atomic(pub_path,updated)
-            readback=_json(pub_path)
-            if any(readback.get(k)!=v for k,v in expected.items()):
-                return Outcome.blocked('settlement_observability_readback_failed')
-            if str(readback.get('release_id') or '')!=s.release_id or str(readback.get('generation') or '')!=s.generation:
-                return Outcome.blocked('settlement_observability_identity_changed')
-            return Outcome.green('completed_delivery_settled','settlement_observability_reconciled')
-        except Exception as exc:
-            return Outcome.blocked(str(exc),'preserve COMPLETE release; inspect exact completed-settlement evidence')
-
     def reconcile_completed_delivery(self,s:ReleaseState)->Outcome:
         marker=self.root/'Inbox/ha_publication_required.json'
-        if marker.exists():
-            # An open exact marker still uses the normal fenced settlement path.
-            out=self.align(s)
-            if out.status!='GREEN':return out
-        pub=_json(self.root/'Inbox/github_publication_state.json')
-        already_exact=bool(
-            pub.get('publication_contract_removed') is True
-            and pub.get('publication_contract_settled') is True
-            and pub.get('publication_contract_active') is False
-            and str(pub.get('contract_settled_by') or '')=='release_controller'
-            and str(pub.get('settled_release_id') or '')==s.release_id
-            and str(pub.get('settled_generation') or '')==s.generation
-            and str(pub.get('version') or '')==s.to_version
-            and str(pub.get('processed_zip') or '')==s.artifact_name
-            and str(pub.get('processed_zip_sha256') or '')==s.artifact_sha256
-        )
-        if already_exact:
-            return Outcome.green('completed_delivery_settled','settlement_observability_exact')
-        # Marker absent is not enough proof. Missing/incomplete observability may
-        # only be backfilled from exact COMPLETE + App + HA + Processed + GitHub
-        # + manifest evidence.
-        return self._normalize_settlement_observability(s)
+        if not marker.exists(): return Outcome.green('completed_delivery_settled')
+        # Reuse exact fenced delivery reconciliation. A COMPLETE state may only
+        # settle its own still-open contract; foreign/unproven state fails closed.
+        return self.align(s)
     def prepare_pre_target(self,s:ReleaseState)->Outcome:
         marker=self.root/'Inbox/ha_publication_required.json'
         try:

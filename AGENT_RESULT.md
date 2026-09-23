@@ -1,24 +1,25 @@
-# AGENT_RESULT — EnergieProject 32.4.66
+# AGENT_RESULT — EnergieProject 32.4.67
 
-STATUS: V66_READY_FOR_INCOMING
+STATUS: V67_READY_FOR_INCOMING
 
-- source_basis: exact V65 artifact SHA `e00a7fc0dfc81d3dfe7dbac6bac3cef213a987f207ad4d0d62588450b0bc9152`
-- predecessor_fixture: byte-exact V65 `slimmemeterportal_import/rootfs/app/main.py`
-- predecessor_source_sha256: `35814b8555f2d50078ba9fcb77324b76a635530ce31f79cd1585b63463df018c`
-- scope: resolve V65 audit hygiene only; no release-chain architecture change
-- handover_status_model: static CURRENT_HANDOVER contains no mutable live status; canonical runtime JSON is authoritative
-- settlement_observability: ReleaseController marks shared publication state settled only after exact GitHub + exact HA target + exact archive settlement
-- compatibility: legacy `publication_contract_removed` retained and flipped true at controller settlement
-- explicit_observability: `publication_contract_settled=true`, `publication_contract_active=false`, `contract_settled_by=release_controller`
-- v65/v66 focused tests: 13/13 GREEN
-- modern V56–V66 release group: 186/186 GREEN
-- publication/observability compatibility group: 46/46 GREEN
+- source_basis: exact V66 artifact SHA `507ab36206578351621089c4c430caeb386b2005dbb637c9a9c8cfdeaa57107b`
+- predecessor_fixture: byte-exact V66 `main.py`, `ha_delivery_adapter.py`, `release_controller.py`, `release_controller_service.py`
+- predecessor_provenance: cryptographically bound in `tests/fixtures/v66_predecessor/PROVENANCE.json`
+- scope: complete settlement reconciliation + real executor-boundary closure
+- exact_v66_executor_66_to_67: GREEN
+- markerless_complete_self_heal: GREEN
+- settlement_observability_idempotence: GREEN
+- negative_identity_fencing_matrix: GREEN
+- projectmanager_settlement_identity_fencing: GREEN
+- manual_ha_boundary: preserved; `/store/reload` only
 - automatic_ha_update_install_rebuild: disabled/absent
-- active_ha_actuator: `/store/reload` only
-- processing_semantics: transactional owner until exact GitHub + exact HA target runtime
-- processed_semantics: COMPLETE-only archive
-- n_plus_one_proof: V66 predecessor -> synthetic V67 GREEN
-- platform_qualification: separate; no repository-wide full-suite GREEN claimed on restricted host
+- v67 focused tests source: 9/9 GREEN
+- V56–V67 release regression group source: 195/195 GREEN
+- runtime/observability compatibility source: 63/63 GREEN
+- v67 focused tests exact fresh extract: 9/9 GREEN
+- V56–V67 release regression group exact fresh extract: 195/195 GREEN
+- runtime/observability compatibility exact fresh extract: 63/63 GREEN (split timeout-safe batches)
+- full_suite_note: monolithic suite was attempted but is not claimed GREEN on this restricted host; historical/host-dependent suites include known timeout/capability/current-release assumptions outside active V67 release acceptance
 - production_actions: none
 - incoming_actions: none
 - ha_actions: none

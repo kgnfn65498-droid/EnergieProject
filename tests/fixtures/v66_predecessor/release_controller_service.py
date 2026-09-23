@@ -166,21 +166,16 @@ class ReleaseControllerService:
                 state.required_action='restore the exact owned artifact only';self._save(state);return state
             self.controller.cycle(state,self.adapter);self._save(state);return state
         if state and state.status==Status.COMPLETE.value:
-            settle=getattr(self.adapter,'reconcile_completed_delivery',None)
-            if callable(settle):
-                # COMPLETE reconciliation is unconditional for the production
-                # delivery adapter. The active release independently proves or
-                # normalizes settlement observability even when the predecessor
-                # removed the contract marker before reexec.
+            marker=self.root/'Inbox/ha_publication_required.json'
+            if marker.exists():
+                settle=getattr(self.adapter,'reconcile_completed_delivery',None)
+                if not callable(settle):
+                    self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':'completed_delivery_settlement_capability_missing'})
+                    return state
                 out=settle(state)
                 if out.status!='GREEN':
                     self._runtime({'status':out.status,'phase':'COMPLETE','reason':out.reason,'release_id':state.release_id,'generation':state.generation})
                     return state
-            elif (self.root/'Inbox/ha_publication_required.json').exists():
-                # Legacy/test adapters without reconciliation are tolerated only
-                # when there is no outstanding publication ownership to settle.
-                self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':'completed_delivery_settlement_capability_missing'})
-                return state
         if state and state.status==Status.ROLLED_BACK.value:self._settle_rolled_back(state)
         recovery=self._reconcile_idle_processing()
         if recovery is not None:
@@ -220,7 +215,7 @@ def build_adapter(root:Path):
     return AtomicReleaseAdapter(root,atomic_app_swap,native,delivery)
 
 def main()->int:
-    p=argparse.ArgumentParser(description='Energie 32.4.67 single-owner release controller')
+    p=argparse.ArgumentParser(description='Energie 32.4.66 single-owner release controller')
     p.add_argument('--root',required=True);p.add_argument('--interval',type=float,default=5.0);p.add_argument('--stable-polls',type=int,default=3)
     p.add_argument('--ingress-stale-seconds',type=int,default=600)
     args=p.parse_args();root=Path(args.root)

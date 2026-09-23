@@ -1,31 +1,28 @@
-# CURRENT HANDOVER — EnergieProject 32.4.66
+# CURRENT HANDOVER — EnergieProject 32.4.67
 
 Datum: 2026-09-23
-Documentrol: statische release-handover voor artifact 32.4.66.
+Documentrol: statische release-handover voor artifact 32.4.67.
 
 ## Runtime-statusautoriteit
-Dit bestand bevat **geen mutable live-status** zoals DEVELOPMENT, WAITING of COMPLETE. Na installatie kan zo'n statische tekst verouderen zonder dat het artifact gewijzigd mag worden.
+Dit document bevat geen mutable live-status. Actuele lifecycle/status komt uitsluitend uit:
+- `Inbox/release_controller/current.json`;
+- `Inbox/release_controller/runtime.json`;
+- `Inbox/ha_runtime/current.json`;
+- `Inbox/github_publication_state.json`.
 
-De actuele status komt uitsluitend uit:
-- `Inbox/release_controller/current.json` — lifecycle/status/step/release identity;
-- `Inbox/release_controller/runtime.json` — actuele controller-runtime;
-- `Inbox/ha_runtime/current.json` — actuele HA runtimeversie;
-- `Inbox/github_publication_state.json` — GitHub-publicatie en controller-settlementobservability.
+## Exact predecessor 32.4.66
+- artifact SHA256: `507ab36206578351621089c4c430caeb386b2005dbb637c9a9c8cfdeaa57107b`;
+- frozen byte-exact executor-bronnen onder `tests/fixtures/v66_predecessor/`;
+- exacte hashes staan in `tests/fixtures/v66_predecessor/PROVENANCE.json`;
+- V65→V66 releaseketen live GREEN, maar V66-audit vond dat de nieuwe settlement-observability niet kon draaien tijdens 65→66 omdat de executor nog V65 was.
 
-## Exact predecessor 32.4.65
-- artifact SHA256: `e00a7fc0dfc81d3dfe7dbac6bac3cef213a987f207ad4d0d62588450b0bc9152`;
-- predecessor `main.py` SHA256: `35814b8555f2d50078ba9fcb77324b76a635530ce31f79cd1585b63463df018c`;
-- frozen byte-exact source: `tests/fixtures/v65_predecessor/main.py`;
-- V64→V65 live E2E is GREEN: GitHub exact, alleen `/store/reload`, handmatige HA-update, daarna automatisch COMPLETE en Processed.
-
-## 32.4.66 doel
-- los de twee V65-audit hygiene-bevindingen op zonder nieuwe releasearchitectuur;
-- maak CURRENT_HANDOVER intrinsiek niet-verouderend door live status naar runtime-evidence te verwijzen;
-- maak publicatiecontractobservability ondubbelzinnig: publisher opent contract, ReleaseController markeert exact settlement;
-- behoud compatibilityveld `publication_contract_removed`, maar voeg expliciete `publication_contract_settled`, `publication_contract_active` en `contract_settled_by` toe;
-- bewijs V65→V66 met exact predecessor-source en V66→synthetische V67.
+## 32.4.67 oplossing
+- predecessor-boundary wordt expliciet gemodelleerd: 66→67 wordt door frozen V66-code uitgevoerd;
+- na COMPLETE voert de actieve release altijd exact settlement-reconciliation uit via de productie-delivery-adapter;
+- ontbrekende observability mag alleen worden aangevuld bij exact COMPLETE + App target + HA target + exact Processed artifact + exact GitHub identity/head + exact target-manifest + verplichte controller-evidence;
+- reconciliation is atomair, idempotent en generation/release-fenced;
+- stale/foreign settlementvelden zijn geen actuele Projectmanager-proof;
+- manual HA update en `/store/reload`-only publisher blijven ongewijzigd.
 
 ## Releasecontract
-`Incoming → Processing → GitHub exact → App target → ACCEPTED/WAITING_MANUAL_HA_UPDATE → handmatige HA-update → HA exact → controller settlement → Processed → COMPLETE`.
-
-`Processing` = transactioneel in behandeling. `Processed` = volledige release COMPLETE.
+`Incoming → Processing → GitHub exact → App target → ACCEPTED/WAITING_MANUAL_HA_UPDATE → handmatige HA-update → HA exact → predecessor/controller settlement → Processed → COMPLETE → actieve target-controller exact reconciliation → IDLE`.

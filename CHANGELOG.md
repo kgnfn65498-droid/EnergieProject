@@ -1,3 +1,12 @@
+## 32.4.67 — complete settlement reconciliation and executor-boundary closure
+
+- Fixes the V66 live-audit gap by separating predecessor transition execution from target post-COMPLETE reconciliation.
+- Adds byte-exact V66 executor fixtures and proves 66→67 with V66 code, not target-code version simulation.
+- Reconciles settlement observability even when the publication contract marker was already removed by the predecessor.
+- Backfill is exact COMPLETE/App/HA/Processed/GitHub/manifest/evidence fenced, atomic and idempotent.
+- Projectmanager accepts explicit settlement only when release/generation/version match the current COMPLETE state; legacy removed=true remains compatibility-only.
+- Keeps `/store/reload`-only publication, manual HA update and single-owner release architecture unchanged.
+
 ## 32.4.66 — settlement observability and non-stale handover
 
 - Makes CURRENT_HANDOVER state-neutral: mutable live status is read only from canonical runtime JSON.

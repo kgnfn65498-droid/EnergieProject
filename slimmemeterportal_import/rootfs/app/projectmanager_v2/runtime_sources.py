@@ -190,6 +190,8 @@ class RuntimeCollector:
         inbox = self.project_root / 'Inbox'
         release_controller_path = inbox / 'release_controller' / 'runtime.json'
         release_controller = self._read_json(release_controller_path) or {}
+        release_state_path = inbox / 'release_controller' / 'current.json'
+        release_state = self._read_json(release_state_path) or {}
         release_controller_age = self._file_age(release_controller_path, now)
         legacy_watcher = None
         if not self._release_at_least_58():
@@ -230,9 +232,22 @@ class RuntimeCollector:
         local_head = str(publication.get('local_head') or '').strip()
         exact_target_proof = publication.get('already_published') is True
         pushed_target_proof = bool(remote_head and local_head and remote_head == local_head)
-        contract_settled = bool(
-            publication.get('publication_contract_settled') is True
-            or publication.get('publication_contract_removed') is True
+        explicit_settlement = publication.get('publication_contract_settled') is True
+        legacy_settlement = publication.get('publication_contract_removed') is True
+        settlement_identity_exact = bool(
+            explicit_settlement
+            and str(publication.get('contract_settled_by') or '') == 'release_controller'
+            and str(publication.get('settled_release_id') or '') == str(release_state.get('release_id') or '')
+            and str(publication.get('settled_generation') or '') == str(release_state.get('generation') or '')
+            and str(publication.get('version') or '') == str(release_state.get('to_version') or '')
+            and str(release_state.get('status') or '') == 'COMPLETE'
+            and str(release_state.get('phase') or '') == 'COMPLETE'
+        )
+        # Legacy removed=true remains a compatibility fallback only when no
+        # explicit settlement schema is present. Explicit settlement is accepted
+        # only when it is fenced to the current COMPLETE controller generation.
+        contract_settled = settlement_identity_exact or (
+            not explicit_settlement and legacy_settlement
         )
         publication_proven = bool(
             publication.get('published') is True
@@ -305,6 +320,9 @@ class RuntimeCollector:
                 'publication_contract_settled': publication.get('publication_contract_settled'),
                 'publication_contract_active': publication.get('publication_contract_active'),
                 'contract_settled_by': publication.get('contract_settled_by'),
+                'settled_release_id': publication.get('settled_release_id'),
+                'settled_generation': publication.get('settled_generation'),
+                'settlement_identity_exact': settlement_identity_exact,
             },
             'legacy_publisher': {
                 'status': legacy_publisher.get('status'),

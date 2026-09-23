@@ -1,3 +1,12 @@
+## 2026-09-23 — 32.4.67 complete settlement reconciliation
+
+- V66 live audit proved release-chain GREEN but settlement-observability RED because 65→66 settlement still executed under loaded V65 code.
+- V67 models the executor boundary explicitly with byte-exact V66 main/adapter/controller/service fixtures.
+- COMPLETE reconciliation no longer depends on the publication marker still existing; missing observability is backfilled only from exact COMPLETE/App/HA/Processed/GitHub/manifest/evidence proof.
+- Reconciliation is atomic/idempotent and fail-closed on foreign or ambiguous identity.
+- Projectmanager explicit settlement proof is fenced to current COMPLETE release_id/generation/version.
+- Validation: V67 9/9, V56–V67 195/195, runtime/observability compatibility 63/63 GREEN; exact fresh extract repeats all three sets.
+
 ## 2026-09-23 — 32.4.66 observability/handover closure
 
 - V65 deep audit had two non-blocking hygiene findings: static CURRENT_HANDOVER status could become stale after live completion, and `publication_contract_removed=false` in publisher state was semantically ambiguous after controller settlement.

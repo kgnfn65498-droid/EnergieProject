@@ -7,7 +7,7 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = "32.4.66"
+TARGET = "32.4.67"
 
 
 def _module_value(path: Path, name: str) -> str:
@@ -31,5 +31,5 @@ def test_62_release_identity_is_coherent():
     assert yaml.safe_load((ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8"))["version"] == TARGET
     assert _module_value(ROOT / "slimmemeterportal_import/rootfs/app/main.py", "APP_VERSION") == TARGET
     assert _module_value(ROOT / "slimmemeterportal_import/rootfs/app/mode_entrypoint.py", "TARGET_RELEASE_VERSION") == TARGET
-    assert (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()[0] == f"## {TARGET} — settlement observability and non-stale handover"
+    assert (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()[0] == f"## {TARGET} — complete settlement reconciliation and executor-boundary closure"
     assert (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8").splitlines()[0] == f"## {TARGET}"

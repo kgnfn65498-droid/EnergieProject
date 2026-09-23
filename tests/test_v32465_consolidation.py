@@ -164,9 +164,9 @@ def test_v65_to_v66_manual_wait_and_complete_contract_is_regression_proven(tmp_p
 
 def test_current_handover_is_single_current_authority_and_historical_59_not_embedded():
     text = (ROOT / "CURRENT_HANDOVER.md").read_text(encoding="utf-8")
-    assert text.startswith("# CURRENT HANDOVER — EnergieProject 32.4.66")
+    assert text.startswith("# CURRENT HANDOVER — EnergieProject 32.4.67")
     assert "# CURRENT HANDOVER — EnergieProject 32.4.59" not in text
-    assert "e00a7fc0dfc81d3dfe7dbac6bac3cef213a987f207ad4d0d62588450b0bc9152" in text
+    assert "507ab36206578351621089c4c430caeb386b2005dbb637c9a9c8cfdeaa57107b" in text
 
 
 def test_platform_qualification_is_explicitly_not_release_gate_and_no_test_weakening_contract():
@@ -175,5 +175,5 @@ def test_platform_qualification_is_explicitly_not_release_gate_and_no_test_weake
     assert "niet verwijderd" in text
     assert "niet" in text and "verzwakt" in text
     acceptance = (ROOT / "RELEASE_ACCEPTANCE.md").read_text(encoding="utf-8")
-    assert "32.4.66" in acceptance
-    assert "exact V65 predecessor" in acceptance
+    assert "32.4.67" in acceptance
+    assert "exact V66 artifact" in acceptance
