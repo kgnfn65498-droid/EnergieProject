@@ -1,3 +1,10 @@
+## 2026-09-22 — 32.4.63 manual Home Assistant update boundary
+- Exact predecessor basis: `EnergieProject_v32.4.62.zip` SHA256 `0d29c432f5c457fc429f327df15d95023313d5eca68c08f8dce8c1e5951ea385`.
+- Predecessor publisher keeps exact GitHub publication before installation and invokes only `/store/reload`; no automatic Supervisor install/update/rebuild/self-info route remains.
+- Exact GitHub target with predecessor HA runtime is durable `WAITING_MANUAL_HA_UPDATE`, without delivery timeout. Exact HA target runtime remains mandatory for settlement and Processing→Processed/COMPLETE.
+- TDD/focused release set: 45 passed. Repository suite: 2013 passed, 2 skipped; 3 failures are the proven Work-host privilege/AF_UNIX restrictions in `test_v32453_final_closure`, not release-code failures.
+- Production, Incoming, NAS and Home Assistant untouched.
+
 ## 2026-09-22 — 32.4.62 audit closure + autonomous successor
 - Basis: audit-fixed 32.4.61 source; live productie bleef tijdens development onaangeraakt.
 - V61 auditbevindingen (stale rebuild-regressies + failed_endpoint diagnostic) opgenomen in normale opvolger.

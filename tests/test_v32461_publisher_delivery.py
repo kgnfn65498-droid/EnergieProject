@@ -71,7 +71,7 @@ def test_target_exact_keeps_publication_green_when_ha_delivery_is_red(monkeypatc
     assert written[-1]["target_exact"] is True
 
 
-def test_supervisor_target_update_uses_store_update_not_rebuild(monkeypatch):
+def test_supervisor_target_update_only_refreshes_store_for_manual_update(monkeypatch):
     calls = []
 
     class Response:
@@ -86,8 +86,6 @@ def test_supervisor_target_update_uses_store_update_not_rebuild(monkeypatch):
 
     def fake_urlopen(request, timeout=15):
         calls.append((request.full_url, request.get_method(), request.data))
-        if request.full_url.endswith("/addons/self/info"):
-            return Response(json.dumps({"data": {"slug": "abc123_slimmemeterportal_import"}}))
         return Response(json.dumps({"result": "ok", "data": {"job_id": "job-1"}}))
 
     monkeypatch.setattr(main.urllib.request, "urlopen", fake_urlopen)
@@ -95,21 +93,16 @@ def test_supervisor_target_update_uses_store_update_not_rebuild(monkeypatch):
     result = main._request_supervisor_target_update("token", "32.4.61")
 
     assert result["status"] == "GREEN"
-    assert result["requested"] is True
+    assert result["requested"] is False
+    assert result["store_refreshed"] is True
+    assert result["manual_ha_update_required"] is True
     urls = [url for url, _method, _data in calls]
-    assert urls == [
-        "http://supervisor/store/reload",
-        "http://supervisor/addons/self/info",
-        "http://supervisor/store/addons/abc123_slimmemeterportal_import/update",
-    ]
-    assert not any("rebuild" in url for url in urls)
-    payload = json.loads(calls[-1][2].decode())
-    assert payload == {"backup": False, "background": True}
+    assert urls == ["http://supervisor/store/reload"]
 
 
 
 
-def test_supervisor_target_update_reports_exact_failing_update_endpoint(monkeypatch):
+def test_supervisor_target_update_reports_store_refresh_failure(monkeypatch):
     calls = []
 
     class Response:
@@ -124,19 +117,15 @@ def test_supervisor_target_update_reports_exact_failing_update_endpoint(monkeypa
 
     def fake_urlopen(request, timeout=15):
         calls.append(request.full_url)
-        if request.full_url.endswith('/store/reload'):
-            return Response(json.dumps({"result": "ok", "data": {}}))
-        if request.full_url.endswith('/addons/self/info'):
-            return Response(json.dumps({"data": {"slug": "abc123_slimmemeterportal_import"}}))
-        raise RuntimeError('update failed')
+        raise RuntimeError('store refresh failed')
 
     monkeypatch.setattr(main.urllib.request, 'urlopen', fake_urlopen)
     monkeypatch.setattr(main, 'APP_VERSION', '32.4.60')
     result = main._request_supervisor_target_update('token', '32.4.61')
 
     assert result['status'] == 'RED'
-    assert result['failed_endpoint'] == '/store/addons/abc123_slimmemeterportal_import/update'
-    assert result['error'] == 'RuntimeError: update failed'
+    assert result['failed_endpoint'] == '/store/reload'
+    assert result['error'] == 'RuntimeError: store refresh failed'
 
 
 def test_supervisor_target_update_skips_when_running_target(monkeypatch):

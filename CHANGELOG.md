@@ -1,3 +1,9 @@
+## 32.4.63 — explicit manual Home Assistant update boundary
+
+- Publishes the exact successor from the active predecessor and refreshes the Home Assistant add-on store.
+- Keeps automatic add-on updates disabled and waits durably for the owner's manual update.
+- Settles Processing to Processed/COMPLETE only after exact target runtime identity.
+
 ## 32.4.62 — audit closure and autonomous successor release
 
 - Incorporates the V61 audit fixes as a normal successor release.

@@ -140,10 +140,14 @@ class HADelivery:
                 self._archive_complete(s)
             except Exception as exc:return Outcome.blocked(str(exc))
             return Outcome.green('github_target_exact','ha_runtime_current','publication_contract_settled','processed_archived')
+        if pub_exact:
+            # Home Assistant add-on updates are an explicit human action. Exact
+            # GitHub publication therefore remains a durable normal wait, not a
+            # delivery timeout or a second automatic actuator path.
+            return Outcome.waiting('WAITING_MANUAL_HA_UPDATE','github_target_exact','ha_predecessor_runtime')
         elapsed=max(0.0,time.time()-float(s.phase_started_at_epoch or time.time()))
         if elapsed>=self.timeout:
             if pub.get('published') is False and self._identity_matches(pub,payload):
                 return Outcome.blocked('github_publication_failed','inspect exact publisher evidence; do not create a second release')
             return Outcome.blocked('ha_delivery_identity_timeout','inspect exact publisher/runtime evidence; do not create a second release')
-        if pub_exact:return Outcome.waiting('ha_runtime_start_pending','github_target_exact')
         return Outcome.waiting('github_publication_pending','publication_contract_ready')

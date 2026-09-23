@@ -69,7 +69,8 @@ def test_58_06_publisher_uses_supported_store_target_update_not_rebuild():
     text = _text(APP / 'main.py')
     assert '"/store/reload"' in text or "'/store/reload'" in text
     assert '"/addons/reload"' not in text and "'/addons/reload'" not in text
-    assert '/store/addons/' in text
+    assert '/store/addons/' not in text
+    assert '/addons/self/info' not in text
     assert '/addons/self/rebuild' not in text
 
 

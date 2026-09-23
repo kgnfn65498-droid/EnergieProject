@@ -84,7 +84,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.4.62"
+APP_VERSION = "32.4.63"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -20367,13 +20367,7 @@ def _verify_github_remote_baseline(contract, worktree: Path):
 
 
 def _request_supervisor_target_update(token: str, target_version: str) -> dict[str, Any]:
-    """Reload the store and request an asynchronous update to the exact target.
-
-    GitHub publication evidence is independent from this delivery request.  The
-    Supervisor rebuild endpoint is intentionally not used: Home Assistant only
-    supports rebuild for local-build apps, while EnergieProject is delivered
-    from the custom add-on store.
-    """
+    """Refresh the store, then wait for the owner's manual HA update."""
     token = str(token or "").strip()
     target_version = str(target_version or "").strip()
     if not token:
@@ -20400,25 +20394,12 @@ def _request_supervisor_target_update(token: str, target_version: str) -> dict[s
         body = request_json(current_endpoint)
         steps.append({"endpoint": current_endpoint, "ok": True, "body": body[:500]})
 
-        current_endpoint = "/addons/self/info"
-        info_body = request_json(current_endpoint, method="GET", payload=None)
-        info = json.loads(info_body or "{}")
-        data = info.get("data") if isinstance(info, dict) and isinstance(info.get("data"), dict) else info
-        slug = str(data.get("slug") if isinstance(data, dict) else "").strip()
-        if not slug or not re.fullmatch(r"[A-Za-z0-9_.-]+", slug):
-            return {"status": "RED", "requested": False, "steps": steps,
-                    "failed_endpoint": "/addons/self/info", "error": "invalid_or_missing_addon_slug"}
-        steps.append({"endpoint": "/addons/self/info", "ok": True, "slug": slug})
-
-        current_endpoint = f"/store/addons/{slug}/update"
-        update_payload = json.dumps({"backup": False, "background": True}).encode("utf-8")
-        body = request_json(current_endpoint, payload=update_payload)
-        steps.append({"endpoint": current_endpoint, "ok": True, "body": body[:500]})
     except Exception as exc:
         return {"status": "RED", "requested": False, "steps": steps,
                 "failed_endpoint": current_endpoint,
                 "error": f"{type(exc).__name__}: {exc}"}
-    return {"status": "GREEN", "requested": True, "target_version": target_version, "steps": steps}
+    return {"status": "GREEN", "requested": False, "store_refreshed": True,
+            "manual_ha_update_required": True, "target_version": target_version, "steps": steps}
 
 
 def _mark_github_target_exact(result: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
