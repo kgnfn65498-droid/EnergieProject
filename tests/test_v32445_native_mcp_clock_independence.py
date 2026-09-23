@@ -39,7 +39,7 @@ def test_32445_native_fingerprint_ignores_unloaded_projectmanager_sources(tmp_pa
     pm = project / 'App/slimmemeterportal_import/rootfs/app/projectmanager_v2'
     pm.mkdir(parents=True)
 
-    for name in ('runtime_fingerprint.py', 'server.py', 'registry.py', 'tools_projectmanager.py', 'crash_recovery.py', 'tools_recovery.py'):
+    for name in ('runtime_fingerprint.py', 'server.py', 'registry.py', 'tools_projectmanager.py', 'crash_recovery.py', 'tools_recovery.py', 'tools_clearup_export.py'):
         (native / name).write_text(f'{name}:native-v1\n', encoding='utf-8')
     for name in ('command_gateway.py', 'projectmanager_api.py', 'secret_guard.py'):
         (pm / name).write_text(f'{name}:pm-v1\n', encoding='utf-8')
@@ -52,7 +52,7 @@ def test_32445_native_fingerprint_ignores_unloaded_projectmanager_sources(tmp_pa
     assert targets == targets_after
     assert targets == [
         'native:runtime_fingerprint.py', 'native:server.py', 'native:registry.py',
-        'native:tools_projectmanager.py', 'native:crash_recovery.py', 'native:tools_recovery.py',
+        'native:tools_projectmanager.py', 'native:crash_recovery.py', 'native:tools_recovery.py', 'native:tools_clearup_export.py',
     ]
     assert module.SCHEMA == 'energie_native_mcp_runtime_v3'
 
@@ -63,7 +63,7 @@ def test_32445_native_fingerprint_still_changes_for_loaded_native_source(tmp_pat
     project = tmp_path / 'project'
     native.mkdir()
     (project / 'App/slimmemeterportal_import/rootfs/app/projectmanager_v2').mkdir(parents=True)
-    for name in ('runtime_fingerprint.py', 'server.py', 'registry.py', 'tools_projectmanager.py', 'crash_recovery.py', 'tools_recovery.py'):
+    for name in ('runtime_fingerprint.py', 'server.py', 'registry.py', 'tools_projectmanager.py', 'crash_recovery.py', 'tools_recovery.py', 'tools_clearup_export.py'):
         (native / name).write_text(f'{name}:native-v1\n', encoding='utf-8')
 
     first, _ = module.compute_fingerprint(native_root=native, project_root=project)

@@ -1,3 +1,11 @@
+## 32.5.3 — ClearUp recovery export naar chat
+
+- Voegt een fail-closed Native MCP ClearUp-exporttool toe voor `ClearUp_001`.
+- Maakt de recovery-ZIP buiten Inbox onder de systeemstructuur en controleert ZIP-integriteit, roots, bestandsomvang en SHA-256 vóór export.
+- Exporteert het recovery-artefact in begrensde base64-chunks zodat ChatGPT het zonder NAS-terminal kan reconstrueren en als download in de chat kan aanbieden.
+- De exportfunctie kan niets verwijderen en ondersteunt in deze release uitsluitend de vier vooraf vastgelegde TYPE-1 Inbox-kandidaten van `ClearUp_001`.
+- Native MCP runtime fingerprint omvat de nieuwe exporttool, zodat bron/runtime-drift aantoonbaar is.
+
 ## 32.5.2 — HA runtime identity reconciliation fix
 
 - Fixes mode_entrypoint runtime override that still forced APP_VERSION to 32.4.67.
