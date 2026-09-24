@@ -1,3 +1,7 @@
+## 32.5.6
+
+- Projectmanager ClearUp_001 chat-apply route met fail-closed recovery/live revalidation en Inbox release-safety.
+
 ## 32.5.5
 - Split-state recovery onderscheidt lokale install-predecessor van canonieke GitHub/HA-publicatiepredecessor.
 - Pre-target publisher valideert beide domeinen exact en vereist geen tijdelijke lokale versie-impersonatie.

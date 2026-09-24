@@ -431,6 +431,15 @@ class CommandProcessor:
                 result = {'ok': True, 'executed': True, 'intake': intake}
             elif action == 'admin_update':
                 result = {'ok': True, 'executed': True, 'admin_note': item.get('text') or ''}
+            elif action == 'clearup_apply':
+                if not self.project_root:
+                    raise RuntimeError('clearup_apply requires project_root')
+                from clearup_chat_service import apply_clearup_001
+                result = dict(apply_clearup_001(
+                    self.project_root, explicit_user_text=str(item.get('text') or ''), source=str(item.get('source') or ''),
+                ))
+                result['executed'] = True
+                result['action'] = 'clearup_apply'
             elif action == 'release_recover':
                 if not self.project_root:
                     raise RuntimeError('release_recover requires project_root')

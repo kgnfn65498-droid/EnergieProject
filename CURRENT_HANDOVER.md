@@ -1,7 +1,7 @@
-# CURRENT HANDOVER — EnergieProject 32.5.5
+# CURRENT HANDOVER — EnergieProject 32.5.6
 
 Datum: 2026-09-24
-Documentrol: statische release-handover voor artifact 32.5.5. Mutable live-status staat niet in dit document.
+Documentrol: statische release-handover voor artifact 32.5.6. Mutable live-status staat niet in dit document.
 
 ## Runtime-statusautoriteit
 Actuele lifecycle/status komt uitsluitend uit:
@@ -14,7 +14,10 @@ Actuele lifecycle/status komt uitsluitend uit:
 ## Aanleiding
 32.5.3 kon GitHub en Home Assistant al bereiken terwijl de centrale App na een installatiefout terugrolde naar 32.5.2. Daardoor ontstond een legitieme maar niet gemodelleerde split-state. 32.5.4 kon alleen met noodpatches uit die toestand komen. Die noodroute is geen acceptabele normale werkwijze.
 
-## 32.5.5 oplossing
+## 32.5.5 basis
+De split-state/publicatie- en post-live-herstelmaatregelen uit 32.5.5 blijven ongewijzigd behouden.
+
+## 32.5.6 oplossing
 - releasecontract bevat afzonderlijke `install_predecessor_*` en `publication_predecessor_*` identiteiten;
 - de legacy predecessorvelden blijven compatibel maar vertegenwoordigen expliciet de publicatiepredecessor;
 - Home Assistant publisher bewijst in split-state de lokale installatiepredecessor én de canonieke GitHub/HA-publicatiepredecessor afzonderlijk;
@@ -23,7 +26,7 @@ Actuele lifecycle/status komt uitsluitend uit:
 - split-state recovery blijft duurzaam WAITING op de canonieke publisher in plaats van te verlopen op een oude phase-clock;
 - COMPLETE schrijft automatisch een machineleesbare post-live audit;
 - settled IDLE wordt als gezonde rusttoestand behandeld;
-- geen tijdelijke lokale versie-impersonatie, directe JSON-state-edit, containerrestart of PATCH/RECOVER-script is onderdeel van de normale 32.5.5 releaseketen.
+- geen tijdelijke lokale versie-impersonatie, directe JSON-state-edit, containerrestart of PATCH/RECOVER-script is onderdeel van de normale 32.5.6 releaseketen.
 
 ## Releasecontract
 `Incoming → Processing → pre-target contract → GitHub exact → atomic App target → ACCEPTED/WAITING_MANUAL_HA_UPDATE → handmatige HA-update → HA exact → contract settlement → Processed → COMPLETE → post-live audit → IDLE`.

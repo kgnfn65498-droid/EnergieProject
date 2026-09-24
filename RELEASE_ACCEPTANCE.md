@@ -1,10 +1,10 @@
-# Release Acceptance — 32.5.5
+# Release Acceptance — 32.5.6
 
 Verplicht voor deze release:
-- `VERSIE.txt`, Home Assistant `config.yaml`, `APP_VERSION`, `TARGET_RELEASE_VERSION` en `release_test_contract.CURRENT_RELEASE` zijn exact `32.5.5`;
+- `VERSIE.txt`, Home Assistant `config.yaml`, `APP_VERSION`, `TARGET_RELEASE_VERSION` en `release_test_contract.CURRENT_RELEASE` zijn exact `32.5.6`;
 - fysieke ZIP is veilig, uniek en volledig; `MANIFEST.sha256` en `SHA256SUMS.json` dekken exact dezelfde payload en iedere hash klopt;
 - `.pytest_cache`, `__pycache__`, bytecode, `.DS_Store`, tijdelijke herstelbestanden en 32.5.4 PATCH/RECOVER-noodscripts zitten niet in de release-ZIP;
-- productie-preflight uit 32.5.4 én target-preflight uit 32.5.5 accepteren exact dezelfde fysieke kandidaat;
+- productie-preflight uit 32.5.4 én target-preflight uit 32.5.6 accepteren exact dezelfde fysieke kandidaat;
 - lokale installatie-predecessor en canonieke GitHub/HA-publicatiepredecessor zijn afzonderlijke contractdomeinen en mogen aantoonbaar verschillen na partial publish + rollback;
 - split-state `local N + GitHub/HA N+1 + rollback + N+2` publiceert en installeert zonder tijdelijke versie-impersonatie, directe state-edit of terminalrecovery;
 - canonical publisher valideert in split-state zowel lokale App+manifest als GitHub+HA predecessor exact;
@@ -12,7 +12,7 @@ Verplicht voor deze release:
 - een bewezen stale contract van een exact rolled-back release wordt atomair gearchiveerd en vervangen; vreemde/onbewezen contracten blijven fail-closed;
 - Processing blijft eigenaar tot exact GitHub-target + exact HA-runtime + controller settlement; pas daarna verhuist het artifact naar Processed;
 - Home Assistant update blijft expliciet handmatig; publisher gebruikt geen automatische install/rebuild-bypass;
-- COMPLETE genereert `Inbox/release_controller/post_live_audit.json` en 32.5.5+ sluit niet GREEN bij een RED post-live audit;
+- COMPLETE genereert `Inbox/release_controller/post_live_audit.json` en 32.5.6+ sluit niet GREEN bij een RED post-live audit;
 - een settled IDLE releasecontroller is health-GREEN en wordt niet foutief als stale/liveness-RED geclassificeerd;
 - normale releaseketen heeft geen QNAP-, Home Assistant- of containerterminal nodig;
 - gevaarlijke live hotpatch/recovery-commandoklassen zijn geen normale releasedependency en vereisen expliciete Peter-toestemming buiten de releaseketen.
