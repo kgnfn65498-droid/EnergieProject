@@ -9,26 +9,6 @@
       "sha256": "f10529b220b514ca72c66fd592c80ec5b3dea6a0a49f2658d80617824c5aa5e7"
     },
     {
-      "path": ".pytest_cache/.gitignore",
-      "sha256": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd"
-    },
-    {
-      "path": ".pytest_cache/CACHEDIR.TAG",
-      "sha256": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4"
-    },
-    {
-      "path": ".pytest_cache/README.md",
-      "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad"
-    },
-    {
-      "path": ".pytest_cache/v/cache/lastfailed",
-      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
-    },
-    {
-      "path": ".pytest_cache/v/cache/nodeids",
-      "sha256": "cdccd92ad52dca5000055ff4c25a7b662f533012e8899a9667e57a16c5076747"
-    },
-    {
       "path": "00_Config/HomeAssistant/Nomad_automation.yaml",
       "sha256": "a900f4293faf0df4cbeed249e281158c679dcdd79f96cdf08c31ec81136e85fc"
     },
@@ -58,7 +38,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "c60829f9aeb438303f843ab720f5db6ca3bd52cbc05b12b61085464231c82183"
+      "sha256": "9b64723568b60ca1d2e28f487ef9e34d75d97b529aa0f8fdf9a632349ccf7ea9"
     },
     {
       "path": "CLEARUP_32.5.1.md",
@@ -106,7 +86,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "505688858c45c3f91b1d9e400d6cc2d5c0d285fc81faffadf9ce110c3c6dc6b5"
+      "sha256": "87184c4a4e038cf0d8901aa4cd7aa24e798baf82cc04269f8e9dc1b56c25b355"
     },
     {
       "path": "WORK_KNOWLEDGE_BOOTSTRAP.md",
@@ -302,7 +282,7 @@
     },
     {
       "path": "release_test_contract.py",
-      "sha256": "c86e430c318a1d320fcfd57ca7e4ec447af98816848b8d5a12cdf5421a4b61ce"
+      "sha256": "a76d98bac0a6f05b66774775b3bbcb7fc01fd96167d83847d15118deb6e6091a"
     },
     {
       "path": "repository.yaml",
@@ -330,7 +310,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "bd1277ef32b1934e7205e6cfb3f035564ce0ce9d600cf371ee3d3f0b0cab7ff5"
+      "sha256": "b0e918a78bea3f925b2ab434fcf4dbd1fb16f9b3e51c47e887c893b9ce1e720d"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -382,11 +362,11 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "34a90c6d7843959a9b560c0ac5809129998b54eb8415728949f70dfe605c074f"
+      "sha256": "426a34fdcba7d8a31ea4ad67166a904c44d51460240833ca944a5b4d6b1e84b0"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
-      "sha256": "b1a371c8711f6ca7ebbd76a6a4c951be7f36e9450bcd38d81426a1c7b7dc4d06"
+      "sha256": "33d2a26cbe4948d5cbc64223c62e5bdd69dafb1756dfb2705fcb374babbb41ca"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/month_closure_truth.py",
@@ -2117,6 +2097,10 @@
       "sha256": "4fdbd2343df321b4d6ac47b21d615f22649dadf9fdb3c66aaf9a23313e5f3c68"
     },
     {
+      "path": "tests/test_v3254_atomic_preflight_parity.py",
+      "sha256": "3ceca64359946d414ed61f1b9e1510ce899ca8a438bb8979e363b2e8a03a02e5"
+    },
+    {
       "path": "tools/atomic_app_swap.py",
       "sha256": "d900ac70121ac04f46282c71dd125d21c67391f29ae7e0a3a7e7e9e4e93dca0c"
     },
@@ -2206,7 +2190,7 @@
     },
     {
       "path": "tools/minimal_release_preflight.py",
-      "sha256": "c48c2229810c8eadc154c9bbe043b066fee91b8c87741e057e54e5fffef2adab"
+      "sha256": "8ec039ef6087f7745c3e084b0adaa3ba3a198084e502cb68d49099cba9515aff"
     },
     {
       "path": "tools/nas_cr_local_executor.py",

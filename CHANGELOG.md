@@ -1,3 +1,9 @@
+# 32.5.4
+
+- Release-preflight is gelijkgetrokken met de atomic installer: pytest/cache, bytecode, .DS_Store en overige verboden releaseleden worden vóór installatie fail-closed geweigerd.
+- Voorkomt herhaling van 32.5.3: preflight GREEN terwijl atomic install daarna op een verboden `.pytest_cache`-lid faalt.
+- ClearUp recovery-export uit 32.5.3 blijft ongewijzigd beschikbaar.
+
 ## 32.5.3 — ClearUp recovery export naar chat
 
 - Voegt een fail-closed Native MCP ClearUp-exporttool toe voor `ClearUp_001`.

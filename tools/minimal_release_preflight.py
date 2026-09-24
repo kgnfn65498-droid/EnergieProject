@@ -10,8 +10,12 @@ def _sha(p):
     with Path(p).open('rb') as f:
         for c in iter(lambda:f.read(1024*1024),b''):h.update(c)
     return h.hexdigest()
+_FORBIDDEN_PARTS={'.pytest_cache','__pycache__'}
 def _safe(name):
-    p=Path(name);return bool(name) and not p.is_absolute() and '..' not in p.parts and '\\' not in name
+    p=Path(name)
+    return (bool(name) and not p.is_absolute() and '..' not in p.parts and '\\' not in name
+            and not any(part in _FORBIDDEN_PARTS for part in p.parts)
+            and p.name!='.DS_Store' and p.suffix not in {'.pyc','.pyo'})
 
 def verify_candidate(root:Path,candidate:Path)->dict:
     root=Path(root);candidate=Path(candidate);blockers=[]
