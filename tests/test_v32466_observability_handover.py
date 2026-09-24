@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+from release_test_contract import CURRENT_RELEASE
+
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "slimmemeterportal_import/rootfs/app"
 TOOLS = ROOT / "tools"
@@ -108,7 +110,7 @@ def test_manual_wait_does_not_prematurely_mark_contract_settled(tmp_path):
 
 def test_static_handover_has_no_mutable_live_status_claim():
     text=(ROOT/"CURRENT_HANDOVER.md").read_text()
-    assert text.startswith("# CURRENT HANDOVER — EnergieProject 32.4.67")
+    assert text.startswith(f"# CURRENT HANDOVER — EnergieProject {CURRENT_RELEASE}")
     assert "Status: DEVELOPMENT" not in text
     assert "Status: WAITING" not in text
     assert "Status: COMPLETE" not in text

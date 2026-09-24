@@ -83,6 +83,38 @@ def _atomic_json(path:Path,payload:dict)->None:
     try:tmp.write_text(json.dumps(payload,ensure_ascii=False,indent=2,sort_keys=True)+'\n',encoding='utf-8');os.replace(tmp,path)
     finally:tmp.unlink(missing_ok=True)
 
+def write_post_live_audit(root:Path,state:ReleaseState)->dict:
+    root=Path(root)
+    def j(path):
+        try:
+            value=json.loads(Path(path).read_text(encoding='utf-8'))
+            return value if isinstance(value,dict) else {}
+        except Exception:return {}
+    app_version=''
+    try:app_version=(root/'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+    except Exception:pass
+    ha=j(root/'Inbox/ha_runtime/current.json')
+    pub=j(root/'Inbox/github_publication_state.json')
+    atomic=j(root/'Inbox/atomic_app_swap_state.json')
+    processed=root/'Inbox/processed'/state.artifact_name
+    processing=root/'Inbox/processing'/state.artifact_name
+    contract=root/'Inbox/ha_publication_required.json'
+    checks={
+        'controller_complete':state.status==Status.COMPLETE.value and state.phase=='COMPLETE' and state.step==state.total,
+        'app_version_exact':app_version==state.to_version,
+        'ha_runtime_exact':str(ha.get('version') or '')==state.to_version,
+        'atomic_accepted':str(atomic.get('state') or '')=='ACCEPTED' and str(atomic.get('to_version') or '')==state.to_version and str(atomic.get('artifact_sha256') or '')==state.artifact_sha256,
+        'github_target_exact':pub.get('published') is True and pub.get('target_exact') is True and str(pub.get('version') or '')==state.to_version and str(pub.get('release_id') or '')==state.release_id and str(pub.get('generation') or '')==state.generation and str(pub.get('processed_zip_sha256') or '')==state.artifact_sha256 and bool(pub.get('remote_head')) and pub.get('remote_head')==pub.get('local_head'),
+        'publication_settled':pub.get('publication_contract_settled') is True and pub.get('publication_contract_active') is False and str(pub.get('contract_settled_by') or '')=='release_controller',
+        'publication_contract_absent':not contract.exists(),
+        'processed_archived':processed.is_file() and not processed.is_symlink() and _sha(processed)==state.artifact_sha256,
+        'processing_empty_for_release':not processing.exists(),
+    }
+    status='GREEN' if all(checks.values()) else 'RED'
+    payload={'schema':'energie_post_live_release_audit_v1','status':status,'release_id':state.release_id,'generation':state.generation,'version':state.to_version,'artifact_name':state.artifact_name,'artifact_sha256':state.artifact_sha256,'observed_at_epoch':time.time(),'checks':checks,'recommendation':'release_closed_next_development_safe' if status=='GREEN' else 'block_next_release_investigate_post_live_audit'}
+    _atomic_json(root/'Inbox/release_controller/post_live_audit.json',payload)
+    return payload
+
 class ReleaseControllerService:
     def __init__(self,root:Path,adapter,*,stable_polls=3,ingress_stale_seconds=600):
         self.root=Path(root);self.adapter=adapter;self.controller=ReleaseController()
@@ -181,6 +213,15 @@ class ReleaseControllerService:
                 # when there is no outstanding publication ownership to settle.
                 self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':'completed_delivery_settlement_capability_missing'})
                 return state
+            try:
+                post_live_required=tuple(int(part) for part in str(state.to_version).split('.')[:3]) >= (32,5,5)
+            except ValueError:
+                post_live_required=False
+            if post_live_required:
+                audit=write_post_live_audit(self.root,state)
+                if audit.get('status')!='GREEN':
+                    self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':'post_live_audit_red','release_id':state.release_id,'generation':state.generation})
+                    return state
         if state and state.status==Status.ROLLED_BACK.value:self._settle_rolled_back(state)
         recovery=self._reconcile_idle_processing()
         if recovery is not None:

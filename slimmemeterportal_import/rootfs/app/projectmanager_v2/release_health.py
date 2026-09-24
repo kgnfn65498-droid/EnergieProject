@@ -33,10 +33,16 @@ def release_health_checks(runtime: dict) -> list:
     if controller_authoritative:
         controller = controller if isinstance(controller, dict) else {}
         controller_active = controller.get('active') is True
+        controller_settled = bool(
+            controller.get('active') is False
+            and str(controller.get('phase') or '').upper() in {'COMPLETE','IDLE'}
+            and str(controller.get('status') or '').upper() in {'COMPLETE','IDLE'}
+        )
         checks.append(_check(
             'release_controller_liveness',
-            'GREEN' if controller_active else 'RED',
-            'controller_runtime_fresh' if controller_active else 'controller_runtime_missing_or_stale',
+            'GREEN' if (controller_active or controller_settled) else 'RED',
+            ('controller_runtime_fresh' if controller_active else
+             ('controller_idle_settled' if controller_settled else 'controller_runtime_missing_or_stale')),
             controller,
         ))
     else:

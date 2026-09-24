@@ -71,3 +71,9 @@ Daarna uitsluitend aanvullende runtime-evidence die voor de eerstvolgende stap n
 - Reviews zijn head-SHA-idempotent: dezelfde onveranderde PR-head krijgt niet opnieuw een volledige agentreview.
 - Bij door UI/Peter gemelde budgetdruk gelden de drempels uit AGENTS.md. Agents gokken nooit naar resterende quota.
 - Budgetbesparing mag testwaarheid, releaseveiligheid of verplichte regressies niet omzeilen; in dat geval checkpointen en stoppen.
+## 32.5.5 — Dangerous-command isolation en post-live autonomie
+- Productiecontainer stop/start/restart, directe live App-/release-state mutatie, tijdelijke RW-container mounts, directe NAS-Git-publicatie en PATCH/RECOVER-hotpatches gelden als gevaarlijke acties en vereisen Peters expliciete toestemming voor exact die actie; een algemene opdracht als “verder” geldt niet als toestemming.
+- Een release mag deze gevaarlijke acties nooit als normale dependency nodig hebben.
+- Zodra Peter meldt dat een release draait/live is, volgt automatisch de volledige post-live audit en concrete vervolgaanbeveling; geen aparte auditprompt is vereist.
+- Split-state na partial publish + rollback is een first-class recovery state met afzonderlijke install- en publication-predecessors; lokale identiteit mag nooit tijdelijk worden vermomd om publication fencing te passeren.
+

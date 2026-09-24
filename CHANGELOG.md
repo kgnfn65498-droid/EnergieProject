@@ -1,3 +1,14 @@
+# 32.5.5
+- Scheidt de lokale installatie-predecessor expliciet van de canonieke GitHub/HA-publicatiepredecessor, zodat partial publish + local rollback geen tijdelijke versie-impersonatie of terminalrecovery meer vereist.
+- De Home Assistant publisher valideert in split-state beide domeinen onafhankelijk: lokale App+manifest tegen install-predecessor en GitHub+HA runtime tegen publication-predecessor.
+- Exact gepubliceerde pre-target contracten worden tijdens installatie niet opnieuw afgeleid uit de inmiddels gewijzigde lokale App; hierdoor ontstaat geen post-install `publication_contract_conflict`.
+- Herkent en archiveert uitsluitend aantoonbaar achtergebleven pre-target publicatiecontracten van een exact bewezen rolled-back release; vreemde/onbewezen contracten blijven fail-closed.
+- Split-state recovery blijft duurzaam WAITING zolang de bewezen remote predecessor exact is; de oude phase-clock kan deze hersteltoestand niet foutief laten verlopen.
+- COMPLETE genereert automatisch `Inbox/release_controller/post_live_audit.json` met App/HA/GitHub/atomic/contract/processed-controles en blokkeert 32.5.5+ closure bij RED.
+- Een settled IDLE releasecontroller wordt in Projectmanager-health niet langer foutief als stale/RED aangemerkt.
+- Normale releaseketen blijft Incoming -> Processing -> GitHub -> handmatige HA-update -> COMPLETE -> Processed; geen noodscript of terminalstap is onderdeel van de productieroute.
+- Behoudt de ClearUp recovery-export uit 32.5.3/32.5.4.
+
 # 32.5.4
 
 - Release-preflight is gelijkgetrokken met de atomic installer: pytest/cache, bytecode, .DS_Store en overige verboden releaseleden worden vóór installatie fail-closed geweigerd.

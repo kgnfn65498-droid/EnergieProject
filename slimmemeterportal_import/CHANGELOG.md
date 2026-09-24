@@ -1,3 +1,10 @@
+## 32.5.5
+- Split-state recovery onderscheidt lokale install-predecessor van canonieke GitHub/HA-publicatiepredecessor.
+- Pre-target publisher valideert beide domeinen exact en vereist geen tijdelijke lokale versie-impersonatie.
+- Exact gepubliceerde targetcontracten blijven stabiel door installatie en handmatige HA-update heen.
+- COMPLETE schrijft een machineleesbare post-live audit; settled IDLE is geen foutieve liveness-RED meer.
+- Terminal/noodpatch-routes zijn geen normale releasedependency.
+
 ## 32.4.67
 - COMPLETE settlement observability is now exact, self-healing and executor-boundary aware; manual HA update behavior is unchanged.
 

@@ -84,7 +84,7 @@ PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.5.4"
+APP_VERSION = "32.5.5"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -20187,10 +20187,50 @@ def _load_github_publication_contract(options=None):
             return False, contract, "Pre-target publicatiecontract mist predecessoridentiteit."
         if predecessor_version != expected_version or predecessor_manifest != expected_manifest:
             return False, contract, "Pre-target predecessoridentiteit wijkt af van het contract."
-        if live_version != predecessor_version:
-            return False, contract, "Live versie wijkt af van gefencete pre-target predecessor."
-        if _manifest_file_sha256(NAS_PROJECT_ROOT) != predecessor_manifest:
-            return False, contract, "Live predecessor-manifest wijkt af van pre-target contract."
+
+        # 32.5.5+: installation and publication predecessors are separate proof
+        # domains. A partial GitHub/HA publication followed by a local rollback
+        # is valid only when BOTH domains are exact. Legacy contracts without
+        # these explicit fields retain the previous single-domain validation.
+        install_version = str(contract.get("install_predecessor_version") or "")
+        install_manifest = str(contract.get("install_predecessor_manifest_sha256") or "")
+        publication_version = str(contract.get("publication_predecessor_version") or "")
+        publication_manifest = str(contract.get("publication_predecessor_manifest_sha256") or "")
+        dual_domain = any((install_version, install_manifest, publication_version, publication_manifest))
+        if dual_domain:
+            if not all((install_version, install_manifest, publication_version, publication_manifest)):
+                return False, contract, "Pre-target dual-domain predecessoridentiteit is incompleet."
+            if publication_version != expected_version or publication_manifest != expected_manifest:
+                return False, contract, "Publicatie-predecessor wijkt af van legacy publicatiefence."
+            if live_version != install_version:
+                return False, contract, "Lokale install-predecessorversie wijkt af van pre-target contract."
+            if _manifest_file_sha256(NAS_PROJECT_ROOT) != install_manifest:
+                return False, contract, "Lokaal install-predecessormanifest wijkt af van pre-target contract."
+            try:
+                canonical_publication = json.loads(GITHUB_CANONICAL_PUBLISH_STATE.read_text(encoding="utf-8"))
+            except Exception:
+                canonical_publication = {}
+            try:
+                ha_runtime = json.loads((NAS_RELEASE_ROOT / "ha_runtime/current.json").read_text(encoding="utf-8"))
+            except Exception:
+                ha_runtime = {}
+            if not isinstance(canonical_publication, dict) or canonical_publication.get("published") is not True or canonical_publication.get("target_exact") is not True:
+                return False, contract, "Canonieke publicatie-predecessor is niet exact bewezen."
+            if str(canonical_publication.get("version") or "") != publication_version:
+                return False, contract, "Canonieke publicatie-predecessorversie wijkt af van pre-target contract."
+            if str(canonical_publication.get("target_manifest_sha256") or "") != publication_manifest:
+                return False, contract, "Canoniek publicatie-predecessormanifest wijkt af van pre-target contract."
+            remote_head = str(canonical_publication.get("remote_head") or "")
+            local_head = str(canonical_publication.get("local_head") or "")
+            if not remote_head or remote_head != local_head:
+                return False, contract, "Canonieke publicatie-predecessor HEAD is niet exact."
+            if not isinstance(ha_runtime, dict) or str(ha_runtime.get("version") or "") != publication_version:
+                return False, contract, "HA-runtime wijkt af van publicatie-predecessor."
+        else:
+            if live_version != predecessor_version:
+                return False, contract, "Live versie wijkt af van gefencete pre-target predecessor."
+            if _manifest_file_sha256(NAS_PROJECT_ROOT) != predecessor_manifest:
+                return False, contract, "Live predecessor-manifest wijkt af van pre-target contract."
         controller = NAS_RELEASE_ROOT / "release_controller/current.json"
         try:
             current = json.loads(controller.read_text(encoding="utf-8"))

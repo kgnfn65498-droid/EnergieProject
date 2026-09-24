@@ -315,21 +315,36 @@ class EnergyHealthCollector:
 
         if _numeric_release(version) >= (32, 4, 57):
             controller_runtime_path = self.project_root / 'Inbox' / 'release_controller' / 'runtime.json'
+            controller_current_path = self.project_root / 'Inbox' / 'release_controller' / 'current.json'
             controller_runtime = _read_json(controller_runtime_path)
+            controller_current = _read_json(controller_current_path)
             controller_age = _age_seconds(controller_runtime_path, now) if controller_runtime else None
-            controller_runtime_ok = bool(
+            controller_runtime_fresh = bool(
                 isinstance(controller_runtime, dict)
                 and controller_runtime.get('schema') == 'energie_release_controller_runtime_v1'
-                and int(controller_runtime.get('pid') or 0) > 1
+                and int(controller_runtime.get('pid') or 0) > 0
                 and controller_age is not None
                 and controller_age <= 30
             )
+            controller_idle_settled = bool(
+                isinstance(controller_runtime, dict)
+                and controller_runtime.get('schema') == 'energie_release_controller_runtime_v1'
+                and int(controller_runtime.get('pid') or 0) > 0
+                and str(controller_runtime.get('phase') or '').upper() == 'IDLE'
+                and str(controller_runtime.get('status') or '').upper() == 'IDLE'
+                and isinstance(controller_current, dict)
+                and str(controller_current.get('phase') or '').upper() == 'COMPLETE'
+                and str(controller_current.get('status') or '').upper() == 'COMPLETE'
+            )
+            controller_runtime_ok = controller_runtime_fresh or controller_idle_settled
             checks.append(_check(
                 'release_controller_runtime', 'GREEN' if controller_runtime_ok else 'RED',
-                'controller_runtime_fresh' if controller_runtime_ok else 'controller_runtime_missing_or_stale',
+                ('controller_runtime_fresh' if controller_runtime_fresh else
+                 ('controller_idle_settled' if controller_idle_settled else 'controller_runtime_missing_or_stale')),
                 controller_runtime_path,
                 {'age_seconds': round(controller_age, 1) if controller_age is not None else None,
-                 'phase': (controller_runtime or {}).get('phase'), 'status': (controller_runtime or {}).get('status')},
+                 'phase': (controller_runtime or {}).get('phase'), 'status': (controller_runtime or {}).get('status'),
+                 'current_phase': (controller_current or {}).get('phase'), 'current_status': (controller_current or {}).get('status')},
                 verified=controller_runtime_ok,
             ))
         else:

@@ -1,5 +1,9 @@
-# Platform Qualification — 32.4.67
+# Platform Qualification — 32.5.5
 
-Platform Qualification is geen releasegate tenzij een bevinding de actieve V67 releaseketen, executor-boundary of settlement-reconciliation raakt. Tests worden niet verwijderd, xfailed, overgeslagen of verzwakt om Release Acceptance groen te maken.
+Platform Qualification is apart van Release Acceptance en is geen releasegate tenzij een bevinding de actieve releaseketen raakt. Tests worden niet verwijderd, xfailed, overgeslagen of verzwakt om de 32.5.5 releaseketen groen te verklaren.
 
-Bekende restricted-host beperkingen blijven apart gerapporteerd, waaronder child-Python/sitecustomize, AF_UNIX/preexec/uid-gid en historische subprocess-topologie. Een repository-wide/full-suite GREEN wordt alleen geclaimd wanneer die suite daadwerkelijk volledig GREEN draait.
+Bekende restricted-host beperkingen in de repository-wide suite omvatten onder meer child-Python/sitecustomize-isolatie, AF_UNIX/preexec/uid-gid grenzen en historische tests die bewust een oude release-identiteit vastzetten. Zij moeten afzonderlijk worden gerapporteerd wanneer ze reproduceren.
+
+Voor 32.5.5 is een platformbevinding alleen een releaseblocker wanneer zij de actieve releaseketen, split-state recovery, publication fencing, atomic install, manual-HA boundary, post-live audit of artifact-integriteit raakt.
+
+Een repository-wide/full-suite GREEN wordt alleen geclaimd wanneer de volledige suite daadwerkelijk GREEN draait op de goedgekeurde geïsoleerde testomgeving. De fysieke release-ZIP blijft daarnaast onderworpen aan fresh-extract release-focused regressies en de productie-preflight.
