@@ -1,10 +1,9 @@
 # Changelog
 
-## 32.5.9 — ClearUp execution + stale control-plane isolation
+## 32.5.10 — Type2 ClearUp validation hardening
 
-- ClearUp Type1 remains recovery-first and exact-allowlisted.
-- ClearUp Type2 batches 002–012 execute prepare, migrate, path activation, validate, finalize and restore through the bounded privileged route.
-- Historical Native-MCP requests are archived outside the live request slot and can no longer block a current release.
-- COMPLETE-phase Native-MCP reconciliation is release/generation/artifact/fingerprint fenced and cannot become a generic restart capability.
-- Manual Native-MCP restart remains protected and requires explicit Peter approval.
-- Retired legacy pending state is evidence-only and is never executed automatically.
+- Type2 validation proof is committed through the bounded privileged watcher instead of direct embedded-Projectmanager writes to the system Validation directory.
+- Exact request-id grace readback closes the watcher completion/timeout boundary race.
+- Existing 32.5.9 Type2 recovery exports and the already migrated ClearUp_002 state remain resumable without re-prepare or re-migrate.
+- Release mailbox protections, dangerous-action isolation and the 32.5.9 stale-control-plane fixes remain unchanged.
+

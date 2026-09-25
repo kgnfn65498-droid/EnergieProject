@@ -215,7 +215,7 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
         tmp.unlink(missing_ok=True)
 
 
-def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str, Any], explicit_user_text: str = '') -> dict[str, Any]:
+def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str, Any], explicit_user_text: str = '', validation_proof: dict[str, Any] | None = None) -> dict[str, Any]:
     request_path = root / WATCHER_REQUEST_REL; result_path = project_system_path(root, str(WATCHER_RESULT_REL))
     if request_path.exists():
         raise RuntimeError('ClearUp watcher request already active')
@@ -227,30 +227,46 @@ def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str
         'clearup_id': clearup_id,
         'release_version': (root / 'App/VERSIE.txt').read_text(encoding='utf-8').strip(),
         'created_at': datetime.now(timezone.utc).isoformat(),
-        'expires_at': (datetime.now(timezone.utc) + timedelta(seconds=WATCHER_TIMEOUT_SECONDS)).isoformat(),
+        'expires_at': (datetime.now(timezone.utc) + timedelta(seconds=WATCHER_TIMEOUT_SECONDS + 15.0)).isoformat(),
         'plan_sha256': plan['plan_sha256'],
         'explicit_user_approval': _token(explicit_user_text) in AFFIRMATIVE,
         'mailbox_snapshot_before': _snapshot_release_dirs(root),
         'result_path': result_path.relative_to(root).as_posix(),
     }
+    if validation_proof is not None:
+        payload['validation_proof'] = validation_proof
     _atomic_json(request_path, payload)
+    def _matching_result() -> dict[str, Any] | None:
+        if not result_path.is_file():
+            return None
+        try:
+            response = json.loads(result_path.read_text(encoding='utf-8'))
+        except Exception:
+            return None
+        if not isinstance(response, dict) or response.get('request_id') != request_id:
+            return None
+        if response.get('schema') != TYPE2_RESULT_SCHEMA:
+            raise RuntimeError('Type2 watcher result schema mismatch')
+        if response.get('status') != 'completed':
+            raise RuntimeError('Type2 watcher operation failed: ' + str(response.get('error') or response.get('status')))
+        result = response.get('result')
+        if not isinstance(result, dict):
+            raise RuntimeError('Type2 watcher result missing')
+        return result
+
     deadline = time.monotonic() + WATCHER_TIMEOUT_SECONDS
     try:
         while time.monotonic() < deadline:
-            if result_path.is_file():
-                try:
-                    response = json.loads(result_path.read_text(encoding='utf-8'))
-                except Exception:
-                    response = {}
-                if isinstance(response, dict) and response.get('request_id') == request_id:
-                    if response.get('schema') != TYPE2_RESULT_SCHEMA:
-                        raise RuntimeError('Type2 watcher result schema mismatch')
-                    if response.get('status') != 'completed':
-                        raise RuntimeError('Type2 watcher operation failed: ' + str(response.get('error') or response.get('status')))
-                    result = response.get('result')
-                    if not isinstance(result, dict):
-                        raise RuntimeError('Type2 watcher result missing')
-                    return result
+            result = _matching_result()
+            if result is not None:
+                return result
+            time.sleep(0.25)
+        # Close the watcher/PM deadline-edge race for the exact same request-id.
+        grace_deadline = time.monotonic() + 10.0
+        while time.monotonic() < grace_deadline:
+            result = _matching_result()
+            if result is not None:
+                return result
             time.sleep(0.25)
         raise RuntimeError('Type2 watcher operation timeout')
     finally:
@@ -452,8 +468,17 @@ def validate_type2(project_root: Path | str, *, clearup_id: str, source: str) ->
            'checks':final_checks,'failures':failures,
            'evidence':[x['destination'] for x in final_checks],
            'old_source_quiescence_seconds':max(0.05,float(os.environ.get('ENERGIE_CLEARUP_TYPE2_QUIESCENCE_SECONDS','2.0')))}
-    validation=root/VALIDATION_ROOT_REL/f'{clearup_id}.json'
-    _atomic_json(validation,proof)
+    # Commit validation evidence through the bounded privileged watcher. The
+    # embedded PM user does not own the system Validation directory on NAS.
+    committed = _watcher_call(
+        root,
+        operation='type2_validation_commit',
+        clearup_id=clearup_id,
+        plan=plan,
+        validation_proof=proof,
+    )
+    if committed.get('validation_status') != status or committed.get('clearup_id') != clearup_id:
+        raise RuntimeError('Type2 validation commit readback mismatch')
     return proof
 
 def finalize_type2(project_root: Path | str, *, clearup_id: str, explicit_user_text: str, source: str) -> dict[str, Any]:

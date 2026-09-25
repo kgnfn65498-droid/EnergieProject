@@ -1,3 +1,11 @@
+## 32.5.10 — Type2 validation privilege + watcher race closure
+
+- Structural fix for live ClearUp Type2: validation evidence is committed through the bounded privileged watcher instead of direct embedded-Projectmanager filesystem writes.
+- Adds exact proof identity/readback checks before finalize can consume validation evidence.
+- Closes the watcher deadline-edge race with an exact request-id grace readback before timeout.
+- Resumes existing ClearUp_002 `MIGRATED_PENDING_VALIDATION` state; do not re-prepare or re-migrate 002.
+- No release-mailbox bypass, direct live source patch, chmod workaround, or container restart is part of the normal route.
+
 ## 32.5.9 — clean rebuild
 
 - Rebuilt from exact 32.5.8 baseline; superseded 32.5.9 used only as audit reference.

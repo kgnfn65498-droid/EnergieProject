@@ -41,7 +41,7 @@ def request(root,op,approval=False):
     return {'schema':'energie_clearup_type2_request_v1','request_id':'a'*32,'operation':op,'clearup_id':'ClearUp_002','release_version':'32.5.7','expires_at':'2099-01-01T00:00:00+00:00','plan_sha256':plan['plan_sha256'],'explicit_user_approval':approval,'mailbox_snapshot_before':service._snapshot_release_dirs(root)}
 
 
-def test_type2_prepare_migrate_finalize_restore(tmp_path):
+def test_type2_prepare_migrate_finalize_restore(tmp_path, monkeypatch):
     seed(tmp_path); mod=load_executor()
     rid,prepared=mod.execute_type2(tmp_path,request(tmp_path,'type2_prepare'))
     assert prepared['phase']=='PREPARED' and prepared['deletion_performed'] is False
@@ -52,6 +52,14 @@ def test_type2_prepare_migrate_finalize_restore(tmp_path):
     assert migrated['phase']=='MIGRATED_PENDING_VALIDATION'
     assert (tmp_path/'Inbox/runtime_old/state.json').is_file()
     assert (tmp_path/'Data/03_Systeem/Projectmanager/Runtime/runtime_new/state.json').read_text()=='{"x":1}\n'
+
+    def _commit(root, *, operation, clearup_id, plan, explicit_user_text='', validation_proof=None):
+        assert operation == 'type2_validation_commit'
+        path=Path(root)/service.VALIDATION_ROOT_REL/f'{clearup_id}.json'
+        path.parent.mkdir(parents=True,exist_ok=True)
+        path.write_text(json.dumps(validation_proof),encoding='utf-8')
+        return {'status':'GREEN','clearup_id':clearup_id,'phase':'VALIDATION_COMMITTED','validation_status':validation_proof['status']}
+    monkeypatch.setattr(service,'_watcher_call',_commit)
 
     proof=service.validate_type2(tmp_path,clearup_id='ClearUp_002',source='mcp_remote')
     assert proof['status']=='GREEN' and proof['checks'][0]['source_rows_sha256'] and proof['checks'][0]['destination_rows_sha256']

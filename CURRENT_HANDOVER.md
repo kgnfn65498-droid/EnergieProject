@@ -1,4 +1,16 @@
-# CURRENT HANDOVER — EnergieProject 32.5.9
+# CURRENT HANDOVER — EnergieProject 32.5.10
+
+## 32.5.10 Type2 recovery continuation
+- Live predecessor before this release: 32.5.9.
+- ClearUp_001 Type1 is physically complete/GREEN.
+- ClearUp_002 is already `MIGRATED_PENDING_VALIDATION`; source is preserved, destination is active, PM runtime rebind to `Data/03_Systeem/Projectmanager/RuntimeV2` was proven. **Do not prepare or migrate ClearUp_002 again.**
+- ClearUp_002 validation was blocked in 32.5.9 because embedded PM could not create the Validation atomic temp file. 32.5.10 commits validation proof through the privileged watcher.
+- ClearUp_003..012 recovery ZIP/state were already prepared GREEN; no destructive finalize has started for them.
+- Continue strictly 002→012: validate/resume 002 → finalize 002 only after GREEN → for each remaining batch migrate → validate → finalize.
+- Never finalize a batch without matching GREEN validation evidence, stable old-source proof, active destination proof and unchanged release mailboxes.
+- Release delivery remains: exact audited ZIP is provided in chat; Peter manually places that exact ZIP in `Inbox/incoming`. Library/checkpoints are not the normal release transport.
+- When Peter reports the new release is running, automatically perform the full post-live audit before continuing Type2.
+
 
 32.5.9 is a clean rebuild from the exact physical 32.5.8 release artifact. The withdrawn 32.5.9 artifact with SHA256 71dc599a9c1a8961238ecf87b41df8b84aa89d45c2d8b50efb236d6b4dedb95a was used only as an audit reference and is superseded.
 

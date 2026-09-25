@@ -115,6 +115,18 @@ def assert_mailboxes_unchanged(root: Path, before: dict) -> None:
     assert type2._snapshot_release_dirs(root) == before
 
 
+def validate_via_sideband(root: Path, *, clearup_id: str):
+    stop=threading.Event()
+    worker=threading.Thread(target=_sideband_worker,args=(root,stop),daemon=True)
+    worker.start()
+    try:
+        return type2.validate_type2(root,clearup_id=clearup_id,source='mcp_remote')
+    finally:
+        stop.set()
+        worker.join(timeout=2)
+
+
+
 @pytest.mark.parametrize('cid', [f'ClearUp_{n:03d}' for n in range(2,13)])
 def test_every_concrete_type2_batch_executes_prepare_migrate_validate_finalize_restore(tmp_path, monkeypatch, cid):
     monkeypatch.setenv('ENERGIE_CLEARUP_TYPE2_QUIESCENCE_SECONDS','0.05')
@@ -135,7 +147,7 @@ def test_every_concrete_type2_batch_executes_prepare_migrate_validate_finalize_r
     emit_runtime_proofs(tmp_path, plan)
     assert_mailboxes_unchanged(tmp_path, mailbox_before)
 
-    proof = type2.validate_type2(tmp_path, clearup_id=cid, source='mcp_remote')
+    proof = validate_via_sideband(tmp_path, clearup_id=cid)
     assert proof['status'] == 'GREEN', proof
     assert not proof['failures']
 
@@ -178,7 +190,7 @@ def test_type2_accepts_live_source_change_after_recovery_prepare_and_copies_cuto
     _write(src/'state.json','v2-after-prepare\n')
     mod.execute_type2(tmp_path,request(tmp_path,'ClearUp_099','type2_migrate',True))
     assert (tmp_path/'Data/03_Systeem/Projectmanager/Runtime/runtime_new/state.json').read_text() == 'v2-after-prepare\n'
-    proof=type2.validate_type2(tmp_path,clearup_id='ClearUp_099',source='mcp_remote')
+    proof=validate_via_sideband(tmp_path,clearup_id='ClearUp_099')
     assert proof['status']=='GREEN', proof
 
 
@@ -198,7 +210,7 @@ def test_type2_validation_blocks_if_old_source_keeps_mutating_after_activation(t
     def mutate():
         time.sleep(0.05); _write(src/'state.json','stale-writer\n')
     th=threading.Thread(target=mutate); th.start()
-    proof=type2.validate_type2(tmp_path,clearup_id='ClearUp_098',source='mcp_remote'); th.join()
+    proof=validate_via_sideband(tmp_path,clearup_id='ClearUp_098'); th.join()
     assert proof['status']=='RED'
     assert any(x.startswith('old_source_still_mutating:') for x in proof['failures'])
     with pytest.raises(Exception):
@@ -362,3 +374,44 @@ def test_native_mcp_forwarding_functionally_preserves_clearup_routing_fields(tmp
     assert cmd['release_version']=='32.5.9'
     assert cmd['source_channel']=='chatgpt'
     assert cmd['source_ref']=='e2e-clearup-route'
+
+
+def test_32510_resumes_existing_3259_clearup002_migrated_state_without_remigrate(tmp_path, monkeypatch):
+    monkeypatch.setenv('ENERGIE_CLEARUP_TYPE2_QUIESCENCE_SECONDS','0.05')
+    monkeypatch.setenv('ENERGIE_CLEARUP_TYPE2_PROOF_TIMEOUT_SECONDS','0.3')
+    plan=seed_batch(tmp_path,'ClearUp_002')
+    mod=load_executor()
+    mailbox_before=type2._snapshot_release_dirs(tmp_path)
+
+    # Existing 32.5.9 work: recovery + migration already completed, source retained.
+    mod.execute_type2(tmp_path,request(tmp_path,'ClearUp_002','type2_prepare'))
+    mod.execute_type2(tmp_path,request(tmp_path,'ClearUp_002','type2_migrate',True))
+    state_before=json.loads((tmp_path/'Data/03_Systeem/Projectmanager/ClearUp/State/ClearUp_002.json').read_text())
+    assert state_before['phase']=='MIGRATED_PENDING_VALIDATION'
+    migration_fingerprint=state_before['migration_fingerprint']
+    emit_runtime_proofs(tmp_path,plan)
+
+    # Upgrade to 32.5.10. Do not prepare or migrate again.
+    (tmp_path/'App/VERSIE.txt').write_text('32.5.10\n',encoding='utf-8')
+    proof=validate_via_sideband(tmp_path,clearup_id='ClearUp_002')
+    assert proof['status']=='GREEN',proof
+    state_after_validation=json.loads((tmp_path/'Data/03_Systeem/Projectmanager/ClearUp/State/ClearUp_002.json').read_text())
+    assert state_after_validation['migration_fingerprint']==migration_fingerprint
+    assert state_after_validation['phase']=='MIGRATED_PENDING_VALIDATION'
+
+    current_request={
+        'schema':'energie_clearup_type2_request_v1',
+        'request_id':os.urandom(16).hex(),
+        'operation':'type2_finalize',
+        'clearup_id':'ClearUp_002',
+        'release_version':'32.5.10',
+        'expires_at':'2099-01-01T00:00:00+00:00',
+        'plan_sha256':type2._load_plan(tmp_path,'ClearUp_002')['plan_sha256'],
+        'explicit_user_approval':True,
+        'mailbox_snapshot_before':type2._snapshot_release_dirs(tmp_path),
+    }
+    _,done=mod.execute_type2(tmp_path,current_request)
+    assert done['phase']=='COMPLETE'
+    assert done['delete_performed'] is True
+    assert all(not (tmp_path/item['source']).exists() for item in plan['items'])
+    assert_mailboxes_unchanged(tmp_path,mailbox_before)

@@ -260,7 +260,7 @@ def _type2_validate_request(root: Path, request: dict[str, Any]):
     if not REQUEST_ID_RE.fullmatch(request_id):
         raise RequestRejected("TYPE2 request_id ongeldig")
     operation = str(request.get("operation") or "")
-    if operation not in {"type2_prepare", "type2_migrate", "type2_finalize", "type2_restore"}:
+    if operation not in {"type2_prepare", "type2_migrate", "type2_validation_commit", "type2_finalize", "type2_restore"}:
         raise RequestRejected("TYPE2 operation ongeldig")
     clearup_id = str(request.get("clearup_id") or "")
     release_version = str(request.get("release_version") or "").strip()
@@ -283,7 +283,7 @@ def _type2_validate_request(root: Path, request: dict[str, Any]):
     plan = service._load_plan(root, clearup_id)
     if str(request.get("plan_sha256") or "") != str(plan.get("plan_sha256") or ""):
         raise RequestRejected("TYPE2 plan fingerprint mismatch")
-    if operation != "type2_prepare" and request.get("explicit_user_approval") is not True:
+    if operation in {"type2_migrate", "type2_finalize", "type2_restore"} and request.get("explicit_user_approval") is not True:
         raise RequestRejected("TYPE2 expliciete gebruikersgoedkeuring ontbreekt")
     before = request.get("mailbox_snapshot_before")
     if not isinstance(before, dict) or before != service._snapshot_release_dirs(root):
@@ -434,6 +434,61 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
                                    "cutover_rows": cutover_rows,
                                    "migration_fingerprint": hashlib.sha256(json.dumps(result,sort_keys=True).encode()).hexdigest()})
         return request_id, result
+
+    if operation == "type2_validation_commit":
+        proof = request.get("validation_proof")
+        if not isinstance(proof, dict):
+            raise RequestRejected("TYPE2 validation proof ontbreekt")
+        if proof.get("schema") != "energie_clearup_type2_validation_v2":
+            raise RequestRejected("TYPE2 validation proof schema ongeldig")
+        if proof.get("clearup_id") != clearup_id or proof.get("plan_sha256") != plan["plan_sha256"]:
+            raise RequestRejected("TYPE2 validation proof identity mismatch")
+        validation_status = str(proof.get("status") or "").upper()
+        if validation_status not in {"GREEN", "RED"}:
+            raise RequestRejected("TYPE2 validation proof status ongeldig")
+        failures = proof.get("failures")
+        checks = proof.get("checks")
+        if not isinstance(failures, list) or not isinstance(checks, list):
+            raise RequestRejected("TYPE2 validation proof inhoud ongeldig")
+        if validation_status == "GREEN" and failures:
+            raise RequestRejected("TYPE2 GREEN validation proof bevat failures")
+        by_source = {str(x.get("source") or ""): x for x in checks if isinstance(x, dict)}
+        for item in plan["items"]:
+            check = by_source.get(item["source"])
+            if not isinstance(check, dict):
+                raise RequestRejected(f"TYPE2 validation source proof ontbreekt: {item['source']}")
+            source = root / item["source"]
+            destination = root / item["destination"]
+            if not source.exists() or source.is_symlink():
+                raise RequestRejected(f"TYPE2 validation source missing/unsafe: {item['source']}")
+            if not destination.exists() or destination.is_symlink():
+                raise RequestRejected(f"TYPE2 validation destination missing/unsafe: {item['destination']}")
+            source_rows = _tree_rows(source, root)
+            source_hash = hashlib.sha256(
+                json.dumps(source_rows, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+            ).hexdigest()
+            if source_hash != str(check.get("source_rows_sha256") or ""):
+                raise RequestRejected(f"TYPE2 old source changed before validation commit: {item['source']}")
+            key = str(item.get("path_key") or "").strip()
+            if key:
+                marker = _read_json(_type2_activation_path(root, key))
+                if marker.get("active") is not True or marker.get("destination") != item["destination"] or marker.get("plan_sha256") != plan["plan_sha256"]:
+                    raise RequestRejected(f"TYPE2 path activation not proven during validation commit: {key}")
+        validation = root / service.VALIDATION_ROOT_REL / f"{clearup_id}.json"
+        _atomic_write_json(validation, proof)
+        readback = _read_json(validation)
+        if readback != proof:
+            raise RuntimeError("TYPE2 validation proof write/readback mismatch")
+        after = service._snapshot_release_dirs(root)
+        if after != request["mailbox_snapshot_before"]:
+            raise RuntimeError("TYPE2 release mailboxes changed during validation commit")
+        return request_id, {
+            "status": "GREEN",
+            "clearup_id": clearup_id,
+            "phase": "VALIDATION_COMMITTED",
+            "validation_status": validation_status,
+            "deletion_performed": False,
+        }
 
     if operation == "type2_finalize":
         current = _read_json(state)
