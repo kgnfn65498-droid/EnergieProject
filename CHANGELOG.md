@@ -1,3 +1,11 @@
+## 32.5.12 — Type2 recovery export direct to chat
+
+- Adds direct read-only Native-MCP export tools for the already prepared ClearUp Type2 recovery ZIPs `ClearUp_002` through `ClearUp_012`.
+- Each ZIP is fully reverified (CRC, Type2 manifest identity, payload size and SHA-256) before metadata or a base64 chunk is returned.
+- Chat export no longer depends on Projectmanager RuntimeV2 command-result readback after ClearUp_002 path activation.
+- Export is non-destructive: no migrate, finalize, restore or delete action is available through these tools.
+- Existing Type2 checkpoint is preserved; no Type2 prepare/migrate state is reset.
+
 ## 32.5.11 — Type2 privileged quiescence authority
 
 - Fixes live ClearUp_002 validation false rejection seen on 32.5.10 after PM RuntimeV2 rebind.

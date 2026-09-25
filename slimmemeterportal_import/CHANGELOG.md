@@ -1,6 +1,6 @@
 # Changelog
 
-## 32.5.11 — Type2 privileged quiescence authority
+## 32.5.12 — Type2 privileged quiescence authority
 
 - Privileged watcher performs the final two-snapshot old-source quiescence proof and commits its stable source hash.
 - PM-observed source hash is retained as audit metadata rather than used as cross-process identity fencing.

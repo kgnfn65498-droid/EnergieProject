@@ -1,4 +1,4 @@
-# Platform Qualification — 32.5.11
+# Platform Qualification — 32.5.12
 
 Deze kwalificatie is geen releasegate voor historische/platformtests die reeds rood of sandbox-afhankelijk waren in de exacte 32.5.8-basis. Zulke baselinebevindingen worden afzonderlijk gerapporteerd en niet groen gefabriceerd.
 

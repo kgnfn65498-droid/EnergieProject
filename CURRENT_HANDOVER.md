@@ -1,11 +1,17 @@
-# CURRENT HANDOVER — EnergieProject 32.5.11
+# CURRENT HANDOVER — EnergieProject 32.5.12
 
-## 32.5.11 Type2 recovery continuation
+## 32.5.12 Type2 external recovery gate
+
+- Before any Type2 finalize/delete, ChatGPT must reconstruct and deliver the real prepared recovery ZIPs 002-012 through the direct read-only Native-MCP chunk export.
+- Do not use Projectmanager RuntimeV2 command-result readback for binary export after ClearUp_002 path activation.
+- Existing ClearUp_002 remains MIGRATED_PENDING_VALIDATION; do not reprepare or remigrate it.
+
+## 32.5.12 Type2 recovery continuation
 
 - 32.5.10 is live and COMPLETE, but ClearUp_002 validation was twice rejected with `TYPE2 old source changed before validation commit` even though the old Inbox RuntimeV2 had no writes after 2026-09-25T11:36:54.914150+00:00.
 - Root cause: cross-process PM snapshot versus later privileged watcher snapshot was treated as identity proof. That is stricter than the actual safety requirement and can false-reject on transient filesystem boundary artefacts.
-- 32.5.11 makes the privileged watcher authoritative for quiescence: two exact privileged snapshots across the quiet interval must match. The committed proof records that stable watcher hash and keeps the PM-observed hash for audit.
-- Binding resume rule after 32.5.11 live post-audit: DO NOT reprepare/remigrate ClearUp_002. Validate existing 002; finalize only on GREEN; then execute 003..012 sequentially migrate -> validate -> finalize.
+- 32.5.12 makes the privileged watcher authoritative for quiescence: two exact privileged snapshots across the quiet interval must match. The committed proof records that stable watcher hash and keeps the PM-observed hash for audit.
+- Binding resume rule after 32.5.12 live post-audit: DO NOT reprepare/remigrate ClearUp_002. Validate existing 002; finalize only on GREEN; then execute 003..012 sequentially migrate -> validate -> finalize.
 - Existing recovery ZIPs for ClearUp_002..012 remain authoritative and must not be regenerated unless their plan/state verification fails.
 
 ## Release delivery rule

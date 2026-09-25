@@ -1,6 +1,6 @@
-## Release 32.5.11
+## Release 32.5.12
 
-32.5.11 is a bounded structural repair for ClearUp Type2 validation after the live 32.5.10 cross-process snapshot false-rejection. Privileged watcher double-snapshot quiescence is now authoritative; all prior release-chain and safety guarantees remain binding.
+32.5.12 adds a bounded read-only Native-MCP export bridge for the prepared ClearUp Type2 recovery ZIPs 002-012 so ChatGPT can reconstruct the real recovery files before any destructive finalize. All 32.5.11 quiescence and release-chain safety guarantees remain binding.
 
 ## Release 32.5.9
 Native MCP command-bridge activation fix voor ClearUp Type 1/2.
