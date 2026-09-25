@@ -1,4 +1,4 @@
-# Platform Qualification — 32.5.7
+# Platform Qualification — 32.5.8
 
 Releasegerichte kwalificatie omvat ClearUp chat-transport, recovery/live hashrevalidatie, privileged watcher delete, fail-closed tamper/processing tests, bestaande watcher move/restore regressies, releaseketenregressies en fysieke artifact/preflightcontrole.
 

@@ -3,6 +3,7 @@ import hashlib,json,os
 from pathlib import Path
 from system_path_contract import project_system_path
 from release_controller import Outcome,ReleaseState
+import native_mcp_runtime_contract_hotfix
 
 MCP_CONTAINER='energie-filesystem-mcp'
 CONTROL_PLANE_CONTAINER='energie-control-plane'
@@ -25,6 +26,17 @@ class NativeRuntimeCoordinator:
         self.root=Path(root);self.guard=guard_module;self.control_plane_probe=control_plane_probe
         self.control_plane_prepare=control_plane_prepare
     def align(self,s:ReleaseState)->Outcome:
+        try:
+            requires_bridge=tuple(int(part) for part in str(s.to_version).split('.')) >= (32,5,8)
+        except ValueError:
+            requires_bridge=False
+        if requires_bridge:
+            try:
+                contract=native_mcp_runtime_contract_hotfix.apply(self.root)
+                if contract.get('status') != 'GREEN' or contract.get('command_forwarding_current') is not True:
+                    return Outcome.blocked('native_mcp_command_bridge_contract_red')
+            except Exception as exc:
+                return Outcome.blocked('native_mcp_command_bridge_prepare_failed:'+type(exc).__name__)
         guard=self.guard.probe(self.root)
         if guard.get('ready') is True:
             # A fenced request may outlive the restart/readback cycle when the

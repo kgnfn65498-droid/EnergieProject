@@ -544,8 +544,12 @@ def execute_type1_delete(root: Path, request: dict[str, Any]) -> tuple[str, dict
     if tuple(request.get("roots") or ()) != TYPE1_ROOTS:
         raise RequestRejected("TYPE1 roots wijken af van allowlist")
     release_version = str(request.get("release_version") or "").strip()
-    if release_version != "32.5.7":
-        raise RequestRejected("TYPE1 delete vereist release 32.5.7")
+    try:
+        release_tuple=tuple(int(part) for part in release_version.split('.'))
+    except ValueError as exc:
+        raise RequestRejected("TYPE1 releaseversie ongeldig") from exc
+    if release_tuple < (32,5,7):
+        raise RequestRejected("TYPE1 delete vereist release 32.5.7+")
     try:
         current_version = (root / "App/VERSIE.txt").read_text(encoding="utf-8").strip()
     except OSError as exc:

@@ -155,7 +155,7 @@ def _watcher_delete(root: Path, *, live_rows: list[dict[str,Any]], release_mailb
         'request_id':request_id,
         'operation':'clearup_001_delete',
         'clearup_id':CLEARUP_ID,
-        'release_version':'32.5.7',
+        'release_version':(root/'App/VERSIE.txt').read_text(encoding='utf-8').strip(),
         'created_at':datetime.now(timezone.utc).isoformat(),
         'expires_at':expires.isoformat(),
         'roots':list(ROOTS),
@@ -194,8 +194,11 @@ def apply_clearup_001(project_root: Path|str, *, explicit_user_text: str, source
     root=Path(project_root).resolve()
     if source != 'mcp_remote': raise RuntimeError('ClearUp_001 requires chat/MCP user approval')
     if _token(explicit_user_text) not in AFFIRMATIVE: raise RuntimeError('explicit user approval missing')
-    if (root/'App/VERSIE.txt').read_text(encoding='utf-8').strip() != '32.5.7':
-        raise RuntimeError('ClearUp_001 chat apply requires active 32.5.7')
+    current_version=(root/'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+    try: current_tuple=tuple(int(part) for part in current_version.split('.'))
+    except ValueError as exc: raise RuntimeError('ClearUp_001 active release invalid') from exc
+    if current_tuple < (32,5,7):
+        raise RuntimeError('ClearUp_001 chat apply requires active 32.5.7+')
     _release_idle(root)
     _dependency_guard(root)
     live=_collect(root); staged=_staging_rows(root)

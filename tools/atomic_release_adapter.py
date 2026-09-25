@@ -132,6 +132,7 @@ class AtomicReleaseAdapter:
                 return Outcome.rolled_back('atomic_install_rolled_back','source_app_restored',*ev)
             return Outcome.blocked('atomic_install_failed:'+type(exc).__name__,rollback=True)
     def runtime_align(self,s):return self.native.align(s)
+    def reconcile_completed_native_runtime(self,s):return self.native.align(s)
     def pre_target_publication(self,s):return self.ha.prepare_pre_target(s)
     def verify_live(self,s):
         try:

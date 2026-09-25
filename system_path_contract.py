@@ -15,3 +15,5 @@ mapping_for_source = _mod.mapping_for_source
 MAPPINGS = _mod.MAPPINGS
 SCHEMA = _mod.SCHEMA
 ACTIVATION_ROOT = _mod.ACTIVATION_ROOT
+
+active_mapping_fingerprint = _mod.active_mapping_fingerprint

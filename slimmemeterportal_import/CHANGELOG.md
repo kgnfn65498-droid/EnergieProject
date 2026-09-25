@@ -1,3 +1,11 @@
+## 32.5.8 — Native MCP command bridge + live activation proof
+
+- Repareert de bewezen 32.5.7-fout waarbij `projectmanager_submit_command` de velden `classification_hint`, `artifact_path`, `release_version` en bronmetadata accepteerde maar buiten `conversation_intake`/`production_deploy` niet in CommandIngress schreef.
+- De Native MCP runtime-contractpatch maakt command-forwarding generiek voor alle geïnstalleerde PM-intents en laat de bestaande secret/size/allowlist-gates intact.
+- Een COMPLETE release blijft post-live geblokkeerd totdat de Native MCP-bron is gepatcht, de runtimefingerprint opnieuw exact is en de begrensde reload is bewezen.
+- ClearUp_001 en Type-2 `prepare/export/migrate/validate/finalize/restore` kunnen daardoor werkelijk via dezelfde chat→MCP→Projectmanager-keten worden aangeroepen.
+- Type-1 blijft exact allowlisted; Type-2 concrete plannen 002–012 blijven recovery-first en beschermen incoming/processing/processed/failed.
+
 ## 32.5.7
 
 - TYPE2 ClearUp framework met prepare/export/migrate/finalize/restore via bestaand Projectmanager admin_update transport; release-mailboxen zijn hard beschermd.

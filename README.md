@@ -1,3 +1,6 @@
+## Release 32.5.8
+Native MCP command-bridge activation fix voor ClearUp Type 1/2.
+
 # EnergieProject 32.4.44
 
 32.4.44 is de structurele reparatiebuild na de live-audit van 32.4.43. De prioriteit is dat de bestaande releaseketen `Incoming -> watcher -> runtime -> self-audit -> ACCEPTED` niet opnieuw handmatig hoeft te worden gerepareerd.

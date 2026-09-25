@@ -38,7 +38,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "0bce6e43ef2fa07199c1005b342f5d0ab836f4c8cd74b58d4c21dcb6462d8fe9"
+      "sha256": "fabcf7a2a3abb9bebb12256c56eaccd75cf15de66f5b1db9e85cb456c5b91dc2"
     },
     {
       "path": "CLEARUP_32.5.1.md",
@@ -46,7 +46,7 @@
     },
     {
       "path": "CURRENT_HANDOVER.md",
-      "sha256": "445426edb15f5e7c324a80cfc2ff7fc3e55f903dbda8d072bce32073affaa679"
+      "sha256": "a19c6ad86f5933359d7a33d67a155a307b936b7ea10db35a5a4a25760b9daf30"
     },
     {
       "path": "INSTALL.md",
@@ -58,7 +58,7 @@
     },
     {
       "path": "PLATFORM_QUALIFICATION.md",
-      "sha256": "3890fc7ed513d7e1b243043c276a0b4d46ae453ba87973755de262b3e7bdfbe8"
+      "sha256": "3e7ba2f26d5fe8f0176950d24410a863e3060717bd5b144005481faa522ab4c8"
     },
     {
       "path": "PROJECT_AFSPRAKEN.md",
@@ -70,11 +70,11 @@
     },
     {
       "path": "README.md",
-      "sha256": "22e5bc00b853670d7e3b18dcfc501006cda32863a79da3d8464fdbb1deb8c465"
+      "sha256": "bef399079aa54d2c30e1511e0b3dbeb2fabead6fab4eac481265794ada38f0a8"
     },
     {
       "path": "RELEASE_ACCEPTANCE.md",
-      "sha256": "501b0bd15e7e4b2ebbdf094f7050ee7295ac9c3e11c8fba25860fe4420dd78a1"
+      "sha256": "50b674ed6720e5c51321e2217772e3e77d86a30e22bdb1a339c174f5ea655a2c"
     },
     {
       "path": "ROADMAP_V10.md",
@@ -86,7 +86,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "547da82181c508d8f43f96c2ba1711b5cc6bf3e31b3b4c2d560db24ab4ffa91d"
+      "sha256": "36d0a7d9eeaabdcb00a6a18e76c81d9e9d5888e9a1900d93f3334bd886df33de"
     },
     {
       "path": "WORK_KNOWLEDGE_BOOTSTRAP.md",
@@ -286,7 +286,7 @@
     },
     {
       "path": "release_test_contract.py",
-      "sha256": "177338b6a588eb13072985afaa33156a280d042016f30ac9e9f3d6cace05d1d2"
+      "sha256": "f7a7ea5ede89e1aba3b0c65f41bc5f55dbee41c3e9533da6a319222f18889963"
     },
     {
       "path": "repository.yaml",
@@ -298,7 +298,7 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "42a8416004892dc93272158221d8373f4ff5a41b3b68a08e88495fd363903825"
+      "sha256": "2c4304c285faa9afaf987d8ec0c0ecd06f5e265210278bff68905ba59111449e"
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -314,7 +314,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "8f248bab7097b0893129a635a9093ed886120e08578f7c3b09e2d65692c321e3"
+      "sha256": "797c76bc379fd4887e2af2c9d5089647937ca914ccf16004995a3365ed9ae6f4"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -366,11 +366,11 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "786c53631b8c67f8dad11f3381c620cf8f2dfcd654fab7866d3e4ba2109f8df2"
+      "sha256": "12d4a432c506e38ce80900aadf0d06911b78f84be0910eee5213a85189410d35"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
-      "sha256": "21a9d4205bca7693b76641a6ea92f260efbedf43b2eff08578b489a2a7568cd2"
+      "sha256": "1cf3810dfdc2415038627b4e17f513d0b559a3028ae0088c06d97c0f193bb5de"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/month_closure_truth.py",
@@ -430,7 +430,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/VERSION.txt",
-      "sha256": "e10e7d637fc1a2a7f406209d31b8bcfb6984e042c83e8044af089638ed4f16ff"
+      "sha256": "003e8e28feaec22e7e1b60ba55fd5a194def2291cfb4bc8397cf2c3d7426edce"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/acceptance.py",
@@ -466,7 +466,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/clearup_chat_service.py",
-      "sha256": "36ef982c3578c06d0fb94b453917e71d4a7cb8404e9cf43c237358327be0d89c"
+      "sha256": "232c1dcf198df575132424d467b332d22e7311bb44bfeeef7b889e5c19dac239"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/clearup_type2_service.py",
@@ -1046,7 +1046,7 @@
     },
     {
       "path": "system_path_contract.py",
-      "sha256": "f4630cc7031c5367f58bd8e4a5db5b8d3b4e5272615866843d2f9a57ca1b2e20"
+      "sha256": "99aef61ad8d32f8bd17a899196b6e621ba9d5f0c2d777e1917796ec8eb055611"
     },
     {
       "path": "tests/fixtures/legacy57/PM_VERSION.txt",
@@ -2153,12 +2153,16 @@
       "sha256": "afda1ade6e3e8acfab89f044c057162d82020e96c6b9fe49b650002bcbc15767"
     },
     {
+      "path": "tests/test_v3258_native_pm_command_bridge.py",
+      "sha256": "dfd36c24a60b7641556b1fba4bb4099bea7a47e5b7ee30ef4c9a1a997de7bbbf"
+    },
+    {
       "path": "tools/atomic_app_swap.py",
       "sha256": "4481a785d8f0fc3765b671386d3c82617e88d871fe0a8a889035a384bef43f7b"
     },
     {
       "path": "tools/atomic_release_adapter.py",
-      "sha256": "a4e0963b37397209b03f069d56c698fbaf9bcac1822506fcc86a76d0b5b837eb"
+      "sha256": "17545120830bc19ab219f14878ab21a9c8016c6c35d95fc76c380a42870d2228"
     },
     {
       "path": "tools/bootstrap_nas_github_publisher.sh",
@@ -2178,7 +2182,7 @@
     },
     {
       "path": "tools/clearup_type2_path_contract.json",
-      "sha256": "0d030a65af111a266925936feb754e1f060a41315cef94f642b417179051c3db"
+      "sha256": "c71f4b5d3b24050a393ed734e78b79183dc930fe49a468569c8e23c877870c56"
     },
     {
       "path": "tools/clearup_type2_plan_template.json",
@@ -2314,7 +2318,7 @@
     },
     {
       "path": "tools/native_mcp_runtime_contract_hotfix.py",
-      "sha256": "9c58b1f578ffb79206cec6d1e25e7779eaa6a88bfcc0636e5c9f41cc0d1b8d13"
+      "sha256": "668c95fb4cd86981a9f8c233acfbb933175ebc396c9c9239456bf318b8e9ba07"
     },
     {
       "path": "tools/native_mcp_runtime_guard.py",
@@ -2338,7 +2342,7 @@
     },
     {
       "path": "tools/project_clearup_move_executor.py",
-      "sha256": "c1edd9552c22e1c2db362e787494fdd770b4ac0f4e58aea31cf70604b3280c78"
+      "sha256": "ddcd8ddf02641cf0a5a56969dfca3d5e718bac80a04f6d97452dbab97155d3af"
     },
     {
       "path": "tools/project_cr_local_executor.py",
@@ -2354,7 +2358,7 @@
     },
     {
       "path": "tools/release_controller_service.py",
-      "sha256": "babff6b1a061f5f58775aae5802e16c89e35321a218c62bfc563bef5365ae0d6"
+      "sha256": "422985e4672ef351a4a178bdaaa3b608fd39751be785b84a92022ece01f61799"
     },
     {
       "path": "tools/release_ingress_recovery.py",
@@ -2370,7 +2374,7 @@
     },
     {
       "path": "tools/release_runtime_adapter.py",
-      "sha256": "0e4cb09c863021e974e19b2ddba5aa0e4c10b75d5988df71011535643e7a40e4"
+      "sha256": "baa0839f98b42b65818e5cfb73c4e9bb9e8c9e48280cdbb76368f0ef4e094e45"
     },
     {
       "path": "tools/release_transition_bootstrap.py",

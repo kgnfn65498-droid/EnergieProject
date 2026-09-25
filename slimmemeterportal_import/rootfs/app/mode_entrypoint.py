@@ -13,7 +13,7 @@ from projectmanager_v2.projectmanager_web import install_projectmanager_web
 from projectmanager_v2.startup_timing import StartupTiming
 from process_workspace import ensure_process_workspace
 
-TARGET_RELEASE_VERSION = "32.5.7"
+TARGET_RELEASE_VERSION = "32.5.8"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 _BACKGROUND_LOCK = threading.Lock()

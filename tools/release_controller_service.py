@@ -200,6 +200,12 @@ class ReleaseControllerService:
                 state.required_action='restore the exact owned artifact only';self._save(state);return state
             self.controller.cycle(state,self.adapter);self._save(state);return state
         if state and state.status==Status.COMPLETE.value:
+            native_settle=getattr(self.adapter,'reconcile_completed_native_runtime',None)
+            if callable(native_settle):
+                native_out=native_settle(state)
+                if native_out.status!='GREEN':
+                    self._runtime({'status':native_out.status,'phase':'COMPLETE','reason':native_out.reason,'release_id':state.release_id,'generation':state.generation})
+                    return state
             settle=getattr(self.adapter,'reconcile_completed_delivery',None)
             if callable(settle):
                 # COMPLETE reconciliation is unconditional for the production
