@@ -1,6 +1,6 @@
-## Release 32.5.10
+## Release 32.5.11
 
-32.5.10 is a bounded structural repair for ClearUp Type2 validation on NAS. It removes the embedded-PM permission dependency for validation evidence and closes the watcher result/timeout race. All 32.5.9 release-chain and safety guarantees remain binding.
+32.5.11 is a bounded structural repair for ClearUp Type2 validation after the live 32.5.10 cross-process snapshot false-rejection. Privileged watcher double-snapshot quiescence is now authoritative; all prior release-chain and safety guarantees remain binding.
 
 ## Release 32.5.9
 Native MCP command-bridge activation fix voor ClearUp Type 1/2.

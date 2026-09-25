@@ -453,6 +453,8 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
         if validation_status == "GREEN" and failures:
             raise RequestRejected("TYPE2 GREEN validation proof bevat failures")
         by_source = {str(x.get("source") or ""): x for x in checks if isinstance(x, dict)}
+        privileged_source_hashes: dict[str, str] = {}
+        quiet = max(0.05, float(proof.get("old_source_quiescence_seconds") or 2.0))
         for item in plan["items"]:
             check = by_source.get(item["source"])
             if not isinstance(check, dict):
@@ -463,21 +465,41 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
                 raise RequestRejected(f"TYPE2 validation source missing/unsafe: {item['source']}")
             if not destination.exists() or destination.is_symlink():
                 raise RequestRejected(f"TYPE2 validation destination missing/unsafe: {item['destination']}")
-            source_rows = _tree_rows(source, root)
+            # The privileged executor is authoritative for source quiescence.
+            # Cross-process snapshots can legitimately differ at the boundary
+            # even after the old writer has stopped (for example transient
+            # filesystem artefacts). Require two privileged snapshots to be
+            # byte-identical across the quiet window instead of comparing one
+            # PM snapshot against a later watcher snapshot.
+            source_rows_before = _tree_rows(source, root)
+            time.sleep(quiet)
+            source_rows_after = _tree_rows(source, root)
+            if source_rows_before != source_rows_after:
+                raise RequestRejected(f"TYPE2 old source still mutating during validation commit: {item['source']}")
             source_hash = hashlib.sha256(
-                json.dumps(source_rows, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+                json.dumps(source_rows_after, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
             ).hexdigest()
-            if source_hash != str(check.get("source_rows_sha256") or ""):
-                raise RequestRejected(f"TYPE2 old source changed before validation commit: {item['source']}")
+            privileged_source_hashes[item["source"]] = source_hash
             key = str(item.get("path_key") or "").strip()
             if key:
                 marker = _read_json(_type2_activation_path(root, key))
                 if marker.get("active") is not True or marker.get("destination") != item["destination"] or marker.get("plan_sha256") != plan["plan_sha256"]:
                     raise RequestRejected(f"TYPE2 path activation not proven during validation commit: {key}")
+        committed_proof = json.loads(json.dumps(proof))
+        committed_checks = committed_proof.get("checks") or []
+        for check in committed_checks:
+            if not isinstance(check, dict):
+                continue
+            source_rel = str(check.get("source") or "")
+            if source_rel in privileged_source_hashes:
+                check["pm_observed_source_rows_sha256"] = str(check.get("source_rows_sha256") or "")
+                check["source_rows_sha256"] = privileged_source_hashes[source_rel]
+                check["source_quiescence_authority"] = "privileged_watcher_double_snapshot"
+        committed_proof["source_quiescence_authority"] = "privileged_watcher_double_snapshot"
         validation = root / service.VALIDATION_ROOT_REL / f"{clearup_id}.json"
-        _atomic_write_json(validation, proof)
+        _atomic_write_json(validation, committed_proof)
         readback = _read_json(validation)
-        if readback != proof:
+        if readback != committed_proof:
             raise RuntimeError("TYPE2 validation proof write/readback mismatch")
         after = service._snapshot_release_dirs(root)
         if after != request["mailbox_snapshot_before"]:

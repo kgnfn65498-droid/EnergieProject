@@ -1,3 +1,11 @@
+## 32.5.11 — Type2 privileged quiescence authority
+
+- Fixes live ClearUp_002 validation false rejection seen on 32.5.10 after PM RuntimeV2 rebind.
+- The privileged watcher now proves old-source quiescence using two of its own exact tree snapshots separated by the validation quiet window.
+- The committed validation proof stores the privileged stable source hash as authoritative and preserves the PM-observed hash separately for audit.
+- Finalize remains fail-closed: any old-source change after validation still blocks deletion.
+- No Type2 prepare/migrate state is reset; existing ClearUp_002 `MIGRATED_PENDING_VALIDATION` resumes in place.
+
 ## 32.5.10 — Type2 validation privilege + watcher race closure
 
 - Structural fix for live ClearUp Type2: validation evidence is committed through the bounded privileged watcher instead of direct embedded-Projectmanager filesystem writes.

@@ -1,9 +1,8 @@
 # Changelog
 
-## 32.5.10 — Type2 ClearUp validation hardening
+## 32.5.11 — Type2 privileged quiescence authority
 
-- Type2 validation proof is committed through the bounded privileged watcher instead of direct embedded-Projectmanager writes to the system Validation directory.
-- Exact request-id grace readback closes the watcher completion/timeout boundary race.
-- Existing 32.5.9 Type2 recovery exports and the already migrated ClearUp_002 state remain resumable without re-prepare or re-migrate.
-- Release mailbox protections, dangerous-action isolation and the 32.5.9 stale-control-plane fixes remain unchanged.
-
+- Privileged watcher performs the final two-snapshot old-source quiescence proof and commits its stable source hash.
+- PM-observed source hash is retained as audit metadata rather than used as cross-process identity fencing.
+- Finalize still refuses any post-validation source change.
+- Existing ClearUp_002 migrated state and ClearUp_002..012 recovery exports remain resumable without re-prepare or re-migrate.

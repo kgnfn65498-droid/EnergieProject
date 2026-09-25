@@ -1,4 +1,4 @@
-# Release Acceptance — 32.5.10
+# Release Acceptance — 32.5.11
 
 Status vóór live installatie: RELEASE CANDIDATE, niet live bewezen.
 
