@@ -1,4 +1,4 @@
-# Release Acceptance — 32.5.12
+# Release Acceptance — 32.5.13
 
 Status vóór live installatie: RELEASE CANDIDATE, niet live bewezen.
 
@@ -10,6 +10,10 @@ Verplicht GREEN vóór aanbieding:
 5. stale predecessor request -> archive -> current exact request -> no incoming starvation;
 6. exact-current-fence conflict blijft fail-closed;
 7. manual Native-MCP reload blijft beschermd door expliciete Peter approval;
-8. fresh-extract test en Python compile.
+8. fresh-extract test en Python compile;
+9. existing `projectmanager_status` tool remains the transport surface; no new MCP tool name;
+10. signed download URL is emitted only under the exact external-recovery gate and binds ClearUp id + expiry + current ZIP SHA-256;
+11. invalid/expired signature, unsupported ID and changed ZIP identity fail closed;
+12. download route performs no filesystem write/delete/migrate/finalize.
 
 Na installatie blijft live runtime fingerprint/readback vereist voordat destructieve ClearUp wordt uitgevoerd.

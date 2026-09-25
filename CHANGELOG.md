@@ -1,3 +1,12 @@
+## 32.5.13 — Type2 recovery download via existing Projectmanager status route
+
+- Replaces the earlier rejected 32.5.13 candidate (`2a4ae0da504f96e7a56b2ddad52deedf7b8a8f391b8ea6c56b7f71a54dc02132`), which depended on impractical Base64 chat transport.
+- Reuses the already exposed `projectmanager_status` MCP tool; no new MCP tool name or connector-catalog refresh is required.
+- Recovery files remain in the existing `Data/03_Systeem/Projectmanager/ClearUp/Exports` path; no new recovery storage tree is introduced.
+- When the existing `TYPE2_EXTERNAL_RECOVERY_GATE.json` is exact and delete remains blocked, status returns short-lived HMAC-signed download links for the verified Type2 ZIPs 002–012.
+- The HTTP handler serves only the exact allowlisted `ClearUp_002`–`ClearUp_012` ZIPs, re-verifies the existing Type2 export before download, binds the link to the current SHA-256, expires after five minutes, disables caching and has no delete/migrate/finalize capability.
+- Existing Type1/Type2 ClearUp execution, privileged validation, release mailboxes and external-recovery delete gate remain unchanged.
+
 ## 32.5.12 — Type2 recovery export direct to chat
 
 - Adds direct read-only Native-MCP export tools for the already prepared ClearUp Type2 recovery ZIPs `ClearUp_002` through `ClearUp_012`.

@@ -1,24 +1,19 @@
-# CURRENT HANDOVER — EnergieProject 32.5.12
+# CURRENT HANDOVER — EnergieProject 32.5.13
 
-## 32.5.12 Type2 external recovery gate
+## 32.5.13 Type2 external recovery gate
 
-- Before any Type2 finalize/delete, ChatGPT must reconstruct and deliver the real prepared recovery ZIPs 002-012 through the direct read-only Native-MCP chunk export.
-- Do not use Projectmanager RuntimeV2 command-result readback for binary export after ClearUp_002 path activation.
-- Existing ClearUp_002 remains MIGRATED_PENDING_VALIDATION; do not reprepare or remigrate it.
-
-## 32.5.12 Type2 recovery continuation
-
-- 32.5.10 is live and COMPLETE, but ClearUp_002 validation was twice rejected with `TYPE2 old source changed before validation commit` even though the old Inbox RuntimeV2 had no writes after 2026-09-25T11:36:54.914150+00:00.
-- Root cause: cross-process PM snapshot versus later privileged watcher snapshot was treated as identity proof. That is stricter than the actual safety requirement and can false-reject on transient filesystem boundary artefacts.
-- 32.5.12 makes the privileged watcher authoritative for quiescence: two exact privileged snapshots across the quiet interval must match. The committed proof records that stable watcher hash and keeps the PM-observed hash for audit.
-- Binding resume rule after 32.5.12 live post-audit: DO NOT reprepare/remigrate ClearUp_002. Validate existing 002; finalize only on GREEN; then execute 003..012 sequentially migrate -> validate -> finalize.
-- Existing recovery ZIPs for ClearUp_002..012 remain authoritative and must not be regenerated unless their plan/state verification fails.
+- Buildbasis is exact physical `EnergieProject_v32.5.12.zip` with SHA256 `ef1db0794bd4e25de3e62699961b8e73fc9ce61181d4fbc14c950c98a717a5e1`.
+- The earlier 32.5.13 candidate SHA256 `2a4ae0da504f96e7a56b2ddad52deedf7b8a8f391b8ea6c56b7f71a54dc02132` is rejected/superseded and must not be installed.
+- Reuse only existing filesystem paths. Type2 recovery ZIPs stay under `Data/03_Systeem/Projectmanager/ClearUp/Exports`; gate remains `Data/03_Systeem/Projectmanager/ClearUp/State/TYPE2_EXTERNAL_RECOVERY_GATE.json`.
+- Reuse the already visible `projectmanager_status` MCP tool. No new MCP tool catalog entry is needed. When the exact external-recovery gate is active, status supplies short-lived SHA-bound download links for 002–012.
+- The download handler has no delete/migrate/finalize capability and serves only exact allowlisted Type2 recovery ZIP identities after verification.
+- ClearUp_002 remains already migrated/validated state as present live; do not reprepare/remigrate solely because of this release.
+- No Type2 finalize/delete until the real ZIPs have been downloaded outside the NAS, SHA-verified and Peter explicitly confirms possession.
 
 ## Release delivery rule
 - Deliver the exact audited release ZIP in chat.
 - Peter manually places that exact ZIP in `Inbox/incoming`.
-- After Peter reports the release running, perform the full post-live audit automatically before resuming Type2.
-
+- After Peter reports 32.5.13 running, call the existing `projectmanager_status` route, download and SHA-verify 002–012, then provide the real recovery ZIPs in chat before any destructive continuation.
 
 ## 32.5.10 Type2 recovery continuation
 - Live predecessor before this release: 32.5.9.

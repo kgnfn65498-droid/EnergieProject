@@ -1,5 +1,10 @@
 # Changelog
 
+## 32.5.13 — Type2 recovery download bridge
+
+- Uses the existing Projectmanager status surface and existing ClearUp export path to expose short-lived signed recovery ZIP download links.
+- No new MCP tool name, no new storage path and no destructive ClearUp action.
+
 ## 32.5.12 — Type2 privileged quiescence authority
 
 - Privileged watcher performs the final two-snapshot old-source quiescence proof and commits its stable source hash.

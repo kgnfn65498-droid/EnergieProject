@@ -1,6 +1,6 @@
-## Release 32.5.12
+## Release 32.5.13
 
-32.5.12 adds a bounded read-only Native-MCP export bridge for the prepared ClearUp Type2 recovery ZIPs 002-012 so ChatGPT can reconstruct the real recovery files before any destructive finalize. All 32.5.11 quiescence and release-chain safety guarantees remain binding.
+32.5.13 fixes the Type2 recovery handoff without adding another MCP tool or storage tree. It reuses the existing `projectmanager_status` tool and the existing `Data/03_Systeem/Projectmanager/ClearUp/Exports` ZIPs to issue short-lived SHA-bound download links. The external recovery gate remains closed until Peter has the real ZIPs outside the NAS.
 
 ## Release 32.5.9
 Native MCP command-bridge activation fix voor ClearUp Type 1/2.
