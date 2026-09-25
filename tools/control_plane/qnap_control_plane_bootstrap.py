@@ -51,7 +51,7 @@ def _write_security_migration(inbox: Path) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _ensure_control_plane_mailboxes(runtime_root: Path, inbox: Path) -> dict:
+def _ensure_control_plane_mailboxes(runtime_root: Path, inbox: Path | None = None) -> dict:
     """Precreate shared producer/consumer mailboxes with live-equivalent rights.
 
     The PM and control-plane run under different container identities. 32.4.41
@@ -59,6 +59,9 @@ def _ensure_control_plane_mailboxes(runtime_root: Path, inbox: Path) -> dict:
     owned by the control-plane identity. The control-plane now owns bootstrap of
     this shared IPC boundary and proves write/readback before its main loop.
     """
+    if inbox is None:
+        inbox = Path(runtime_root)
+        runtime_root = inbox / 'control_plane'
     inbox = Path(inbox)
     root = Path(runtime_root)
     previous_world_writable = any(

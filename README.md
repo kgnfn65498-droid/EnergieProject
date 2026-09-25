@@ -1,4 +1,4 @@
-## Release 32.5.8
+## Release 32.5.9
 Native MCP command-bridge activation fix voor ClearUp Type 1/2.
 
 # EnergieProject 32.4.44

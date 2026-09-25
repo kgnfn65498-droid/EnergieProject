@@ -8,7 +8,20 @@ def validate_release_scoped_request(request:dict,state:dict,*,live_version:str,e
     if request.get('authorization')!='release_controller': return False
     if request.get('action')!=ALLOWED_RELEASE_ACTION: return False
     if request.get('container')!=MCP_CONTAINER: return False
-    if state.get('phase')!='RUNTIME_ALIGNING': return False
+    phase=str(state.get('phase') or '')
+    status=str(state.get('status') or '')
+    # Normal release execution authorizes the reload while the controller owns
+    # RUNTIME_ALIGNING. A freshly installed controller may also discover an
+    # exact Native-MCP source/runtime mismatch only after its predecessor already
+    # persisted this same release as COMPLETE. That post-COMPLETE reconciliation
+    # remains safe only for the exact release-scoped request below; it must not
+    # become a generic restart capability.
+    if phase=='RUNTIME_ALIGNING':
+        pass
+    elif phase=='COMPLETE' and status=='COMPLETE':
+        pass
+    else:
+        return False
     checks=(
         ('release_id','release_id'),('generation','generation'),
         ('release_version','to_version'),('artifact_sha256','artifact_sha256')

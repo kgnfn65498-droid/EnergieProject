@@ -116,15 +116,14 @@ def _dependency_guard(root: Path) -> None:
         raise RuntimeError('active dependency guard RED: '+repr(hits[:5]))
 
 
-def _snapshot_release_dirs(root: Path) -> dict[str,list[tuple[str,int,str]]]:
+def _snapshot_release_dirs(root: Path) -> dict[str,list[dict[str,Any]]]:
     result={}
-    for rel in ('Inbox/incoming','Inbox/processing'):
-        base=root/rel
-        rows=[]
+    for rel in ('Inbox/incoming','Inbox/processing','Inbox/processed','Inbox/failed'):
+        base=root/rel; rows=[]
         if base.is_dir():
             for p in sorted(base.rglob('*')):
                 if p.is_symlink(): raise RuntimeError(f'release mailbox symlink refused: {p}')
-                if p.is_file(): rows.append((p.relative_to(base).as_posix(),p.stat().st_size,_sha(p)))
+                if p.is_file(): rows.append({'path':p.relative_to(base).as_posix(),'size':p.stat().st_size,'sha256':_sha(p)})
         result[rel]=rows
     return result
 
@@ -141,7 +140,7 @@ def _atomic_json(path: Path, payload: dict[str,Any]) -> None:
         tmp.unlink(missing_ok=True)
 
 
-def _watcher_delete(root: Path, *, live_rows: list[dict[str,Any]], release_mailbox_before: dict[str,list[tuple[str,int,str]]]) -> dict[str,Any]:
+def _watcher_delete(root: Path, *, live_rows: list[dict[str,Any]], release_mailbox_before: dict[str,list[dict[str,Any]]]) -> dict[str,Any]:
     request_path=root/WATCHER_REQUEST_REL; result_path=project_system_path(root, str(WATCHER_RESULT_REL))
     if request_path.exists(): raise RuntimeError('ClearUp watcher request already active')
     try:

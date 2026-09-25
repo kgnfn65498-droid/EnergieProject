@@ -37,6 +37,9 @@
             "\"ClearUp_006\": \"RED\""
           ]
         }
+      ],
+      "runtime_proof_paths": [
+        "runtime_guard.json"
       ]
     }
   ]

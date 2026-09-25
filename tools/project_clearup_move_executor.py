@@ -388,18 +388,24 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
             raise
 
     manifest = _type2_manifest(root, clearup_id, plan, service)
-    if operation == "type2_migrate":
-        _verify_type2_source_against_manifest(root, manifest)
 
     if operation == "type2_migrate":
         created = []
+        cutover_rows = {}
         try:
             for item in manifest["items"]:
                 source = root / item["source"]; destination = root / item["destination"]
+                if not source.exists() or source.is_symlink():
+                    raise RequestRejected(f"TYPE2 live source missing/unsafe: {item['source']}")
+                # Recovery is historical rollback evidence.  Active runtime
+                # state may legitimately have changed since prepare; copy the
+                # current source atomically at cutover and prove that copy.
+                current_rows = _tree_rows(source, root)
+                cutover_rows[item["source"]] = current_rows
                 _copy_exact(source, destination)
                 created.append(destination)
                 expected_dest = []
-                for row in item["source_rows"]:
+                for row in current_rows:
                     suffix = Path(row["path"]).relative_to(item["source"]).as_posix() if row["path"] != item["source"] else "."
                     dest_path = item["destination"] if suffix == "." else f"{item['destination']}/{suffix}"
                     expected_dest.append({**row, "path": dest_path})
@@ -410,19 +416,23 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
                 try: _remove_path(destination)
                 except Exception: pass
             raise
+        activated_at_epoch=time.time()
         for item in manifest["items"]:
             key=str(item.get("path_key") or "").strip()
             if key:
                 _set_type2_activation(root,key=key,source=item["source"],destination=item["destination"],active=True,clearup_id=clearup_id,plan_sha256=plan["plan_sha256"])
         after = service._snapshot_release_dirs(root)
         if after != request["mailbox_snapshot_before"]:
-            raise RuntimeError("TYPE2 incoming/processing changed during migration")
+            raise RuntimeError("TYPE2 release mailboxes changed during migration")
         result = {
             "status": "GREEN", "clearup_id": clearup_id, "phase": "MIGRATED_PENDING_VALIDATION",
             "migrated": [{"source": x["source"], "destination": x["destination"]} for x in manifest["items"]],
             "source_preserved": True, "deletion_performed": False,
         }
-        _atomic_write_json(state, {**result, "plan_sha256": plan["plan_sha256"], "migration_fingerprint": hashlib.sha256(json.dumps(result,sort_keys=True).encode()).hexdigest()})
+        _atomic_write_json(state, {**result, "plan_sha256": plan["plan_sha256"],
+                                   "activated_at_epoch": activated_at_epoch,
+                                   "cutover_rows": cutover_rows,
+                                   "migration_fingerprint": hashlib.sha256(json.dumps(result,sort_keys=True).encode()).hexdigest()})
         return request_id, result
 
     if operation == "type2_finalize":
@@ -439,11 +449,12 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
             if not isinstance(check,dict):
                 raise RequestRejected(f"TYPE2 validation source proof missing: {item['source']}")
             source_now=_tree_rows(root/item["source"],root)
-            destination_now=_tree_rows(root/item["destination"],root)
             source_hash=hashlib.sha256(json.dumps(source_now,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode("utf-8")).hexdigest()
-            destination_hash=hashlib.sha256(json.dumps(destination_now,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode("utf-8")).hexdigest()
-            if source_hash != str(check.get("source_rows_sha256") or "") or destination_hash != str(check.get("destination_rows_sha256") or ""):
-                raise RequestRejected(f"TYPE2 source/destination changed after validation: {item['source']}")
+            # The old location must remain quiescent after validation.  The
+            # destination is intentionally allowed to keep changing because it
+            # is now the active writer location.
+            if source_hash != str(check.get("source_rows_sha256") or ""):
+                raise RequestRejected(f"TYPE2 old source changed after validation: {item['source']}")
         for item in manifest["items"]:
             destination = root / item["destination"]
             if not destination.exists() or destination.is_symlink():
@@ -483,7 +494,7 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
             raise RuntimeError("TYPE2 finalize source readback failed")
         after = service._snapshot_release_dirs(root)
         if after != request["mailbox_snapshot_before"]:
-            raise RuntimeError("TYPE2 incoming/processing changed during finalize")
+            raise RuntimeError("TYPE2 release mailboxes changed during finalize")
         result = {
             "status": "GREEN", "clearup_id": clearup_id, "phase": "COMPLETE",
             "removed_sources": [x["source"] for x in manifest["items"]],
@@ -512,7 +523,7 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
             _set_type2_activation(root,key=key,source=item["source"],destination=item["destination"],active=False,clearup_id=clearup_id,plan_sha256=plan["plan_sha256"])
     after = service._snapshot_release_dirs(root)
     if after != request["mailbox_snapshot_before"]:
-        raise RuntimeError("TYPE2 incoming/processing changed during restore")
+        raise RuntimeError("TYPE2 release mailboxes changed during restore")
     result = {"status": "GREEN", "clearup_id": clearup_id, "phase": "RESTORED", "restored_sources": restored, "destinations_untouched": True, "delete_performed": False}
     _atomic_write_json(state, {**result, "plan_sha256": plan["plan_sha256"]})
     return request_id, result

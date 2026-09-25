@@ -812,9 +812,22 @@ class ControlPlane:
                 request_release = str(request.get('release_version') or '').strip()
                 live_release = self.version_path.read_text(encoding='utf-8').strip()
                 if request_release and request_release != live_release:
-                    # A request from a previous release is inert. Do not let it
-                    # generate fresh approval errors for the current release.
-                    # Preserve any prior GREEN proof, but remove stale RED/noise.
+                    # A request from a previous release is historical evidence,
+                    # never an active slot. Preserve it outside the live request
+                    # path and remove stale non-GREEN result noise. This is what
+                    # prevents old control-plane state from starving a new release.
+                    archive_root = self.inbox / 'projectmanager_v2' / 'RuntimeV2' / 'control_plane_archive'
+                    archive_root.mkdir(parents=True, exist_ok=True)
+                    if archive_root.is_symlink():
+                        raise RuntimeError('unsafe stale native request archive root')
+                    request_id = str(request.get('request_id') or 'unknown')[:80]
+                    archive = archive_root / f'native_mcp_reload.stale.{request_release}.{request_id}.json'
+                    if archive.exists():
+                        if _load_json(archive) != request:
+                            raise RuntimeError('stale native request archive conflict')
+                        native_request.unlink(missing_ok=True)
+                    else:
+                        os.replace(native_request, archive)
                     try:
                         prior = _load_json(native_result)
                     except Exception:

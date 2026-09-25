@@ -1,6 +1,6 @@
 {
   "schema": "energie_clearup_type2_path_contract_v1",
-  "release": "32.5.8",
+  "release": "32.5.9",
   "status": "GREEN",
   "batches": {
     "ClearUp_002": "GREEN",

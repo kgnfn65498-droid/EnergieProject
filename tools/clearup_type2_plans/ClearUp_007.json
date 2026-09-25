@@ -20,6 +20,9 @@
             "\"ClearUp_007\": \"RED\""
           ]
         }
+      ],
+      "runtime_proof_paths": [
+        "runtime.json"
       ]
     },
     {

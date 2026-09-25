@@ -98,9 +98,37 @@ class NativeRuntimeCoordinator:
             'action':'native_mcp_reload','container':MCP_CONTAINER,'request_id':rid,'release_id':s.release_id,
             'generation':s.generation,'release_version':s.to_version,'artifact_sha256':s.artifact_sha256,
             'expected_fingerprint':expected}
-        current=_json(project_system_path(self.root, 'Inbox/control_plane/requests/native_mcp_reload.json'))
+        request_path=project_system_path(self.root, 'Inbox/control_plane/requests/native_mcp_reload.json')
+        current=_json(request_path)
         if current and current!=request:
-            # One request file, one generation. Never overwrite a different live request.
-            return Outcome.blocked('native_mcp_request_conflict','inspect existing single control-plane request')
-        if not current:_atomic(project_system_path(self.root, 'Inbox/control_plane/requests/native_mcp_reload.json'),request)
+            # Historical control-plane requests are evidence, never active locks.
+            # A request may block only when it belongs to the *current* live
+            # release/generation.  Stale release data is retired atomically so
+            # it can never deadlock a new incoming artifact.
+            stale=(
+                str(current.get('release_version') or '') != str(s.to_version)
+                or str(current.get('release_id') or '') != str(s.release_id)
+                or str(current.get('generation') or '') != str(s.generation)
+                or str(current.get('artifact_sha256') or '') != str(s.artifact_sha256)
+            )
+            if stale:
+                archive=project_system_path(self.root, 'Inbox/projectmanager_v2/RuntimeV2/control_plane_archive')
+                archive.mkdir(parents=True,exist_ok=True)
+                if archive.is_symlink():
+                    return Outcome.blocked('native_mcp_stale_request_archive_unsafe')
+                rid=str(current.get('request_id') or 'unknown')[:80]
+                rel=str(current.get('release_version') or 'unknown')[:40]
+                dst=archive/f'native_mcp_reload.stale.{rel}.{rid}.json'
+                if dst.exists():
+                    if _json(dst)!=current:
+                        return Outcome.blocked('native_mcp_stale_request_archive_conflict')
+                    request_path.unlink(missing_ok=True)
+                else:
+                    os.replace(request_path,dst)
+                current={}
+            else:
+                # A different request for the exact active fence is suspicious
+                # and remains fail-closed rather than being overwritten.
+                return Outcome.blocked('native_mcp_request_conflict','inspect exact current release-scoped request')
+        if not current:_atomic(request_path,request)
         return Outcome.waiting('native_mcp_reload_pending','native_mcp_reload_requested')

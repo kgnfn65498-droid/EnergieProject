@@ -252,7 +252,17 @@ class ProtectedActionExecutor:
             raise RuntimeError('native MCP reload is niet aantoonbaar vereist')
         legacy_pending = self._read_json_object(self.native_mcp_runtime_root / 'reload_request.json')
         if legacy_pending is not None:
-            raise RuntimeError('legacy native MCP pending request bestaat; eerst reconciliëren')
+            try:
+                live_tuple = tuple(int(part) for part in live_release.split('.'))
+            except ValueError:
+                live_tuple = ()
+            if live_tuple < (32, 5, 9):
+                raise RuntimeError('legacy native MCP pending request bestaat; eerst reconciliëren')
+            # From 32.5.9 onward retired pre-control-plane state is evidence only.
+            # It may never block the current fenced route and is never executed
+            # automatically. Reviving legacy behavior still requires a separate
+            # explicit Peter approval through the protected-action path.
+            legacy_pending = dict(legacy_pending)
         payload = {
             'schema': 'energie_control_plane_request_v1',
             'request_id': request_id,
@@ -357,7 +367,16 @@ class ProtectedActionExecutor:
 
     def run_once(self, *, max_items=5):
         results = []
-        for action in self.approved_actions.open_items()[:max(0, int(max_items))]:
+        productive = 0
+        limit = max(0, int(max_items))
+        # Scan beyond the execution limit so stale/invalid historical approvals
+        # cannot permanently starve a newer valid protected action. The scan is
+        # still bounded; only successfully queued/completed actions consume the
+        # per-cycle execution budget.
+        scan_limit = max(limit, limit * 20)
+        for action in self.approved_actions.open_items()[:scan_limit]:
+            if productive >= limit:
+                break
             if action.get('action') not in {'production_deploy', 'native_mcp_reload', 'watcher_recreate'}:
                 continue
             try:
@@ -387,6 +406,7 @@ class ProtectedActionExecutor:
                                 'request_id': result.get('request_id'),
                             })
                         results.append(result)
+                        productive += 1
                         continue
                 else:
                     result = self._queue_watcher_recreate(action, command, decision)
@@ -397,6 +417,7 @@ class ProtectedActionExecutor:
                                 'request_id': result.get('request_id'),
                             })
                         results.append(result)
+                        productive += 1
                         continue
                 self.approved_actions.complete(action['id'], result=result)
                 self.commands.complete(command['id'], result=result)
@@ -406,6 +427,7 @@ class ProtectedActionExecutor:
                         'result': result,
                     })
                 results.append(result)
+                productive += 1
             except Exception as exc:
                 if self.audit is not None:
                     self.audit.write('protected_action.deferred', actor='projectmanager', result='blocked', details={

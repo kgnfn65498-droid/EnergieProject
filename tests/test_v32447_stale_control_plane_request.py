@@ -18,7 +18,9 @@ def test_32447_stale_request_is_ignored_before_approval_lookup(tmp_path):
     plane,inbox=_plane(tmp_path,'32.4.47',{'schema':'energie_control_plane_request_v1','request_id':'1'*32,'action':'native_mcp_reload','approved_by':'Peter','decision_id':'old-dec','command_id':'old-cmd','release_version':'32.4.43','expected_fingerprint':'a'*64})
     assert plane.process_once()==[]
     assert not (inbox/'control_plane/results/native_mcp_reload.json').exists()
-    assert (inbox/'control_plane/requests/native_mcp_reload.json').exists()
+    assert not (inbox/'control_plane/requests/native_mcp_reload.json').exists()
+    archived=list((inbox/'projectmanager_v2/RuntimeV2/control_plane_archive').glob('native_mcp_reload.stale.32.4.43.*.json'))
+    assert len(archived)==1
 def test_32447_current_request_without_exact_approval_stays_fail_closed(tmp_path):
     plane,inbox=_plane(tmp_path,'32.4.47',{'schema':'energie_control_plane_request_v1','request_id':'2'*32,'action':'native_mcp_reload','approved_by':'Peter','decision_id':'cur-dec','command_id':'cur-cmd','release_version':'32.4.47','expected_fingerprint':'b'*64})
     plane.process_once(); result=json.loads((inbox/'control_plane/results/native_mcp_reload.json').read_text())

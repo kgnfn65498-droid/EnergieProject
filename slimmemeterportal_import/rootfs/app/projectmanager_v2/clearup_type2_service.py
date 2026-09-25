@@ -24,7 +24,7 @@ EXPORT_ROOT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Exports')
 STATE_ROOT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/State')
 VALIDATION_ROOT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Validation')
 WATCHER_REQUEST_REL = Path('Inbox/project_clearup_move_request.json')
-WATCHER_RESULT_REL = Path('Inbox/logs/project_clearup_move_result.json')
+WATCHER_RESULT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Runtime/project_clearup_move_result.json')
 WATCHER_TIMEOUT_SECONDS = 90.0
 MAX_EXPORT_CHUNK = 32768
 PROTECTED_SOURCE_PREFIXES = (
@@ -145,12 +145,14 @@ def _load_plan(root: Path, clearup_id: str) -> dict[str, Any]:
             if not must_contain and not must_not_contain:
                 raise RuntimeError('Type2 contract check must assert content')
             normalized_checks.append({'path': path, 'must_contain': must_contain, 'must_not_contain': must_not_contain})
+        runtime_proof_paths = [_safe_relative(str(x)) for x in (raw.get('runtime_proof_paths') or []) if str(x).strip()]
         normalized.append({
             'source': source,
             'destination': destination,
             'reason': str(raw.get('reason') or '').strip(),
             'optional': raw.get('optional') is True,
             'path_key': str(raw.get('path_key') or '').strip(),
+            'runtime_proof_paths': runtime_proof_paths,
             'contract_checks': normalized_checks,
         })
     plan = dict(plan)
@@ -181,17 +183,20 @@ def _contract_checks(root: Path, plan: dict[str, Any]) -> list[dict[str, Any]]:
     return results
 
 
-def _snapshot_release_dirs(root: Path) -> dict[str, list[tuple[str, int, str]]]:
-    result = {}
-    for rel in ('Inbox/incoming', 'Inbox/processing'):
+def _snapshot_release_dirs(root: Path) -> dict[str, list[dict[str, Any]]]:
+    # JSON-canonical representation: watcher requests round-trip through JSON,
+    # therefore tuples are forbidden here.  All four release mailboxes are
+    # protected, not only incoming/processing.
+    result: dict[str, list[dict[str, Any]]] = {}
+    for rel in ('Inbox/incoming', 'Inbox/processing', 'Inbox/processed', 'Inbox/failed'):
         base = root / rel
-        rows = []
+        rows: list[dict[str, Any]] = []
         if base.is_dir():
             for p in sorted(base.rglob('*')):
                 if p.is_symlink():
                     raise RuntimeError(f'release mailbox symlink refused: {p}')
                 if p.is_file():
-                    rows.append((p.relative_to(base).as_posix(), p.stat().st_size, _sha(p)))
+                    rows.append({'path': p.relative_to(base).as_posix(), 'size': p.stat().st_size, 'sha256': _sha(p)})
         result[rel] = rows
     return result
 
@@ -326,6 +331,31 @@ def migrate_type2(project_root: Path | str, *, clearup_id: str, explicit_user_te
     return {**result, 'status': 'GREEN', 'clearup_id': clearup_id, 'plan_sha256': plan['plan_sha256'], 'contract_checks': checks, 'deletion_performed': False}
 
 
+def _tree_rows_for_validation(root: Path, base: Path) -> list[dict[str, Any]]:
+    if not base.exists() or base.is_symlink():
+        raise RuntimeError(f'Type2 validation path missing/unsafe: {base}')
+    out=[]
+    seq=[base] if base.is_file() else [base,*sorted(base.rglob('*'))]
+    for q in seq:
+        if q.is_symlink():
+            raise RuntimeError(f'Type2 validation symlink refused: {q}')
+        rel=q.relative_to(root).as_posix()
+        if q.is_file(): out.append({'path':rel,'type':'file','size':q.stat().st_size,'sha256':_sha(q)})
+        elif q.is_dir(): out.append({'path':rel,'type':'directory'})
+    return out
+
+
+def _baseline_paths_present(destination_rows: list[dict[str, Any]], baseline_rows: list[dict[str, Any]], source: str, destination: str) -> bool:
+    got={row['path']:row for row in destination_rows}
+    for row in baseline_rows:
+        suffix=Path(row['path']).relative_to(source).as_posix() if row['path'] != source else '.'
+        dest_path=destination if suffix=='.' else f'{destination}/{suffix}'
+        candidate=got.get(dest_path)
+        if not candidate or candidate.get('type') != row.get('type'):
+            return False
+    return True
+
+
 def validate_type2(project_root: Path | str, *, clearup_id: str, source: str) -> dict[str, Any]:
     root = Path(project_root).resolve()
     if source != 'mcp_remote':
@@ -341,76 +371,88 @@ def validate_type2(project_root: Path | str, *, clearup_id: str, source: str) ->
         raise RuntimeError('Type2 migrated state missing/unreadable') from exc
     if not isinstance(state, dict) or state.get('phase') != 'MIGRATED_PENDING_VALIDATION' or state.get('plan_sha256') != plan['plan_sha256']:
         raise RuntimeError('Type2 validate requires matching migrated state')
-    manifest_path = root / STAGING_ROOT_REL / clearup_id / 'TYPE2_MANIFEST.json'
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
-    except Exception as exc:
-        raise RuntimeError('Type2 recovery manifest missing/unreadable') from exc
+    cutover = state.get('cutover_rows') or {}
+    activated_at=float(state.get('activated_at_epoch') or 0.0)
+    if not isinstance(cutover,dict) or not cutover or activated_at <= 0:
+        raise RuntimeError('Type2 cutover evidence missing')
+
+    # First prove that every mapping resolves to its destination and that the
+    # destination still contains every path present at cutover.  File contents
+    # may legitimately change after cutover; path loss may not.
     checks=[]; failures=[]
-    for item in manifest.get('items') or []:
-        src = root / item['source']; dst = root / item['destination']
-        if not src.exists() or src.is_symlink():
-            failures.append(f"source_missing:{item['source']}"); continue
-        if not dst.exists() or dst.is_symlink():
-            failures.append(f"destination_missing:{item['destination']}"); continue
-        # Local copy of executor tree-row logic for read-only validation.  The
-        # live source is authoritative during the migration window: self-hosted
-        # components may finish the command that activated the new path after
-        # the initial copy.  Finalize is therefore allowed only when destination
-        # exactly matches the *current* preserved source, not merely the older
-        # recovery snapshot.
-        def rows(base: Path):
-            out=[]
-            seq=[base] if base.is_file() else [base,*sorted(base.rglob('*'))]
-            for q in seq:
-                if q.is_symlink(): raise RuntimeError(f'Type2 validation symlink refused: {q}')
-                rel=q.relative_to(root).as_posix()
-                if q.is_file(): out.append({'path':rel,'type':'file','size':q.stat().st_size,'sha256':_sha(q)})
-                elif q.is_dir(): out.append({'path':rel,'type':'directory'})
-            return out
-        live_source_rows=rows(src)
-        expected=[]
-        for row in live_source_rows:
-            suffix = Path(row['path']).relative_to(item['source']).as_posix() if row['path'] != item['source'] else '.'
-            dest_path = item['destination'] if suffix == '.' else f"{item['destination']}/{suffix}"
-            expected.append({**row,'path':dest_path})
-        destination_rows=rows(dst)
-        source_rows_sha256=_json_sha(live_source_rows)
-        destination_rows_sha256=_json_sha(destination_rows)
-        if destination_rows != expected:
-            failures.append(f"destination_live_source_mismatch:{item['destination']}")
+    source_before={}
+    for item in plan['items']:
+        src=root/item['source']; dst=root/item['destination']
+        if not src.exists() or src.is_symlink(): failures.append(f"source_missing:{item['source']}"); continue
+        if not dst.exists() or dst.is_symlink(): failures.append(f"destination_missing:{item['destination']}"); continue
         key=str(item.get('path_key') or '').strip()
         if key:
-            marker=root / Path('Data/03_Systeem/Projectmanager/ClearUp/PathActivation') / f'{key}.json'
+            marker=root/Path('Data/03_Systeem/Projectmanager/ClearUp/PathActivation')/f'{key}.json'
             try: m=json.loads(marker.read_text(encoding='utf-8'))
             except Exception: m={}
-            if not isinstance(m,dict) or m.get('active') is not True or m.get('plan_sha256') != plan['plan_sha256']:
+            if not isinstance(m,dict) or m.get('active') is not True or m.get('plan_sha256') != plan['plan_sha256'] or m.get('destination') != item['destination']:
                 failures.append(f'activation_missing:{key}')
-            resolved=project_system_path(root,item['source'])
-            if resolved.resolve() != dst.resolve():
+            if project_system_path(root,item['source']).resolve() != dst.resolve():
                 failures.append(f'active_path_not_destination:{key}')
-        checks.append({'source':item['source'],'destination':item['destination'],'path_key':key or None,'source_rows_sha256':source_rows_sha256,'destination_rows_sha256':destination_rows_sha256})
-    # Runtime-writer proof for batches whose producer exposes a heartbeat/state file.
-    runtime_proofs=[]
-    proof_candidates={
-        'ClearUp_002':['status/current.json','heartbeat/manager.json'],
-        'ClearUp_005':['runtime.json','current.json'],
-        'ClearUp_006':['current.json','runtime_guard.json'],
-        'ClearUp_007':['runtime.json'],
-    }
-    for rel in proof_candidates.get(clearup_id,[]):
-        found=False
-        for item in manifest.get('items') or []:
-            p=(root/item['destination']/rel) if (root/item['destination']).is_dir() else None
-            if p is not None and p.is_file() and not p.is_symlink():
-                runtime_proofs.append({'path':p.relative_to(root).as_posix(),'sha256':_sha(p)})
-                found=True; break
-        if found: break
-    if clearup_id in proof_candidates and not runtime_proofs:
-        failures.append('runtime_writer_proof_missing_restart_or_recreate_required')
-    status='GREEN' if not failures else 'RED'
-    proof={'schema':'energie_clearup_type2_validation_v1','status':status,'clearup_id':clearup_id,'plan_sha256':plan['plan_sha256'],'checked_at':datetime.now(timezone.utc).isoformat(),'checks':checks,'runtime_proofs':runtime_proofs,'failures':failures,'evidence':[x['destination'] for x in checks]+[x['path'] for x in runtime_proofs]}
-    validation=root / VALIDATION_ROOT_REL / f'{clearup_id}.json'
+        src_rows=_tree_rows_for_validation(root,src)
+        dst_rows=_tree_rows_for_validation(root,dst)
+        baseline=cutover.get(item['source'])
+        if not isinstance(baseline,list) or not _baseline_paths_present(dst_rows,baseline,item['source'],item['destination']):
+            failures.append(f'cutover_paths_missing:{item["destination"]}')
+        source_before[item['source']]=src_rows
+        checks.append({'source':item['source'],'destination':item['destination'],'path_key':key or None,
+                       'source_rows_sha256':_json_sha(src_rows),'destination_rows_sha256':_json_sha(dst_rows)})
+
+    if failures:
+        status='RED'
+    else:
+        # Old source must be quiescent after path activation.  This detects a
+        # stale writer before destructive finalization.
+        quiet=max(0.05,float(os.environ.get('ENERGIE_CLEARUP_TYPE2_QUIESCENCE_SECONDS','2.0')))
+        time.sleep(quiet)
+        for item in plan['items']:
+            src=root/item['source']
+            now=_tree_rows_for_validation(root,src)
+            if now != source_before[item['source']]:
+                failures.append(f'old_source_still_mutating:{item["source"]}')
+
+        # For long-lived runtime producers, require a fresh write at the new
+        # destination after activation.  Static/state-only mappings omit this.
+        timeout=max(0.1,float(os.environ.get('ENERGIE_CLEARUP_TYPE2_PROOF_TIMEOUT_SECONDS','75')))
+        deadline=time.monotonic()+timeout
+        pending=[]
+        while True:
+            pending=[]
+            for item in plan['items']:
+                proofs=item.get('runtime_proof_paths') or []
+                if not proofs: continue
+                ok=False
+                for rel in proofs:
+                    p=(root/item['destination']/rel) if (root/item['destination']).is_dir() else None
+                    if p is not None and p.is_file() and not p.is_symlink() and p.stat().st_mtime >= activated_at - 1.0:
+                        ok=True; break
+                if not ok: pending.append(item['source'])
+            if not pending or time.monotonic() >= deadline: break
+            time.sleep(min(0.5,max(0.05,deadline-time.monotonic())))
+        for source_rel in pending:
+            failures.append(f'runtime_writer_proof_missing:{source_rel}')
+        status='GREEN' if not failures else 'RED'
+
+    # Refresh hashes after the observation window.  Finalize will require only
+    # the old source hash to remain stable; destination may continue changing.
+    final_checks=[]
+    for item in plan['items']:
+        src=root/item['source']; dst=root/item['destination']
+        if src.exists() and dst.exists():
+            final_checks.append({'source':item['source'],'destination':item['destination'],'path_key':item.get('path_key') or None,
+                                 'source_rows_sha256':_json_sha(_tree_rows_for_validation(root,src)),
+                                 'destination_rows_sha256':_json_sha(_tree_rows_for_validation(root,dst))})
+    proof={'schema':'energie_clearup_type2_validation_v2','status':status,'clearup_id':clearup_id,
+           'plan_sha256':plan['plan_sha256'],'checked_at':datetime.now(timezone.utc).isoformat(),
+           'checks':final_checks,'failures':failures,
+           'evidence':[x['destination'] for x in final_checks],
+           'old_source_quiescence_seconds':max(0.05,float(os.environ.get('ENERGIE_CLEARUP_TYPE2_QUIESCENCE_SECONDS','2.0')))}
+    validation=root/VALIDATION_ROOT_REL/f'{clearup_id}.json'
     _atomic_json(validation,proof)
     return proof
 

@@ -11,6 +11,7 @@ _ALLOWED_RESULTS={
     'Inbox/logs/project_clearup_move_result.json',
     'Data/03_Systeem/Projectmanager/Logs/project_clearup_move_result.json',
     'Data/03_Systeem/Projectmanager/Logs/Runtime/project_clearup_move_result.json',
+    'Data/03_Systeem/Projectmanager/ClearUp/Runtime/project_clearup_move_result.json',
 }
 
 def process_once(root: Path | str) -> dict | None:
@@ -41,7 +42,10 @@ def process_once(root: Path | str) -> dict | None:
             return existing
     _,payload=project_clearup_move_executor.process(root,request,result)
     current_result=project_system_path(root,'Inbox/logs/project_clearup_move_result.json').resolve()
-    if current_result != result:
+    # Type2 uses a dedicated ClearUp runtime result outside every migratable
+    # source tree. Never mirror a Type2 result back into Inbox/logs.
+    is_type2 = isinstance(raw,dict) and str(raw.get('schema') or '') == 'energie_clearup_type2_request_v1'
+    if not is_type2 and current_result != result:
         if root not in current_result.parents or current_result.is_symlink():
             raise RuntimeError('sideband activated result path unsafe')
         current_result.parent.mkdir(parents=True,exist_ok=True)

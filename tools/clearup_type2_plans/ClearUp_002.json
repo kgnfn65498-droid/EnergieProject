@@ -20,6 +20,9 @@
             "\"ClearUp_002\": \"RED\""
           ]
         }
+      ],
+      "runtime_proof_paths": [
+        "heartbeat/manager.json"
       ]
     }
   ]

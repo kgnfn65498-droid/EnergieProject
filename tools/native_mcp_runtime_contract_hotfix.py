@@ -35,6 +35,11 @@ def _ensure_command_forwarding(tools_text: str) -> tuple[str, bool]:
     start = tools_text.find("    if intent == 'conversation_intake':")
     end = tools_text.find("    return _write_command(payload)", start)
     if start < 0 or end < 0:
+        # Older/minimal tools_projectmanager variants do not expose the generic
+        # command writer. There is nothing to forward in that shape; keep the
+        # hotfix backwards-compatible instead of turning absence into a blocker.
+        if 'def projectmanager_submit_command(' not in tools_text:
+            return tools_text, False
         raise RuntimeError('tools_projectmanager command forwarding anchors mismatch')
     patched = tools_text[:start] + COMMAND_FORWARDING_BLOCK + tools_text[end:]
     return patched, True
@@ -89,15 +94,37 @@ def apply(root: Path | str) -> dict:
         raise RuntimeError(f"runtime contract hotfix requires 32.4.39+, got {version!r}")
     native = root / "Infra/Docker/native-mcp"
     server = native / "server.py"
+    registry = native / "registry.py"
     clearup_export = native / "tools_clearup_export.py"
     tools_pm = native / "tools_projectmanager.py"
-    if not server.is_file() or server.is_symlink() or not tools_pm.is_file() or tools_pm.is_symlink():
+    if (
+        not server.is_file() or server.is_symlink()
+        or not tools_pm.is_file() or tools_pm.is_symlink()
+    ):
         raise RuntimeError("native MCP sources missing/unsafe")
+    if registry.exists() and (registry.is_symlink() or not registry.is_file()):
+        raise RuntimeError("native MCP registry unsafe")
     tools_text = tools_pm.read_text(encoding="utf-8")
     missing = [field for field in REQUIRED_INTAKE_FIELDS if field not in tools_text]
     if missing:
         raise RuntimeError("tools_projectmanager.py missing required intake fields: " + ",".join(missing))
     changed = []
+    if registry.is_file():
+        registry_text = registry.read_text(encoding="utf-8")
+        registry_marker = "# NATIVE_MCP_TOOL_ANNOTATIONS_VERSION=2026-09-25.v1"
+        read_def = "READ_ONLY_ANNOTATIONS = {}"
+        write_def = "WRITE_ANNOTATIONS = {}"
+        have_read = read_def in registry_text
+        have_write = write_def in registry_text
+        if have_read != have_write:
+            raise RuntimeError("registry annotation contract partially present")
+        if not have_read:
+            registry_text = registry_text.rstrip() + (
+                "\n\n" + registry_marker + "\n" + read_def + "\n" + write_def + "\n"
+            )
+            _atomic_text(registry, registry_text)
+            changed.append("registry.py:tool_annotations_v2026_09_25")
+
     patched_tools, approval_changed, approval_change = _ensure_approval_tool(tools_text)
     if approval_changed:
         _atomic_text(tools_pm, patched_tools)

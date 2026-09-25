@@ -1,3 +1,11 @@
+## 32.5.9 — clean rebuild
+
+- Rebuilt from exact 32.5.8 baseline; superseded 32.5.9 used only as audit reference.
+- Structural stale Native-MCP request retirement prevents old control-plane state from blocking incoming.
+- Complete ClearUp Type1 and Type2 002–012 execution routes retained and revalidated.
+- Dangerous legacy/manual restart paths remain isolated behind protected explicit approval.
+- Native-MCP runtime activation now migrates the registry annotation contract before loading ClearUp export tools, preventing the 32.5.8 startup crash/restart-loop from recurring.
+
 ## 32.5.8 — Native MCP command bridge + live activation proof
 
 - Repareert de bewezen 32.5.7-fout waarbij `projectmanager_submit_command` de velden `classification_hint`, `artifact_path`, `release_version` en bronmetadata accepteerde maar buiten `conversation_intake`/`production_deploy` niet in CommandIngress schreef.

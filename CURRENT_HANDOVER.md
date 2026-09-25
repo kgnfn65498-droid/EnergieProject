@@ -1,11 +1,24 @@
-# CURRENT_HANDOVER — 32.5.8
+# CURRENT HANDOVER — EnergieProject 32.5.9
 
-Doel: ClearUp_001 moet vanuit chat normaal werken: recovery-ZIP vooraf, Peter zegt `akkoord`, Projectmanager voert bounded delete uit zonder terminal en zonder de release-Inbox te raken.
+32.5.9 is a clean rebuild from the exact physical 32.5.8 release artifact. The withdrawn 32.5.9 artifact with SHA256 71dc599a9c1a8961238ecf87b41df8b84aa89d45c2d8b50efb236d6b4dedb95a was used only as an audit reference and is superseded.
 
-32.5.8 repareert de 32.5.6 live permissiefout door de bestaande QNAP watcher-executor te gebruiken voor exact vier TYPE1-roots. Chat gebruikt bestaand `admin_update` transport met `classification_hint=clearup_apply`, zodat de Native-MCP submit-command allowlist niet gewijzigd of herladen hoeft te worden.
+Current release objectives:
+- prevent historical Native-MCP/control-plane state from blocking a current incoming release;
+- migrate/validate the Native-MCP registry annotation contract before activating `tools_clearup_export.py`, so an old registry can never cause the MCP container to enter a restart-loop;
+- permit only exact release-scoped COMPLETE-phase Native-MCP reconciliation when release_id, generation, artifact SHA, release version and expected runtime fingerprint all match;
+- keep manual/native restart paths protected and require explicit Peter approval;
+- keep retired legacy state as evidence only from 32.5.9 onward;
+- provide executable ClearUp Type1 and Type2 002..012 routes via CommandIngress -> Projectmanager -> sideband -> privileged executor;
+- preserve all four release mailboxes during ClearUp Type2 operations.
 
-Na live installatie: automatische post-live release-audit; daarna ClearUp_001 uitvoeren met bestaand expliciet akkoord, resultaat/readback controleren en pas GREEN verklaren als de vier oude paden weg zijn en incoming/processing intact zijn.
+Release validation is artifact-specific. No live production state is claimed by this static handover.
+## Bindende release-overdracht naar iedere volgende chat
 
-32.5.8 bevat daarnaast de reeds geïnventariseerde concrete TYPE2-batches `ClearUp_002` t/m `ClearUp_012`. De plannen leggen per item bron, definitieve systeemlocatie, pad-key, reden en contractcheck vast. De scope omvat RuntimeV2, logs/publisherhistorie, operating mode, releasecontroller/status, HA/Native-MCP runtime-evidence, ControlPlane runtime/config, process-workspace, watcher-evidence, lokale CR-state, release/publication-state en runtime-locks/heartbeat.
+Deze regels moeten door iedere nieuwe chat als vaste projectwerkwijze worden overgenomen:
+- ChatGPT bouwt en audit exact één fysieke release-ZIP en biedt die **in de chat als downloadlink** aan.
+- ChatGPT plaatst een release-ZIP **nooit zelf** in NAS `Inbox/incoming`. Peter downloadt exact de aangeboden ZIP en plaatst hem zelf in `Inbox/incoming`.
+- De ChatGPT Library is geen normale release-afleverroute en vervangt de downloadlink in de chat niet.
+- Vóór aanbieden moet exact de downloadbare ZIP fresh-extract zijn getest, inclusief ZIP-integriteit, manifests, actuele release-regressies, Incoming `voorganger -> incoming -> processing`, en waar van toepassing ClearUp Type1 + Type2 002..012.
+- Na Peters melding dat de release draait, voert ChatGPT automatisch de post-live audit uit.
+- Deze regels moeten expliciet in elke volgende handover blijven staan; een nieuwe chat mag ze niet opnieuw laten afhangen van Peters herinnering.
 
-De TYPE2-volgorde is bindend: prepare + recovery-ZIP -> Peter downloadt/bewaart -> expliciet akkoord -> migrate naar definitieve locatie met bron nog intact -> live reader/writer-validatie -> afzonderlijk akkoord -> finalize oude bron -> readback/no-recreation. `incoming`, `processing`, `processed` en `failed` zijn uitgesloten. Readers/writers schakelen uitsluitend via het geverifieerde `system_path_contract`; geen blind pad vervangen en geen terminalroute.
