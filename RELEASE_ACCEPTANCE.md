@@ -1,19 +1,17 @@
-# Release Acceptance — 32.5.13
+# Release Acceptance — 32.5.14
 
 Status vóór live installatie: RELEASE CANDIDATE, niet live bewezen.
 
 Verplicht GREEN vóór aanbieding:
-1. exact-ZIP integriteit en manifests;
-2. 32.5.x regressies;
-3. ClearUp Type1 real commandprocessor -> sideband -> privileged delete/readback;
-4. ClearUp Type2 002..012 prepare -> migrate -> activate -> validate -> finalize -> restore;
-5. stale predecessor request -> archive -> current exact request -> no incoming starvation;
-6. exact-current-fence conflict blijft fail-closed;
-7. manual Native-MCP reload blijft beschermd door expliciete Peter approval;
-8. fresh-extract test en Python compile;
-9. existing `projectmanager_status` tool remains the transport surface; no new MCP tool name;
-10. signed download URL is emitted only under the exact external-recovery gate and binds ClearUp id + expiry + current ZIP SHA-256;
-11. invalid/expired signature, unsupported ID and changed ZIP identity fail closed;
-12. download route performs no filesystem write/delete/migrate/finalize.
+1. exacte buildbasis 32.5.13 SHA `dee215af80e17ddd379d35755849f2358d6df831a9f6a9a05d218e0cad5e17af`;
+2. exact-ZIP integriteit, manifests en fresh extract;
+3. volledige 32.5.x regressies;
+4. stale Docker file-bind simulatie: VERSIE-bind blijft predecessor terwijl controller + atomic state target release bewijzen; release-scoped reload moet toch exact één keer GREEN uitvoeren;
+5. stale release-scoped request wordt bepaald via controller-eigenaarschap en veilig gearchiveerd;
+6. atomic to_version/artifact mismatch blokkeert fail-closed;
+7. legacy/manual Native-MCP reload blijft op VERSIE + Peter approval;
+8. geen nieuwe paden/services en geen wijziging aan `Data/03_Systeem/Projectmanager/ClearUp/Exports`;
+9. Type-2 delete/finalize blijft geblokkeerd;
+10. exacte release-ZIP door dezelfde atomic prepare/swap/accept-validator als productie.
 
-Na installatie blijft live runtime fingerprint/readback vereist voordat destructieve ClearUp wordt uitgevoerd.
+Na installatie vereist de ClearUp-vervolgstap live bewijs van de actuele Native-MCP fingerprint en echte download van 002–012.

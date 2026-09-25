@@ -596,13 +596,14 @@ class ControlPlane:
                 controller_state_path=self.release_controller_root / 'current.json',
                 version_path=self.version_path,
                 runtime_guard_path=self.native_mcp_runtime_root / 'runtime_guard.json',
+                atomic_state_path=(self.inbox / 'atomic_app_swap_state.json') if (self.inbox / 'atomic_app_swap_state.json').is_file() else None,
             )
             approval = None
         else:
             request, approval = load_control_plane_native_request(self.inbox, self.approved_queue)
-        live_version = self.version_path.read_text(encoding='utf-8').strip()
-        if str(request.get('release_version') or '').strip() != live_version:
-            raise RuntimeError('control-plane native MCP request hoort niet bij actuele live release')
+            live_version = self.version_path.read_text(encoding='utf-8').strip()
+            if str(request.get('release_version') or '').strip() != live_version:
+                raise RuntimeError('control-plane native MCP request hoort niet bij actuele live release')
         self.docker.ping()
         if self.docker.inspect_container(MCP_CONTAINER) is None:
             raise RuntimeError('energie-filesystem-mcp ontbreekt')
@@ -810,8 +811,20 @@ class ControlPlane:
                 request_id = str(request.get('request_id') or '')
                 native_result = self.result_root / 'results' / 'native_mcp_reload.json'
                 request_release = str(request.get('release_version') or '').strip()
-                live_release = self.version_path.read_text(encoding='utf-8').strip()
-                if request_release and request_release != live_release:
+                if request.get('schema') == 'energie_control_plane_release_request_v1':
+                    controller_now = _optional_json(self.release_controller_root / 'current.json')
+                    live_release = str(controller_now.get('to_version') or '').strip()
+                    release_owner_matches = bool(
+                        live_release
+                        and str(controller_now.get('release_id') or '') == str(request.get('release_id') or '')
+                        and str(controller_now.get('generation') or '') == str(request.get('generation') or '')
+                        and str(controller_now.get('artifact_sha256') or '') == str(request.get('artifact_sha256') or '')
+                    )
+                    request_is_stale = bool(request_release and (request_release != live_release or not release_owner_matches))
+                else:
+                    live_release = self.version_path.read_text(encoding='utf-8').strip()
+                    request_is_stale = bool(request_release and request_release != live_release)
+                if request_is_stale:
                     # A request from a previous release is historical evidence,
                     # never an active slot. Preserve it outside the live request
                     # path and remove stale non-GREEN result noise. This is what
@@ -846,6 +859,7 @@ class ControlPlane:
                                 controller_state_path=self.release_controller_root / 'current.json',
                                 version_path=self.version_path,
                                 runtime_guard_path=self.native_mcp_runtime_root / 'runtime_guard.json',
+                                atomic_state_path=(self.inbox / 'atomic_app_swap_state.json') if (self.inbox / 'atomic_app_swap_state.json').is_file() else None,
                             )
                         reconciled = self._reconcile_fenced_native_attempt(request, native_result)
                         if isinstance(reconciled, dict) and reconciled.get('status') == 'GREEN':

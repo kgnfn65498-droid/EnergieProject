@@ -1,3 +1,8 @@
+## 32.5.14 — release-scoped Native-MCP authority
+
+- Herstelt de control-plane race na atomic App-swap: release-scoped Native-MCP reload gebruikt de bestaande release-controller + atomic-state in Inbox als autoriteit, niet de inode-stale losse VERSIE bind.
+- Geen nieuwe paden, services of ClearUp-opslagstructuur.
+
 # Changelog
 
 ## 32.5.13 — Type2 recovery download bridge

@@ -1,8 +1,8 @@
-# Platform Qualification — 32.5.13
+# Platform Qualification — 32.5.14
 
 Deze kwalificatie is geen releasegate voor historische/platformtests die reeds rood of sandbox-afhankelijk waren in de exacte 32.5.8-basis. Zulke baselinebevindingen worden afzonderlijk gerapporteerd en niet groen gefabriceerd.
 
-Wel releaseblokkerend voor 32.5.13:
+Wel releaseblokkerend voor 32.5.14:
 - nieuwe of gewijzigde 32.5.9-tests;
 - volledige ClearUp Type1/Type2 002..012 ketentests;
 - stale-control-plane regressies;

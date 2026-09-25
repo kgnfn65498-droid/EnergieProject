@@ -1,3 +1,10 @@
+# 32.5.14 - 2026-09-25
+
+- Herstelt de release-scoped Native-MCP reload na een atomic App-swap zonder nieuwe paden of services.
+- De control-plane gebruikt voor release-eigenaarschap de bestaande `Inbox/release_controller/current.json` + `Inbox/atomic_app_swap_state.json`; een inode-stale bind van `App/VERSIE.txt` kan een actuele reload daardoor niet meer als stale archiveren.
+- Legacy/manual Native-MCP reloads behouden de bestaande `VERSIE.txt`-controle en Peter-approvalroute.
+- Type-2 recovery-ZIP's blijven ongewijzigd onder `Data/03_Systeem/Projectmanager/ClearUp/Exports`; delete/finalize blijft geblokkeerd tot externe download is bevestigd.
+
 ## 32.5.13 — Type2 recovery download via existing Projectmanager status route
 
 - Replaces the earlier rejected 32.5.13 candidate (`2a4ae0da504f96e7a56b2ddad52deedf7b8a8f391b8ea6c56b7f71a54dc02132`), which depended on impractical Base64 chat transport.

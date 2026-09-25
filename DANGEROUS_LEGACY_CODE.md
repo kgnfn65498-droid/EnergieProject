@@ -1,4 +1,4 @@
-# Dangerous / retired legacy code — 32.5.13
+# Dangerous / retired legacy code — 32.5.14
 
 The files below are retained only for historical regression/rollback evidence and are **not active release dependencies**:
 - `tools/legacy_install_adoption.py`
