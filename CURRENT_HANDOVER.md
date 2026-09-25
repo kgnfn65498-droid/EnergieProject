@@ -1,18 +1,20 @@
-# CURRENT HANDOVER — EnergieProject 32.5.14
+# CURRENT HANDOVER — EnergieProject 32.5.15
 
-## 32.5.14 — control-plane stale-bind herstel
+## Doel
+32.5.15 sluit de terugkerende ClearUp-/releaseketenfoutklasse af zonder nieuwe opslagroots of alternatieve releaseketen.
 
-- Buildbasis: exact `EnergieProject_v32.5.13.zip`, SHA256 `dee215af80e17ddd379d35755849f2358d6df831a9f6a9a05d218e0cad5e17af`.
-- 32.5.13 is live/ACCEPTED, maar de release-scoped Native-MCP reload werd geannuleerd doordat de control-plane `App/VERSIE.txt` als los Docker-bestand bind-mounted heeft. Na de atomic App-directoryswap bleef die mount naar de predecessor-inode wijzen en zag de control-plane 32.5.12.
-- 32.5.14 wijzigt geen paden of services. Voor uitsluitend `energie_control_plane_release_request_v1` wordt de bestaande `Inbox/release_controller/current.json` + `Inbox/atomic_app_swap_state.json` gebruikt als release-autoriteit.
-- Legacy/manual Native-MCP reloads behouden de bestaande `VERSIE.txt`-controle en expliciete Peter-approvalroute.
-- Type-2 recovery-ZIP's blijven exact onder `Data/03_Systeem/Projectmanager/ClearUp/Exports`.
-- Gate blijft `Data/03_Systeem/Projectmanager/ClearUp/State/TYPE2_EXTERNAL_RECOVERY_GATE.json`; delete/finalize blijft verboden totdat 002–012 buiten de NAS zijn gedownload, SHA-gecontroleerd en Peter bezit bevestigt.
-- 32.5.13 downloadfunctionaliteit via de bestaande `projectmanager_status`-route blijft behouden; 32.5.14 repareert alleen de live Native-MCP activatie die daarvoor nodig is.
+## Bindende voortgang
+- Runtime-statusautoriteit: canonieke Data/03_Systeem RuntimeV2; oude Inbox-runtime is alleen legacybron en geen actieve waarheid.
+- Buildbasis: exact 32.5.14 SHA `78694b39e8d7f290f93148c1e2d0cdb5fb45d27339ec9257f67b2aad11541e3b`.
+- ClearUp_002 is gemigreerd, bron is bewaard, validatie is GREEN en delete/finalize is niet uitgevoerd. De oude 002 recovery-ZIP is intern inconsistent en moet post-migrate worden vernieuwd.
+- ClearUp_003–012 zijn eerder GREEN geverifieerd.
+- 32.5.15 voegt een fail-closed post-migrate recovery-refresh toe, diepe ZIP-payloadverificatie en onafhankelijke download-descriptors per batch.
+- Native MCP gebruikt de canonieke Data/03_Systeem RuntimeV2; de oude Inbox-runtime geldt alleen als retired legacy alias.
+- Control-plane release-authority gebruikt stabiele controller/atomic state vóór en na Type2-padmigratie; productiecompose bevat geen losse App/VERSIE.txt file-bind meer.
 
-## Na live installatie
-1. Controleer `App/VERSIE.txt = 32.5.14` en atomic `ACCEPTED`.
-2. Controleer control-plane runtime/current en de release-scoped Native-MCP reload tot de runtimefingerprint exact GREEN is.
-3. Roep de bestaande `projectmanager_status`-route aan en verifieer dat de Type-2 recovery-downloadlinks voor 002–012 zichtbaar zijn.
-4. Download de echte recovery-ZIP's, verifieer SHA/ZIP-integriteit en lever ze in chat.
-5. Pas daarna, na expliciete bevestiging van Peter, mag Type-2 finalize/delete verder.
+## Vervolg na installatie
+1. Controleer 32.5.15 COMPLETE en Native-MCP fingerprint GREEN.
+2. Voer `clearup_type2_refresh_recovery` uitsluitend voor ClearUp_002 uit.
+3. Lees `projectmanager_status`; 002–012 moeten ieder een eigen verified download-descriptor hebben.
+4. Download de echte ZIPs naar ChatGPT, controleer grootte + SHA-256 en lever ze hier als bestanden.
+5. Stop vóór destructive finalize/delete en wacht op expliciete bevestiging van de gebruiker.

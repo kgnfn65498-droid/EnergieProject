@@ -10,10 +10,40 @@ def _load(path:Path)->dict:
     if not isinstance(value,dict):raise RuntimeError('json object required')
     return value
 
+def _release_tuple(value:str):
+    try:
+        parts=tuple(int(part) for part in str(value or '').strip().split('.'))
+    except ValueError:
+        return None
+    return parts if len(parts)==3 else None
+
+def _legacy_live_version(version_path:Path)->str:
+    path=Path(version_path)
+    st=path.lstat()
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+        raise RuntimeError('unsafe legacy version path')
+    value=path.read_text(encoding='utf-8').strip()
+    if not value:
+        raise RuntimeError('legacy live version ontbreekt')
+    return value
+
 def authorize_release_native_reconcile(*,request_path:Path,controller_state_path:Path,version_path:Path,runtime_guard_path:Path,atomic_state_path:Path|None=None)->tuple[dict,dict]:
     request=_load(request_path);state=_load(controller_state_path);guard=_load(runtime_guard_path)
-    atomic_state=_load(atomic_state_path) if atomic_state_path is not None else None
-    live_version=None if atomic_state is not None else Path(version_path).read_text(encoding='utf-8').strip()
+    release_parts=_release_tuple(request.get('release_version'))
+    if release_parts is None:
+        raise RuntimeError('release-scoped request release_version invalid')
+    if atomic_state_path is None:
+        # Compatibility only for historical release-scoped fixtures/contracts.
+        # 32.5.13+ is the generation where atomic state became mandatory after
+        # the stale App/VERSIE bind failure; current/future production never
+        # falls back to the file-based authority.
+        if release_parts >= (32,5,13):
+            raise RuntimeError('release-scoped request vereist stabiele atomic authority')
+        atomic_state=None
+        live_version=_legacy_live_version(version_path)
+    else:
+        atomic_state=_load(atomic_state_path)
+        live_version=None
     expected=str(guard.get('expected_fingerprint') or '').lower()
     if len(expected)!=64 or any(c not in '0123456789abcdef' for c in expected):
         raise RuntimeError('native MCP runtime guard expected fingerprint invalid')

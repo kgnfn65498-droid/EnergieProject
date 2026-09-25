@@ -11,9 +11,9 @@ CLEARUP_EXPORT_MODULE = 'from __future__ import annotations\n\nimport base64\nim
 REQUIRED_INTAKE_FIELDS = ("source_channel", "source_ref", "occurred_at", "classification_hint")
 RESULT_REL = Path("Inbox/logs/native_mcp_runtime_contract_hotfix_32.4.39.json")
 
-# TYPE2_RECOVERY_DOWNLOAD_BRIDGE_VERSION=2026-09-25.v2
-TYPE2_DOWNLOAD_BRIDGE_MARKER = "# TYPE2_RECOVERY_DOWNLOAD_BRIDGE_VERSION=2026-09-25.v2"
-TYPE2_DOWNLOAD_BRIDGE_BLOCK = '# TYPE2_RECOVERY_DOWNLOAD_BRIDGE_VERSION=2026-09-25.v2\nimport hashlib as _type2_hashlib\nimport hmac as _type2_hmac\nimport secrets as _type2_secrets\nimport time as _type2_time\nfrom urllib.parse import urlencode as _type2_urlencode\n\n_TYPE2_DOWNLOAD_IDS = {f"ClearUp_{i:03d}" for i in range(2, 13)}\n_TYPE2_DOWNLOAD_SECRET = _type2_secrets.token_bytes(32)\n_TYPE2_DOWNLOAD_TTL_SECONDS = 300\n_TYPE2_SYSTEM_ROOT = Path(os.environ.get("ENERGIE_SYSTEM_ROOT", "/system")).resolve()\n_TYPE2_PROJECT_ROOT = Path(os.environ.get("ENERGIE_ROOT", "/project")).resolve()\n_TYPE2_EXPORT_ROOT = _TYPE2_SYSTEM_ROOT / "Projectmanager/ClearUp/Exports"\n_TYPE2_GATE_PATH = _TYPE2_SYSTEM_ROOT / "Projectmanager/ClearUp/State/TYPE2_EXTERNAL_RECOVERY_GATE.json"\n\n\ndef _type2_export_info(clearup_id: str) -> dict[str, Any]:\n    if clearup_id not in _TYPE2_DOWNLOAD_IDS:\n        raise ValueError("unsupported Type2 clearup_id")\n    from tools_clearup_export import clearup_type2_recovery_export_info\n    return clearup_type2_recovery_export_info(clearup_id)\n\n\ndef _type2_public_base_url() -> str:\n    compose = _TYPE2_PROJECT_ROOT / "Infra/docker-compose.yml"\n    try:\n        lines = compose.read_text(encoding="utf-8").splitlines()\n    except OSError:\n        return ""\n    for index, line in enumerate(lines[:-1]):\n        if line.strip() != "- --url":\n            continue\n        candidate = lines[index + 1].strip()\n        if candidate.startswith("- https://"):\n            return candidate[2:].strip().rstrip("/")\n    return ""\n\n\ndef _type2_signature(clearup_id: str, expires: int, sha256: str) -> str:\n    payload = f"{clearup_id}|{expires}|{sha256}".encode("utf-8")\n    return _type2_hmac.new(_TYPE2_DOWNLOAD_SECRET, payload, _type2_hashlib.sha256).hexdigest()\n\n\ndef _type2_download_descriptor(clearup_id: str) -> dict[str, Any]:\n    info = _type2_export_info(clearup_id)\n    expires = int(_type2_time.time()) + _TYPE2_DOWNLOAD_TTL_SECONDS\n    sha256 = str(info.get("sha256") or "")\n    signature = _type2_signature(clearup_id, expires, sha256)\n    query = _type2_urlencode({\n        "clearup_id": clearup_id,\n        "expires": str(expires),\n        "sha256": sha256,\n        "signature": signature,\n    })\n    relative_url = f"/clearup/type2/download?{query}"\n    base = _type2_public_base_url()\n    return {\n        **info,\n        "expires_epoch": expires,\n        "relative_download_url": relative_url,\n        "download_url": (base + relative_url) if base else "",\n        "deletion_performed": False,\n    }\n\n\ndef _attach_type2_recovery_downloads(payload: Any) -> Any:\n    if not isinstance(payload, dict):\n        return payload\n    try:\n        gate = json.loads(_TYPE2_GATE_PATH.read_text(encoding="utf-8"))\n    except (OSError, json.JSONDecodeError):\n        return payload\n    if gate.get("status") != "BLOCK_DELETE_UNTIL_EXTERNAL_COPY_CONFIRMED":\n        return payload\n    if gate.get("delete_allowed") is not False:\n        return payload\n    required = gate.get("required_exports") or []\n    expected = [f"ClearUp_{i:03d}_Type2_recovery.zip" for i in range(2, 13)]\n    if required != expected:\n        return payload\n    enriched = dict(payload)\n    enriched["type2_external_recovery"] = {\n        "status": "READY_FOR_EXTERNAL_DOWNLOAD",\n        "delete_allowed": False,\n        "exports_root": "Data/03_Systeem/Projectmanager/ClearUp/Exports",\n        "downloads": [_type2_download_descriptor(f"ClearUp_{i:03d}") for i in range(2, 13)],\n    }\n    return enriched\n\n\nasync def _type2_recovery_download_http(request):\n    from starlette.responses import FileResponse, JSONResponse\n\n    clearup_id = str(request.query_params.get("clearup_id") or "")\n    try:\n        expires = int(request.query_params.get("expires") or "0")\n    except ValueError:\n        expires = 0\n    sha256 = str(request.query_params.get("sha256") or "").lower()\n    signature = str(request.query_params.get("signature") or "").lower()\n    if clearup_id not in _TYPE2_DOWNLOAD_IDS:\n        return JSONResponse({"status": "error", "error": "unsupported clearup_id"}, status_code=404)\n    now = int(_type2_time.time())\n    if expires <= now or expires > now + _TYPE2_DOWNLOAD_TTL_SECONDS + 30:\n        return JSONResponse({"status": "error", "error": "download link expired"}, status_code=403)\n    expected_sig = _type2_signature(clearup_id, expires, sha256)\n    if not signature or not _type2_hmac.compare_digest(signature, expected_sig):\n        return JSONResponse({"status": "error", "error": "invalid signature"}, status_code=403)\n    try:\n        info = _type2_export_info(clearup_id)\n    except Exception:\n        return JSONResponse({"status": "error", "error": "recovery export verification failed"}, status_code=409)\n    if str(info.get("sha256") or "").lower() != sha256:\n        return JSONResponse({"status": "error", "error": "recovery export identity changed"}, status_code=409)\n    path = _TYPE2_EXPORT_ROOT / str(info["artifact"])\n    if not path.is_file() or path.is_symlink():\n        return JSONResponse({"status": "error", "error": "recovery export missing"}, status_code=404)\n    return FileResponse(\n        path,\n        media_type="application/zip",\n        filename=path.name,\n        headers={"Cache-Control": "no-store"},\n    )\n\n\nif hasattr(mcp, "custom_route"):\n    mcp.custom_route(\n        "/clearup/type2/download", methods=["GET"], include_in_schema=False\n    )(_type2_recovery_download_http)\n'
+# TYPE2_RECOVERY_DOWNLOAD_BRIDGE_VERSION=2026-09-25.v3
+TYPE2_DOWNLOAD_BRIDGE_MARKER = "# TYPE2_RECOVERY_DOWNLOAD_BRIDGE_VERSION=2026-09-25.v3"
+TYPE2_DOWNLOAD_BRIDGE_BLOCK = '# TYPE2_RECOVERY_DOWNLOAD_BRIDGE_VERSION=2026-09-25.v3\nimport hashlib as _type2_hashlib\nimport hmac as _type2_hmac\nimport secrets as _type2_secrets\nimport time as _type2_time\nfrom urllib.parse import urlencode as _type2_urlencode\n\n_TYPE2_DOWNLOAD_IDS = {f"ClearUp_{i:03d}" for i in range(2, 13)}\n_TYPE2_DOWNLOAD_SECRET = _type2_secrets.token_bytes(32)\n_TYPE2_DOWNLOAD_TTL_SECONDS = 300\n_TYPE2_SYSTEM_ROOT = Path(os.environ.get("ENERGIE_SYSTEM_ROOT", "/system")).resolve()\n_TYPE2_PROJECT_ROOT = Path(os.environ.get("ENERGIE_ROOT", "/project")).resolve()\n_TYPE2_EXPORT_ROOT = _TYPE2_SYSTEM_ROOT / "Projectmanager/ClearUp/Exports"\n_TYPE2_GATE_PATH = _TYPE2_SYSTEM_ROOT / "Projectmanager/ClearUp/State/TYPE2_EXTERNAL_RECOVERY_GATE.json"\n\n\ndef _type2_export_info(clearup_id: str) -> dict[str, Any]:\n    if clearup_id not in _TYPE2_DOWNLOAD_IDS:\n        raise ValueError("unsupported Type2 clearup_id")\n    from tools_clearup_export import clearup_type2_recovery_export_info\n    return clearup_type2_recovery_export_info(clearup_id)\n\n\ndef _type2_public_base_url() -> str:\n    compose = _TYPE2_PROJECT_ROOT / "Infra/docker-compose.yml"\n    try:\n        lines = compose.read_text(encoding="utf-8").splitlines()\n    except OSError:\n        return ""\n    for index, line in enumerate(lines[:-1]):\n        if line.strip() != "- --url":\n            continue\n        candidate = lines[index + 1].strip()\n        if candidate.startswith("- https://"):\n            return candidate[2:].strip().rstrip("/")\n    return ""\n\n\ndef _type2_signature(clearup_id: str, expires: int, sha256: str) -> str:\n    payload = f"{clearup_id}|{expires}|{sha256}".encode("utf-8")\n    return _type2_hmac.new(_TYPE2_DOWNLOAD_SECRET, payload, _type2_hashlib.sha256).hexdigest()\n\n\ndef _type2_download_descriptor(clearup_id: str) -> dict[str, Any]:\n    info = _type2_export_info(clearup_id)\n    expires = int(_type2_time.time()) + _TYPE2_DOWNLOAD_TTL_SECONDS\n    sha256 = str(info.get("sha256") or "")\n    signature = _type2_signature(clearup_id, expires, sha256)\n    query = _type2_urlencode({\n        "clearup_id": clearup_id,\n        "expires": str(expires),\n        "sha256": sha256,\n        "signature": signature,\n    })\n    relative_url = f"/clearup/type2/download?{query}"\n    base = _type2_public_base_url()\n    return {\n        **info,\n        "expires_epoch": expires,\n        "relative_download_url": relative_url,\n        "download_url": (base + relative_url) if base else "",\n        "deletion_performed": False,\n    }\n\n\ndef _attach_type2_recovery_downloads(payload: Any) -> Any:\n    if not isinstance(payload, dict):\n        return payload\n    try:\n        gate = json.loads(_TYPE2_GATE_PATH.read_text(encoding="utf-8"))\n    except (OSError, json.JSONDecodeError):\n        return payload\n    if gate.get("status") != "BLOCK_DELETE_UNTIL_EXTERNAL_COPY_CONFIRMED":\n        return payload\n    if gate.get("delete_allowed") is not False:\n        return payload\n    required = gate.get("required_exports") or []\n    expected = [f"ClearUp_{i:03d}_Type2_recovery.zip" for i in range(2, 13)]\n    if required != expected:\n        return payload\n    downloads = []\n    failures = []\n    for i in range(2, 13):\n        clearup_id = f"ClearUp_{i:03d}"\n        try:\n            downloads.append(_type2_download_descriptor(clearup_id))\n        except Exception as exc:\n            failures.append({"clearup_id": clearup_id, "error": f"{type(exc).__name__}: {exc}"})\n    enriched = dict(payload)\n    enriched["type2_external_recovery"] = {\n        "status": "READY_FOR_EXTERNAL_DOWNLOAD" if not failures else "PARTIAL_BLOCKED",\n        "delete_allowed": False,\n        "exports_root": "Data/03_Systeem/Projectmanager/ClearUp/Exports",\n        "downloads": downloads,\n        "failures": failures,\n        "required_count": 11,\n        "verified_count": len(downloads),\n    }\n    return enriched\n\n\nasync def _type2_recovery_download_http(request):\n    from starlette.responses import FileResponse, JSONResponse\n\n    clearup_id = str(request.query_params.get("clearup_id") or "")\n    try:\n        expires = int(request.query_params.get("expires") or "0")\n    except ValueError:\n        expires = 0\n    sha256 = str(request.query_params.get("sha256") or "").lower()\n    signature = str(request.query_params.get("signature") or "").lower()\n    if clearup_id not in _TYPE2_DOWNLOAD_IDS:\n        return JSONResponse({"status": "error", "error": "unsupported clearup_id"}, status_code=404)\n    now = int(_type2_time.time())\n    if expires <= now or expires > now + _TYPE2_DOWNLOAD_TTL_SECONDS + 30:\n        return JSONResponse({"status": "error", "error": "download link expired"}, status_code=403)\n    expected_sig = _type2_signature(clearup_id, expires, sha256)\n    if not signature or not _type2_hmac.compare_digest(signature, expected_sig):\n        return JSONResponse({"status": "error", "error": "invalid signature"}, status_code=403)\n    try:\n        info = _type2_export_info(clearup_id)\n    except Exception:\n        return JSONResponse({"status": "error", "error": "recovery export verification failed"}, status_code=409)\n    if str(info.get("sha256") or "").lower() != sha256:\n        return JSONResponse({"status": "error", "error": "recovery export identity changed"}, status_code=409)\n    path = _TYPE2_EXPORT_ROOT / str(info["artifact"])\n    if not path.is_file() or path.is_symlink():\n        return JSONResponse({"status": "error", "error": "recovery export missing"}, status_code=404)\n    return FileResponse(\n        path,\n        media_type="application/zip",\n        filename=path.name,\n        headers={"Cache-Control": "no-store"},\n    )\n\n\nif hasattr(mcp, "custom_route"):\n    mcp.custom_route(\n        "/clearup/type2/download", methods=["GET"], include_in_schema=False\n    )(_type2_recovery_download_http)\n'
 
 TYPE2_STATUS_OLD = '@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)\ndef projectmanager_status() -> dict[str, Any]:\n    return _api().status()\n'
 TYPE2_STATUS_NEW = '@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)\ndef projectmanager_status() -> dict[str, Any]:\n    return _attach_type2_recovery_downloads(_api().status())\n'
@@ -21,11 +21,21 @@ TYPE2_STATUS_NEW = '@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)\ndef projectman
 def _ensure_type2_download_bridge(tools_text: str) -> tuple[str, bool, str]:
     if TYPE2_DOWNLOAD_BRIDGE_MARKER in tools_text and TYPE2_STATUS_NEW in tools_text:
         return tools_text, False, "type2_download_bridge_current"
-    if TYPE2_STATUS_OLD not in tools_text:
+    old_marker = "# TYPE2_RECOVERY_DOWNLOAD_BRIDGE_VERSION=2026-09-25.v2"
+    if old_marker not in tools_text and TYPE2_STATUS_OLD not in tools_text:
         return tools_text, False, "type2_download_bridge_status_tool_absent"
     api_anchor = "\n\ndef _api() -> ProjectmanagerAPI:\n"
     if tools_text.count(api_anchor) != 1:
         raise RuntimeError("tools_projectmanager Type2 download insertion anchor mismatch")
+    if old_marker in tools_text:
+        start = tools_text.index(old_marker)
+        end = tools_text.index(api_anchor, start)
+        tools_text = tools_text[:start] + TYPE2_DOWNLOAD_BRIDGE_BLOCK + tools_text[end:]
+        if TYPE2_STATUS_NEW not in tools_text:
+            if TYPE2_STATUS_OLD not in tools_text:
+                raise RuntimeError("tools_projectmanager Type2 status wrapper missing during upgrade")
+            tools_text = tools_text.replace(TYPE2_STATUS_OLD, TYPE2_STATUS_NEW, 1)
+        return tools_text, True, "type2_download_bridge_upgraded_v3"
     tools_text = tools_text.replace(api_anchor, "\n\n" + TYPE2_DOWNLOAD_BRIDGE_BLOCK + api_anchor, 1)
     tools_text = tools_text.replace(TYPE2_STATUS_OLD, TYPE2_STATUS_NEW, 1)
     return tools_text, True, "type2_download_bridge_added"
@@ -80,6 +90,53 @@ def _atomic_text(path: Path, text: str) -> None:
 def _atomic_json(path: Path, payload: dict) -> None:
     _atomic_text(path, json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
 
+
+
+PM_RUNTIME_ROOT_MARKER = "# PM_RUNTIME_ROOT_CANONICAL_VERSION=2026-09-25.v1"
+PM_RUNTIME_ROOT_OLD = """RUNTIME_ROOT = Path(os.environ.get(
+    'PM_SYSTEM_ROOT',
+    '/project/Inbox/projectmanager_v2/RuntimeV2',
+)).resolve()
+"""
+PM_RUNTIME_ROOT_NEW = """# PM_RUNTIME_ROOT_CANONICAL_VERSION=2026-09-25.v1
+_pm_runtime_env = str(os.environ.get('PM_SYSTEM_ROOT', '') or '').strip()
+if _pm_runtime_env in {'', '/project/Inbox/projectmanager_v2/RuntimeV2'}:
+    _pm_runtime_env = '/system/Projectmanager/RuntimeV2'
+RUNTIME_ROOT = Path(_pm_runtime_env).resolve()
+"""
+
+def _ensure_pm_runtime_root(tools_text: str, *, strict: bool = True) -> tuple[str, bool, str]:
+    if PM_RUNTIME_ROOT_MARKER in tools_text:
+        return tools_text, False, 'pm_runtime_root_current'
+    count = tools_text.count(PM_RUNTIME_ROOT_OLD)
+    if count == 0:
+        # Historical pre-32.5.15 fixtures may use a one-line RUNTIME_ROOT assignment or
+        # omit the PM status runtime entirely.  Do not rewrite those archived contracts.
+        # 32.5.15+ production is strict and must match the canonical modern anchor.
+        if not strict:
+            return tools_text, False, 'pm_runtime_root_legacy_fixture_unchanged'
+        if 'RUNTIME_ROOT = Path(' not in tools_text:
+            return tools_text, False, 'pm_runtime_root_not_present'
+        raise RuntimeError('tools_projectmanager PM runtime root anchor mismatch')
+    if count != 1:
+        raise RuntimeError('tools_projectmanager PM runtime root anchor mismatch')
+    return tools_text.replace(PM_RUNTIME_ROOT_OLD, PM_RUNTIME_ROOT_NEW, 1), True, 'pm_runtime_root_canonicalized'
+
+def _ensure_native_compose_runtime_root(root: Path) -> tuple[bool, str]:
+    compose = root / 'Infra/docker-compose.yml'
+    if not compose.exists():
+        return False, 'native_compose_absent'
+    if compose.is_symlink() or not compose.is_file():
+        raise RuntimeError('native compose unsafe')
+    text = compose.read_text(encoding='utf-8')
+    old = 'PM_SYSTEM_ROOT: /project/Inbox/projectmanager_v2/RuntimeV2'
+    new = 'PM_SYSTEM_ROOT: /system/Projectmanager/RuntimeV2'
+    if new in text and old not in text:
+        return False, 'native_compose_runtime_root_current'
+    if text.count(old) != 1:
+        raise RuntimeError('native compose PM_SYSTEM_ROOT anchor mismatch')
+    _atomic_text(compose, text.replace(old, new, 1))
+    return True, 'native_compose_runtime_root_canonicalized'
 
 
 def _ensure_approval_tool(tools_text: str) -> tuple[str, bool, str]:
@@ -155,6 +212,13 @@ def apply(root: Path | str) -> dict:
         _atomic_text(tools_pm, forwarded_tools)
         tools_text = forwarded_tools
         changed.append("tools_projectmanager.py:command_forwarding_v2026_09_25")
+    runtime_tools, runtime_changed, runtime_change = _ensure_pm_runtime_root(
+        tools_text, strict=version_tuple >= (32, 5, 15)
+    )
+    if runtime_changed:
+        _atomic_text(tools_pm, runtime_tools)
+        tools_text = runtime_tools
+        changed.append("tools_projectmanager.py:" + runtime_change)
     download_tools, download_changed, download_change = _ensure_type2_download_bridge(tools_text)
     if download_changed:
         _atomic_text(tools_pm, download_tools)
@@ -196,6 +260,9 @@ def apply(root: Path | str) -> dict:
             changed.append("server.py:call")
     if text != server.read_text(encoding="utf-8"):
         _atomic_text(server, text)
+    compose_changed, compose_change = _ensure_native_compose_runtime_root(root)
+    if compose_changed:
+        changed.append("Infra/docker-compose.yml:" + compose_change)
     result = {
         "schema": "energie_native_mcp_runtime_contract_hotfix_v1",
         "status": "GREEN",
@@ -206,6 +273,7 @@ def apply(root: Path | str) -> dict:
         "command_forwarding_current": COMMAND_FORWARDING_MARKER in tools_text,
         "approval_ingress_tool_present": "def projectmanager_submit_approval(" in tools_text,
         "type2_download_bridge_current": TYPE2_DOWNLOAD_BRIDGE_MARKER in tools_text,
+        "pm_runtime_root_canonical": PM_RUNTIME_ROOT_MARKER in tools_text,
     }
     _atomic_json(root / RESULT_REL, result)
     return result

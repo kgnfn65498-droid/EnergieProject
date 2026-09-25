@@ -20,8 +20,6 @@ services:
       - /energy-inbox
       - --approved-queue
       - /pm-approved/queue.json
-      - --version
-      - /energy-version/VERSIE.txt
       - --runtime-evidence
       - /runtime-evidence
       - --runtime-root
@@ -38,7 +36,6 @@ services:
       - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/ControlPlane:/control-plane:ro"
       - "/share/Energie_NAS/EnergieProject/Inbox:/energy-inbox:rw"
       - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/RuntimeV2/approved_actions:/pm-approved:ro"
-      - "/share/Energie_NAS/EnergieProject/App/VERSIE.txt:/energy-version/VERSIE.txt:ro"
       - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/RuntimeEvidence:/runtime-evidence:ro"
       - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/ControlPlane/Runtime:/control-plane-runtime:rw"
       - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/ReleaseController:/release-controller:ro"

@@ -290,6 +290,42 @@ def prepare_type2(project_root: Path | str, *, clearup_id: str, source: str) -> 
     return result
 
 
+def refresh_recovery_type2(project_root: Path | str, *, clearup_id: str, source: str) -> dict[str, Any]:
+    """Rebuild only the recovery snapshot after migration; never mutate source/destination."""
+    root = Path(project_root).resolve()
+    if source != 'mcp_remote':
+        raise RuntimeError('Type2 recovery refresh requires chat/MCP request')
+    _release_idle(root)
+    plan = _load_plan(root, clearup_id)
+    state_path = root / STATE_ROOT_REL / f'{clearup_id}.json'
+    validation_path = root / VALIDATION_ROOT_REL / f'{clearup_id}.json'
+    try:
+        state = json.loads(state_path.read_text(encoding='utf-8'))
+        validation = json.loads(validation_path.read_text(encoding='utf-8'))
+    except Exception as exc:
+        raise RuntimeError('Type2 recovery refresh requires migrated+validated state') from exc
+    if not isinstance(state, dict) or state.get('phase') != 'MIGRATED_PENDING_VALIDATION' or state.get('plan_sha256') != plan['plan_sha256']:
+        raise RuntimeError('Type2 recovery refresh requires matching migrated state')
+    if state.get('source_preserved') is not True or state.get('deletion_performed') is not False:
+        raise RuntimeError('Type2 recovery refresh requires preserved pre-delete source')
+    if (
+        not isinstance(validation, dict)
+        or validation.get('schema') != 'energie_clearup_type2_validation_v2'
+        or validation.get('status') != 'GREEN'
+        or validation.get('plan_sha256') != plan['plan_sha256']
+        or list(validation.get('failures') or [])
+    ):
+        raise RuntimeError('Type2 recovery refresh requires GREEN matching validation')
+    result = _watcher_call(root, operation='type2_refresh_recovery', clearup_id=clearup_id, plan=plan)
+    path, _manifest = _verify_export(root, clearup_id, plan)
+    result.update({
+        'status': 'GREEN', 'clearup_id': clearup_id, 'plan_sha256': plan['plan_sha256'],
+        'artifact': path.name, 'size': path.stat().st_size, 'sha256': _sha(path),
+        'post_migrate_recovery_refresh': True, 'deletion_performed': False,
+    })
+    return result
+
+
 def _verify_export(root: Path, clearup_id: str, plan: dict[str, Any]) -> tuple[Path, dict[str, Any]]:
     path = root / EXPORT_ROOT_REL / f'{clearup_id}_Type2_recovery.zip'
     if path.is_symlink() or not path.is_file():
@@ -304,6 +340,41 @@ def _verify_export(root: Path, clearup_id: str, plan: dict[str, Any]) -> tuple[P
         raise RuntimeError('Type2 recovery ZIP verification failed') from exc
     if not isinstance(manifest, dict) or manifest.get('clearup_id') != clearup_id or manifest.get('plan_sha256') != plan['plan_sha256']:
         raise RuntimeError('Type2 recovery ZIP belongs to another/stale plan')
+    active_release = (root / 'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+    strict_manifest = _version_tuple(active_release) >= (32, 5, 15)
+    if strict_manifest and (
+        manifest.get('schema') != 'energie_clearup_type2_recovery_v1'
+        or manifest.get('classification') != 'TYPE2'
+        or manifest.get('deletion_performed') is not False
+    ):
+        raise RuntimeError('Type2 recovery ZIP manifest contract invalid')
+    if not strict_manifest:
+        if manifest.get('schema') not in (None, 'energie_clearup_type2_recovery_v1'):
+            raise RuntimeError('Type2 recovery ZIP manifest schema invalid')
+        if manifest.get('classification') not in (None, 'TYPE2'):
+            raise RuntimeError('Type2 recovery ZIP manifest classification invalid')
+        if manifest.get('deletion_performed') not in (None, False):
+            raise RuntimeError('Type2 recovery ZIP is not pre-delete')
+    try:
+        with zipfile.ZipFile(path) as z:
+            names = set(z.namelist())
+            for item in manifest.get('items') or []:
+                rows = item.get('source_rows') if isinstance(item, dict) else None
+                if not isinstance(rows, list):
+                    raise RuntimeError('Type2 recovery manifest source_rows missing')
+                for row in rows:
+                    if not isinstance(row, dict) or row.get('type') != 'file':
+                        continue
+                    member = 'original/' + str(row.get('path') or '')
+                    if member not in names:
+                        raise RuntimeError(f'Type2 recovery ZIP payload missing: {member}')
+                    data = z.read(member)
+                    if len(data) != int(row.get('size') if row.get('size') is not None else -1):
+                        raise RuntimeError(f'Type2 recovery ZIP payload size mismatch: {member}')
+                    if hashlib.sha256(data).hexdigest() != str(row.get('sha256') or ''):
+                        raise RuntimeError(f'Type2 recovery ZIP payload hash mismatch: {member}')
+    except (OSError, zipfile.BadZipFile, KeyError) as exc:
+        raise RuntimeError('Type2 recovery ZIP deep verification failed') from exc
     return path, manifest
 
 

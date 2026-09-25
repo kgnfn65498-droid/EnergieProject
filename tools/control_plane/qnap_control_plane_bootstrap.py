@@ -190,9 +190,9 @@ def _current_watcher_command(inbox: Path, approval: dict, live_version: str) -> 
         return item
     raise RuntimeError("actueel goedgekeurd watcher command ontbreekt")
 
-def qnap_load_bootstrap_watcher_request(inbox: Path, approved_queue: Path, version_path: Path):
+def qnap_load_bootstrap_watcher_request(inbox: Path, approved_queue: Path, release_controller_root: Path, version_path: Path | None = None):
     request = cp._load_json(Path(inbox) / "watcher_recreate_request.json")
-    live_version = Path(version_path).read_text(encoding="utf-8").strip()
+    live_version = cp.stable_release_version(Path(inbox), Path(release_controller_root))
     stable_required = {
         "schema": "energie_watcher_recreate_request_v1",
         "operation": "recreate_exact_energie_release_watcher",

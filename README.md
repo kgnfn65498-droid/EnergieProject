@@ -1,5 +1,5 @@
-## Release 32.5.14
+## Release 32.5.15
 
-32.5.14 is een minimale control-plane correctie op 32.5.13. De release voegt geen nieuwe paden of services toe. Hij voorkomt dat een inode-stale Docker file-bind van `App/VERSIE.txt` een geldige release-scoped Native-MCP reload als stale archiveert. Voor die release-scoped route zijn de reeds bestaande `Inbox/release_controller/current.json` en `Inbox/atomic_app_swap_state.json` de autoriteit.
+32.5.15 is de minimale structurele herstelrelease op exact 32.5.14. De scope is beperkt tot de bewezen ClearUp-/releaseketenfouten: post-migrate recovery-refresh, diepe ZIP-verificatie, onafhankelijke sibling-downloads, canonieke Projectmanager RuntimeV2 voor Native MCP en definitieve verwijdering van de releasekritieke losse App/VERSIE.txt-bind uit de control-plane-configuratie.
 
-De Type-2 recovery-ZIP's blijven onder `Data/03_Systeem/Projectmanager/ClearUp/Exports`. De 32.5.13 downloadbrug via de bestaande `projectmanager_status`-tool blijft ongewijzigd aanwezig. Geen Type-2 delete/finalize vóór externe download + SHA-verificatie + expliciete bevestiging.
+Er worden geen Type-2 bronnen verwijderd of gefinaliseerd door deze release. Externe recovery-download en expliciete bevestiging blijven verplicht vóór finalize/delete.

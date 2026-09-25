@@ -444,18 +444,21 @@ class CommandProcessor:
                     result['action'] = 'clearup_apply'
                     result['transport_intent'] = 'admin_update'
                 elif hint in {
-                    'clearup_type2_prepare', 'clearup_type2_export_info', 'clearup_type2_export_chunk',
+                    'clearup_type2_prepare', 'clearup_type2_refresh_recovery', 'clearup_type2_export_info', 'clearup_type2_export_chunk',
                     'clearup_type2_migrate', 'clearup_type2_validate', 'clearup_type2_finalize', 'clearup_type2_restore',
                 }:
                     if not self.project_root:
                         raise RuntimeError('Type2 ClearUp requires project_root')
                     from clearup_type2_service import (
-                        prepare_type2, export_info, export_chunk, migrate_type2, validate_type2, finalize_type2, restore_type2,
+                        prepare_type2, refresh_recovery_type2, export_info, export_chunk,
+                        migrate_type2, validate_type2, finalize_type2, restore_type2,
                     )
                     clearup_id = str(item.get('artifact_path') or '').strip()
                     source = str(item.get('source') or '')
                     if hint == 'clearup_type2_prepare':
                         result = dict(prepare_type2(self.project_root, clearup_id=clearup_id, source=source))
+                    elif hint == 'clearup_type2_refresh_recovery':
+                        result = dict(refresh_recovery_type2(self.project_root, clearup_id=clearup_id, source=source))
                     elif hint == 'clearup_type2_export_info':
                         result = dict(export_info(self.project_root, clearup_id=clearup_id, source=source))
                     elif hint == 'clearup_type2_export_chunk':

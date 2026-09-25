@@ -1,9 +1,18 @@
+# Changelog
+
+## 32.5.15 — ClearUp recovery delivery closure
+
+- Type-2 recovery: veilige post-migrate refresh voor een bewaarde bron; bron en gemigreerde bestemming blijven onaangeroerd.
+- Recovery-ZIP-verificatie controleert elk payloadbestand op manifestgrootte en SHA-256.
+- Een defecte recovery-ZIP blokkeert de downloadlinks van de overige geverifieerde ZIPs niet meer.
+- Native MCP gebruikt de canonieke `Data/03_Systeem/Projectmanager/RuntimeV2`; de oude Inbox-runtime is een retired alias.
+- Control-plane release-authority is onafhankelijk van een stale losse `App/VERSIE.txt` bind; toekomstige recreates bevatten die bind niet meer.
+- Geen Type-2 delete/finalize; externe recoverybevestiging blijft verplicht.
+
 ## 32.5.14 — release-scoped Native-MCP authority
 
 - Herstelt de control-plane race na atomic App-swap: release-scoped Native-MCP reload gebruikt de bestaande release-controller + atomic-state in Inbox als autoriteit, niet de inode-stale losse VERSIE bind.
 - Geen nieuwe paden, services of ClearUp-opslagstructuur.
-
-# Changelog
 
 ## 32.5.13 — Type2 recovery download bridge
 

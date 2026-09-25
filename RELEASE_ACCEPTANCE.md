@@ -1,17 +1,17 @@
-# Release Acceptance — 32.5.14
+# Release Acceptance — 32.5.15
 
 Status vóór live installatie: RELEASE CANDIDATE, niet live bewezen.
 
 Verplicht GREEN vóór aanbieding:
-1. exacte buildbasis 32.5.13 SHA `dee215af80e17ddd379d35755849f2358d6df831a9f6a9a05d218e0cad5e17af`;
-2. exact-ZIP integriteit, manifests en fresh extract;
-3. volledige 32.5.x regressies;
-4. stale Docker file-bind simulatie: VERSIE-bind blijft predecessor terwijl controller + atomic state target release bewijzen; release-scoped reload moet toch exact één keer GREEN uitvoeren;
-5. stale release-scoped request wordt bepaald via controller-eigenaarschap en veilig gearchiveerd;
-6. atomic to_version/artifact mismatch blokkeert fail-closed;
-7. legacy/manual Native-MCP reload blijft op VERSIE + Peter approval;
-8. geen nieuwe paden/services en geen wijziging aan `Data/03_Systeem/Projectmanager/ClearUp/Exports`;
-9. Type-2 delete/finalize blijft geblokkeerd;
-10. exacte release-ZIP door dezelfde atomic prepare/swap/accept-validator als productie.
+1. exacte buildbasis 32.5.14 SHA `78694b39e8d7f290f93148c1e2d0cdb5fb45d27339ec9257f67b2aad11541e3b`;
+2. alleen bedoelde functionele wijzigingen plus release-identiteit/documentatie; geen oude/onverwante code;
+3. post-migrate recovery-refresh: bron en gemigreerde bestemming byte-/boomgewijs onaangeroerd;
+4. recovery-ZIP payload-voor-payload grootte + SHA-256 verificatie;
+5. één defecte ZIP blokkeert sibling-downloads niet; delete_allowed blijft false;
+6. Native MCP gebruikt canonieke `/system/Projectmanager/RuntimeV2` ook wanneer oude env-alias aanwezig is;
+7. control-plane release-authority werkt vóór én na Type2-padmigratie, weigert split-state fail-closed en bevat geen productie App/VERSIE.txt file-bind;
+8. volledige 32.5.x regressies GREEN en historische Incoming/control-plane regressies zonder nieuwe rode tests;
+9. fresh-extract compile/tests + ZIP manifest/CRC;
+10. atomic 32.5.14 → 32.5.15 prepare/swap/acceptance GREEN.
 
-Na installatie vereist de ClearUp-vervolgstap live bewijs van de actuele Native-MCP fingerprint en echte download van 002–012.
+Live eindacceptatie voor ClearUp is pas GREEN nadat de echte recovery-ZIP's 002–012 naar ChatGPT zijn gedownload en lokaal opnieuw op grootte/SHA-256 zijn gecontroleerd. Geen finalize/delete vóór expliciete gebruikersbevestiging.

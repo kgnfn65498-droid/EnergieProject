@@ -249,6 +249,130 @@ def _optional_json(path: Path) -> dict:
         return {}
 
 
+def _distinct_paths(*paths: Path) -> list[Path]:
+    out: list[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        value = Path(path)
+        key = str(value)
+        if key not in seen:
+            seen.add(key)
+            out.append(value)
+    return out
+
+
+def _consistent_state_path(paths: list[Path], *, label: str, identity_keys: tuple[str, ...]) -> Path:
+    present: list[tuple[Path, dict]] = []
+    for path in paths:
+        value = _optional_json(path)
+        if value:
+            present.append((path, value))
+    if not present:
+        raise RuntimeError(f'{label} ontbreekt op alle stabiele paden')
+    expected = tuple(str(present[0][1].get(key) or '') for key in identity_keys)
+    for path, value in present[1:]:
+        actual = tuple(str(value.get(key) or '') for key in identity_keys)
+        if actual != expected:
+            raise RuntimeError(f'{label} pre/post-migratie state mismatch; fail-closed')
+    return present[0][0]
+
+
+def stable_release_paths(inbox: Path, release_controller_root: Path, native_mcp_runtime_root: Path | None = None) -> dict[str, Path]:
+    inbox = Path(inbox)
+    release_controller_root = Path(release_controller_root)
+    controller = _consistent_state_path(
+        _distinct_paths(release_controller_root / 'current.json', inbox / 'release_controller/current.json'),
+        label='release-controller authority',
+        identity_keys=('release_id','generation','to_version','artifact_sha256','phase','status'),
+    )
+    atomic = _consistent_state_path(
+        _distinct_paths(release_controller_root / 'State/atomic_app_swap_state.json', inbox / 'atomic_app_swap_state.json'),
+        label='atomic release authority',
+        identity_keys=('state','from_version','to_version','artifact_sha256'),
+    )
+    result = {'controller': controller, 'atomic': atomic}
+    if native_mcp_runtime_root is not None:
+        native_root = Path(native_mcp_runtime_root)
+        result['native_guard'] = _consistent_state_path(
+            _distinct_paths(native_root / 'runtime_guard.json', inbox / 'native_mcp_runtime/runtime_guard.json'),
+            label='Native-MCP runtime guard',
+            identity_keys=('status','ready','reload_required','expected_fingerprint','runtime_fingerprint'),
+        )
+    return result
+
+
+def stable_release_version(inbox: Path, release_controller_root: Path) -> str:
+    paths = stable_release_paths(inbox, release_controller_root)
+    controller = _load_json(paths['controller'])
+    atomic = _load_json(paths['atomic'])
+    version = str(controller.get('to_version') or '').strip()
+    if not version:
+        raise RuntimeError('release-controller authority mist to_version')
+    if str(atomic.get('to_version') or '').strip() != version:
+        raise RuntimeError('release-controller/atomic to_version mismatch; fail-closed')
+    controller_sha = str(controller.get('artifact_sha256') or '').strip()
+    atomic_sha = str(atomic.get('artifact_sha256') or '').strip()
+    if controller_sha and atomic_sha and controller_sha != atomic_sha:
+        raise RuntimeError('release-controller/atomic artifact mismatch; fail-closed')
+    if str(atomic.get('state') or '') not in {'LIVE_ACCEPTANCE','ACCEPTED'}:
+        raise RuntimeError('atomic release authority is niet live/accepted')
+    return version
+
+
+def _isolated_legacy_version_for_tests(version_path: Path) -> str:
+    path = Path(version_path)
+    # Historical regression fixtures may supply an isolated temporary VERSION
+    # file. The old production bind is explicitly forbidden as an authority.
+    if str(path).startswith('/energy-version/'):
+        raise RuntimeError('production App/VERSIE file authority is retired')
+    if not path.is_file() or path.is_symlink():
+        raise RuntimeError('stable release authority unavailable; no isolated legacy test version')
+    value = path.read_text(encoding='utf-8').strip()
+    if not value:
+        raise RuntimeError('isolated legacy test version is empty')
+    return value
+
+
+def _release_tuple(value: str):
+    try:
+        parts = tuple(int(part) for part in str(value or '').strip().split('.'))
+    except ValueError:
+        return None
+    return parts if len(parts) == 3 else None
+
+
+def _release_scoped_authority_paths(
+    inbox: Path,
+    release_controller_root: Path,
+    native_mcp_runtime_root: Path,
+    *,
+    release_version: str,
+) -> dict[str, Path | None]:
+    """Use stable atomic authority for current generations; historical fixtures stay readable.
+
+    32.5.13+ must never fall back to App/VERSIE.txt.  Earlier release-scoped
+    regression fixtures predate the atomic authority contract and are allowed to
+    use their isolated version fixture plus the historical controller/guard files.
+    """
+    parts = _release_tuple(release_version)
+    if parts is None:
+        raise RuntimeError('release-scoped request release_version invalid')
+    if parts >= (32, 5, 13):
+        authority = stable_release_paths(inbox, release_controller_root, native_mcp_runtime_root)
+        return {**authority}
+    controller_candidates = _distinct_paths(
+        Path(release_controller_root) / 'current.json', Path(inbox) / 'release_controller/current.json'
+    )
+    native_candidates = _distinct_paths(
+        Path(native_mcp_runtime_root) / 'runtime_guard.json', Path(inbox) / 'native_mcp_runtime/runtime_guard.json'
+    )
+    controller = next((path for path in controller_candidates if _optional_json(path)), None)
+    native_guard = next((path for path in native_candidates if _optional_json(path)), None)
+    if controller is None or native_guard is None:
+        raise RuntimeError('historical release-scoped authority ontbreekt')
+    return {'controller': controller, 'native_guard': native_guard, 'atomic': None}
+
+
 def _native_runtime_matches(runtime_evidence: Path, expected: str) -> bool:
     marker = _optional_json(Path(runtime_evidence) / 'native_mcp_runtime_fingerprint.json')
     return bool(
@@ -434,9 +558,9 @@ def watcher_create_payload(host_project_root: str) -> dict:
     }
 
 
-def load_bootstrap_watcher_request(inbox: Path, approved_queue: Path, version_path: Path):
+def load_bootstrap_watcher_request(inbox: Path, approved_queue: Path, release_controller_root: Path, version_path: Path | None = None):
     request = _load_json(Path(inbox) / 'watcher_recreate_request.json')
-    version = Path(version_path).read_text(encoding='utf-8').strip()
+    version = stable_release_version(Path(inbox), Path(release_controller_root))
     required = {
         'schema': 'energie_watcher_recreate_request_v1',
         'operation': 'recreate_exact_energie_release_watcher',
@@ -502,7 +626,7 @@ class ControlPlane:
         raise RuntimeError(f'timeout op live readback: {path}')
 
     def recreate_watcher(self) -> dict:
-        request, approval = load_bootstrap_watcher_request(self.inbox, self.approved_queue, self.version_path)
+        request, approval = load_bootstrap_watcher_request(self.inbox, self.approved_queue, self.release_controller_root, self.version_path)
         self.docker.ping()
         self.docker.inspect_image(WATCHER_IMAGE)
         rollback_name = f'{WATCHER_CONTAINER}-rollback-control-plane'
@@ -591,17 +715,24 @@ class ControlPlane:
         request_path = self.inbox / 'control_plane' / 'requests' / 'native_mcp_reload.json'
         request_probe = _load_json(request_path)
         if request_probe.get('schema') == 'energie_control_plane_release_request_v1':
+            authority = _release_scoped_authority_paths(
+                self.inbox, self.release_controller_root, self.native_mcp_runtime_root,
+                release_version=str(request_probe.get('release_version') or ''),
+            )
             request, _controller_state = authorize_release_native_request(
                 request_path=request_path,
-                controller_state_path=self.release_controller_root / 'current.json',
+                controller_state_path=authority['controller'],
                 version_path=self.version_path,
-                runtime_guard_path=self.native_mcp_runtime_root / 'runtime_guard.json',
-                atomic_state_path=(self.inbox / 'atomic_app_swap_state.json') if (self.inbox / 'atomic_app_swap_state.json').is_file() else None,
+                runtime_guard_path=authority['native_guard'],
+                atomic_state_path=authority['atomic'],
             )
             approval = None
         else:
             request, approval = load_control_plane_native_request(self.inbox, self.approved_queue)
-            live_version = self.version_path.read_text(encoding='utf-8').strip()
+            # Manual Peter-approved legacy requests are not release-controller requests.
+            # They retain their isolated fixture/version contract; production 32.5.15
+            # no longer mounts App/VERSIE.txt into the control-plane at all.
+            live_version = _isolated_legacy_version_for_tests(self.version_path)
             if str(request.get('release_version') or '').strip() != live_version:
                 raise RuntimeError('control-plane native MCP request hoort niet bij actuele live release')
         self.docker.ping()
@@ -812,7 +943,11 @@ class ControlPlane:
                 native_result = self.result_root / 'results' / 'native_mcp_reload.json'
                 request_release = str(request.get('release_version') or '').strip()
                 if request.get('schema') == 'energie_control_plane_release_request_v1':
-                    controller_now = _optional_json(self.release_controller_root / 'current.json')
+                    authority = _release_scoped_authority_paths(
+                        self.inbox, self.release_controller_root, self.native_mcp_runtime_root,
+                        release_version=request_release,
+                    )
+                    controller_now = _load_json(authority['controller'])
                     live_release = str(controller_now.get('to_version') or '').strip()
                     release_owner_matches = bool(
                         live_release
@@ -822,7 +957,7 @@ class ControlPlane:
                     )
                     request_is_stale = bool(request_release and (request_release != live_release or not release_owner_matches))
                 else:
-                    live_release = self.version_path.read_text(encoding='utf-8').strip()
+                    live_release = _isolated_legacy_version_for_tests(self.version_path)
                     request_is_stale = bool(request_release and request_release != live_release)
                 if request_is_stale:
                     # A request from a previous release is historical evidence,
@@ -854,12 +989,16 @@ class ControlPlane:
                         and previous.get('retry_allowed') is False
                     ):
                         if request.get('schema') == 'energie_control_plane_release_request_v1':
+                            authority = _release_scoped_authority_paths(
+                                self.inbox, self.release_controller_root, self.native_mcp_runtime_root,
+                                release_version=request_release,
+                            )
                             authorize_release_native_reconcile(
                                 request_path=native_request,
-                                controller_state_path=self.release_controller_root / 'current.json',
+                                controller_state_path=authority['controller'],
                                 version_path=self.version_path,
-                                runtime_guard_path=self.native_mcp_runtime_root / 'runtime_guard.json',
-                                atomic_state_path=(self.inbox / 'atomic_app_swap_state.json') if (self.inbox / 'atomic_app_swap_state.json').is_file() else None,
+                                runtime_guard_path=authority['native_guard'],
+                                atomic_state_path=authority['atomic'],
                             )
                         reconciled = self._reconcile_fenced_native_attempt(request, native_result)
                         if isinstance(reconciled, dict) and reconciled.get('status') == 'GREEN':
@@ -914,7 +1053,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Energie control-plane: exact allowlisted Docker actions only')
     parser.add_argument('--inbox', default='/energy-inbox')
     parser.add_argument('--approved-queue', default='/pm-approved/queue.json')
-    parser.add_argument('--version', default='/energy-version/VERSIE.txt')
+    parser.add_argument('--version', default='')
     parser.add_argument('--runtime-evidence', default='/runtime-evidence')
     parser.add_argument('--runtime-root', default='/energy-inbox/control_plane')
     parser.add_argument('--release-controller-root', default='/energy-inbox/release_controller')
@@ -924,7 +1063,7 @@ def main() -> int:
     args = parser.parse_args()
     cp = ControlPlane(
         inbox=Path(args.inbox), approved_queue=Path(args.approved_queue),
-        version_path=Path(args.version), runtime_evidence=Path(args.runtime_evidence),
+        version_path=Path(args.version) if args.version else Path('/nonexistent-version-authority'), runtime_evidence=Path(args.runtime_evidence),
         runtime_root=Path(args.runtime_root), release_controller_root=Path(args.release_controller_root),
         native_mcp_runtime_root=Path(args.native_mcp_runtime_root), host_project_root=args.host_project_root,
     )

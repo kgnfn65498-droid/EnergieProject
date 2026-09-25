@@ -260,7 +260,7 @@ def _type2_validate_request(root: Path, request: dict[str, Any]):
     if not REQUEST_ID_RE.fullmatch(request_id):
         raise RequestRejected("TYPE2 request_id ongeldig")
     operation = str(request.get("operation") or "")
-    if operation not in {"type2_prepare", "type2_migrate", "type2_validation_commit", "type2_finalize", "type2_restore"}:
+    if operation not in {"type2_prepare", "type2_refresh_recovery", "type2_migrate", "type2_validation_commit", "type2_finalize", "type2_restore"}:
         raise RequestRejected("TYPE2 operation ongeldig")
     clearup_id = str(request.get("clearup_id") or "")
     release_version = str(request.get("release_version") or "").strip()
@@ -312,6 +312,94 @@ def _verify_type2_source_against_manifest(root: Path, manifest: dict[str, Any]) 
             raise RequestRejected(f"TYPE2 source/recovery mismatch: {item.get('source')}")
 
 
+def _verify_type2_zip_payload(path: Path, manifest: dict[str, Any]) -> None:
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError("TYPE2 recovery ZIP missing/unsafe")
+    with zipfile.ZipFile(path) as z:
+        bad = z.testzip()
+        if bad:
+            raise RuntimeError(f"TYPE2 recovery ZIP corrupt: {bad}")
+        zipped_manifest = json.loads(z.read("TYPE2_MANIFEST.json"))
+        if zipped_manifest != manifest:
+            raise RuntimeError("TYPE2 recovery ZIP manifest mismatch")
+        names = set(z.namelist())
+        for item in manifest.get("items") or []:
+            rows = item.get("source_rows") if isinstance(item, dict) else None
+            if not isinstance(rows, list):
+                raise RuntimeError("TYPE2 recovery manifest source_rows missing")
+            for row in rows:
+                if not isinstance(row, dict) or row.get("type") != "file":
+                    continue
+                member = "original/" + str(row.get("path") or "")
+                if member not in names:
+                    raise RuntimeError(f"TYPE2 recovery ZIP payload missing: {member}")
+                data = z.read(member)
+                if len(data) != int(row.get("size") if row.get("size") is not None else -1):
+                    raise RuntimeError(f"TYPE2 recovery ZIP payload size mismatch: {member}")
+                if hashlib.sha256(data).hexdigest() != str(row.get("sha256") or ""):
+                    raise RuntimeError(f"TYPE2 recovery ZIP payload hash mismatch: {member}")
+
+
+def _build_type2_recovery_snapshot(root: Path, *, stage: Path, export: Path, clearup_id: str, plan: dict[str, Any], expected_rows: dict[str, list[dict[str, Any]]] | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+    if stage.exists() or stage.is_symlink():
+        raise RequestRejected("TYPE2 recovery build staging already exists/unsafe")
+    stage.mkdir(parents=True, exist_ok=False)
+    items = []
+    try:
+        for item in plan["items"]:
+            source_rel = item["source"]
+            source = root / source_rel
+            if not source.exists():
+                if item.get("optional") is True:
+                    continue
+                raise RequestRejected(f"TYPE2 source missing/unsafe: {source_rel}")
+            if source.is_symlink():
+                raise RequestRejected(f"TYPE2 source missing/unsafe: {source_rel}")
+            before_rows = _tree_rows(source, root)
+            if expected_rows is not None and before_rows != expected_rows.get(source_rel):
+                raise RequestRejected(f"TYPE2 preserved source differs from migrated cutover: {source_rel}")
+            staged = stage / "original" / source_rel
+            _copy_exact(source, staged)
+            after_rows = _tree_rows(source, root)
+            staged_rows = _tree_rows(staged, stage / "original")
+            if after_rows != before_rows:
+                raise RequestRejected(f"TYPE2 source changed during recovery snapshot: {source_rel}")
+            if staged_rows != before_rows:
+                raise RuntimeError(f"TYPE2 staged recovery mismatch: {source_rel}")
+            items.append({
+                "source": source_rel, "destination": item["destination"], "source_rows": before_rows,
+                "reason": item.get("reason", ""), "path_key": item.get("path_key", ""),
+            })
+        manifest = {
+            "schema": "energie_clearup_type2_recovery_v1", "classification": "TYPE2",
+            "clearup_id": clearup_id, "plan_sha256": plan["plan_sha256"],
+            "created_at": datetime.now(timezone.utc).isoformat(), "items": items,
+            "deletion_performed": False,
+        }
+        _atomic_write_json(stage / "TYPE2_MANIFEST.json", manifest)
+        export.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(export, "w", zipfile.ZIP_DEFLATED) as z:
+            for p in sorted(stage.rglob("*")):
+                if p.is_symlink():
+                    raise RequestRejected("TYPE2 staging symlink refused")
+                arc = p.relative_to(stage).as_posix()
+                if p.is_dir():
+                    z.writestr(arc.rstrip("/") + "/", b"")
+                else:
+                    z.write(p, arc)
+        _verify_type2_zip_payload(export, manifest)
+        return manifest, {
+            "artifact": export.name, "artifact_size": export.stat().st_size,
+            "artifact_sha256": hashlib.sha256(export.read_bytes()).hexdigest(),
+            "item_count": len(items), "deletion_performed": False,
+        }
+    except Exception:
+        if stage.exists() and not stage.is_symlink():
+            shutil.rmtree(stage, ignore_errors=True)
+        export.unlink(missing_ok=True)
+        raise
+
+
 def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     root = root.resolve()
     request_id, operation, clearup_id, plan, service = _type2_validate_request(root, request)
@@ -320,72 +408,129 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
     state = root / service.STATE_ROOT_REL / f"{clearup_id}.json"
 
     if operation == "type2_prepare":
+        for item in plan["items"]:
+            destination = root / item["destination"]
+            if destination.exists() or destination.is_symlink():
+                raise RequestRejected(f"TYPE2 destination must be absent at prepare: {item['destination']}")
         if stage.exists() or stage.is_symlink():
             if stage.is_symlink():
                 raise RequestRejected("TYPE2 staging symlink refused")
             shutil.rmtree(stage)
-        stage.mkdir(parents=True, exist_ok=False)
-        items = []
+        tmp_export = export.with_name(f".{export.name}.tmp-{os.getpid()}-{request_id}")
+        manifest, artifact = _build_type2_recovery_snapshot(
+            root, stage=stage, export=tmp_export, clearup_id=clearup_id, plan=plan,
+        )
+        os.replace(tmp_export, export)
+        _verify_type2_zip_payload(export, manifest)
+        result = {"status": "GREEN", "clearup_id": clearup_id, "phase": "PREPARED", **artifact}
+        result["artifact"] = export.name
+        result["artifact_size"] = export.stat().st_size
+        result["artifact_sha256"] = hashlib.sha256(export.read_bytes()).hexdigest()
+        _atomic_write_json(state, {**result, "plan_sha256": plan["plan_sha256"]})
+        return request_id, result
+
+    if operation == "type2_refresh_recovery":
+        state_data = _load_state_json(state, "TYPE2 migrated state")
+        validation_path = root / service.VALIDATION_ROOT_REL / f"{clearup_id}.json"
+        validation = _load_state_json(validation_path, "TYPE2 validation")
+        if (
+            state_data.get("phase") != "MIGRATED_PENDING_VALIDATION"
+            or state_data.get("status") != "GREEN"
+            or state_data.get("plan_sha256") != plan["plan_sha256"]
+            or state_data.get("source_preserved") is not True
+            or state_data.get("deletion_performed") is not False
+        ):
+            raise RequestRejected("TYPE2 recovery refresh requires preserved migrated pre-delete state")
+        if (
+            validation.get("schema") != "energie_clearup_type2_validation_v2"
+            or validation.get("status") != "GREEN"
+            or validation.get("plan_sha256") != plan["plan_sha256"]
+            or list(validation.get("failures") or [])
+        ):
+            raise RequestRejected("TYPE2 recovery refresh requires GREEN matching validation")
+        cutover_rows = state_data.get("cutover_rows")
+        if not isinstance(cutover_rows, dict) or not cutover_rows:
+            raise RequestRejected("TYPE2 recovery refresh missing cutover evidence")
+        for item in plan["items"]:
+            source_rel = item["source"]
+            destination = root / item["destination"]
+            if not destination.exists() or destination.is_symlink():
+                raise RequestRejected(f"TYPE2 migrated destination missing/unsafe: {item['destination']}")
+            expected = cutover_rows.get(source_rel)
+            if not isinstance(expected, list) or _tree_rows(root / source_rel, root) != expected:
+                raise RequestRejected(f"TYPE2 preserved source differs from migrated cutover: {source_rel}")
+            key = str(item.get("path_key") or "").strip()
+            if key:
+                marker = _read_json(_type2_activation_path(root, key))
+                if not (
+                    marker.get("active") is True
+                    and marker.get("clearup_id") == clearup_id
+                    and marker.get("plan_sha256") == plan["plan_sha256"]
+                    and marker.get("source") == source_rel
+                    and marker.get("destination") == item["destination"]
+                ):
+                    raise RequestRejected(f"TYPE2 active path contract mismatch: {key}")
+
+        temp_stage = stage.with_name(f".{clearup_id}.refresh-{request_id}")
+        temp_export = export.with_name(f".{export.name}.refresh-{request_id}")
+        old_stage = stage.with_name(f".{clearup_id}.pre-refresh-{request_id}")
+        old_export = export.with_name(f".{export.name}.pre-refresh-{request_id}")
+        for path in (temp_stage, temp_export, old_stage, old_export):
+            if path.exists() or path.is_symlink():
+                raise RequestRejected(f"TYPE2 recovery refresh temporary path exists/unsafe: {path.name}")
+        manifest, artifact = _build_type2_recovery_snapshot(
+            root, stage=temp_stage, export=temp_export, clearup_id=clearup_id, plan=plan,
+            expected_rows=cutover_rows,
+        )
+        stage_backed_up = export_backed_up = stage_installed = export_installed = False
         try:
-            for item in plan["items"]:
-                source_rel = item["source"]; dest_rel = item["destination"]
-                source = root / source_rel; destination = root / dest_rel
-                if not source.exists():
-                    if item.get("optional") is True:
-                        continue
-                    raise RequestRejected(f"TYPE2 source missing/unsafe: {source_rel}")
-                if source.is_symlink():
-                    raise RequestRejected(f"TYPE2 source missing/unsafe: {source_rel}")
-                if destination.exists() or destination.is_symlink():
-                    raise RequestRejected(f"TYPE2 destination must be absent at prepare: {dest_rel}")
-                source_rows = _tree_rows(source, root)
-                staged = stage / "original" / source_rel
-                _copy_exact(source, staged)
-                staged_rows = _tree_rows(staged, stage / "original")
-                if staged_rows != source_rows:
-                    raise RuntimeError(f"TYPE2 staged recovery mismatch: {source_rel}")
-                items.append({"source": source_rel, "destination": dest_rel, "source_rows": source_rows, "reason": item.get("reason", ""), "path_key": item.get("path_key", "")})
-            manifest = {
-                "schema": "energie_clearup_type2_recovery_v1", "classification": "TYPE2",
-                "clearup_id": clearup_id, "plan_sha256": plan["plan_sha256"],
-                "created_at": datetime.now(timezone.utc).isoformat(), "items": items,
-                "deletion_performed": False,
-            }
-            _atomic_write_json(stage / "TYPE2_MANIFEST.json", manifest)
-            export.parent.mkdir(parents=True, exist_ok=True)
-            tmp = export.with_name(f".{export.name}.tmp-{os.getpid()}")
-            try:
-                with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
-                    for p in sorted(stage.rglob("*")):
-                        if p.is_symlink():
-                            raise RequestRejected("TYPE2 staging symlink refused")
-                        arc = p.relative_to(stage).as_posix()
-                        if p.is_dir():
-                            z.writestr(arc.rstrip("/") + "/", b"")
-                        else:
-                            z.write(p, arc)
-                os.replace(tmp, export)
-            finally:
-                tmp.unlink(missing_ok=True)
-            with zipfile.ZipFile(export) as z:
-                bad = z.testzip()
-                if bad:
-                    raise RuntimeError(f"TYPE2 recovery ZIP corrupt: {bad}")
-                zipped_manifest = json.loads(z.read("TYPE2_MANIFEST.json"))
-                if zipped_manifest != manifest:
-                    raise RuntimeError("TYPE2 recovery ZIP manifest mismatch")
-            result = {
-                "status": "GREEN", "clearup_id": clearup_id, "phase": "PREPARED",
-                "artifact": export.name, "artifact_size": export.stat().st_size,
-                "artifact_sha256": hashlib.sha256(export.read_bytes()).hexdigest(),
-                "item_count": len(items), "deletion_performed": False,
-            }
-            _atomic_write_json(state, {**result, "plan_sha256": plan["plan_sha256"]})
-            return request_id, result
+            if stage.exists():
+                if stage.is_symlink():
+                    raise RequestRejected("TYPE2 staging symlink refused")
+                stage.rename(old_stage); stage_backed_up = True
+            if export.exists():
+                if export.is_symlink():
+                    raise RequestRejected("TYPE2 export symlink refused")
+                export.rename(old_export); export_backed_up = True
+            temp_stage.rename(stage); stage_installed = True
+            temp_export.rename(export); export_installed = True
+            _verify_type2_zip_payload(export, manifest)
+            after = service._snapshot_release_dirs(root)
+            if after != request["mailbox_snapshot_before"]:
+                raise RuntimeError("TYPE2 release mailboxes changed during recovery refresh")
+            if old_stage.exists():
+                shutil.rmtree(old_stage)
+            old_export.unlink(missing_ok=True)
         except Exception:
-            if stage.exists() and not stage.is_symlink():
+            if export_installed:
+                export.unlink(missing_ok=True)
+            if stage_installed and stage.exists() and not stage.is_symlink():
                 shutil.rmtree(stage, ignore_errors=True)
+            if export_backed_up and old_export.exists():
+                old_export.rename(export)
+            if stage_backed_up and old_stage.exists():
+                old_stage.rename(stage)
             raise
+        finally:
+            if temp_stage.exists() and not temp_stage.is_symlink():
+                shutil.rmtree(temp_stage, ignore_errors=True)
+            temp_export.unlink(missing_ok=True)
+
+        state_after = dict(state_data)
+        state_after["recovery_refresh"] = {
+            "status": "GREEN", "at": datetime.now(timezone.utc).isoformat(),
+            "artifact": export.name, "artifact_size": export.stat().st_size,
+            "artifact_sha256": hashlib.sha256(export.read_bytes()).hexdigest(),
+            "deletion_performed": False,
+        }
+        _atomic_write_json(state, state_after)
+        return request_id, {
+            "status": "GREEN", "clearup_id": clearup_id, "phase": "MIGRATED_PENDING_VALIDATION",
+            "post_migrate_recovery_refresh": True, "artifact": export.name,
+            "artifact_size": export.stat().st_size, "artifact_sha256": hashlib.sha256(export.read_bytes()).hexdigest(),
+            "item_count": artifact["item_count"], "deletion_performed": False,
+            "source_preserved": True, "destination_untouched": True,
+        }
 
     manifest = _type2_manifest(root, clearup_id, plan, service)
 

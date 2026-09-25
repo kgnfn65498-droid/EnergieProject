@@ -1,0 +1,14 @@
+{
+  "destructive_clearup_action": false,
+  "release": "32.5.15",
+  "schema": "energie_release_build_basis_v1",
+  "scope": [
+    "type2_post_migrate_recovery_refresh",
+    "type2_deep_export_verification",
+    "type2_partial_download_isolation",
+    "native_mcp_canonical_runtime_root",
+    "control_plane_stable_release_authority"
+  ],
+  "source_release": "32.5.14",
+  "source_sha256": "78694b39e8d7f290f93148c1e2d0cdb5fb45d27339ec9257f67b2aad11541e3b"
+}
