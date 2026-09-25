@@ -476,6 +476,8 @@ def load_native_mcp_request(inbox: Path, approved_queue: Path):
 class ControlPlane:
     def __init__(self, *, inbox: Path, approved_queue: Path, version_path: Path,
                  runtime_evidence: Path, host_project_root: str,
+                 runtime_root: Path | None = None, release_controller_root: Path | None = None,
+                 native_mcp_runtime_root: Path | None = None,
                  docker: DockerUnixClient | None = None):
         self.inbox = Path(inbox)
         self.approved_queue = Path(approved_queue)
@@ -483,7 +485,9 @@ class ControlPlane:
         self.runtime_evidence = Path(runtime_evidence)
         self.host_project_root = host_project_root
         self.docker = docker or DockerUnixClient()
-        self.result_root = self.inbox / 'control_plane'
+        self.result_root = Path(runtime_root) if runtime_root is not None else (self.inbox / 'control_plane')
+        self.release_controller_root = Path(release_controller_root) if release_controller_root is not None else (self.inbox / 'release_controller')
+        self.native_mcp_runtime_root = Path(native_mcp_runtime_root) if native_mcp_runtime_root is not None else (self.inbox / 'native_mcp_runtime')
 
     def _wait_json(self, path: Path, predicate, timeout: float):
         deadline = time.monotonic() + timeout
@@ -517,7 +521,7 @@ class ControlPlane:
                     pass
             self.docker.create_container(WATCHER_CONTAINER, watcher_create_payload(self.host_project_root))
             self.docker.start_container(WATCHER_CONTAINER)
-            runtime_marker = self.inbox / 'release_controller' / 'runtime.json'
+            runtime_marker = self.release_controller_root / 'runtime.json'
             try:
                 runtime_marker.unlink(missing_ok=True)
             except OSError:
@@ -589,9 +593,9 @@ class ControlPlane:
         if request_probe.get('schema') == 'energie_control_plane_release_request_v1':
             request, _controller_state = authorize_release_native_request(
                 request_path=request_path,
-                controller_state_path=self.inbox / 'release_controller' / 'current.json',
+                controller_state_path=self.release_controller_root / 'current.json',
                 version_path=self.version_path,
-                runtime_guard_path=self.inbox / 'native_mcp_runtime' / 'runtime_guard.json',
+                runtime_guard_path=self.native_mcp_runtime_root / 'runtime_guard.json',
             )
             approval = None
         else:
@@ -776,7 +780,7 @@ class ControlPlane:
 
     def _write_runtime_marker(self) -> None:
         now = time.time()
-        _atomic_json(self.inbox / 'control_plane' / 'runtime.json', {
+        _atomic_json(self.result_root / 'runtime.json', {
             'schema': 'energie_control_plane_runtime_v1',
             'loaded_fingerprint': LOADED_RUNTIME_FINGERPRINT,
             'loaded_files': list(RUNTIME_FINGERPRINT_FILES),
@@ -799,7 +803,7 @@ class ControlPlane:
                 _atomic_json(self.result_root / 'watcher_recreate_result.json', {
                     'schema':'energie_control_plane_result_v1','action':'watcher_recreate','status':'RED','ok':False,'error':str(exc)
                 })
-        native_request = self.inbox / 'control_plane' / 'requests' / 'native_mcp_reload.json'
+        native_request = self.result_root / 'requests' / 'native_mcp_reload.json'
         if native_request.is_file() and not native_request.is_symlink():
             try:
                 request = _load_json(native_request)
@@ -826,9 +830,9 @@ class ControlPlane:
                         if request.get('schema') == 'energie_control_plane_release_request_v1':
                             authorize_release_native_reconcile(
                                 request_path=native_request,
-                                controller_state_path=self.inbox / 'release_controller' / 'current.json',
+                                controller_state_path=self.release_controller_root / 'current.json',
                                 version_path=self.version_path,
-                                runtime_guard_path=self.inbox / 'native_mcp_runtime' / 'runtime_guard.json',
+                                runtime_guard_path=self.native_mcp_runtime_root / 'runtime_guard.json',
                             )
                         reconciled = self._reconcile_fenced_native_attempt(request, native_result)
                         if isinstance(reconciled, dict) and reconciled.get('status') == 'GREEN':
@@ -854,7 +858,7 @@ class ControlPlane:
                         'schema':'energie_control_plane_result_v1','action':'native_mcp_reload',
                         'status':'RED','ok':False,'error':str(exc)
                     })
-        platformtest_request = self.inbox / 'control_plane' / 'requests' / 'platformtest_run.json'
+        platformtest_request = self.result_root / 'requests' / 'platformtest_run.json'
         if platformtest_request.is_file() and not platformtest_request.is_symlink():
             platformtest_result = self.result_root / 'results' / 'platformtest_run.json'
             request_probe = _optional_json(platformtest_request)
@@ -885,13 +889,17 @@ def main() -> int:
     parser.add_argument('--approved-queue', default='/pm-approved/queue.json')
     parser.add_argument('--version', default='/energy-version/VERSIE.txt')
     parser.add_argument('--runtime-evidence', default='/runtime-evidence')
+    parser.add_argument('--runtime-root', default='/energy-inbox/control_plane')
+    parser.add_argument('--release-controller-root', default='/energy-inbox/release_controller')
+    parser.add_argument('--native-mcp-runtime-root', default='/energy-inbox/native_mcp_runtime')
     parser.add_argument('--host-project-root', default='/share/Energie_NAS/EnergieProject')
     parser.add_argument('--interval', type=float, default=2.0)
     args = parser.parse_args()
     cp = ControlPlane(
         inbox=Path(args.inbox), approved_queue=Path(args.approved_queue),
         version_path=Path(args.version), runtime_evidence=Path(args.runtime_evidence),
-        host_project_root=args.host_project_root,
+        runtime_root=Path(args.runtime_root), release_controller_root=Path(args.release_controller_root),
+        native_mcp_runtime_root=Path(args.native_mcp_runtime_root), host_project_root=args.host_project_root,
     )
     while True:
         cp.process_once()

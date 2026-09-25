@@ -5,10 +5,9 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
+from system_path_contract import project_system_path
 from typing import Any
 
-
-_HOLD_RELATIVE = Path("Inbox/operating_mode/release_validation_hold.json")
 
 
 @dataclass(frozen=True)
@@ -28,7 +27,7 @@ class ReleaseHoldState:
 
 
 def hold_state_path(project_root: Path | str) -> Path:
-    return Path(project_root) / _HOLD_RELATIVE
+    return project_system_path(Path(project_root), 'Inbox/operating_mode/release_validation_hold.json')
 
 
 def _payload(state: ReleaseHoldState) -> dict[str, Any]:

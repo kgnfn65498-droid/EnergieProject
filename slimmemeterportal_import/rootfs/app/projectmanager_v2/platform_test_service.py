@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import hashlib
 import json
@@ -20,8 +21,8 @@ class ConfiguredPlatformTestService:
 
     def __init__(self, project_root: Path | str):
         self.project_root = Path(project_root).resolve()
-        self.request_path = self.project_root / 'Inbox/control_plane/requests/platformtest_run.json'
-        self.result_path = self.project_root / 'Inbox/control_plane/results/platformtest_run.json'
+        self.request_path = project_system_path(self.project_root, 'Inbox/control_plane/requests/platformtest_run.json')
+        self.result_path = project_system_path(self.project_root, 'Inbox/control_plane/results/platformtest_run.json')
         self.workspace_root = self.project_root / 'Data/03_Systeem/Projectmanager/Staging/PlatformTest'
 
     @staticmethod

@@ -1,0 +1,43 @@
+{
+  "schema": "energie_clearup_type2_plan_v1",
+  "classification": "TYPE2",
+  "clearup_id": "ClearUp_003",
+  "status": "READY",
+  "minimum_release": "32.5.7",
+  "items": [
+    {
+      "source": "Inbox/logs",
+      "destination": "Data/03_Systeem/Projectmanager/Logs/Runtime",
+      "path_key": "logs",
+      "reason": "Persistente runtime- en onderhoudslogs horen in centrale systeemlogs.",
+      "contract_checks": [
+        {
+          "path": "App/tools/clearup_type2_path_contract.json",
+          "must_contain": [
+            "\"ClearUp_003\": \"GREEN\""
+          ],
+          "must_not_contain": [
+            "\"ClearUp_003\": \"RED\""
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Inbox/github_publisher_history.jsonl",
+      "destination": "Data/03_Systeem/Projectmanager/Logs/Publisher/github_publisher_history.jsonl",
+      "path_key": "publisher_history",
+      "reason": "Publisherhistorie is systeemlog/evidence en geen transport-Inbox-state.",
+      "contract_checks": [
+        {
+          "path": "App/tools/clearup_type2_path_contract.json",
+          "must_contain": [
+            "\"ClearUp_003\": \"GREEN\""
+          ],
+          "must_not_contain": [
+            "\"ClearUp_003\": \"RED\""
+          ]
+        }
+      ]
+    }
+  ]
+}

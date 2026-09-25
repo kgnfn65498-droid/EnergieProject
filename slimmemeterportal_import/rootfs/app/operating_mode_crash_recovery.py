@@ -4,6 +4,7 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from system_path_contract import project_system_path
 import secrets
 import threading
 from typing import Any
@@ -17,7 +18,6 @@ from operating_modes import (
     save_mode_state,
 )
 
-_SESSION_RELATIVE = Path("Inbox/operating_mode/crash_recovery_session.json")
 _ALLOWED_OUTCOMES = frozenset({"pass", "failed_safe", "unsafe"})
 _ALLOWED_OPERATION_CLASSES = frozenset({"backup_verify", "mutating_maintenance"})
 _AUTOMATIC_MUTATION_SUSPENSIONS = ("schedule", "full_workflow", "automatic_month_close")
@@ -28,7 +28,7 @@ def _now_iso() -> str:
 
 
 def crash_recovery_session_path(project_root: Path | str) -> Path:
-    return Path(project_root) / _SESSION_RELATIVE
+    return project_system_path(Path(project_root), 'Inbox/operating_mode/crash_recovery_session.json')
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:

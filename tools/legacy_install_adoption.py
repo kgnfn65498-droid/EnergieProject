@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 import hashlib,json,time,stat
 from pathlib import Path
 from release_controller import ReleaseController,Phase,Status
@@ -30,7 +31,7 @@ def adopt_exact_pre57_install(root:Path|str,controller:ReleaseController,store:S
     # legacy state; that would reintroduce a second release authority.
     if active!='32.4.57':
         return None
-    atomic=_json(root/'Inbox/atomic_app_swap_state.json')
+    atomic=_json(project_system_path(root, 'Inbox/atomic_app_swap_state.json'))
     atom=str(atomic.get('state') or '').upper()
     if atom not in {'LIVE_ACCEPTANCE','ACCEPTED'}:return None
     if str(atomic.get('to_version') or '')!=active:
@@ -57,10 +58,10 @@ def adopt_exact_pre57_install(root:Path|str,controller:ReleaseController,store:S
         state.phase=Phase.INSTALLED.value;state.step=4
         state.evidence=(state.evidence or [])+['atomic_live_acceptance_adopted']
     state.status=Status.ACTIVE.value;state.phase_started_at_epoch=now;state.updated_at_epoch=now
-    transition=_json(root/'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json')
+    transition=_json(project_system_path(root, 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json'))
     if str(transition.get('to_release') or '')==active:
         state.evidence.append('legacy_transition_observed_not_authoritative')
-    hold=_json(root/'Inbox/operating_mode/release_validation_hold.json')
+    hold=_json(project_system_path(root, 'Inbox/operating_mode/release_validation_hold.json'))
     if str(hold.get('release_version') or '')==active:
         state.evidence.append('legacy_hold_observed_not_authoritative')
     store.save(state.to_dict())

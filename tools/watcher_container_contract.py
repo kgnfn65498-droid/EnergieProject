@@ -8,12 +8,12 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from system_path_contract import project_system_path
 
 CONTRACT_VERSION = 3
 CONTAINER_NAME = 'energie-release-watcher'
 EXPECTED_IMAGE = 'python:3.12-slim'
 EXPECTED_COMMAND = ['sh', '/energy/App/tools/release_watcher.sh']
-MARKER_REL = Path('Inbox/watcher_container_contract.json')
 REQUEST_REL = Path('Inbox/watcher_recreate_request.json')
 REQUIRED_CAP_ADD = {'DAC_OVERRIDE', 'DAC_READ_SEARCH', 'FOWNER'}
 
@@ -92,7 +92,7 @@ def _write_recreate_request(root: Path, reason: str) -> dict:
 
 def probe(project_root: Path | str, *, socket_path: Path | str = '/var/run/docker.sock', client_factory=None, request_recreate: bool = False) -> dict:
     root = Path(project_root).resolve()
-    marker = root / MARKER_REL
+    marker = project_system_path(root, 'Inbox/watcher_container_contract.json')
     socket = Path(socket_path)
     if not socket.exists():
         result = _payload(ready=False, reason='docker_socket_missing')

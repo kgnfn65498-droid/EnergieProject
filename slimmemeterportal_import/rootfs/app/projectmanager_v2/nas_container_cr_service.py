@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import hashlib
 import json
@@ -614,7 +615,7 @@ class ConfiguredNasContainerCrService:
         poll_seconds: float = 0.25,
     ):
         self.project_root = Path(project_root)
-        self.bridge_root = self.project_root / 'Inbox' / 'nas_container_cr_local'
+        self.bridge_root = project_system_path(self.project_root, 'Inbox/nas_container_cr_local')
         self.request_path = self.bridge_root / 'request.json'
         self.result_path = self.bridge_root / 'result.json'
         self.timeout_seconds = max(0.1, float(timeout_seconds))

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import argparse
 import hashlib
@@ -91,7 +92,7 @@ def sync_control_plane_source(project_root: Path | str) -> dict:
         'delete_performed': False,
         'target': str(target_root),
     }
-    result_path = root / 'Inbox/release_controller/control_plane_source_sync.json'
+    result_path = project_system_path(root, 'Inbox/release_controller/control_plane_source_sync.json')
     result_path.parent.mkdir(parents=True, exist_ok=True)
     temp = result_path.with_name(result_path.name + f'.tmp-{os.getpid()}')
     temp.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')

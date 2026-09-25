@@ -1,0 +1,25 @@
+{
+  "schema": "energie_clearup_type2_plan_v1",
+  "classification": "TYPE2",
+  "clearup_id": "ClearUp_002",
+  "status": "READY",
+  "minimum_release": "32.5.7",
+  "items": [
+    {
+      "source": "Inbox/EXAMPLE_OLD_LOCATION",
+      "destination": "Data/03_Systeem/Projectmanager/EXAMPLE_NEW_LOCATION",
+      "reason": "Replace with the audited migration reason",
+      "contract_checks": [
+        {
+          "path": "App/EXAMPLE_ACTIVE_CONFIG_OR_CODE",
+          "must_contain": [
+            "Data/03_Systeem/Projectmanager/EXAMPLE_NEW_LOCATION"
+          ],
+          "must_not_contain": [
+            "Inbox/EXAMPLE_OLD_LOCATION"
+          ]
+        }
+      ]
+    }
+  ]
+}

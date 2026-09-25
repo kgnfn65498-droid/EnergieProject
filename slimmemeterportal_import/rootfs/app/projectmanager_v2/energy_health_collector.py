@@ -1,3 +1,4 @@
+from system_path_contract import project_system_path
 import hashlib
 import json
 import re
@@ -124,7 +125,7 @@ def _control_plane_runtime_check(project_root: Path | str, *, now=None, heartbea
     root = Path(project_root)
     now = now or datetime.now(timezone.utc)
     expected = _control_plane_source_fingerprint(root)
-    marker_path = root / 'Inbox/control_plane/runtime.json'
+    marker_path = project_system_path(root, 'Inbox/control_plane/runtime.json')
     marker = _read_json(marker_path)
     loaded = str((marker or {}).get('loaded_fingerprint') or '').lower()
     try:
@@ -155,7 +156,7 @@ def _control_plane_runtime_check(project_root: Path | str, *, now=None, heartbea
 def _command_ingress_consumer_check(project_root: Path | str):
     root = Path(project_root)
     ingress = root / 'Data/03_Systeem/Projectmanager/CommandIngress'
-    runtime_commands = root / 'Inbox/projectmanager_v2/RuntimeV2/commands'
+    runtime_commands = project_system_path(root, 'Inbox/projectmanager_v2/RuntimeV2/commands')
     receipts_path = runtime_commands / 'ingress_receipts.json'
     queue_path = runtime_commands / 'queue.json'
     if not ingress.is_dir() or ingress.is_symlink():
@@ -348,7 +349,7 @@ class EnergyHealthCollector:
                 verified=controller_runtime_ok,
             ))
         else:
-            watcher_contract_path = self.project_root / 'Inbox' / 'watcher_container_contract.json'
+            watcher_contract_path = project_system_path(self.project_root, 'Inbox/watcher_container_contract.json')
             watcher_contract = _read_json(watcher_contract_path)
             watcher_contract_ok = (
                 isinstance(watcher_contract, dict)

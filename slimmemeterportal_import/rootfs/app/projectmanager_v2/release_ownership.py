@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 import hashlib,json,re,os,stat
 from pathlib import Path
 
@@ -10,7 +11,7 @@ def _sha(record): return hashlib.sha256(_canon(record)).hexdigest()
 class LegacyOwnershipIndex:
     """One streaming index load per instance; classify/resolve are O(1) lookups afterwards."""
     def __init__(self, project_root):
-        self.path=Path(project_root)/'Inbox/projectmanager_v2/RuntimeV2/release_ownership/legacy_index.jsonl'
+        self.path=project_system_path(Path(project_root), 'Inbox/projectmanager_v2/RuntimeV2/release_ownership/legacy_index.jsonl')
         self.path.parent.mkdir(parents=True,exist_ok=True)
         if self.path.parent.is_symlink() or not self.path.parent.is_dir():
             raise RuntimeError('legacy ownership directory is unsafe')

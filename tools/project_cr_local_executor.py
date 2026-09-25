@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import argparse
 import json
@@ -25,7 +26,7 @@ def _write(path: Path, payload: dict) -> None:
 
 
 def execute(root: Path) -> dict:
-    root=Path(root).resolve(); bridge=root/'Inbox/project_cr_local'
+    root=Path(root).resolve(); bridge=project_system_path(root, 'Inbox/project_cr_local')
     request_path=bridge/'request.json'; result_path=bridge/'result.json'
     req=None
     try:

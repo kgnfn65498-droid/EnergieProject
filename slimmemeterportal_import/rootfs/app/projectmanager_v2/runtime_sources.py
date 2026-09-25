@@ -1,3 +1,4 @@
+from system_path_contract import project_system_path
 import json
 import os
 import time
@@ -127,7 +128,7 @@ class RuntimeCollector:
 
 
     def _projectmanager_liveness(self, *, now):
-        runtime_root = self.project_root / 'Inbox/projectmanager_v2/RuntimeV2'
+        runtime_root = project_system_path(self.project_root, 'Inbox/projectmanager_v2/RuntimeV2')
         heartbeat_path = runtime_root / 'heartbeat/manager.json'
         payload = self._read_json(heartbeat_path) or {}
         value = payload.get('heartbeat_at')
@@ -195,8 +196,8 @@ class RuntimeCollector:
         release_controller_age = self._file_age(release_controller_path, now)
         legacy_watcher = None
         if not self._release_at_least_58():
-            heartbeat_v2_path = inbox / 'watcher_heartbeat.v2'
-            legacy_heartbeat_path = inbox / '.watcher.heartbeat'
+            heartbeat_v2_path = project_system_path(self.project_root, 'Inbox/watcher_heartbeat.v2')
+            legacy_heartbeat_path = project_system_path(self.project_root, 'Inbox/.watcher.heartbeat')
             if heartbeat_v2_path.is_file():
                 heartbeat_path = heartbeat_v2_path
                 heartbeat_source_label = 'content_epoch_v2'
@@ -206,11 +207,11 @@ class RuntimeCollector:
             legacy_watcher = {**self._watcher_liveness(heartbeat_path, now, source_label=heartbeat_source_label),
                               'heartbeat_path': str(heartbeat_path),
                               'stale_after_seconds': self.watcher_stale_seconds}
-        atomic_path = inbox / 'atomic_app_swap_state.json'
-        watcher_contract_path = inbox / 'watcher_container_contract.json'
+        atomic_path = project_system_path(self.project_root, 'Inbox/atomic_app_swap_state.json')
+        watcher_contract_path = project_system_path(self.project_root, 'Inbox/watcher_container_contract.json')
         watcher_contract = self._read_json(watcher_contract_path) or {}
-        legacy_publisher_path = inbox / 'github_publisher_state.json'
-        shared_publication_path = inbox / 'github_publication_state.json'
+        legacy_publisher_path = project_system_path(self.project_root, 'Inbox/github_publisher_state.json')
+        shared_publication_path = project_system_path(self.project_root, 'Inbox/github_publication_state.json')
         installer_lock_path = inbox / '.installer.lock'
         atomic = self._read_json(atomic_path) or {}
         publication_contract = self._read_json(inbox / 'ha_publication_required.json') or {}
@@ -356,7 +357,7 @@ class RuntimeCollector:
             if version and version not in rollback_versions:
                 rollback_versions.append(version)
         active_version = self.running_release_version
-        native_guard_path = self.project_root / 'Inbox/native_mcp_runtime/runtime_guard.json'
+        native_guard_path = project_system_path(self.project_root, 'Inbox/native_mcp_runtime/runtime_guard.json')
         native_guard = self._read_json(native_guard_path) or {}
         if native_guard:
             native_guard = dict(native_guard)

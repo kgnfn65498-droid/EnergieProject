@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import json
 import os
@@ -12,7 +13,7 @@ from projectmanager_v2.projectmanager_web import install_projectmanager_web
 from projectmanager_v2.startup_timing import StartupTiming
 from process_workspace import ensure_process_workspace
 
-TARGET_RELEASE_VERSION = "32.5.6"
+TARGET_RELEASE_VERSION = "32.5.7"
 app.APP_VERSION = TARGET_RELEASE_VERSION
 
 _BACKGROUND_LOCK = threading.Lock()
@@ -37,7 +38,7 @@ def _load_json_object(path):
 
 
 def _observe_startup_phases(startup_timing, root):
-    runtime = Path(root) / "Inbox/projectmanager_v2/RuntimeV2"
+    runtime = project_system_path(Path(root), 'Inbox/projectmanager_v2/RuntimeV2')
     status_path = runtime / "status/current.json"
     audit_path = runtime / "self_audit/current.json"
     first_status_marked = False

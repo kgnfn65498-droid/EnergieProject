@@ -30,6 +30,7 @@ from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from system_path_contract import project_system_path
 from typing import Any
 from urllib.parse import parse_qs, quote, urlparse
 from zoneinfo import ZoneInfo
@@ -81,10 +82,9 @@ CRASH_RECOVERY_EXPORT_ROOT = Path("/config/output/crash_recovery_exports")
 MONITORING_STATE_PATH = Path("/config/output/monitoring_state.json")
 MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
-PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.5.6"
+APP_VERSION = "32.5.7"
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
 # Verhoog deze waarde ALLEEN wanneer workflow/scheduler/retry/certificeringskern inhoudelijk wijzigt.
@@ -110,7 +110,6 @@ GITHUB_PRIVATE_KEY = GITHUB_PUBLISH_DIR / "id_ed25519"
 GITHUB_PUBLIC_KEY = GITHUB_PUBLISH_DIR / "id_ed25519.pub"
 GITHUB_KNOWN_HOSTS = GITHUB_PUBLISH_DIR / "known_hosts"
 GITHUB_PUBLISH_STATE = Path("/config/output/github_publication_state.json")
-GITHUB_CANONICAL_PUBLISH_STATE = NAS_RELEASE_ROOT / "github_publication_state.json"
 GITHUB_WORKTREE = GITHUB_PUBLISH_DIR / "worktree"
 GITHUB_RELEASE_STAGE = GITHUB_PUBLISH_DIR / "release_stage"
 NAS_RELEASE_INBOX = NAS_RELEASE_ROOT / "incoming"
@@ -118,6 +117,8 @@ NAS_RELEASE_PROCESSING = NAS_RELEASE_ROOT / "processing"
 NAS_RELEASE_ARCHIVE = NAS_RELEASE_ROOT / "processed"
 NAS_RELEASE_FAILED = NAS_RELEASE_ROOT / "failed"
 HA_PUBLICATION_REQUIRED = NAS_RELEASE_ROOT / "ha_publication_required.json"
+# Compatibility injection point for isolated publisher tests; production resolves through Type2 path contract.
+GITHUB_CANONICAL_PUBLISH_STATE = None
 CRASH_RECOVERY_CLEANUP_REQUEST_PATH = NAS_RELEASE_ROOT / "crash_recovery_cleanup_request.json"
 CRASH_RECOVERY_CLEANUP_RESULT_PATH = NAS_RELEASE_ROOT / "crash_recovery_cleanup_result.json"
 NAS_V10_LAYOUT = {
@@ -18577,8 +18578,8 @@ def release_diagnostics_snapshot(version: str | None = None) -> dict[str, Any]:
         requested = project_version or APP_VERSION
 
     locations = [item for item in releases if item.get("version") == requested]
-    latest_status_path = NAS_RELEASE_ROOT / "latest_release_status.txt"
-    watcher_log_path = NAS_RELEASE_ROOT / "logs" / "release_watcher.log"
+    latest_status_path = project_system_path(NAS_LAYOUT_ROOT, "Inbox/latest_release_status.txt")
+    watcher_log_path = project_system_path(NAS_LAYOUT_ROOT, 'Inbox/logs/release_watcher.log')
     publish_state: dict[str, Any] = {}
     try:
         if GITHUB_PUBLISH_STATE.is_file():
@@ -20207,11 +20208,12 @@ def _load_github_publication_contract(options=None):
             if _manifest_file_sha256(NAS_PROJECT_ROOT) != install_manifest:
                 return False, contract, "Lokaal install-predecessormanifest wijkt af van pre-target contract."
             try:
-                canonical_publication = json.loads(GITHUB_CANONICAL_PUBLISH_STATE.read_text(encoding="utf-8"))
+                canonical_path = GITHUB_CANONICAL_PUBLISH_STATE or project_system_path(NAS_LAYOUT_ROOT, "Inbox/github_publication_state.json")
+                canonical_publication = json.loads(Path(canonical_path).read_text(encoding="utf-8"))
             except Exception:
                 canonical_publication = {}
             try:
-                ha_runtime = json.loads((NAS_RELEASE_ROOT / "ha_runtime/current.json").read_text(encoding="utf-8"))
+                ha_runtime = json.loads(project_system_path(NAS_RELEASE_ROOT.parent, "Inbox/ha_runtime/current.json").read_text(encoding="utf-8"))
             except Exception:
                 ha_runtime = {}
             if not isinstance(canonical_publication, dict) or canonical_publication.get("published") is not True or canonical_publication.get("target_exact") is not True:
@@ -20231,7 +20233,7 @@ def _load_github_publication_contract(options=None):
                 return False, contract, "Live versie wijkt af van gefencete pre-target predecessor."
             if _manifest_file_sha256(NAS_PROJECT_ROOT) != predecessor_manifest:
                 return False, contract, "Live predecessor-manifest wijkt af van pre-target contract."
-        controller = NAS_RELEASE_ROOT / "release_controller/current.json"
+        controller = project_system_path(NAS_RELEASE_ROOT.parent, "Inbox/release_controller/current.json")
         try:
             current = json.loads(controller.read_text(encoding="utf-8"))
         except Exception:
@@ -20565,7 +20567,7 @@ def publish_github_release(options=None):
 def _write_github_publish_state(payload):
     data = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
     failures = []
-    for path in (GITHUB_PUBLISH_STATE, GITHUB_CANONICAL_PUBLISH_STATE):
+    for path in (GITHUB_PUBLISH_STATE, project_system_path(NAS_LAYOUT_ROOT, "Inbox/github_publication_state.json")):
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp = path.with_name(path.name + f".tmp.{os.getpid()}")
@@ -22203,7 +22205,7 @@ def main() -> None:
             }
             write_atomic_json(PROJECT_CLEARUP_STATE_PATH, enriched)
             if live_nas_layout_root is not None:
-                write_atomic_json(live_nas_layout_root / PROJECT_CLEARUP_RUNTIME_RELATIVE, enriched)
+                write_atomic_json(project_system_path(live_nas_layout_root, 'Inbox/logs/project_clearup_runtime.json'), enriched)
             update_state(last_project_clearup=enriched)
 
         try:

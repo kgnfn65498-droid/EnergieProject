@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 import json, time, sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -72,14 +73,14 @@ def _load(path: Path):
 
 
 def _checks(root: Path):
-    status=_load(root/'Inbox/projectmanager_v2/RuntimeV2/status/current.json')
+    status=_load(project_system_path(root, 'Inbox/projectmanager_v2/RuntimeV2/status/current.json'))
     checks=((status.get('health') or {}).get('checks') or []) if isinstance(status,dict) else []
     by={str(x.get('name')):str(x.get('status')) for x in checks if isinstance(x,dict)}
-    audit=_load(root/'Inbox/projectmanager_v2/RuntimeV2/self_audit/current.json')
-    atomic=_load(root/'Inbox/atomic_app_swap_state.json')
-    hold=_load(root/'Inbox/operating_mode/release_validation_hold.json')
-    clear=_load(root/'Inbox/logs/project_clearup_runtime.json')
-    mode=_load(root/'Inbox/operating_mode/operating_mode_state.json')
+    audit=_load(project_system_path(root, 'Inbox/projectmanager_v2/RuntimeV2/self_audit/current.json'))
+    atomic=_load(project_system_path(root, 'Inbox/atomic_app_swap_state.json'))
+    hold=_load(project_system_path(root, 'Inbox/operating_mode/release_validation_hold.json'))
+    clear=_load(project_system_path(root, 'Inbox/logs/project_clearup_runtime.json'))
+    mode=_load(project_system_path(root, 'Inbox/operating_mode/operating_mode_state.json'))
     try: active_version=(root/'App/VERSIE.txt').read_text(encoding='utf-8').strip()
     except OSError: active_version=''
     return {
@@ -105,7 +106,7 @@ class ReleaseTransitionWorker:
     def __init__(self, project_root, app_module):
         self.root=Path(project_root); self.app=app_module
         self.coord=ReleaseTransitionCoordinator(self.root)
-        self.runtime=self.root/'Inbox/projectmanager_v2/RuntimeV2'
+        self.runtime=project_system_path(self.root, 'Inbox/projectmanager_v2/RuntimeV2')
         self.commands=CommandStore(self.runtime/'commands/queue.json')
         self.tasks=TaskStore(self.runtime/'state/tasks.json')
 
@@ -159,13 +160,13 @@ class ReleaseTransitionWorker:
             current=self.coord.load() or current
             self.coord.block(expected_revision=int(current['revision']),expected_generation=gen,blocker='mode_restore_readback_mismatch')
             return {'status':'RED','side_effect_state':'UNKNOWN','target_mode':target}
-        result={**ticket,'status':'GREEN','side_effect_state':'PROVEN','evidence_refs':[str(self.root/'Inbox/operating_mode/operating_mode_state.json')]}
+        result={**ticket,'status':'GREEN','side_effect_state':'PROVEN','evidence_refs':[str(project_system_path(self.root, 'Inbox/operating_mode/operating_mode_state.json'))]}
         accepted=self.coord.accept_executor_result(result)
         self.coord.advance(expected_revision=int(accepted['revision']),expected_generation=gen,phase='RESTORE_DEVELOPMENT',next_action='complete transition')
         return result
 
     def _ticketless_nas_cr_absent_readback(self):
-        bridge = self.root/'Inbox/nas_container_cr_local'
+        bridge = project_system_path(self.root, 'Inbox/nas_container_cr_local')
         refs = [str(bridge/'request.json'), str(bridge/'result.json'), str(self.root/'Backups/NAS Container')]
         if any(path.exists() or path.is_symlink() for path in (bridge/'request.json', bridge/'result.json')):
             return None
@@ -230,7 +231,7 @@ class ReleaseTransitionWorker:
         if command.get('status')!='PENDING' or not project_cr_request_id:
             return None
         from mode_bridge import ModeBridge
-        bridge=ModeBridge(self.root/'Inbox/operating_mode/operating_mode_command.json')
+        bridge=ModeBridge(project_system_path(self.root, 'Inbox/operating_mode/operating_mode_command.json'))
         return bridge.request_transition_owned_temporary_maintenance(
             generation_id=str(state.get('generation_id') or ''),
             ticket_request_id=request_id,
@@ -307,7 +308,7 @@ class ReleaseTransitionWorker:
 def release_transition_daemon(stop_event, app_module, project_root, *, interval=5.0):
     root = Path(project_root)
     worker=ReleaseTransitionWorker(root,app_module)
-    status_path = root/'Inbox/projectmanager_v2/RuntimeV2/release_transition/worker_status.json'
+    status_path = project_system_path(root, 'Inbox/projectmanager_v2/RuntimeV2/release_transition/worker_status.json')
     last={}
     while not stop_event.is_set():
         observed_at = datetime.now(timezone.utc).isoformat()

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import argparse
 import fcntl
@@ -83,7 +84,7 @@ finally:
 
 def probe(root: Path, *, socket_path: Path = Path('/var/run/docker.sock'), client_factory: Callable[[], Any] | None = None) -> dict[str, Any]:
     root = Path(root).resolve()
-    bridge = root / 'Inbox' / 'nas_container_cr_local'
+    bridge = project_system_path(root, 'Inbox/nas_container_cr_local')
     capability = bridge / 'capability.json'
     version_path = root / 'App' / 'VERSIE.txt'
     payload: dict[str, Any]
@@ -97,7 +98,7 @@ def probe(root: Path, *, socket_path: Path = Path('/var/run/docker.sock'), clien
         bridge.chmod(0o777)
         if stat.S_IMODE(bridge.stat().st_mode) != 0o777:
             raise RuntimeError('NAS CR bridge-directory voldoet niet aan mailboxcontract 0777')
-        operation_lock = root / 'Inbox' / '.nas-container-cr.operation.lock'
+        operation_lock = project_system_path(root, 'Inbox/.nas-container-cr.operation.lock')
         _operation_lock_exclusive_probe(operation_lock)
         mode = socket_path.stat().st_mode
         if not stat.S_ISSOCK(mode):

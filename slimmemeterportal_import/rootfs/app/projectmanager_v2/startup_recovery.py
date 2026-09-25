@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 """Bounded startup recovery for the embedded Projectmanager runtime.
 
@@ -25,7 +26,7 @@ DEFAULT_MAX_RESTART_REQUESTS = 1
 
 
 def _runtime_root(project_root: Path) -> Path:
-    return Path(project_root) / "Inbox/projectmanager_v2/RuntimeV2"
+    return project_system_path(Path(project_root), 'Inbox/projectmanager_v2/RuntimeV2')
 
 
 def _state_path(project_root: Path) -> Path:

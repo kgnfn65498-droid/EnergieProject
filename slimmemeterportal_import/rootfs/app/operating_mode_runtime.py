@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 from dataclasses import asdict, replace
 from datetime import datetime
@@ -31,7 +32,7 @@ _MODE_HISTORY_LOCK = threading.Lock()
 
 
 def mode_history_path(project_root: Path | str) -> Path:
-    return Path(project_root) / "Inbox/logs/operating_mode_history.jsonl"
+    return project_system_path(Path(project_root), 'Inbox/logs/operating_mode_history.jsonl')
 
 
 def _pending_command(project_root: Path | str) -> dict[str, Any] | None:
@@ -343,8 +344,8 @@ def _web_runtime_check(app_module: Any) -> dict[str, Any]:
 
 
 def _state_io_check(project_root: Path, expected_version: str) -> dict[str, Any]:
-    hold_path = project_root / "Inbox/operating_mode/release_validation_hold.json"
-    probe_path = project_root / "Inbox/operating_mode" / f".validation_probe.{os.getpid()}"
+    hold_path = project_system_path(project_root, 'Inbox/operating_mode/release_validation_hold.json')
+    probe_path = project_system_path(project_root, 'Inbox/operating_mode') / f".validation_probe.{os.getpid()}"
     try:
         if not hold_path.is_file():
             return _validation_check(False, "hold state file missing")
@@ -397,8 +398,8 @@ def _release_chain_check(project_root: Path, observed: dict[str, Any]) -> dict[s
 
 def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]:
     root = Path(project_root)
-    audit_path = root / "Inbox/projectmanager_v2/RuntimeV2/self_audit/current.json"
-    status_path = root / "Inbox/projectmanager_v2/RuntimeV2/status/current.json"
+    audit_path = project_system_path(root, 'Inbox/projectmanager_v2/RuntimeV2/self_audit/current.json')
+    status_path = project_system_path(root, 'Inbox/projectmanager_v2/RuntimeV2/status/current.json')
     version_path = root / "App/VERSIE.txt"
     if not audit_path.is_file():
         return _validation_check(False, "projectmanager self-audit missing")
@@ -472,7 +473,7 @@ def _projectmanager_self_audit_check(project_root: Path | str) -> dict[str, Any]
         )
 
         def _current_live_acceptance_journal_is_valid() -> bool:
-            journal_path = root / 'Inbox/atomic_app_swap_state.json'
+            journal_path = project_system_path(root, 'Inbox/atomic_app_swap_state.json')
             try:
                 journal = json.loads(journal_path.read_text(encoding='utf-8'))
             except (OSError, UnicodeError, json.JSONDecodeError):
@@ -732,7 +733,7 @@ def _audit_hold_event(app_module: Any, action: str, status: str, details: dict[s
 
 
 def _atomic_release_journal(project_root: Path | str) -> dict[str, Any] | None:
-    path = Path(project_root) / "Inbox/atomic_app_swap_state.json"
+    path = project_system_path(Path(project_root), 'Inbox/atomic_app_swap_state.json')
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, UnicodeError, json.JSONDecodeError):

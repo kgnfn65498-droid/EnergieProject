@@ -1,0 +1,19 @@
+{
+  "schema": "energie_clearup_type2_path_contract_v1",
+  "release": "32.5.7",
+  "status": "GREEN",
+  "batches": {
+    "ClearUp_002": "GREEN",
+    "ClearUp_003": "GREEN",
+    "ClearUp_004": "GREEN",
+    "ClearUp_005": "GREEN",
+    "ClearUp_006": "GREEN",
+    "ClearUp_007": "GREEN",
+    "ClearUp_008": "GREEN",
+    "ClearUp_009": "GREEN",
+    "ClearUp_010": "GREEN",
+    "ClearUp_011": "GREEN",
+    "ClearUp_012": "GREEN"
+  },
+  "rule": "All active readers/writers for the inventoried Type2 scope use system_path_contract or an explicitly protected functional Inbox bridge. Concrete Type2 plans ClearUp_002..012 are bundled in this release."
+}

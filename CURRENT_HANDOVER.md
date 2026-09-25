@@ -1,35 +1,11 @@
-# CURRENT HANDOVER — EnergieProject 32.5.6
+# CURRENT_HANDOVER — 32.5.7
 
-Datum: 2026-09-24
-Documentrol: statische release-handover voor artifact 32.5.6. Mutable live-status staat niet in dit document.
+Doel: ClearUp_001 moet vanuit chat normaal werken: recovery-ZIP vooraf, Peter zegt `akkoord`, Projectmanager voert bounded delete uit zonder terminal en zonder de release-Inbox te raken.
 
-## Runtime-statusautoriteit
-Actuele lifecycle/status komt uitsluitend uit:
-- `Inbox/release_controller/current.json`;
-- `Inbox/release_controller/runtime.json`;
-- `Inbox/ha_runtime/current.json`;
-- `Inbox/github_publication_state.json`;
-- `Inbox/release_controller/post_live_audit.json` na COMPLETE.
+32.5.7 repareert de 32.5.6 live permissiefout door de bestaande QNAP watcher-executor te gebruiken voor exact vier TYPE1-roots. Chat gebruikt bestaand `admin_update` transport met `classification_hint=clearup_apply`, zodat de Native-MCP submit-command allowlist niet gewijzigd of herladen hoeft te worden.
 
-## Aanleiding
-32.5.3 kon GitHub en Home Assistant al bereiken terwijl de centrale App na een installatiefout terugrolde naar 32.5.2. Daardoor ontstond een legitieme maar niet gemodelleerde split-state. 32.5.4 kon alleen met noodpatches uit die toestand komen. Die noodroute is geen acceptabele normale werkwijze.
+Na live installatie: automatische post-live release-audit; daarna ClearUp_001 uitvoeren met bestaand expliciet akkoord, resultaat/readback controleren en pas GREEN verklaren als de vier oude paden weg zijn en incoming/processing intact zijn.
 
-## 32.5.5 basis
-De split-state/publicatie- en post-live-herstelmaatregelen uit 32.5.5 blijven ongewijzigd behouden.
+32.5.7 bevat daarnaast de reeds geïnventariseerde concrete TYPE2-batches `ClearUp_002` t/m `ClearUp_012`. De plannen leggen per item bron, definitieve systeemlocatie, pad-key, reden en contractcheck vast. De scope omvat RuntimeV2, logs/publisherhistorie, operating mode, releasecontroller/status, HA/Native-MCP runtime-evidence, ControlPlane runtime/config, process-workspace, watcher-evidence, lokale CR-state, release/publication-state en runtime-locks/heartbeat.
 
-## 32.5.6 oplossing
-- releasecontract bevat afzonderlijke `install_predecessor_*` en `publication_predecessor_*` identiteiten;
-- de legacy predecessorvelden blijven compatibel maar vertegenwoordigen expliciet de publicatiepredecessor;
-- Home Assistant publisher bewijst in split-state de lokale installatiepredecessor én de canonieke GitHub/HA-publicatiepredecessor afzonderlijk;
-- exact gepubliceerde targetcontracten worden na lokale installatie niet opnieuw uit de gewijzigde App afgeleid;
-- een bewezen rolled-back stale contract kan fail-closed en idempotent worden gearchiveerd; onbewezen state blijft geblokkeerd;
-- split-state recovery blijft duurzaam WAITING op de canonieke publisher in plaats van te verlopen op een oude phase-clock;
-- COMPLETE schrijft automatisch een machineleesbare post-live audit;
-- settled IDLE wordt als gezonde rusttoestand behandeld;
-- geen tijdelijke lokale versie-impersonatie, directe JSON-state-edit, containerrestart of PATCH/RECOVER-script is onderdeel van de normale 32.5.6 releaseketen.
-
-## Releasecontract
-`Incoming → Processing → pre-target contract → GitHub exact → atomic App target → ACCEPTED/WAITING_MANUAL_HA_UPDATE → handmatige HA-update → HA exact → contract settlement → Processed → COMPLETE → post-live audit → IDLE`.
-
-## Safety
-Productiecontainer restart, directe live App/state-mutatie, tijdelijke RW-container mounts, directe NAS-Git-publicatie en live PATCH/RECOVER-hotpatches zijn gevaarlijke acties. Zij mogen niet uit een algemene opdracht zoals “verder” worden afgeleid en vereisen Peters expliciete toestemming voor exact die actie.
+De TYPE2-volgorde is bindend: prepare + recovery-ZIP -> Peter downloadt/bewaart -> expliciet akkoord -> migrate naar definitieve locatie met bron nog intact -> live reader/writer-validatie -> afzonderlijk akkoord -> finalize oude bron -> readback/no-recreation. `incoming`, `processing`, `processed` en `failed` zijn uitgesloten. Readers/writers schakelen uitsluitend via het geverifieerde `system_path_contract`; geen blind pad vervangen en geen terminalroute.

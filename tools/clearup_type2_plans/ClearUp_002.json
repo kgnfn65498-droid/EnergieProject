@@ -1,0 +1,26 @@
+{
+  "schema": "energie_clearup_type2_plan_v1",
+  "classification": "TYPE2",
+  "clearup_id": "ClearUp_002",
+  "status": "READY",
+  "minimum_release": "32.5.7",
+  "items": [
+    {
+      "source": "Inbox/projectmanager_v2/RuntimeV2",
+      "destination": "Data/03_Systeem/Projectmanager/RuntimeV2",
+      "path_key": "pm_runtime",
+      "reason": "Projectmanager runtime truth hoort in de systeemboom, niet in release-Inbox.",
+      "contract_checks": [
+        {
+          "path": "App/tools/clearup_type2_path_contract.json",
+          "must_contain": [
+            "\"ClearUp_002\": \"GREEN\""
+          ],
+          "must_not_contain": [
+            "\"ClearUp_002\": \"RED\""
+          ]
+        }
+      ]
+    }
+  ]
+}

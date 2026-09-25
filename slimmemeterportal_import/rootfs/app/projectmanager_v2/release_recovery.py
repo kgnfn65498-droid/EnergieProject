@@ -5,6 +5,7 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from system_path_contract import project_system_path
 from typing import Any
 
 
@@ -40,9 +41,9 @@ class ReleaseRecoveryService:
         return ''
 
     def _watcher(self) -> dict[str, Any]:
-        path = self.inbox / 'watcher_heartbeat.v2'
+        path = project_system_path(self.project_root, 'Inbox/watcher_heartbeat.v2')
         if not path.is_file():
-            path = self.inbox / '.watcher.heartbeat'
+            path = project_system_path(self.project_root, 'Inbox/.watcher.heartbeat')
         try:
             epoch = float(path.read_text(encoding='utf-8').strip())
             age = max(0.0, time.time() - epoch)
@@ -57,7 +58,7 @@ class ReleaseRecoveryService:
         }
 
     def _isolate_terminal_project_cr_request(self, version: str) -> bool:
-        bridge = self.inbox / 'project_cr_local'
+        bridge = project_system_path(self.project_root, 'Inbox/project_cr_local')
         request_path = bridge / 'request.json'
         request = self._load_json(request_path)
         if not request:
@@ -77,7 +78,7 @@ class ReleaseRecoveryService:
 
     def recover(self) -> dict[str, Any]:
         version = self._version()
-        atomic = self._load_json(self.inbox / 'atomic_app_swap_state.json')
+        atomic = self._load_json(project_system_path(self.project_root, 'Inbox/atomic_app_swap_state.json'))
         hold = self._load_json(self.inbox / 'operating_mode/release_validation_hold.json')
         mode = self._load_json(self.inbox / 'operating_mode/operating_mode_state.json')
         watcher = self._watcher()

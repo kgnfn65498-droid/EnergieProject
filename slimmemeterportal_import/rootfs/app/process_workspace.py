@@ -13,6 +13,7 @@ import stat
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from system_path_contract import project_system_path
 from typing import Any
 
 SCHEMA = "energie_process_workspace_v1"
@@ -38,11 +39,11 @@ def _project_root(project_root: Path) -> Path:
 
 
 def _process_root(project_root: Path) -> Path:
-    return _project_root(project_root) / PROCESS_ROOT_REL
+    return project_system_path(_project_root(project_root), 'Inbox/process')
 
 
 def _process_map_path(project_root: Path) -> Path:
-    return _project_root(project_root) / PROCESS_MAP_REL
+    return project_system_path(_project_root(project_root), 'Inbox/process/process_map.json')
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:

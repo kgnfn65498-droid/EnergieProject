@@ -7,9 +7,9 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from system_path_contract import project_system_path
 
 MARKER_REL = Path("Data/03_Systeem/Projectmanager/RuntimeEvidence/native_mcp_runtime_fingerprint.json")
-STATE_REL = Path("Inbox/native_mcp_runtime/runtime_guard.json")
 SCHEMA = "energie_native_mcp_runtime_v3"
 
 def _runtime_module(root: Path):
@@ -60,7 +60,7 @@ def probe(root: Path | str) -> dict:
         "marker": str(marker_path),
         "checked_at": datetime.now(timezone.utc).isoformat(),
     }
-    _atomic(base / STATE_REL, result)
+    _atomic(project_system_path(base, 'Inbox/native_mcp_runtime/runtime_guard.json'), result)
     return result
 
 def main() -> int:

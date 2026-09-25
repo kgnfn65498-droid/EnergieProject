@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import argparse
 import hashlib
@@ -42,7 +43,7 @@ def _red(reason: str, **extra) -> dict:
 
 def probe(project_root: Path | str, *, now: float | None = None, stale_seconds: float = 180.0) -> dict:
     root = Path(project_root)
-    marker = root / 'Inbox/projectmanager_v2/RuntimeV2/embedded_runtime/current.json'
+    marker = project_system_path(root, 'Inbox/projectmanager_v2/RuntimeV2/embedded_runtime/current.json')
     version_path = root / 'App/VERSIE.txt'
     try:
         st = marker.lstat()

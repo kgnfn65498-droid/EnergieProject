@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 from pathlib import Path
 from typing import Any, Iterable
@@ -21,7 +22,7 @@ def _write_release_hold_worker_state(
     status: str,
     last_result: dict[str, Any] | None = None,
 ) -> None:
-    path = project_root / "Inbox/operating_mode/release_hold_worker.json"
+    path = project_system_path(project_root, 'Inbox/operating_mode/release_hold_worker.json')
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema": "energie_release_hold_worker_v1",
@@ -52,7 +53,7 @@ def automatic_release_hold_once(
     expected_version: str,
 ) -> dict[str, Any]:
     root = Path(project_root)
-    transition_path = root / "Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json"
+    transition_path = project_system_path(root, 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json')
     try:
         transition = read_transition_state(transition_path, missing_ok=True)
     except TransitionStateReadError as exc:

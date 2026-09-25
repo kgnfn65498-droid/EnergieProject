@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 import http.client,json,os,socket,time
 from pathlib import Path
 import control_plane_runtime_guard
@@ -6,7 +7,6 @@ from control_plane_source_sync import sync_control_plane_source
 
 CONTAINER='energie-control-plane'
 SOCKET='/var/run/docker.sock'
-ATTEMPT_REL=Path('Inbox/release_controller/control_plane_restart_attempt.json')
 
 class _Conn(http.client.HTTPConnection):
     def __init__(self):super().__init__('localhost',timeout=30)
@@ -63,7 +63,7 @@ def ensure_control_plane_current(root:Path|str,*,timeout_seconds=90.0)->dict:
     if len(expected)!=64 or any(c not in '0123456789abcdef' for c in expected):
         raise RuntimeError('control-plane expected fingerprint invalid')
 
-    attempt_path=root/ATTEMPT_REL
+    attempt_path=project_system_path(root, 'Inbox/release_controller/control_plane_restart_attempt.json')
     stale_but_exact=(
         first.get('ready') is not True
         and first.get('reason')=='runtime_heartbeat_stale'
@@ -131,5 +131,5 @@ def ensure_control_plane_current(root:Path|str,*,timeout_seconds=90.0)->dict:
             'source_sync_changed':sync.get('changed') or [],'restart_performed':restarted,
             'direct_runtime_probe':direct_runtime_probe,
             'expected_fingerprint':final.get('expected_fingerprint'),'loaded_fingerprint':final.get('loaded_fingerprint')}
-    _atomic(root/'Inbox/release_controller/control_plane_bootstrap.json',result)
+    _atomic(project_system_path(root, 'Inbox/release_controller/control_plane_bootstrap.json'),result)
     return result

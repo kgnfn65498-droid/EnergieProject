@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import argparse
 import hashlib
@@ -295,8 +296,8 @@ _RELEASE_ZIP_RE = re.compile(r"^EnergieProject_v\\d+\\.\\d+\\.\\d+(?:[^/]*)\\.zi
 
 def _snapshot_release_debt_exclusions(project_root: Path) -> tuple[set[str], set[str]]:
     protected: set[str] = set()
-    atomic_path = project_root / "Inbox/atomic_app_swap_state.json"
-    hold_path = project_root / "Inbox/operating_mode/release_validation_hold.json"
+    atomic_path = project_system_path(project_root, 'Inbox/atomic_app_swap_state.json')
+    hold_path = project_system_path(project_root, 'Inbox/operating_mode/release_validation_hold.json')
     try:
         atomic = json.loads(atomic_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError, UnicodeError):

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import html
 import json
@@ -33,7 +34,7 @@ def _active_release_transition(project_root: Path | str) -> dict[str, Any] | Non
             return None
     except (OSError, ValueError):
         pass
-    path = root / "Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json"
+    path = project_system_path(root, 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json')
     payload = read_transition_state(path, missing_ok=True)
     if not isinstance(payload, dict):
         return None

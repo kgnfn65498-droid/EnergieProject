@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import hashlib
 import json
@@ -39,7 +40,7 @@ class SwapPaths:
             candidate=root / f"App.__candidate_{to_version}",
             rollback=root / f"App.__rollback_{from_version}",
             inbox=inbox,
-            journal=inbox / "atomic_app_swap_state.json",
+            journal=project_system_path(root, 'Inbox/atomic_app_swap_state.json'),
             lock=inbox / ".atomic_app_swap.lock",
             from_version=from_version,
             to_version=to_version,
@@ -741,7 +742,7 @@ def _cli_accept(args) -> dict[str, Any]:
 
 def _cli_status(args) -> dict[str, Any]:
     root = Path(args.root)
-    journal = root / "Inbox/atomic_app_swap_state.json"
+    journal = project_system_path(root, 'Inbox/atomic_app_swap_state.json')
     if not journal.is_file():
         return {"state": "NONE"}
     payload = json.loads(journal.read_text(encoding="utf-8"))

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import json
 import os
@@ -30,7 +31,7 @@ class ConfiguredProjectCrService:
 
     def __init__(self, project_root: Path | str, *, timeout_seconds: float=20*60, poll_seconds: float=.25):
         self.project_root=Path(project_root)
-        self.bridge_root=self.project_root/'Inbox/project_cr_local'
+        self.bridge_root=project_system_path(self.project_root, 'Inbox/project_cr_local')
         self.request_path=self.bridge_root/'request.json'
         self.result_path=self.bridge_root/'result.json'
         self.timeout_seconds=max(.1,float(timeout_seconds)); self.poll_seconds=max(.005,float(poll_seconds))

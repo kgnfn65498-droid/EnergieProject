@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import argparse
 import contextlib
@@ -47,7 +48,7 @@ def _atomic_json(path: Path, payload: dict[str, Any], *, mode: int = 0o644) -> N
 
 
 def _fixed_paths(root: Path) -> tuple[Path, Path]:
-    bridge = root / 'Inbox' / 'nas_container_cr_local'
+    bridge = project_system_path(root, 'Inbox/nas_container_cr_local')
     return bridge / 'request.json', bridge / 'result.json'
 
 
@@ -96,7 +97,7 @@ def _operation_lock(root: Path):
     released automatically when the executor exits/crashes.
     """
     root = Path(root)
-    lock = root / 'Inbox' / '.nas-container-cr.operation.lock'
+    lock = project_system_path(root, 'Inbox/.nas-container-cr.operation.lock')
     if lock.is_symlink() or not lock.is_file():
         raise OSError(errno.EINVAL, 'NAS CR operation lock ontbreekt of is onveilig', str(lock))
     flags = os.O_RDWR

@@ -9,9 +9,8 @@ import socket
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from system_path_contract import project_system_path
 
-REQUEST = Path('Inbox/native_mcp_runtime/reload_request.json')
-RESULT = Path('Inbox/native_mcp_runtime/reload_result.json')
 RUNTIME_MARKER = Path('Data/03_Systeem/Projectmanager/RuntimeEvidence/native_mcp_runtime_fingerprint.json')
 SOCKET_PATH = '/var/run/docker.sock'
 CONTAINER = 'energie-filesystem-mcp'
@@ -50,8 +49,8 @@ def _restart() -> None:
 
 def run(root: Path | str, *, wait_seconds: float = 60.0) -> dict:
     base = Path(root).resolve()
-    request_path = base / REQUEST
-    result_path = base / RESULT
+    request_path = project_system_path(base, 'Inbox/native_mcp_runtime/reload_request.json')
+    result_path = project_system_path(base, 'Inbox/native_mcp_runtime/reload_result.json')
     if not request_path.is_file() or request_path.is_symlink():
         raise RuntimeError('fixed native MCP reload request ontbreekt/onveilig')
     request = json.loads(request_path.read_text(encoding='utf-8'))

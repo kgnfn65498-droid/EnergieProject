@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+from system_path_contract import project_system_path,active_mapping_fingerprint
 import argparse,hashlib,http.client,json,os,socket,time,zipfile
 from pathlib import Path
 
 import atomic_app_swap
 import native_mcp_runtime_guard
+import sideband_bridge
 from atomic_release_adapter import AtomicReleaseAdapter
 from controller_lock import controller_lease
 from control_plane_bootstrap import ensure_control_plane_current
@@ -93,9 +95,9 @@ def write_post_live_audit(root:Path,state:ReleaseState)->dict:
     app_version=''
     try:app_version=(root/'App/VERSIE.txt').read_text(encoding='utf-8').strip()
     except Exception:pass
-    ha=j(root/'Inbox/ha_runtime/current.json')
-    pub=j(root/'Inbox/github_publication_state.json')
-    atomic=j(root/'Inbox/atomic_app_swap_state.json')
+    ha=j(project_system_path(root, 'Inbox/ha_runtime/current.json'))
+    pub=j(project_system_path(root, 'Inbox/github_publication_state.json'))
+    atomic=j(project_system_path(root, 'Inbox/atomic_app_swap_state.json'))
     processed=root/'Inbox/processed'/state.artifact_name
     processing=root/'Inbox/processing'/state.artifact_name
     contract=root/'Inbox/ha_publication_required.json'
@@ -112,17 +114,17 @@ def write_post_live_audit(root:Path,state:ReleaseState)->dict:
     }
     status='GREEN' if all(checks.values()) else 'RED'
     payload={'schema':'energie_post_live_release_audit_v1','status':status,'release_id':state.release_id,'generation':state.generation,'version':state.to_version,'artifact_name':state.artifact_name,'artifact_sha256':state.artifact_sha256,'observed_at_epoch':time.time(),'checks':checks,'recommendation':'release_closed_next_development_safe' if status=='GREEN' else 'block_next_release_investigate_post_live_audit'}
-    _atomic_json(root/'Inbox/release_controller/post_live_audit.json',payload)
+    _atomic_json(project_system_path(root, 'Inbox/release_controller/post_live_audit.json'),payload)
     return payload
 
 class ReleaseControllerService:
     def __init__(self,root:Path,adapter,*,stable_polls=3,ingress_stale_seconds=600):
         self.root=Path(root);self.adapter=adapter;self.controller=ReleaseController()
-        self.store=StateStore(self.root/'Inbox/release_controller/current.json')
+        self.store=StateStore(project_system_path(self.root, 'Inbox/release_controller/current.json'))
         self.stable_polls=max(2,int(stable_polls));self.ingress_stale_seconds=max(30,int(ingress_stale_seconds))
         self.samples={};self.counts={}
     def _runtime(self,payload):
-        _atomic_json(self.root/'Inbox/release_controller/runtime.json',{'schema':'energie_release_controller_runtime_v1','pid':os.getpid(),'observed_at_epoch':time.time(),**payload})
+        _atomic_json(project_system_path(self.root, 'Inbox/release_controller/runtime.json'),{'schema':'energie_release_controller_runtime_v1','pid':os.getpid(),'observed_at_epoch':time.time(),**payload})
     def _load_state(self):
         raw=self.store.load();return ReleaseState.from_dict(raw) if isinstance(raw,dict) else None
     def _save(self,s):
@@ -228,7 +230,12 @@ class ReleaseControllerService:
             self._runtime({'status':recovery.status,'phase':'DETECTED','reason':recovery.reason})
             return state
         decision,candidate=self._incoming_decision()
-        if decision is None:self._runtime({'status':'IDLE','phase':'IDLE'});return state
+        if decision is None:
+            sideband_result=sideband_bridge.process_once(self.root)
+            if sideband_result is not None:
+                self._runtime({'status':'SIDEBAND','phase':'IDLE','sideband_status':sideband_result.get('status'),'request_id':sideband_result.get('request_id')})
+                return state
+            self._runtime({'status':'IDLE','phase':'IDLE'});return state
         if decision.status!='READY':
             self._runtime({'status':decision.status,'phase':'DETECTED','reason':decision.reason});return state
         pre=verify_candidate(self.root,candidate)
@@ -268,9 +275,14 @@ def main()->int:
     with controller_lease(root):
         service=ReleaseControllerService(root,build_adapter(root),stable_polls=args.stable_polls,ingress_stale_seconds=args.ingress_stale_seconds)
         loaded_release=live_release_version(root)
+        loaded_path_binding=active_mapping_fingerprint(root)
         while True:
             try:
                 state=service.cycle()
+                current_path_binding=active_mapping_fingerprint(root)
+                if current_path_binding!=loaded_path_binding:
+                    service._runtime({'status':'REEXEC','phase':'IDLE','reason':'system_path_binding_changed'})
+                    reexec_current_watcher(root)
                 current_release=live_release_version(root)
                 if should_reexec(loaded_release,current_release,state):
                     service._runtime({'status':'REEXEC','phase':'COMPLETE','release_id':state.release_id,

@@ -1,0 +1,43 @@
+{
+  "schema": "energie_clearup_type2_plan_v1",
+  "classification": "TYPE2",
+  "clearup_id": "ClearUp_009",
+  "status": "READY",
+  "minimum_release": "32.5.7",
+  "items": [
+    {
+      "source": "Inbox/.watcher.heartbeat",
+      "destination": "Data/03_Systeem/Projectmanager/RuntimeEvidence/watcher.heartbeat.legacy",
+      "path_key": "watcher_heartbeat_legacy",
+      "reason": "Legacy watcher-heartbeat is runtime-evidence; watcher_heartbeat.v2 blijft voorlopig functionele bridge.",
+      "contract_checks": [
+        {
+          "path": "App/tools/clearup_type2_path_contract.json",
+          "must_contain": [
+            "\"ClearUp_009\": \"GREEN\""
+          ],
+          "must_not_contain": [
+            "\"ClearUp_009\": \"RED\""
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Inbox/watcher_container_contract.json",
+      "destination": "Data/03_Systeem/Projectmanager/RuntimeEvidence/watcher_container_contract.json",
+      "path_key": "watcher_contract",
+      "reason": "Watcher container-contract is runtime-evidence/configuratiebewijs.",
+      "contract_checks": [
+        {
+          "path": "App/tools/clearup_type2_path_contract.json",
+          "must_contain": [
+            "\"ClearUp_009\": \"GREEN\""
+          ],
+          "must_not_contain": [
+            "\"ClearUp_009\": \"RED\""
+          ]
+        }
+      ]
+    }
+  ]
+}

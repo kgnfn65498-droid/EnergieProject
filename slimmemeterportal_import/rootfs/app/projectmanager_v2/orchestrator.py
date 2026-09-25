@@ -1,3 +1,4 @@
+from system_path_contract import project_system_path
 # 32.4.54: legacy previous_terminal_block / project_close_deferred=True planner semantics are retired;
 # release_transition_coordinator owns sequencing. Kept as audit vocabulary only.
 import json
@@ -208,7 +209,7 @@ class ProjectmanagerRuntime:
 
         checks = [dict(item) for item in ((status.get('health') or {}).get('checks') or [])]
         by_name = {str(item.get('name')):str(item.get('status')) for item in checks}
-        clearup_path = Path(self.config.project_root) / 'Inbox/logs/project_clearup_runtime.json'
+        clearup_path = project_system_path(Path(self.config.project_root), 'Inbox/logs/project_clearup_runtime.json')
         clearup = load_json(clearup_path, default={}) or {}
         clearup_done = bool(
             str(clearup.get('status') or '') in {'completed','already_completed','no_action'}

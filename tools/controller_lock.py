@@ -1,10 +1,11 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 import contextlib,fcntl,os,stat
 from pathlib import Path
 
 @contextlib.contextmanager
 def controller_lease(root:Path):
-    path=Path(root)/'Inbox/.release-controller.lock'
+    path=project_system_path(Path(root), 'Inbox/.release-controller.lock')
     path.parent.mkdir(parents=True,exist_ok=True)
     flags=os.O_RDWR|os.O_CREAT
     if hasattr(os,'O_NOFOLLOW'):flags|=os.O_NOFOLLOW

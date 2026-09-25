@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 import hashlib,json,os,time,zipfile
 from pathlib import Path
 from release_controller import Outcome,ReleaseState
@@ -70,8 +71,8 @@ class HADelivery:
         # exact version ahead while the accepted local App correctly remains on
         # s.from_version. Only use the remote predecessor when both canonical
         # GitHub publication state and HA runtime prove the same exact identity.
-        pub=_json(self.root/'Inbox/github_publication_state.json')
-        ha=_json(self.root/'Inbox/ha_runtime/current.json')
+        pub=_json(project_system_path(self.root, 'Inbox/github_publication_state.json'))
+        ha=_json(project_system_path(self.root, 'Inbox/ha_runtime/current.json'))
         remote_version=str(pub.get('version') or '')
         remote_manifest=str(pub.get('target_manifest_sha256') or '')
         remote_head=str(pub.get('remote_head') or '')
@@ -124,12 +125,12 @@ class HADelivery:
         if not old_zip.endswith('.zip') or Path(old_zip).name!=old_zip:return False
         active=self.root/'App/VERSIE.txt'
         if active.is_symlink() or not active.is_file() or active.read_text(encoding='utf-8').strip()!=s.from_version:return False
-        journal=_json(self.root/'Inbox/atomic_app_swap_state.json')
+        journal=_json(project_system_path(self.root, 'Inbox/atomic_app_swap_state.json'))
         if str(journal.get('state') or '')!='ACCEPTED' or str(journal.get('to_version') or '')!=s.from_version:return False
         rolled_name=old_zip[:-4]+'.rolled_back.zip'
         rolled=self.root/'Inbox/failed/rolled_back'/rolled_name
         if rolled.is_symlink() or not rolled.is_file() or _sha(rolled)!=old_sha:return False
-        pub=_json(self.root/'Inbox/github_publication_state.json')
+        pub=_json(project_system_path(self.root, 'Inbox/github_publication_state.json'))
         if pub.get('published') is not True or pub.get('target_exact') is not True:return False
         if not self._identity_matches(pub,existing):return False
         archive=self.root/'Inbox/failed/rolled_back'/(old_zip[:-4]+'.publication_contract.json')
@@ -163,7 +164,7 @@ class HADelivery:
         active=self.root/'App/VERSIE.txt'
         if active.is_symlink() or not active.is_file() or active.read_text(encoding='utf-8').strip()!=s.to_version:
             raise RuntimeError('completed_reconcile_app_version_mismatch')
-        ha=_json(self.root/'Inbox/ha_runtime/current.json')
+        ha=_json(project_system_path(self.root, 'Inbox/ha_runtime/current.json'))
         if str(ha.get('version') or '')!=s.to_version:
             raise RuntimeError('completed_reconcile_ha_version_mismatch')
         processed=self.root/'Inbox/processed'/s.artifact_name
@@ -171,7 +172,7 @@ class HADelivery:
             raise RuntimeError('completed_reconcile_processed_missing_or_unsafe')
         if _sha(processed)!=s.artifact_sha256:
             raise RuntimeError('completed_reconcile_processed_hash_mismatch')
-        pub_path=self.root/'Inbox/github_publication_state.json'
+        pub_path=project_system_path(self.root, 'Inbox/github_publication_state.json')
         pub=_json(pub_path)
         if not pub:
             raise RuntimeError('completed_reconcile_publication_missing_or_invalid')
@@ -223,7 +224,7 @@ class HADelivery:
             # An open exact marker still uses the normal fenced settlement path.
             out=self.align(s)
             if out.status!='GREEN':return out
-        pub=_json(self.root/'Inbox/github_publication_state.json')
+        pub=_json(project_system_path(self.root, 'Inbox/github_publication_state.json'))
         already_exact=bool(
             pub.get('publication_contract_removed') is True
             and pub.get('publication_contract_settled') is True
@@ -247,7 +248,7 @@ class HADelivery:
             artifact=self._active_artifact(s)
             if artifact.parent.name!='processing':return Outcome.blocked('pre_target_artifact_not_processing')
             existing=_json(marker)
-            pub=_json(self.root/'Inbox/github_publication_state.json')
+            pub=_json(project_system_path(self.root, 'Inbox/github_publication_state.json'))
             exact_expected={
                 'version':s.to_version,'release_id':s.release_id,'generation':s.generation,
                 'processed_zip':s.artifact_name,'processed_zip_sha256':s.artifact_sha256,
@@ -258,9 +259,9 @@ class HADelivery:
             payload=self._pre_target_contract(s,artifact)
             self._ensure_contract(s,payload,marker)
         except Exception as exc:return Outcome.blocked(str(exc),'inspect exact pre-target publication ownership; do not delete foreign state')
-        pub=_json(self.root/'Inbox/github_publication_state.json')
+        pub=_json(project_system_path(self.root, 'Inbox/github_publication_state.json'))
         if self._publisher_exact(pub,payload):return Outcome.green('github_pre_target_exact')
-        ha=_json(self.root/'Inbox/ha_runtime/current.json')
+        ha=_json(project_system_path(self.root, 'Inbox/ha_runtime/current.json'))
         install_version=str(payload.get('install_predecessor_version') or s.from_version)
         publication_version=str(payload.get('publication_predecessor_version') or payload.get('expected_previous_version') or '')
         publication_manifest=str(payload.get('publication_predecessor_manifest_sha256') or payload.get('expected_previous_manifest_sha256') or '')
@@ -285,7 +286,7 @@ class HADelivery:
         try:
             artifact=self._active_artifact(s)
             existing=_json(marker)
-            pub=_json(self.root/'Inbox/github_publication_state.json')
+            pub=_json(project_system_path(self.root, 'Inbox/github_publication_state.json'))
             exact_existing=bool(
                 existing.get('source_stage')=='processing_pre_target'
                 and str(existing.get('version') or '')==s.to_version
@@ -301,8 +302,8 @@ class HADelivery:
                 payload=self._pre_target_contract(s,artifact) if existing.get('source_stage')=='processing_pre_target' else self._contract(s,artifact)
                 self._ensure_contract(s,payload,marker)
         except Exception as exc:return Outcome.blocked(str(exc),'inspect exact publication ownership; do not delete foreign state')
-        pub=_json(self.root/'Inbox/github_publication_state.json')
-        ha=_json(self.root/'Inbox/ha_runtime/current.json')
+        pub=_json(project_system_path(self.root, 'Inbox/github_publication_state.json'))
+        ha=_json(project_system_path(self.root, 'Inbox/ha_runtime/current.json'))
         pub_exact=self._publisher_exact(pub,payload)
         ha_exact=str(ha.get('version') or '')==s.to_version
         if pub_exact and ha_exact:
@@ -327,7 +328,7 @@ class HADelivery:
                     'settled_release_id':s.release_id,
                     'settled_generation':s.generation,
                 })
-                _atomic(self.root/'Inbox/github_publication_state.json',settled)
+                _atomic(project_system_path(self.root, 'Inbox/github_publication_state.json'),settled)
             except Exception as exc:return Outcome.blocked(str(exc))
             return Outcome.green('github_target_exact','ha_runtime_current','publication_contract_settled','processed_archived')
         if pub_exact:

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 """Lightweight, read-only project hygiene and ngrok safety checks.
 
@@ -75,7 +76,7 @@ def _current_release(root: Path) -> str:
 
 
 def _current_clearup_review_paths(root: Path, *, release_version: str) -> tuple[set[str], bool, str]:
-    runtime = _read_json(root / "Inbox/logs/project_clearup_runtime.json") or {}
+    runtime = _read_json(project_system_path(root, 'Inbox/logs/project_clearup_runtime.json')) or {}
     done = str(runtime.get("status") or "") in {"completed", "already_completed", "no_action"}
     if not done or str(runtime.get("release_version") or "") != str(release_version or ""):
         return set(), False, "runtime_not_current_completed"

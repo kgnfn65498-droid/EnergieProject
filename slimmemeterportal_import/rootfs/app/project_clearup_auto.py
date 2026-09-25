@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 """One-shot, explicitly approved 32.4.25+ CLEARUP execution gate.
 
@@ -56,7 +57,7 @@ def _apply_clearup_via_watcher(
     pre_acceptance: bool,
 ) -> dict[str, Any]:
     request_path = root / CLEARUP_MOVE_REQUEST_RELATIVE
-    result_path = root / CLEARUP_MOVE_RESULT_RELATIVE
+    result_path = project_system_path(root, str(CLEARUP_MOVE_RESULT_RELATIVE))
     if request_path.is_symlink() or result_path.is_symlink():
         raise RuntimeError("CLEARUP watcher bridge weigert symlink request/result pad")
     if request_path.exists():
@@ -81,6 +82,7 @@ def _apply_clearup_via_watcher(
         "confirmation": str(plan.get("confirmation_required") or ""),
         "run_id": effective_run_id,
         "pre_acceptance": bool(pre_acceptance),
+        "result_path": result_path.relative_to(root).as_posix(),
     }
     _emit_progress(
         progress_callback, phase="apply", started_monotonic=started_monotonic,
@@ -171,19 +173,19 @@ def _approval_ok(root: Path) -> bool:
 
 
 def _release_accepted(root: Path, app_version: str) -> tuple[bool, dict[str, Any]]:
-    atomic = _read_json(root / "Inbox/atomic_app_swap_state.json") or {}
+    atomic = _read_json(project_system_path(root, 'Inbox/atomic_app_swap_state.json')) or {}
     ok = str(atomic.get("state") or "").upper() == "ACCEPTED" and str(atomic.get("to_version") or "") == str(app_version)
     return ok, atomic
 
 
 def _hold_released(root: Path) -> tuple[bool, dict[str, Any]]:
-    hold = _read_json(root / "Inbox/operating_mode/release_validation_hold.json") or {}
+    hold = _read_json(project_system_path(root, 'Inbox/operating_mode/release_validation_hold.json')) or {}
     ok = hold.get("active") is False and str(hold.get("validation_status") or "").lower() == "ok"
     return ok, hold
 
 def _pre_acceptance_phase(root: Path, app_version: str) -> tuple[bool, dict[str, Any], dict[str, Any]]:
-    atomic = _read_json(root / "Inbox/atomic_app_swap_state.json") or {}
-    hold = _read_json(root / "Inbox/operating_mode/release_validation_hold.json") or {}
+    atomic = _read_json(project_system_path(root, 'Inbox/atomic_app_swap_state.json')) or {}
+    hold = _read_json(project_system_path(root, 'Inbox/operating_mode/release_validation_hold.json')) or {}
     status = str(hold.get("validation_status") or "").lower()
     ok = bool(
         str(atomic.get("state") or "").upper() == "LIVE_ACCEPTANCE"

@@ -16,6 +16,7 @@ import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from system_path_contract import project_system_path
 from typing import Any, Callable, Iterable
 
 try:
@@ -536,7 +537,7 @@ def _active_references(
     return list(blocking.get(candidate_rel, [])), list(informational.get(candidate_rel, []))
 
 def _atomic_rollback_reference(root: Path) -> str | None:
-    path = root / "Inbox/atomic_app_swap_state.json"
+    path = project_system_path(root, 'Inbox/atomic_app_swap_state.json')
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):

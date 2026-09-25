@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import argparse
 import json
@@ -8,7 +9,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-MARKER_REL = Path('Inbox/operating_mode/post_release_maintenance_required.json')
 
 
 def _atomic(path: Path, payload: dict) -> None:
@@ -21,7 +21,7 @@ def _atomic(path: Path, payload: dict) -> None:
 
 
 def _closure_green(project: Path, release_version: str) -> bool:
-    status_path = project / 'Inbox/projectmanager_v2/RuntimeV2/status/current.json'
+    status_path = project_system_path(project, 'Inbox/projectmanager_v2/RuntimeV2/status/current.json')
     try:
         payload = json.loads(status_path.read_text(encoding='utf-8'))
     except (OSError, json.JSONDecodeError, UnicodeError):
@@ -36,8 +36,8 @@ def _closure_green(project: Path, release_version: str) -> bool:
 
 def apply(root: Path | str) -> dict:
     project = Path(root).resolve()
-    marker_path = project / MARKER_REL
-    transition_path = project / 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json'
+    marker_path = project_system_path(project, 'Inbox/operating_mode/post_release_maintenance_required.json')
+    transition_path = project_system_path(project, 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json')
     try:
         transition = json.loads(transition_path.read_text(encoding='utf-8'))
     except (OSError, json.JSONDecodeError, UnicodeError):

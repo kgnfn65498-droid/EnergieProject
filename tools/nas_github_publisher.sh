@@ -2,10 +2,12 @@
 set -eu
 
 ROOT="${ENERGIE_ROOT:-/energy}"
+. "$ROOT/App/tools/system_path_contract.sh"
 CONTRACT="$ROOT/Inbox/ha_publication_required.json"
 PROCESSED="$ROOT/Inbox/processed"
-STATE="$ROOT/Inbox/github_publisher_state.json"
-HISTORY="$ROOT/Inbox/github_publisher_history.jsonl"
+STATE="$(energie_system_path "$ROOT" github_publisher_state Inbox/github_publisher_state.json Data/03_Systeem/Projectmanager/ReleaseController/Publication/github_publisher_state.json)"
+# Legacy pre-Type2 history path retained as audit reference only: HISTORY="$ROOT/Inbox/github_publisher_history.jsonl"
+HISTORY="$(energie_system_path "$ROOT" publisher_history Inbox/github_publisher_history.jsonl Data/03_Systeem/Projectmanager/Logs/Publisher/github_publisher_history.jsonl)"
 PRIVATE_ROOT="${ENERGIE_PUBLISHER_PRIVATE_ROOT:-/publisher-private}"
 KEY="$PRIVATE_ROOT/id_ed25519"
 KNOWN_HOSTS="$PRIVATE_ROOT/known_hosts"

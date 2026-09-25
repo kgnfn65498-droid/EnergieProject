@@ -1,3 +1,5 @@
+from system_path_contract import project_system_path
+import json
 from transition_state_io import read_transition_state
 from approval_gate import PROTECTED_ACTIONS, can_execute
 from command_gateway import plan_command
@@ -94,7 +96,7 @@ class CommandProcessor:
                 raise RuntimeError('release_controller_active_competing_release_mutation_blocked')
             return None
         from pathlib import Path
-        path = Path(self.project_root) / 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json'
+        path = project_system_path(Path(self.project_root), 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json')
         transition = read_transition_state(path, missing_ok=True)
         if not isinstance(transition, dict):
             return None
@@ -121,7 +123,7 @@ class CommandProcessor:
         if action not in protected or not self.project_root:
             return None
         from pathlib import Path
-        path = Path(self.project_root) / 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json'
+        path = project_system_path(Path(self.project_root), 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json')
         transition = read_transition_state(path, missing_ok=True)
         if not isinstance(transition, dict) or str(transition.get('lifecycle_state') or '') in {'COMPLETE','ROLLED_BACK','CANCELLED'}:
             return None
@@ -430,7 +432,61 @@ class CommandProcessor:
                 intake = self.conversation_intake.accept(item)
                 result = {'ok': True, 'executed': True, 'intake': intake}
             elif action == 'admin_update':
-                result = {'ok': True, 'executed': True, 'admin_note': item.get('text') or ''}
+                hint = str(item.get('classification_hint') or '')
+                if hint == 'clearup_apply':
+                    if not self.project_root:
+                        raise RuntimeError('clearup_apply requires project_root')
+                    from clearup_chat_service import apply_clearup_001
+                    result = dict(apply_clearup_001(
+                        self.project_root, explicit_user_text=str(item.get('text') or ''), source=str(item.get('source') or ''),
+                    ))
+                    result['executed'] = True
+                    result['action'] = 'clearup_apply'
+                    result['transport_intent'] = 'admin_update'
+                elif hint in {
+                    'clearup_type2_prepare', 'clearup_type2_export_info', 'clearup_type2_export_chunk',
+                    'clearup_type2_migrate', 'clearup_type2_validate', 'clearup_type2_finalize', 'clearup_type2_restore',
+                }:
+                    if not self.project_root:
+                        raise RuntimeError('Type2 ClearUp requires project_root')
+                    from clearup_type2_service import (
+                        prepare_type2, export_info, export_chunk, migrate_type2, validate_type2, finalize_type2, restore_type2,
+                    )
+                    clearup_id = str(item.get('artifact_path') or '').strip()
+                    source = str(item.get('source') or '')
+                    if hint == 'clearup_type2_prepare':
+                        result = dict(prepare_type2(self.project_root, clearup_id=clearup_id, source=source))
+                    elif hint == 'clearup_type2_export_info':
+                        result = dict(export_info(self.project_root, clearup_id=clearup_id, source=source))
+                    elif hint == 'clearup_type2_export_chunk':
+                        raw = str(item.get('text') or '').strip()
+                        try:
+                            args = json.loads(raw) if raw else {}
+                        except json.JSONDecodeError as exc:
+                            raise RuntimeError('Type2 export chunk text must be JSON') from exc
+                        result = dict(export_chunk(
+                            self.project_root, clearup_id=clearup_id,
+                            offset=int(args.get('offset') or 0), max_bytes=int(args.get('max_bytes') or 32768), source=source,
+                        ))
+                    elif hint == 'clearup_type2_migrate':
+                        result = dict(migrate_type2(
+                            self.project_root, clearup_id=clearup_id, explicit_user_text=str(item.get('text') or ''), source=source,
+                        ))
+                    elif hint == 'clearup_type2_validate':
+                        result = dict(validate_type2(self.project_root, clearup_id=clearup_id, source=source))
+                    elif hint == 'clearup_type2_finalize':
+                        result = dict(finalize_type2(
+                            self.project_root, clearup_id=clearup_id, explicit_user_text=str(item.get('text') or ''), source=source,
+                        ))
+                    else:
+                        result = dict(restore_type2(
+                            self.project_root, clearup_id=clearup_id, explicit_user_text=str(item.get('text') or ''), source=source,
+                        ))
+                    result['executed'] = True
+                    result['action'] = hint
+                    result['transport_intent'] = 'admin_update'
+                else:
+                    result = {'ok': True, 'executed': True, 'admin_note': item.get('text') or ''}
             elif action == 'clearup_apply':
                 if not self.project_root:
                     raise RuntimeError('clearup_apply requires project_root')

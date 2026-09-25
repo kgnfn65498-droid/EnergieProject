@@ -4,12 +4,12 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from system_path_contract import project_system_path
 from typing import Any
 
 SCHEMA = 'energie_project_close_v1'
 VALID_STATES = {'DEFERRED', 'REQUESTED'}
 RELATIVE_PATH = Path('Inbox/projectmanager_v2/RuntimeV2/state/project_close.json')
-
 
 def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -31,7 +31,7 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def project_close_path(project_root: Path | str) -> Path:
-    return Path(project_root) / RELATIVE_PATH
+    return project_system_path(Path(project_root), 'Inbox/projectmanager_v2/RuntimeV2/state/project_close.json')
 
 
 def _deferred(*, active_release: str, reason: str, source_payload: dict[str, Any] | None = None) -> dict[str, Any]:

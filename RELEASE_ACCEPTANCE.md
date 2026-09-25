@@ -1,23 +1,28 @@
-# Release Acceptance — 32.5.6
+# Release Acceptance — 32.5.7
 
-Verplicht voor deze release:
-- `VERSIE.txt`, Home Assistant `config.yaml`, `APP_VERSION`, `TARGET_RELEASE_VERSION` en `release_test_contract.CURRENT_RELEASE` zijn exact `32.5.6`;
-- fysieke ZIP is veilig, uniek en volledig; `MANIFEST.sha256` en `SHA256SUMS.json` dekken exact dezelfde payload en iedere hash klopt;
-- `.pytest_cache`, `__pycache__`, bytecode, `.DS_Store`, tijdelijke herstelbestanden en 32.5.4 PATCH/RECOVER-noodscripts zitten niet in de release-ZIP;
-- productie-preflight uit 32.5.4 én target-preflight uit 32.5.6 accepteren exact dezelfde fysieke kandidaat;
-- lokale installatie-predecessor en canonieke GitHub/HA-publicatiepredecessor zijn afzonderlijke contractdomeinen en mogen aantoonbaar verschillen na partial publish + rollback;
-- split-state `local N + GitHub/HA N+1 + rollback + N+2` publiceert en installeert zonder tijdelijke versie-impersonatie, directe state-edit of terminalrecovery;
-- canonical publisher valideert in split-state zowel lokale App+manifest als GitHub+HA predecessor exact;
-- exact gepubliceerde pre-target targetidentiteit blijft onveranderd door lokale installatie en handmatige HA-update; geen post-install `publication_contract_conflict`;
-- een bewezen stale contract van een exact rolled-back release wordt atomair gearchiveerd en vervangen; vreemde/onbewezen contracten blijven fail-closed;
-- Processing blijft eigenaar tot exact GitHub-target + exact HA-runtime + controller settlement; pas daarna verhuist het artifact naar Processed;
-- Home Assistant update blijft expliciet handmatig; publisher gebruikt geen automatische install/rebuild-bypass;
-- COMPLETE genereert `Inbox/release_controller/post_live_audit.json` en 32.5.6+ sluit niet GREEN bij een RED post-live audit;
-- een settled IDLE releasecontroller is health-GREEN en wordt niet foutief als stale/liveness-RED geclassificeerd;
-- normale releaseketen heeft geen QNAP-, Home Assistant- of containerterminal nodig;
-- gevaarlijke live hotpatch/recovery-commandoklassen zijn geen normale releasedependency en vereisen expliciete Peter-toestemming buiten de releaseketen.
+32.5.7 is een gerichte ClearUp_001 live-fix bovenop 32.5.6.
 
-## Verificatie
-De finale fysieke ZIP moet na fresh extract opnieuw worden getest. Release-focused regressies, packaging/preflight-pariteit en compile/audit moeten GREEN zijn voordat de ZIP wordt aangeboden.
+## Verplichte acceptatie
+- Normale releaseketen Incoming -> Processing -> GitHub -> handmatige HA-update -> COMPLETE -> Processed blijft ongewijzigd.
+- `akkoord` voor ClearUp_001 wordt via bestaand Projectmanager `admin_update` transport met `classification_hint=clearup_apply` uitgevoerd; geen nieuwe Native-MCP intent/reload nodig.
+- Voor delete: actieve App exact 32.5.7, releasecontroller COMPLETE, processing leeg, recovery staging exact gelijk aan live tree en actieve dependency guard GREEN.
+- Privileged watcher-executor accepteert alleen schema `energie_clearup_type1_delete_request_v1`, exact ClearUp_001 en exact vier allowlisted roots.
+- De watcher hard-movet eerst alle vier roots transactioneel naar een tijdelijke CLEARUP-run; pas daarna volgt permanente delete. Bij een move-fout wordt teruggerold.
+- Na delete moeten alle vier oude Inbox-paden afwezig zijn en moeten incoming/processing ongewijzigd zijn.
+- Geen terminal, docker exec, directe release-state mutatie of handmatige Inbox stage-bypass.
+- Bestaande watcher move/restore regressies blijven GREEN.
+- Fysieke eind-ZIP: veilige unieke entries, canonieke MANIFEST.sha256 en SHA256SUMS.json, volledige payloaddekking, geen caches/bytecode/temp.
 
-Platform Qualification blijft apart. Repository-wide full-suite GREEN wordt uitsluitend geclaimd wanneer die suite op de daarvoor goedgekeurde geïsoleerde runtime volledig GREEN draait; bekende restricted-host/historische testtopologie wordt niet stilzwijgend als release-GREEN gepresenteerd.
+Audit <100% GREEN binnen deze release-scope betekent niet uitleveren.
+## TYPE2 acceptance
+- 32.5.7 bevat de Type2 commando's `clearup_type2_prepare`, `clearup_type2_export_info`, `clearup_type2_export_chunk`, `clearup_type2_migrate`, `clearup_type2_validate`, `clearup_type2_finalize` en `clearup_type2_restore`, allemaal via bestaand `admin_update` transport.
+- De concrete, vooraf geïnventariseerde plannen `ClearUp_002` t/m `ClearUp_012` moeten in de fysieke release aanwezig zijn; een voorbeeld-/placeholderplan is niet toegestaan.
+- Iedere planregel bevat een exacte `Inbox/...` bron, definitieve `Data/03_Systeem/Projectmanager/...` bestemming, `path_key` en actieve contractchecks.
+- Alle betrokken actieve readers/writers gebruiken het centrale `system_path_contract` of zijn expliciet als tijdelijke functionele bridge beschermd; omschakeling gebeurt pas na een geverifieerde activatiemarkering.
+- Prepare is non-destructief en mag vóór de code/pad-omschakeling plaatsvinden.
+- Migrate vereist expliciet `akkoord`, exact recovery/live bewijs én actieve contractchecks voor de nieuwe locatie; source blijft bestaan.
+- Finalize vereist expliciet `akkoord` plus afzonderlijk GREEN live-validation bewijs met exact dezelfde plan-SHA; pas dan worden oude sources transactioneel verwijderd.
+- Sources mogen nooit onder incoming/processing/processed/failed liggen; destinations moeten onder Data/03_Systeem liggen.
+- Type2 restore herstelt de oude source non-destructief vanuit recovery staging en laat de nieuwe destination intact.
+- Type1 ClearUp_001 en de normale Incoming releaseketen blijven regressie-GREEN.
+

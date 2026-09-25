@@ -1,10 +1,11 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 import json,stat
 from pathlib import Path
 VALID_PHASES={'DETECTED','VERIFIED','PUBLISHING','INSTALLING','INSTALLED','RUNTIME_ALIGNING','VERIFYING','ACCEPTED','COMPLETE'}
 VALID_STATUS={'ACTIVE','WAITING','BLOCKED','COMPLETE','ROLLED_BACK'}
 def load_release_controller_state(project_root:Path|str):
-    path=Path(project_root)/'Inbox/release_controller/current.json'
+    path=project_system_path(Path(project_root), 'Inbox/release_controller/current.json')
     try:st=path.lstat()
     except FileNotFoundError:return None
     if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):raise RuntimeError('release controller state unsafe')

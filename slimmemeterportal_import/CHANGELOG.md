@@ -1,5 +1,6 @@
-## 32.5.6
+## 32.5.7
 
+- TYPE2 ClearUp framework met prepare/export/migrate/finalize/restore via bestaand Projectmanager admin_update transport; release-mailboxen zijn hard beschermd.
 - Projectmanager ClearUp_001 chat-apply route met fail-closed recovery/live revalidation en Inbox release-safety.
 
 ## 32.5.5

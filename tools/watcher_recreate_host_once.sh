@@ -7,7 +7,7 @@ elif [ -d "/share/AI Projecten/EnergieProject/App" ]; then ROOT="/share/AI Proje
 elif [ -d "/share/Energie_NAS/EnergieProject/App" ]; then ROOT="/share/Energie_NAS/EnergieProject";
 else echo "FOUT: EnergieProject-root niet gevonden" >&2; exit 1; fi
 REQUEST="$ROOT/Inbox/watcher_recreate_request.json"
-MARKER="$ROOT/Inbox/watcher_container_contract.json"
+MARKER="$(energie_system_path "$ROOT" watcher_contract Inbox/watcher_container_contract.json Data/03_Systeem/Projectmanager/RuntimeEvidence/watcher_container_contract.json)"
 BOOTSTRAP="$ROOT/App/tools/bootstrap_release_watcher_container.sh"
 CONTRACT="$ROOT/App/tools/watcher_container_contract.py"
 VERSION="$(tr -d '\r\n ' < "$ROOT/App/VERSIE.txt")"

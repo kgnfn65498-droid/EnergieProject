@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import argparse
 import hashlib
@@ -159,7 +160,7 @@ def _unique_destination(directory: Path, name: str, suffix: str) -> Path:
 
 
 def _write_result(root: Path, result: dict[str, Any]) -> dict[str, Any]:
-    path = root / 'Inbox/logs/release_ingress_recovery.json'
+    path = project_system_path(root, 'Inbox/logs/release_ingress_recovery.json')
     semantic = {'schema': SCHEMA, **result}
     try:
         existing = json.loads(path.read_text(encoding='utf-8')) if path.is_file() and not path.is_symlink() else None
@@ -186,7 +187,7 @@ def reconcile(project_root: Path | str, *, stale_seconds: int = DEFAULT_STALE_SE
     incoming = root / 'Inbox/incoming'
     processing = root / 'Inbox/processing'
     failed = root / 'Inbox/failed'
-    for path in (incoming, processing, failed, root / 'Inbox/logs'):
+    for path in (incoming, processing, failed, project_system_path(root, 'Inbox/logs')):
         if path.exists() and (path.is_symlink() or not path.is_dir()):
             raise RuntimeError(f'unsafe recovery directory: {path}')
         path.mkdir(parents=True, exist_ok=True)

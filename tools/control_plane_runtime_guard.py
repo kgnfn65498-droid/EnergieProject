@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import argparse
 import hashlib
@@ -53,7 +54,7 @@ def probe(project_root: Path | str, *, now: float | None = None, stale_seconds: 
         expected = expected_fingerprint(root)
     except Exception as exc:
         return _result(ready=False, reason=f'source_invalid:{type(exc).__name__}')
-    marker = root / 'Inbox/control_plane/runtime.json'
+    marker = project_system_path(root, 'Inbox/control_plane/runtime.json')
     try:
         st = marker.lstat()
     except FileNotFoundError:

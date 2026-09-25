@@ -1,12 +1,11 @@
 from __future__ import annotations
 import hashlib,json,os
 from pathlib import Path
+from system_path_contract import project_system_path
 from release_controller import Outcome,ReleaseState
 
 MCP_CONTAINER='energie-filesystem-mcp'
 CONTROL_PLANE_CONTAINER='energie-control-plane'
-REQUEST_REL=Path('Inbox/control_plane/requests/native_mcp_reload.json')
-RESULT_REL=Path('Inbox/control_plane/results/native_mcp_reload.json')
 
 def _json(path:Path)->dict:
     try:v=json.loads(path.read_text(encoding='utf-8'))
@@ -33,7 +32,7 @@ class NativeRuntimeCoordinator:
             # Clean up only the exact request for this release/generation.
             expected=str(guard.get('expected_fingerprint') or '').lower()
             if len(expected)==64 and all(c in '0123456789abcdef' for c in expected):
-                rid=_rid(s,expected);request_path=self.root/REQUEST_REL;current=_json(request_path)
+                rid=_rid(s,expected);request_path=project_system_path(self.root, 'Inbox/control_plane/requests/native_mcp_reload.json');current=_json(request_path)
                 same_request=(
                     current.get('request_id')==rid and current.get('release_id')==s.release_id
                     and current.get('generation')==s.generation
@@ -57,7 +56,7 @@ class NativeRuntimeCoordinator:
         expected=str(guard.get('expected_fingerprint') or '').lower()
         if len(expected)!=64 or any(c not in '0123456789abcdef' for c in expected):
             return Outcome.blocked('native_expected_fingerprint_invalid')
-        rid=_rid(s,expected);result=_json(self.root/RESULT_REL)
+        rid=_rid(s,expected);result=_json(project_system_path(self.root, 'Inbox/control_plane/results/native_mcp_reload.json'))
         same_fence=(
             result.get('request_id')==rid and result.get('release_id')==s.release_id
             and result.get('generation')==s.generation
@@ -68,7 +67,7 @@ class NativeRuntimeCoordinator:
             and str(result.get('runtime_fingerprint') or '').lower()==expected)
         if exact:
             if self.guard.probe(self.root).get('ready') is True:
-                request_path=self.root/REQUEST_REL
+                request_path=project_system_path(self.root, 'Inbox/control_plane/requests/native_mcp_reload.json')
                 current=_json(request_path)
                 if current.get('request_id')==rid:
                     try:request_path.unlink()
@@ -87,9 +86,9 @@ class NativeRuntimeCoordinator:
             'action':'native_mcp_reload','container':MCP_CONTAINER,'request_id':rid,'release_id':s.release_id,
             'generation':s.generation,'release_version':s.to_version,'artifact_sha256':s.artifact_sha256,
             'expected_fingerprint':expected}
-        current=_json(self.root/REQUEST_REL)
+        current=_json(project_system_path(self.root, 'Inbox/control_plane/requests/native_mcp_reload.json'))
         if current and current!=request:
             # One request file, one generation. Never overwrite a different live request.
             return Outcome.blocked('native_mcp_request_conflict','inspect existing single control-plane request')
-        if not current:_atomic(self.root/REQUEST_REL,request)
+        if not current:_atomic(project_system_path(self.root, 'Inbox/control_plane/requests/native_mcp_reload.json'),request)
         return Outcome.waiting('native_mcp_reload_pending','native_mcp_reload_requested')

@@ -2,11 +2,13 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 from persistence import atomic_write_json
+from system_path_contract import active_mapping_fingerprint, project_system_path
 
 
 def _fingerprint_tree(root: Path) -> str:
@@ -74,6 +76,49 @@ def _write_cycle_state(runtime, status: str, *, started_at_epoch: float, error: 
     return payload
 
 
+
+def _reconcile_pm_runtime_before_rebind(runtime) -> dict:
+    """Overlay final self-hosted PM writes before switching the runtime root.
+
+    The migration itself runs while the current command is still being
+    persisted in the old RuntimeV2 tree.  Once the cycle is fully finished, no
+    further old-root write is expected.  Copying that final delta to the
+    already verified destination prevents loss of the migration command/receipt
+    without deleting anything from the source.
+    """
+    config=runtime.config
+    project_root=Path(config.project_root).resolve()
+    old=Path(config.system_root).resolve()
+    new=project_system_path(project_root,'Inbox/projectmanager_v2/RuntimeV2').resolve()
+    if old == new:
+        return {'changed':False}
+    if old.is_symlink() or new.is_symlink() or not old.is_dir() or not new.is_dir():
+        raise RuntimeError('Projectmanager path rebind overlay requires two safe runtime directories')
+    copied=0
+    for src in [old,*sorted(old.rglob('*'))]:
+        if src.is_symlink():
+            raise RuntimeError(f'Projectmanager path rebind refuses symlink: {src}')
+        rel=src.relative_to(old)
+        dst=new/rel
+        if src.is_dir():
+            dst.mkdir(parents=True,exist_ok=True)
+            continue
+        if not src.is_file():
+            continue
+        dst.parent.mkdir(parents=True,exist_ok=True)
+        if dst.is_symlink():
+            raise RuntimeError(f'Projectmanager path rebind destination symlink refused: {dst}')
+        if dst.is_file() and hashlib.sha256(dst.read_bytes()).digest()==hashlib.sha256(src.read_bytes()).digest():
+            continue
+        tmp=dst.with_name('.'+dst.name+f'.rebind-{os.getpid()}')
+        try:
+            shutil.copy2(src,tmp)
+            os.replace(tmp,dst)
+        finally:
+            tmp.unlink(missing_ok=True)
+        copied+=1
+    return {'changed':True,'copied_files':copied,'old':str(old),'new':str(new)}
+
 def run_embedded(stop_event, *, runtime, interval_seconds=60, on_failure=None, on_success=None):
     """Run PM cycles inside the existing Energie add-on process.
 
@@ -84,6 +129,7 @@ def run_embedded(stop_event, *, runtime, interval_seconds=60, on_failure=None, o
     """
     failures = 0
     interval = max(60, int(interval_seconds))
+    loaded_path_binding = active_mapping_fingerprint(runtime.config.project_root)
     while not stop_event.is_set():
         cycle_started = time.time()
         try:
@@ -98,6 +144,10 @@ def run_embedded(stop_event, *, runtime, interval_seconds=60, on_failure=None, o
                     on_success()
                 except Exception:
                     logging.exception('Projectmanager success callback failed safely')
+            current_path_binding = active_mapping_fingerprint(runtime.config.project_root)
+            if current_path_binding != loaded_path_binding:
+                overlay=_reconcile_pm_runtime_before_rebind(runtime)
+                return {'state':'rebind_required','failures':failures,'reason':'system_path_binding_changed','overlay':overlay}
         except Exception as exc:
             failures += 1
             try:

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 import json, os, secrets, fcntl, stat, contextlib
 from pathlib import Path
 from typing import Any
@@ -50,10 +51,10 @@ def _atomic(path: Path, data: dict):
 class ReleaseTransitionCoordinator:
     def __init__(self, project_root: Path|str):
         self.root=Path(project_root)
-        self.runtime=self.root/'Inbox/projectmanager_v2/RuntimeV2/release_transition'
+        self.runtime=project_system_path(self.root, 'Inbox/projectmanager_v2/RuntimeV2/release_transition')
         self.path=self.runtime/'current.json'
         self.history=self.runtime/'history'
-        self.lock_path=self.root/'Inbox/.release-transition.operation.lock'
+        self.lock_path=project_system_path(self.root, 'Inbox/.release-transition.operation.lock')
         self.runtime.mkdir(parents=True, exist_ok=True)
         if self.runtime.is_symlink() or not self.runtime.is_dir():
             raise TransitionBlocked('transition runtime directory is unsafe')
@@ -138,8 +139,8 @@ class ReleaseTransitionCoordinator:
         cur=self.load()
         if cur: return cur
         release=(self.root/'App/VERSIE.txt').read_text(encoding='utf-8').strip()
-        hold=_json(self.root/'Inbox/operating_mode/release_validation_hold.json') or {}
-        atomic=_json(self.root/'Inbox/atomic_app_swap_state.json') or {}
+        hold=_json(project_system_path(self.root, 'Inbox/operating_mode/release_validation_hold.json')) or {}
+        atomic=_json(project_system_path(self.root, 'Inbox/atomic_app_swap_state.json')) or {}
         ok=(hold.get('active') is True and hold.get('activated_reason')=='release_install' and str(hold.get('release_version') or '')==release
             and str(atomic.get('to_version') or '')==release and str(atomic.get('from_version') or '') and str(atomic.get('state') or '').upper() in {'LIVE_ACCEPTANCE','ACCEPTED'})
         hs=str(hold.get('artifact_sha256') or ''); aas=str(atomic.get('artifact_sha256') or '')
@@ -148,7 +149,7 @@ class ReleaseTransitionCoordinator:
         state={'schema_version':1,'generation_id':secrets.token_hex(16),'revision':0,'from_release':str(atomic['from_version']),'to_release':release,
                'lifecycle_state':'ACTIVE','phase':'APP_PROMOTED','phase_status':'GREEN','previous_base_mode':'DEVELOPMENT',
                'bootstrap_origin':'legacy_pre_transition_fence_v1','completed_phases':['APP_PROMOTED'],'attempts':{},
-               'evidence_refs':[str(self.root/'Inbox/operating_mode/release_validation_hold.json'),str(self.root/'Inbox/atomic_app_swap_state.json')],
+               'evidence_refs':[str(project_system_path(self.root, 'Inbox/operating_mode/release_validation_hold.json')),str(project_system_path(self.root, 'Inbox/atomic_app_swap_state.json'))],
                'blocker':'','next_action':'reconcile old state','current_ticket':None}
         return self._save(state,expected_revision=0)
 

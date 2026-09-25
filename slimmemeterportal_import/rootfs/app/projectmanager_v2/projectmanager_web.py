@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import hmac
 import html
@@ -363,7 +364,7 @@ def render_nas_container_cr_setup(project_root, *, private_root: Path | str = DE
     # Compatibility keyword only. Active NAS CR uses the fixed local watcher bridge.
     del private_root
     root = Path(project_root)
-    capability_path = root / 'Inbox' / 'nas_container_cr_local' / 'capability.json'
+    capability_path = project_system_path(root, 'Inbox/nas_container_cr_local/capability.json')
     try:
         status = json.loads(capability_path.read_text(encoding='utf-8'))
         if not isinstance(status, dict):

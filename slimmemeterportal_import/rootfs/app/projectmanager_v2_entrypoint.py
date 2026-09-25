@@ -164,13 +164,16 @@ def _worker(stop_event, project_root, running_release_version=''):
                 runtime = ProjectmanagerRuntime(config)
                 _RUNTIME = runtime
                 logging.info('Energie Projectmanager V2 embedded gestart; interval=%ss', config.interval_seconds)
-                run_embedded(
+                embedded_result = run_embedded(
                     stop_event,
                     runtime=runtime,
                     interval_seconds=config.interval_seconds,
                     on_failure=lambda exc: _notify_failure(config, f'{type(exc).__name__}: {exc}'),
                     on_success=lambda: _mark_success(config),
                 )
+                if isinstance(embedded_result, dict) and embedded_result.get('state') == 'rebind_required':
+                    logging.info('Energie Projectmanager V2 herbindt runtimepaden na geactiveerd systeem-padcontract')
+                    continue
                 return
             finally:
                 if _RUNTIME is locals().get('runtime'):

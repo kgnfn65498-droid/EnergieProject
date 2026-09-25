@@ -1,3 +1,14 @@
+# 32.5.7
+
+- Herstelt de ClearUp_001 live-afhandeling na de 32.5.6 permissiefout: verwijderen loopt via de bestaande QNAP watcher-executor met exact allowlisted TYPE1-scope en recovery/live hashrevalidatie.
+- Gebruikt voor chat-aansturing het reeds bestaande `admin_update` transport met `classification_hint=clearup_apply`, zodat geen Native-MCP intent-reload nodig is.
+- Bewaakt releasecontroller COMPLETE, lege processing, ongewijzigde incoming/processing mailboxen en vier exacte ClearUp_001 roots; geen terminal of docker-exec.
+- Bevat de concrete eerder geïnventariseerde TYPE2-batches `ClearUp_002` t/m `ClearUp_012`, niet slechts een generiek voorbeeldplan.
+- TYPE2 migreert RuntimeV2, logs/publisherhistorie, operating mode, releasecontroller/status, HA/Native-MCP runtime-evidence, ControlPlane runtime/config, process-workspace, watcher-evidence, lokale CR-state, release/publication-state en runtime-locks/heartbeat naar definitieve `Data/03_Systeem/Projectmanager/...` locaties.
+- Actieve readers/writers gebruiken `system_path_contract`; padomschakeling gebeurt pas na een geverifieerde activatiemarkering en long-lived runtimes rebind-en bij contractwijziging.
+- TYPE2-volgorde is fail-closed: prepare/recovery -> download/bewaren -> akkoord -> migrate met bron intact -> live validatie -> afzonderlijk akkoord -> finalize -> no-recreation/readback.
+- `Inbox/incoming`, `processing`, `processed` en `failed` zijn hard uitgesloten van TYPE2-verwijdering.
+
 # 32.5.5
 - Scheidt de lokale installatie-predecessor expliciet van de canonieke GitHub/HA-publicatiepredecessor, zodat partial publish + local rollback geen tijdelijke versie-impersonatie of terminalrecovery meer vereist.
 - De Home Assistant publisher valideert in split-state beide domeinen onafhankelijk: lokale App+manifest tegen install-predecessor en GitHub+HA runtime tegen publication-predecessor.

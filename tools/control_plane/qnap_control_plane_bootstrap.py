@@ -51,7 +51,7 @@ def _write_security_migration(inbox: Path) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _ensure_control_plane_mailboxes(inbox: Path) -> dict:
+def _ensure_control_plane_mailboxes(runtime_root: Path, inbox: Path) -> dict:
     """Precreate shared producer/consumer mailboxes with live-equivalent rights.
 
     The PM and control-plane run under different container identities. 32.4.41
@@ -60,7 +60,7 @@ def _ensure_control_plane_mailboxes(inbox: Path) -> dict:
     this shared IPC boundary and proves write/readback before its main loop.
     """
     inbox = Path(inbox)
-    root = inbox / 'control_plane'
+    root = Path(runtime_root)
     previous_world_writable = any(
         path.exists() and bool(path.stat().st_mode & 0o002)
         for path in (root, root / 'requests', root / 'results')
@@ -212,5 +212,5 @@ def qnap_load_bootstrap_watcher_request(inbox: Path, approved_queue: Path, versi
 cp.watcher_create_payload = qnap_watcher_create_payload
 cp.load_bootstrap_watcher_request = qnap_load_bootstrap_watcher_request
 if __name__ == "__main__":
-    _ensure_control_plane_mailboxes(Path(_argv_value('--inbox', '/energy-inbox')))
+    _ensure_control_plane_mailboxes(Path(_argv_value('--runtime-root', '/energy-inbox/control_plane')), Path(_argv_value('--inbox', '/energy-inbox')))
     raise SystemExit(cp.main())

@@ -5,6 +5,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from system_path_contract import project_system_path
 from typing import Any, Callable
 
 
@@ -17,14 +18,13 @@ PROBE_ROUTES = {
 MAX_RESPONSE_BYTES = 256 * 1024
 MAX_REQUEST_BYTES = 32 * 1024
 REQUEST_TIMEOUT_SECONDS = 5.0
-ASSISTANT_RUNTIME_ACCEPTANCE_RELATIVE = Path("Inbox/logs/assistant_runtime_acceptance.json")
 
 
 def resolve_runtime_acceptance_path(
     wait_for_roots: Callable[..., tuple[Path, Path]],
 ) -> Path:
     _, live_nas_layout_root = wait_for_roots(attempts=60, delay_seconds=5.0)
-    return live_nas_layout_root / ASSISTANT_RUNTIME_ACCEPTANCE_RELATIVE
+    return project_system_path(live_nas_layout_root, 'Inbox/logs/assistant_runtime_acceptance.json')
 
 
 def _decode_json(raw: bytes) -> Any:

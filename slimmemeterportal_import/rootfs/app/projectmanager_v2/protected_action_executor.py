@@ -1,3 +1,4 @@
+from system_path_contract import project_system_path
 import hashlib
 import json
 import os
@@ -25,10 +26,10 @@ class ProtectedActionExecutor:
         self.audit = audit
         self.staging_root = (self.project_root / 'Data/03_Systeem/Projectmanager/Staging').resolve()
         self.incoming_root = (self.project_root / 'Inbox/incoming').resolve()
-        self.native_mcp_runtime_root = (self.project_root / 'Inbox/native_mcp_runtime').resolve()
-        self.control_plane_request_root = (self.project_root / 'Inbox/control_plane/requests').resolve()
-        self.control_plane_result_root = (self.project_root / 'Inbox/control_plane/results').resolve()
-        self.control_plane_archive_root = (self.project_root / 'Inbox/projectmanager_v2/RuntimeV2/control_plane_archive').resolve()
+        self.native_mcp_runtime_root = (project_system_path(self.project_root, 'Inbox/native_mcp_runtime')).resolve()
+        self.control_plane_request_root = (project_system_path(self.project_root, 'Inbox/control_plane/requests')).resolve()
+        self.control_plane_result_root = (project_system_path(self.project_root, 'Inbox/control_plane/results')).resolve()
+        self.control_plane_archive_root = (project_system_path(self.project_root, 'Inbox/projectmanager_v2/RuntimeV2/control_plane_archive')).resolve()
 
     @staticmethod
     def _sha256(path: Path):
@@ -157,7 +158,7 @@ class ProtectedActionExecutor:
             # Watcher/container recreation remains a separately protected
             # infrastructure action; old transition tickets are retired.
             return
-        transition_path = self.project_root / 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json'
+        transition_path = project_system_path(self.project_root, 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json')
         transition = read_transition_state(transition_path, missing_ok=True)
         if not transition or str(transition.get('lifecycle_state') or '') in {'COMPLETE','ROLLED_BACK','CANCELLED'}:
             return
@@ -278,7 +279,7 @@ class ProtectedActionExecutor:
                 raise RuntimeError('control-plane native MCP pending request conflicteert')
             archive_root = self.control_plane_archive_root
             archive_root.mkdir(parents=True, exist_ok=True)
-            if archive_root.is_symlink() or not self._inside(archive_root, (self.project_root / 'Inbox/projectmanager_v2/RuntimeV2').resolve()):
+            if archive_root.is_symlink() or not self._inside(archive_root, (project_system_path(self.project_root, 'Inbox/projectmanager_v2/RuntimeV2')).resolve()):
                 raise RuntimeError('onveilig control-plane archive-root')
             archive = archive_root / f'native_mcp_reload.{pending_release}.{pending_request_id}.json'
             if archive.is_symlink():
@@ -304,7 +305,7 @@ class ProtectedActionExecutor:
         if decision.get('status') != 'APPROVED' or decision.get('approved_by') != 'Peter' or decision.get('kind') != 'PRODUCTION_RESTART':
             raise RuntimeError('Peter PRODUCTION_RESTART approval missing')
         request_id = hashlib.sha256(str(action['id']).encode('utf-8')).hexdigest()[:32]
-        marker = self.project_root / 'Inbox/watcher_container_contract.json'
+        marker = project_system_path(self.project_root, 'Inbox/watcher_container_contract.json')
         proof = self._read_json_object(marker)
         if proof and proof.get('status') == 'GREEN' and proof.get('ready') is True and int(proof.get('contract_version') or 0) == 3:
             return {
@@ -315,7 +316,7 @@ class ProtectedActionExecutor:
             }
 
         result_path = self.control_plane_result_root / 'watcher_recreate.json'
-        legacy_result_path = self.project_root / 'Inbox/control_plane/watcher_recreate_result.json'
+        legacy_result_path = project_system_path(self.project_root, 'Inbox/control_plane/watcher_recreate_result.json')
         result = self._read_json_object(result_path) or self._read_json_object(legacy_result_path)
         if result is not None and not result_path.is_file():
             result_path = legacy_result_path

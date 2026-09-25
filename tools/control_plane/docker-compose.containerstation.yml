@@ -24,6 +24,12 @@ services:
       - /energy-version/VERSIE.txt
       - --runtime-evidence
       - /runtime-evidence
+      - --runtime-root
+      - /control-plane-runtime
+      - --release-controller-root
+      - /release-controller
+      - --native-mcp-runtime-root
+      - /native-mcp-runtime
       - --host-project-root
       - "/share/Energie_NAS/EnergieProject"
       - --interval
@@ -31,9 +37,12 @@ services:
     volumes:
       - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/ControlPlane:/control-plane:ro"
       - "/share/Energie_NAS/EnergieProject/Inbox:/energy-inbox:rw"
-      - "/share/Energie_NAS/EnergieProject/Inbox/projectmanager_v2/RuntimeV2/approved_actions:/pm-approved:ro"
+      - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/RuntimeV2/approved_actions:/pm-approved:ro"
       - "/share/Energie_NAS/EnergieProject/App/VERSIE.txt:/energy-version/VERSIE.txt:ro"
       - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/RuntimeEvidence:/runtime-evidence:ro"
+      - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/ControlPlane/Runtime:/control-plane-runtime:rw"
+      - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/ReleaseController:/release-controller:ro"
+      - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/RuntimeEvidence/NativeMCP:/native-mcp-runtime:ro"
       - "/var/run/docker.sock:/var/run/docker.sock:rw"
     tmpfs:
       - /tmp:size=16m,mode=1777

@@ -1,3 +1,5 @@
+from pathlib import Path
+from system_path_contract import project_system_path
 import os
 from dataclasses import dataclass
 
@@ -47,7 +49,7 @@ class ManagerConfig:
             ha_token=os.getenv('HOME_ASSISTANT_TOKEN', os.getenv('HA_TOKEN', '')),
             ha_notify_service=os.getenv('PM_HA_NOTIFY_SERVICE', ''),
             market_enabled=_env_bool('PM_MARKET_ENABLED', False),
-            mode_state_path=os.getenv('PM_MODE_STATE_PATH', f'{project_root}/Inbox/operating_mode/operating_mode_state.json'),
+            mode_state_path=os.getenv('PM_MODE_STATE_PATH', str(project_system_path(Path(project_root), 'Inbox/operating_mode/operating_mode_state.json'))),
             mode_command_path=os.getenv('PM_MODE_COMMAND_PATH', ''),
             manager_app_root=os.getenv('PM_APP_ROOT', os.getcwd()),
             command_ingress_root=os.getenv('PM_COMMAND_INGRESS_ROOT', ''),

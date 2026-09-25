@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 from dataclasses import asdict, dataclass, field, replace
 from enum import Enum
@@ -45,17 +46,15 @@ class ModeState:
         return cls()
 
 
-_STATE_RELATIVE = Path("Inbox/operating_mode/operating_mode_state.json")
-_COMMAND_RELATIVE = Path("Inbox/operating_mode/operating_mode_command.json")
 _SUSPENDABLE_FEATURES = frozenset({"schedule", "full_workflow", "automatic_month_close"})
 
 
 def state_path(project_root: Path | str) -> Path:
-    return Path(project_root) / _STATE_RELATIVE
+    return project_system_path(Path(project_root), 'Inbox/operating_mode/operating_mode_state.json')
 
 
 def command_path(project_root: Path | str) -> Path:
-    return Path(project_root) / _COMMAND_RELATIVE
+    return project_system_path(Path(project_root), 'Inbox/operating_mode/operating_mode_command.json')
 
 
 def profile_for(mode: Mode | str, suspended_features: Iterable[str] = frozenset()) -> ModeProfile:
@@ -356,7 +355,7 @@ def _active_release_transition(project_root: Path | str) -> dict[str, Any] | Non
             return None
     except (OSError, ValueError):
         pass
-    path = root / "Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json"
+    path = project_system_path(root, 'Inbox/projectmanager_v2/RuntimeV2/release_transition/current.json')
     value = read_transition_state(path, missing_ok=True)
     if not isinstance(value, dict):
         return None
@@ -406,8 +405,8 @@ def _transition_owned_project_cr_maintenance_allowed(
     root = Path(project_root)
     try:
         live_release = (root / "App/VERSIE.txt").read_text(encoding="utf-8").strip()
-        request = json.loads((root / "Inbox/project_cr_local/request.json").read_text(encoding="utf-8"))
-        queue_raw = json.loads((root / "Inbox/projectmanager_v2/RuntimeV2/commands/queue.json").read_text(encoding="utf-8"))
+        request = json.loads((project_system_path(root, 'Inbox/project_cr_local/request.json')).read_text(encoding="utf-8"))
+        queue_raw = json.loads((project_system_path(root, 'Inbox/projectmanager_v2/RuntimeV2/commands/queue.json')).read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return False
     if not isinstance(request, dict):

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from system_path_contract import project_system_path
 
 import json
 import subprocess
@@ -23,7 +24,7 @@ def finalize_validated_atomic_release(project_root: Path | str, expected_version
     release parameters and invokes the tool without a shell.
     """
     root = Path(project_root)
-    journal_path = root / 'Inbox' / 'atomic_app_swap_state.json'
+    journal_path = project_system_path(root, 'Inbox/atomic_app_swap_state.json')
     journal = _read_json(journal_path)
     if journal is None:
         return {'status': 'not_required', 'reason': 'atomic_journal_missing'}

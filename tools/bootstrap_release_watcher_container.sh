@@ -32,6 +32,7 @@ fi
 
 mkdir -p "$INBOX/incoming" "$INBOX/logs"
 CONTRACT_MARKER="$INBOX/watcher_container_contract.json"
+CONTRACT_MARKER="$(energie_system_path "$ROOT" watcher_contract Inbox/watcher_container_contract.json Data/03_Systeem/Projectmanager/RuntimeEvidence/watcher_container_contract.json)"
 CONTRACT_HELPER="$ROOT/App/tools/watcher_container_contract.py"
 [ -f "$CONTRACT_HELPER" ] || { echo "FOUT: watcher container-contract helper ontbreekt" >&2; exit 1; }
 rm -f "$CONTRACT_MARKER" 2>/dev/null || true
@@ -44,7 +45,8 @@ if [ -f "$INBOX/.watcher.pid" ]; then
     *) kill "$OLD_PID" 2>/dev/null || true ;;
   esac
 fi
-rm -f "$INBOX/.watcher.pid" "$INBOX/.watcher.heartbeat" 2>/dev/null || true
+LEGACY_HEARTBEAT="$(energie_system_path "$ROOT" watcher_heartbeat_legacy Inbox/.watcher.heartbeat Data/03_Systeem/Projectmanager/RuntimeEvidence/watcher.heartbeat.legacy)"
+rm -f "$INBOX/.watcher.pid" "$LEGACY_HEARTBEAT" 2>/dev/null || true
 rmdir "$INBOX/.watcher.lock" 2>/dev/null || true
 
 "$DOCKER" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true

@@ -1,0 +1,43 @@
+{
+  "schema": "energie_clearup_type2_plan_v1",
+  "classification": "TYPE2",
+  "clearup_id": "ClearUp_006",
+  "status": "READY",
+  "minimum_release": "32.5.7",
+  "items": [
+    {
+      "source": "Inbox/ha_runtime",
+      "destination": "Data/03_Systeem/Projectmanager/RuntimeEvidence/HomeAssistant",
+      "path_key": "ha_runtime",
+      "reason": "HA runtime-identiteit is permanente runtime-evidence.",
+      "contract_checks": [
+        {
+          "path": "App/tools/clearup_type2_path_contract.json",
+          "must_contain": [
+            "\"ClearUp_006\": \"GREEN\""
+          ],
+          "must_not_contain": [
+            "\"ClearUp_006\": \"RED\""
+          ]
+        }
+      ]
+    },
+    {
+      "source": "Inbox/native_mcp_runtime",
+      "destination": "Data/03_Systeem/Projectmanager/RuntimeEvidence/NativeMCP",
+      "path_key": "native_mcp_runtime",
+      "reason": "Native MCP runtime-state/evidence hoort onder RuntimeEvidence.",
+      "contract_checks": [
+        {
+          "path": "App/tools/clearup_type2_path_contract.json",
+          "must_contain": [
+            "\"ClearUp_006\": \"GREEN\""
+          ],
+          "must_not_contain": [
+            "\"ClearUp_006\": \"RED\""
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -22,3 +22,7 @@ Zie `docs/32.4.44-build-basis.json`.
 ## Governance
 
 Geen alternatieve releaseweg, geen reconstructie vanaf productie en geen automatische productieplaatsing. De ZIP wordt eerst geïsoleerd gebouwd en geverifieerd; productieplaatsing blijft een aparte expliciete handeling.
+## ClearUp 32.5.7
+
+32.5.7 bevat naast de begrensde ClearUp_001 TYPE1-delete ook de concrete TYPE2-plannen `ClearUp_002` t/m `ClearUp_012`. TYPE2 maakt eerst herstelbare recovery, migreert daarna naar definitieve `Data/03_Systeem/Projectmanager/...` locaties met de oude bron nog aanwezig, vereist live reader/writer-validatie en verwijdert de oude bron pas na een tweede expliciet akkoord. De release-mailboxen `incoming`, `processing`, `processed` en `failed` zijn uitgesloten. Geen terminal of handmatige Inbox-bypass is onderdeel van de ClearUp-route.
+
