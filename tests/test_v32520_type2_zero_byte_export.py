@@ -87,5 +87,5 @@ def test_runtime_hotfix_source_of_truth_contains_zero_byte_fix():
 
 
 def test_current_release_identity():
-    assert (ROOT/'VERSIE.txt').read_text().strip() == '32.5.22'
-    assert (ROOT/'slimmemeterportal_import/rootfs/app/projectmanager_v2/VERSION.txt').read_text().strip() == '2.0.0-rc55'
+    assert (ROOT/'VERSIE.txt').read_text().strip() == '32.5.23'
+    assert (ROOT/'slimmemeterportal_import/rootfs/app/projectmanager_v2/VERSION.txt').read_text().strip() == '2.0.0-rc56'

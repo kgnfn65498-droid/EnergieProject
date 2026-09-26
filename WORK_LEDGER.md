@@ -608,3 +608,10 @@
 - Root cause is now fixed in 60, not worked around: exact same-transition `ROLLED_BACK` evidence is historical only when physical predecessor state is fully settled and canonical paths/old SHA validate. Any residue remains fail-closed.
 - RED->GREEN regressions added, including an actual replacement install proving journal ownership moves to the new artifact SHA and App promotes to 32.4.60.
 - Focused release/atomic regression set: 113 passed. Known Chat runtime child-process offline-guard deviation remains environmental and unchanged.
+
+## 2026-09-26 — 32.5.23 Type-2 control-plane binding call-path closure
+- Live 32.5.22 proved ClearUp_007 still RED: legacy `Inbox/control_plane` kept receiving the running container heartbeat while canonical `Data/03_Systeem/Projectmanager/ControlPlane/Runtime` remained stale.
+- 32.5.22 binding detection/recreate code was correct in isolation; the defect was the call path: `NativeRuntimeCoordinator.align()` returned `native_mcp_current` before invoking `control_plane_prepare()` whenever Native MCP was already current.
+- 32.5.23+ now performs one fail-closed control-plane prepare/binding proof per exact release fence before the ready shortcut and reuses the existing bounded recreate/rollback implementation.
+- Exact predecessor TDD: 3 RED / 1 GREEN; repaired targeted: 4/4 GREEN; impact: 43/43 GREEN; complete 32.5 regressions: 138/138 GREEN; static: 600/600 GREEN + 2 skipped; compileall GREEN.
+- No production action, restart, recreate, finalize or delete was performed during development.

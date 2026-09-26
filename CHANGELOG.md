@@ -1,3 +1,11 @@
+## 32.5.23 — Type-2 control-plane prepare before Native-MCP shortcut
+
+- Live 32.5.22 proved the bounded control-plane binding detector/recreate code itself correct, but also proved it was not invoked when Native MCP was already current.
+- `NativeRuntimeCoordinator` now proves/prepares the control-plane binding once per 32.5.23+ release fence before the `native_mcp_current` shortcut can return GREEN.
+- A failed or unproven control-plane prepare is fail-closed even when Native MCP is already current.
+- Existing 32.5.22 bounded recreate + rollback implementation is reused; no second actuator/lifecycle route is introduced.
+- Older release semantics are preserved and no Type-2 finalize/delete is performed by the build.
+
 ## 32.5.22 — Type-2 control-plane writer rebinding
 
 - Live 32.5.21 proved ClearUp_005 and ClearUp_006 GREEN, but ClearUp_007 correctly failed because the running control-plane container still wrote to retired `Inbox/control_plane` after path activation.

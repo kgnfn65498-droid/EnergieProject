@@ -25,10 +25,32 @@ class NativeRuntimeCoordinator:
     def __init__(self,root:Path,guard_module,control_plane_probe,control_plane_prepare=None):
         self.root=Path(root);self.guard=guard_module;self.control_plane_probe=control_plane_probe
         self.control_plane_prepare=control_plane_prepare
+        self._control_plane_prepared_fence=None
+    @staticmethod
+    def _release_tuple(value):
+        try:return tuple(int(part) for part in str(value).split('.'))
+        except ValueError:return ()
+    def _prepare_control_plane_once(self,s:ReleaseState):
+        fence=(str(s.release_id),str(s.generation),str(s.artifact_sha256),str(s.to_version))
+        if self._control_plane_prepared_fence==fence:return None
+        if self.control_plane_prepare is None:
+            return Outcome.blocked('control_plane_prepare_capability_missing','restore existing control-plane capability')
+        try:result=self.control_plane_prepare()
+        except Exception as exc:
+            return Outcome.blocked(
+                'control_plane_prepare_failed:'+type(exc).__name__,
+                'restore existing control-plane capability; do not create a second release or recreate chain',
+            )
+        if not isinstance(result,dict) or result.get('status')!='GREEN' or result.get('binding_current') is not True:
+            return Outcome.blocked('control_plane_binding_unproven','restore exact control-plane binding evidence')
+        self._control_plane_prepared_fence=fence
+        return None
     def align(self,s:ReleaseState)->Outcome:
+        release_parts=self._release_tuple(s.to_version)
+        requires_control_plane_binding_proof=release_parts >= (32,5,23)
         try:
-            requires_bridge=tuple(int(part) for part in str(s.to_version).split('.')) >= (32,5,8)
-        except ValueError:
+            requires_bridge=release_parts >= (32,5,8)
+        except TypeError:
             requires_bridge=False
         if requires_bridge:
             try:
@@ -37,6 +59,9 @@ class NativeRuntimeCoordinator:
                     return Outcome.blocked('native_mcp_command_bridge_contract_red')
             except Exception as exc:
                 return Outcome.blocked('native_mcp_command_bridge_prepare_failed:'+type(exc).__name__)
+        if requires_control_plane_binding_proof:
+            prepared=self._prepare_control_plane_once(s)
+            if prepared is not None:return prepared
         guard=self.guard.probe(self.root)
         if guard.get('ready') is True:
             # A fenced request may outlive the restart/readback cycle when the

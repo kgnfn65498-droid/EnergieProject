@@ -1,0 +1,14 @@
+{
+  "schema": "energie_release_build_basis_v1",
+  "from_version": "32.5.22",
+  "to_version": "32.5.23",
+  "source_artifact": "EnergieProject_v32.5.22.zip",
+  "source_sha256": "b64bd2adc6e04ac1ce123a94de0fcac5f3b7717c54339b36d8a690dbafd0867d",
+  "source_size": 6817354,
+  "scope": [
+    "always prove/reconcile Type2 control-plane binding for 32.5.23+ before Native-MCP ready shortcut",
+    "reuse bounded control-plane binding recreate from 32.5.22",
+    "per-release-fence idempotence and fail-closed binding proof",
+    "preserve all Type-2 recovery and destructive gates"
+  ]
+}
