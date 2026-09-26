@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-AFFIRMATIVE = {'akkoord', 'ja', 'yes', 'approve', 'goedgekeurd', 'goedkeuren'}
+AFFIRMATIVE = {'akkoord', 'ja', 'yes', 'approve', 'goedgekeurd', 'goedkeuren', 'ontvangen', 'bevestigd', 'confirmed'}
 CLEARUP_ID_RE = re.compile(r'^ClearUp_[0-9]{3,}$')
 PLAN_SCHEMA = 'energie_clearup_type2_plan_v1'
 TYPE2_REQUEST_SCHEMA = 'energie_clearup_type2_request_v1'
@@ -23,6 +23,8 @@ STAGING_ROOT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Staging')
 EXPORT_ROOT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Exports')
 STATE_ROOT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/State')
 VALIDATION_ROOT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Validation')
+EXTERNAL_GATE_REL = STATE_ROOT_REL / 'TYPE2_EXTERNAL_RECOVERY_GATE.json'
+TYPE2_REQUIRED_IDS = tuple(f'ClearUp_{i:03d}' for i in range(2, 13))
 WATCHER_REQUEST_REL = Path('Inbox/project_clearup_move_request.json')
 WATCHER_RESULT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Runtime/project_clearup_move_result.json')
 WATCHER_TIMEOUT_SECONDS = 90.0
@@ -291,23 +293,44 @@ def prepare_type2(project_root: Path | str, *, clearup_id: str, source: str) -> 
 
 
 def refresh_recovery_type2(project_root: Path | str, *, clearup_id: str, source: str) -> dict[str, Any]:
-    """Rebuild only the recovery snapshot after migration; never mutate source/destination."""
+    """Rebuild recovery evidence non-destructively in PREPARED or migrated state."""
     root = Path(project_root).resolve()
     if source != 'mcp_remote':
         raise RuntimeError('Type2 recovery refresh requires chat/MCP request')
     _release_idle(root)
     plan = _load_plan(root, clearup_id)
     state_path = root / STATE_ROOT_REL / f'{clearup_id}.json'
-    validation_path = root / VALIDATION_ROOT_REL / f'{clearup_id}.json'
     try:
         state = json.loads(state_path.read_text(encoding='utf-8'))
-        validation = json.loads(validation_path.read_text(encoding='utf-8'))
     except Exception as exc:
-        raise RuntimeError('Type2 recovery refresh requires migrated+validated state') from exc
-    if not isinstance(state, dict) or state.get('phase') != 'MIGRATED_PENDING_VALIDATION' or state.get('plan_sha256') != plan['plan_sha256']:
-        raise RuntimeError('Type2 recovery refresh requires matching migrated state')
+        raise RuntimeError('Type2 recovery refresh requires existing state') from exc
+    if not isinstance(state, dict) or state.get('plan_sha256') != plan['plan_sha256']:
+        raise RuntimeError('Type2 recovery refresh requires matching state')
+
+    phase = str(state.get('phase') or '')
+    if phase == 'PREPARED':
+        if state.get('status') != 'GREEN' or state.get('deletion_performed') is not False:
+            raise RuntimeError('Type2 prepared recovery refresh requires GREEN pre-migrate state')
+        result = _watcher_call(root, operation='type2_refresh_recovery', clearup_id=clearup_id, plan=plan)
+        path, _manifest = _verify_export(root, clearup_id, plan)
+        result.update({
+            'status': 'GREEN', 'clearup_id': clearup_id, 'plan_sha256': plan['plan_sha256'],
+            'artifact': path.name, 'size': path.stat().st_size, 'sha256': _sha(path),
+            'prepared_recovery_refresh': True, 'post_migrate_recovery_refresh': False,
+            'deletion_performed': False,
+        })
+        return result
+
+    if phase != 'MIGRATED_PENDING_VALIDATION':
+        raise RuntimeError('Type2 recovery refresh requires PREPARED or matching migrated state')
     if state.get('source_preserved') is not True or state.get('deletion_performed') is not False:
         raise RuntimeError('Type2 recovery refresh requires preserved pre-delete source')
+
+    validation_path = root / VALIDATION_ROOT_REL / f'{clearup_id}.json'
+    try:
+        validation = json.loads(validation_path.read_text(encoding='utf-8'))
+    except Exception as exc:
+        raise RuntimeError('Type2 migrated recovery refresh requires validated state') from exc
     if (
         not isinstance(validation, dict)
         or validation.get('schema') != 'energie_clearup_type2_validation_v2'
@@ -321,7 +344,8 @@ def refresh_recovery_type2(project_root: Path | str, *, clearup_id: str, source:
     result.update({
         'status': 'GREEN', 'clearup_id': clearup_id, 'plan_sha256': plan['plan_sha256'],
         'artifact': path.name, 'size': path.stat().st_size, 'sha256': _sha(path),
-        'post_migrate_recovery_refresh': True, 'deletion_performed': False,
+        'post_migrate_recovery_refresh': True, 'prepared_recovery_refresh': False,
+        'deletion_performed': False,
     })
     return result
 
@@ -404,6 +428,77 @@ def export_chunk(project_root: Path | str, *, clearup_id: str, offset: int, max_
         f.seek(offset); data = f.read(max_bytes)
     nxt = offset + len(data)
     return {**info, 'offset': offset, 'bytes': len(data), 'next_offset': nxt, 'eof': nxt >= total, 'chunk_sha256': hashlib.sha256(data).hexdigest(), 'base64': base64.b64encode(data).decode('ascii')}
+
+
+def _verified_required_exports(root: Path) -> list[dict[str, Any]]:
+    verified: list[dict[str, Any]] = []
+    for required_id in TYPE2_REQUIRED_IDS:
+        required_plan = _load_plan(root, required_id)
+        path, manifest = _verify_export(root, required_id, required_plan)
+        verified.append({
+            'clearup_id': required_id,
+            'artifact': path.name,
+            'size': path.stat().st_size,
+            'sha256': _sha(path),
+            'plan_sha256': required_plan['plan_sha256'],
+            'item_count': len(manifest.get('items') or []),
+        })
+    return verified
+
+
+def _load_external_gate(root: Path) -> dict[str, Any]:
+    path = root / EXTERNAL_GATE_REL
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError('Type2 external recovery gate missing/unsafe')
+    try:
+        value = json.loads(path.read_text(encoding='utf-8'))
+    except Exception as exc:
+        raise RuntimeError('Type2 external recovery gate unreadable') from exc
+    if not isinstance(value, dict):
+        raise RuntimeError('Type2 external recovery gate invalid')
+    return value
+
+
+def _assert_external_recovery_confirmed(root: Path) -> dict[str, Any]:
+    try:
+        active = (root / 'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+    except OSError as exc:
+        raise RuntimeError('active release unreadable for Type2 external gate') from exc
+    if _version_tuple(active) < (32, 5, 16):
+        return {'status': 'LEGACY_PRE_32_5_16', 'delete_allowed': True}
+    gate = _load_external_gate(root)
+    if gate.get('status') != 'EXTERNAL_COPY_CONFIRMED' or gate.get('delete_allowed') is not True:
+        raise RuntimeError('Type2 finalize blocked until external recovery copy is explicitly confirmed')
+    confirmed = gate.get('confirmed_exports')
+    if not isinstance(confirmed, list) or len(confirmed) != len(TYPE2_REQUIRED_IDS):
+        raise RuntimeError('Type2 external recovery confirmation set incomplete')
+    by_id = {str(row.get('clearup_id') or ''): row for row in confirmed if isinstance(row, dict)}
+    current = _verified_required_exports(root)
+    for row in current:
+        prior = by_id.get(row['clearup_id'])
+        if not isinstance(prior, dict):
+            raise RuntimeError(f"Type2 external recovery confirmation missing: {row['clearup_id']}")
+        if prior.get('artifact') != row['artifact'] or prior.get('size') != row['size'] or prior.get('sha256') != row['sha256']:
+            raise RuntimeError(f"Type2 recovery artifact changed after external confirmation: {row['clearup_id']}")
+    return gate
+
+
+def confirm_external_recovery_type2(project_root: Path | str, *, explicit_user_text: str, source: str) -> dict[str, Any]:
+    root = Path(project_root).resolve()
+    if source != 'mcp_remote' or _token(explicit_user_text) not in AFFIRMATIVE:
+        raise RuntimeError('explicit user confirmation missing for Type2 external recovery')
+    _release_idle(root)
+    verified = _verified_required_exports(root)
+    anchor_plan = _load_plan(root, TYPE2_REQUIRED_IDS[0])
+    result = _watcher_call(
+        root, operation='type2_external_recovery_confirm', clearup_id=TYPE2_REQUIRED_IDS[0],
+        plan=anchor_plan, explicit_user_text=explicit_user_text,
+    )
+    gate = _assert_external_recovery_confirmed(root)
+    return {
+        **result, 'status': 'GREEN', 'confirmed': True, 'delete_allowed': True,
+        'verified_count': len(verified), 'confirmed_at': gate.get('confirmed_at'),
+    }
 
 
 def migrate_type2(project_root: Path | str, *, clearup_id: str, explicit_user_text: str, source: str) -> dict[str, Any]:
@@ -572,6 +667,7 @@ def finalize_type2(project_root: Path | str, *, clearup_id: str, explicit_user_t
     evidence = proof.get('evidence')
     if not isinstance(evidence, list) or not evidence:
         raise RuntimeError('Type2 live validation requires evidence refs')
+    _assert_external_recovery_confirmed(root)
     result = _watcher_call(root, operation='type2_finalize', clearup_id=clearup_id, plan=plan, explicit_user_text=explicit_user_text)
     return {**result, 'status': 'GREEN', 'clearup_id': clearup_id, 'plan_sha256': plan['plan_sha256'], 'live_validation': proof, 'deletion_performed': True}
 

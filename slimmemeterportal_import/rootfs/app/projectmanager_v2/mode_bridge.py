@@ -2,14 +2,23 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+
+from system_path_contract import project_system_path
 from uuid import uuid4
 
 VALID_MODES={'USER','DEVELOPMENT','MAINTENANCE'}
 
 
 class ModeBridge:
-    def __init__(self, command_path):
-        self.command_path=Path(command_path)
+    def __init__(self, command_path, *, project_root=None):
+        self._configured_command_path=Path(command_path)
+        self.project_root=Path(project_root).resolve() if project_root is not None else None
+
+    @property
+    def command_path(self):
+        if self.project_root is None:
+            return self._configured_command_path
+        return project_system_path(self.project_root, 'Inbox/operating_mode/operating_mode_command.json')
 
     def request_base_mode(self, mode: str, *, reason: str='', issued_by: str='projectmanager', confirmed_by_user: bool=False) -> dict:
         mode=str(mode).upper().strip()

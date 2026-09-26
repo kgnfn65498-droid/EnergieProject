@@ -1,3 +1,16 @@
+## 32.5.16 — Type-2 volledige herstel- en migratiehardening
+
+- Bouwt uitsluitend voort op de exact geverifieerde 32.5.15 releasebasis (`d95be5bb054c0e4b2fdd2d666a85f464fb934e2b4d20e29b3b365c03665810f3`).
+- Herstelt ClearUp_002 na de live 32.5.15-fout door cutover-bytes byte-exact te reconstrueren uit geldige recovery-payloads, preserved source, migrated destination of uitsluitend cryptografisch bewezen lege bytes.
+- Voor reeds gemigreerde legacy Type-2 batches is een fail-closed quiescent-source fallback toegevoegd wanneer historische cutoverbytes aantoonbaar niet meer beschikbaar zijn.
+- PREPARED Type-2 batches worden vlak vóór migratie opnieuw gesnapshot, zodat vluchtige lock-/statebestanden zoals ClearUp_012 niet meer een verouderde recovery-ZIP opleveren.
+- Migratie bevriest de exacte recovery vóór path-activation; bij een freeze-fout wordt zonder gedeeltelijke activatie teruggerold.
+- Alle lange-leven lezers/schrijvers voor de Type-2 paden 002–012 volgen na activatie de canonieke Data/03_Systeem-locaties, inclusief PM runtime, operating mode, release controller, HA/native runtime, control-plane, CR-bridges en locks.
+- Control-plane resultaten en stale-request archivering gebruiken na 32.5.16 geen retired Inbox PM/native-runtime schrijfpaden meer.
+- De externe recovery-gate bindt aan de exacte 002–012 artifact hashes/sizes en wordt automatisch ongeldig zodra een recovery-artifact wijzigt.
+- Finalize/delete blijft fail-closed tot alle Type-2 recovery-ZIP's extern zijn bevestigd; bronwijziging na validatie blokkeert deletion.
+- Geen Type-2 finalize/delete wordt door deze release zelf uitgevoerd.
+
 ## 32.5.15 — ClearUp recovery delivery closure
 
 - Type-2 recovery: veilige post-migrate refresh voor een bewaarde bron; bron en gemigreerde bestemming blijven onaangeroerd.

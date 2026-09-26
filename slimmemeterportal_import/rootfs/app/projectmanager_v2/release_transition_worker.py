@@ -231,7 +231,7 @@ class ReleaseTransitionWorker:
         if command.get('status')!='PENDING' or not project_cr_request_id:
             return None
         from mode_bridge import ModeBridge
-        bridge=ModeBridge(project_system_path(self.root, 'Inbox/operating_mode/operating_mode_command.json'))
+        bridge=ModeBridge(project_system_path(self.root, 'Inbox/operating_mode/operating_mode_command.json'), project_root=self.root)
         return bridge.request_transition_owned_temporary_maintenance(
             generation_id=str(state.get('generation_id') or ''),
             ticket_request_id=request_id,

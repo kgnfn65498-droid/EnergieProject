@@ -315,8 +315,8 @@ class EnergyHealthCollector:
         checks.append(_check('production_version_source', 'GREEN' if version else 'ORANGE', 'available' if version else 'missing_or_empty', version_path, {'version': version or None}, verified=bool(version)))
 
         if _numeric_release(version) >= (32, 4, 57):
-            controller_runtime_path = self.project_root / 'Inbox' / 'release_controller' / 'runtime.json'
-            controller_current_path = self.project_root / 'Inbox' / 'release_controller' / 'current.json'
+            controller_runtime_path = project_system_path(self.project_root, 'Inbox/release_controller/runtime.json')
+            controller_current_path = project_system_path(self.project_root, 'Inbox/release_controller/current.json')
             controller_runtime = _read_json(controller_runtime_path)
             controller_current = _read_json(controller_current_path)
             controller_age = _age_seconds(controller_runtime_path, now) if controller_runtime else None
@@ -365,7 +365,7 @@ class EnergyHealthCollector:
                 verified=watcher_contract_ok,
             ))
 
-        native_runtime_path = self.project_root / 'Inbox' / 'native_mcp_runtime' / 'runtime_guard.json'
+        native_runtime_path = project_system_path(self.project_root, 'Inbox/native_mcp_runtime/runtime_guard.json')
         native_runtime = _read_json(native_runtime_path)
         native_runtime_ok = (
             isinstance(native_runtime, dict)
@@ -393,7 +393,7 @@ class EnergyHealthCollector:
             checks.append(_command_ingress_consumer_check(self.project_root))
 
         if _numeric_release(version) >= (32, 4, 57):
-            controller_state_path = self.project_root / 'Inbox' / 'release_controller' / 'current.json'
+            controller_state_path = project_system_path(self.project_root, 'Inbox/release_controller/current.json')
             try:
                 controller_state = load_release_controller_state(self.project_root)
                 controller_error = ''
@@ -417,7 +417,7 @@ class EnergyHealthCollector:
                 verified=rc_verified,
             ))
         else:
-            hold_path = self.project_root / 'Inbox' / 'operating_mode' / 'release_validation_hold.json'
+            hold_path = project_system_path(self.project_root, 'Inbox/operating_mode/release_validation_hold.json')
             hold = _read_json(hold_path)
             hold_ok = isinstance(hold, dict) and hold.get('active') is False and hold.get('validation_status') == 'ok'
             checks.append(_check(

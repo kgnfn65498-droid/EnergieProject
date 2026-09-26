@@ -445,13 +445,13 @@ class CommandProcessor:
                     result['transport_intent'] = 'admin_update'
                 elif hint in {
                     'clearup_type2_prepare', 'clearup_type2_refresh_recovery', 'clearup_type2_export_info', 'clearup_type2_export_chunk',
-                    'clearup_type2_migrate', 'clearup_type2_validate', 'clearup_type2_finalize', 'clearup_type2_restore',
+                    'clearup_type2_migrate', 'clearup_type2_validate', 'clearup_type2_external_recovery_confirm', 'clearup_type2_finalize', 'clearup_type2_restore',
                 }:
                     if not self.project_root:
                         raise RuntimeError('Type2 ClearUp requires project_root')
                     from clearup_type2_service import (
                         prepare_type2, refresh_recovery_type2, export_info, export_chunk,
-                        migrate_type2, validate_type2, finalize_type2, restore_type2,
+                        migrate_type2, validate_type2, confirm_external_recovery_type2, finalize_type2, restore_type2,
                     )
                     clearup_id = str(item.get('artifact_path') or '').strip()
                     source = str(item.get('source') or '')
@@ -477,6 +477,10 @@ class CommandProcessor:
                         ))
                     elif hint == 'clearup_type2_validate':
                         result = dict(validate_type2(self.project_root, clearup_id=clearup_id, source=source))
+                    elif hint == 'clearup_type2_external_recovery_confirm':
+                        result = dict(confirm_external_recovery_type2(
+                            self.project_root, explicit_user_text=str(item.get('text') or ''), source=source,
+                        ))
                     elif hint == 'clearup_type2_finalize':
                         result = dict(finalize_type2(
                             self.project_root, clearup_id=clearup_id, explicit_user_text=str(item.get('text') or ''), source=source,

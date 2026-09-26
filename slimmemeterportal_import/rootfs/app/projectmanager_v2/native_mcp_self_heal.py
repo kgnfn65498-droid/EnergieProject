@@ -23,10 +23,19 @@ class NativeMcpSelfHealAuthorizer:
         self.decisions = decisions
         self.audit = audit
         self.policy_path = self.project_root / 'Data/03_Systeem/Projectmanager/Policies/native_mcp_self_heal_policy.json'
-        self.atomic_path = project_system_path(self.project_root, 'Inbox/atomic_app_swap_state.json')
-        self.hold_path = project_system_path(self.project_root, 'Inbox/operating_mode/release_validation_hold.json')
-        self.guard_path = project_system_path(self.project_root, 'Inbox/native_mcp_runtime/runtime_guard.json')
         self.version_path = self.project_root / 'App/VERSIE.txt'
+
+    @property
+    def atomic_path(self):
+        return project_system_path(self.project_root, 'Inbox/atomic_app_swap_state.json')
+
+    @property
+    def hold_path(self):
+        return project_system_path(self.project_root, 'Inbox/operating_mode/release_validation_hold.json')
+
+    @property
+    def guard_path(self):
+        return project_system_path(self.project_root, 'Inbox/native_mcp_runtime/runtime_guard.json')
 
     @staticmethod
     def _json(path: Path):

@@ -1,5 +1,13 @@
 # Changelog
 
+## 32.5.16 — Type-2 volledige herstel- en migratiehardening
+
+- ClearUp_002 recovery kan veilig hervatten na post-cutover RuntimeV2-drift.
+- PREPARED recovery-ZIP's worden vóór migratie opnieuw gesnapshot en cutover-recovery wordt vóór path-activation bevroren.
+- Type-2 paden 002–012 gebruiken na activatie de canonieke systeemlocaties; retired Inbox-paden worden niet opnieuw aangemaakt door de aangepaste runtimecomponenten.
+- Externe recoverybevestiging blijft verplicht vóór iedere destructive finalize/delete.
+- Control-plane runtime blijft compatibel met de bestaande container-mounts en schrijft na migratie niet terug naar retired PM/native Inbox-routes.
+
 ## 32.5.15 — ClearUp recovery delivery closure
 
 - Type-2 recovery: veilige post-migrate refresh voor een bewaarde bron; bron en gemigreerde bestemming blijven onaangeroerd.

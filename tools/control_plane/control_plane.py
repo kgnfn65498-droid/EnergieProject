@@ -402,8 +402,9 @@ def _native_result_base(request: dict, approval: dict | None) -> dict:
     return result
 
 
-def load_control_plane_native_request(inbox: Path, approved_queue: Path):
-    request = _load_json(Path(inbox) / 'control_plane' / 'requests' / 'native_mcp_reload.json')
+def load_control_plane_native_request(inbox: Path, approved_queue: Path, runtime_root: Path | None = None):
+    control_root = Path(runtime_root) if runtime_root is not None else (Path(inbox) / 'control_plane')
+    request = _load_json(control_root / 'requests' / 'native_mcp_reload.json')
     if request.get('schema') != 'energie_control_plane_request_v1':
         raise RuntimeError('control-plane native MCP request schema ongeldig')
     if request.get('action') != 'native_mcp_reload':
@@ -431,8 +432,9 @@ def load_control_plane_native_request(inbox: Path, approved_queue: Path):
     return request, approval
 
 
-def load_platformtest_request(inbox: Path) -> dict:
-    request = _load_json(Path(inbox) / 'control_plane' / 'requests' / 'platformtest_run.json')
+def load_platformtest_request(inbox: Path, runtime_root: Path | None = None) -> dict:
+    control_root = Path(runtime_root) if runtime_root is not None else (Path(inbox) / 'control_plane')
+    request = _load_json(control_root / 'requests' / 'platformtest_run.json')
     allowed = {'schema', 'request_id', 'action', 'candidate_sha', 'source_sha256', 'test_profile'}
     if set(request) != allowed:
         raise RuntimeError('platformtest request bevat onbekende/ontbrekende velden')
@@ -685,9 +687,22 @@ class ControlPlane:
             raise
 
     def _write_native_result(self, result: dict) -> dict:
+        # The canonical result belongs to the control-plane runtime. The Native-MCP
+        # runtime mount is read-only evidence and must never be used as a side-channel
+        # writer after ClearUp_006 has moved that tree out of Inbox.
         _atomic_json(self.result_root / 'results' / 'native_mcp_reload.json', result)
-        _atomic_json(self.inbox / 'native_mcp_runtime' / 'reload_result.json', result)
         return result
+
+    def _stale_native_archive_root(self) -> Path:
+        controller = _optional_json(self.release_controller_root / 'current.json')
+        live = str(controller.get('to_version') or '').strip()
+        parts = tuple(int(x) for x in re.findall(r'\d+', live)[:4]) if live else ()
+        if parts >= (32, 5, 16):
+            # 32.5.16+ keeps control-plane evidence in its own migrated runtime.
+            # This deliberately avoids recreating retired PM RuntimeV2 under Inbox.
+            return self.result_root / 'archive'
+        # Historical fixtures/releases preserve their original archive contract.
+        return self.inbox / 'projectmanager_v2' / 'RuntimeV2' / 'control_plane_archive'
 
     def _reconcile_fenced_native_attempt(self, request: dict, result_path: Path) -> dict | None:
         previous = _optional_json(result_path)
@@ -712,7 +727,7 @@ class ControlPlane:
         return previous
 
     def reload_native_mcp(self) -> dict:
-        request_path = self.inbox / 'control_plane' / 'requests' / 'native_mcp_reload.json'
+        request_path = self.result_root / 'requests' / 'native_mcp_reload.json'
         request_probe = _load_json(request_path)
         if request_probe.get('schema') == 'energie_control_plane_release_request_v1':
             authority = _release_scoped_authority_paths(
@@ -728,7 +743,7 @@ class ControlPlane:
             )
             approval = None
         else:
-            request, approval = load_control_plane_native_request(self.inbox, self.approved_queue)
+            request, approval = load_control_plane_native_request(self.inbox, self.approved_queue, self.result_root)
             # Manual Peter-approved legacy requests are not release-controller requests.
             # They retain their isolated fixture/version contract; production 32.5.15
             # no longer mounts App/VERSIE.txt into the control-plane at all.
@@ -807,7 +822,7 @@ class ControlPlane:
         return self._write_native_result(result)
 
     def run_platformtest(self) -> dict:
-        request = load_platformtest_request(self.inbox)
+        request = load_platformtest_request(self.inbox, self.result_root)
         request_id = str(request['request_id'])
         candidate = str(request['candidate_sha']).lower()
         container = f'energie-platformtest-{request_id[:12]}'
@@ -964,7 +979,7 @@ class ControlPlane:
                     # never an active slot. Preserve it outside the live request
                     # path and remove stale non-GREEN result noise. This is what
                     # prevents old control-plane state from starving a new release.
-                    archive_root = self.inbox / 'projectmanager_v2' / 'RuntimeV2' / 'control_plane_archive'
+                    archive_root = self._stale_native_archive_root()
                     archive_root.mkdir(parents=True, exist_ok=True)
                     if archive_root.is_symlink():
                         raise RuntimeError('unsafe stale native request archive root')

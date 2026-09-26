@@ -189,9 +189,9 @@ class RuntimeCollector:
 
     def _release_chain(self, *, now):
         inbox = self.project_root / 'Inbox'
-        release_controller_path = inbox / 'release_controller' / 'runtime.json'
+        release_controller_path = project_system_path(self.project_root, 'Inbox/release_controller/runtime.json')
         release_controller = self._read_json(release_controller_path) or {}
-        release_state_path = inbox / 'release_controller' / 'current.json'
+        release_state_path = project_system_path(self.project_root, 'Inbox/release_controller/current.json')
         release_state = self._read_json(release_state_path) or {}
         release_controller_age = self._file_age(release_controller_path, now)
         legacy_watcher = None

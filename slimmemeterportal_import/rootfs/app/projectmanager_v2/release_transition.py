@@ -54,13 +54,16 @@ class ReleaseTransitionCoordinator:
         self.runtime=project_system_path(self.root, 'Inbox/projectmanager_v2/RuntimeV2/release_transition')
         self.path=self.runtime/'current.json'
         self.history=self.runtime/'history'
-        self.lock_path=project_system_path(self.root, 'Inbox/.release-transition.operation.lock')
         self.runtime.mkdir(parents=True, exist_ok=True)
         if self.runtime.is_symlink() or not self.runtime.is_dir():
             raise TransitionBlocked('transition runtime directory is unsafe')
         os.chmod(self.runtime, 0o777)
         self.lock_path.parent.mkdir(parents=True,exist_ok=True)
         self._ensure_lock_file()
+
+    @property
+    def lock_path(self):
+        return project_system_path(self.root, 'Inbox/.release-transition.operation.lock')
 
     def _ensure_lock_file(self):
         try:

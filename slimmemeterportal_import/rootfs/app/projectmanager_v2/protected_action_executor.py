@@ -26,10 +26,19 @@ class ProtectedActionExecutor:
         self.audit = audit
         self.staging_root = (self.project_root / 'Data/03_Systeem/Projectmanager/Staging').resolve()
         self.incoming_root = (self.project_root / 'Inbox/incoming').resolve()
-        self.native_mcp_runtime_root = (project_system_path(self.project_root, 'Inbox/native_mcp_runtime')).resolve()
-        self.control_plane_request_root = (project_system_path(self.project_root, 'Inbox/control_plane/requests')).resolve()
-        self.control_plane_result_root = (project_system_path(self.project_root, 'Inbox/control_plane/results')).resolve()
         self.control_plane_archive_root = (project_system_path(self.project_root, 'Inbox/projectmanager_v2/RuntimeV2/control_plane_archive')).resolve()
+
+    @property
+    def native_mcp_runtime_root(self):
+        return project_system_path(self.project_root, 'Inbox/native_mcp_runtime').resolve()
+
+    @property
+    def control_plane_request_root(self):
+        return project_system_path(self.project_root, 'Inbox/control_plane/requests').resolve()
+
+    @property
+    def control_plane_result_root(self):
+        return project_system_path(self.project_root, 'Inbox/control_plane/results').resolve()
 
     @staticmethod
     def _sha256(path: Path):

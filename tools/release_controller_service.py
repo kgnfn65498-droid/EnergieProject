@@ -120,9 +120,15 @@ def write_post_live_audit(root:Path,state:ReleaseState)->dict:
 class ReleaseControllerService:
     def __init__(self,root:Path,adapter,*,stable_polls=3,ingress_stale_seconds=600):
         self.root=Path(root);self.adapter=adapter;self.controller=ReleaseController()
-        self.store=StateStore(project_system_path(self.root, 'Inbox/release_controller/current.json'))
         self.stable_polls=max(2,int(stable_polls));self.ingress_stale_seconds=max(30,int(ingress_stale_seconds))
         self.samples={};self.counts={}
+    @property
+    def store(self):
+        # The system-path mapping may activate while this long-lived service
+        # is running. Resolve the canonical state path at each access so the
+        # old Inbox path is never recreated after a path-contract cutover.
+        return StateStore(project_system_path(self.root, 'Inbox/release_controller/current.json'))
+
     def _runtime(self,payload):
         _atomic_json(project_system_path(self.root, 'Inbox/release_controller/runtime.json'),{'schema':'energie_release_controller_runtime_v1','pid':os.getpid(),'observed_at_epoch':time.time(),**payload})
     def _load_state(self):

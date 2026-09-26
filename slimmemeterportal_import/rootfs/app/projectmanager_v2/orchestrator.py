@@ -89,7 +89,7 @@ class ProjectmanagerRuntime:
                 details={'count': len(recovered)},
             )
 
-        mode_bridge = ModeBridge(config.mode_command_path) if getattr(config, 'mode_command_path', '') else None
+        mode_bridge = ModeBridge(config.mode_command_path, project_root=config.project_root) if getattr(config, 'mode_command_path', '') else None
         self.mode_bridge = mode_bridge
         if project_cr_service is None:
             project_cr_service = ConfiguredProjectCrService(config.project_root)
