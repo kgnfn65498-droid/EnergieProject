@@ -1,20 +1,32 @@
-# CURRENT HANDOVER — EnergieProject 32.5.20
+# CURRENT HANDOVER — EnergieProject 32.5.21
 
-## Actuele ontwikkelpositie
-- Live 32.5.19 is COMPLETE 9/9, PM rc52 en HA/NAS aligned.
-- Harde live Type-2 bewijs op 32.5.19: ClearUp_002 recovery-refresh via echte ingress→PM→privileged sideband = GREEN; ClearUp_002 validate = GREEN; ClearUp_012 recovery-refresh = GREEN.
-- Resterende fout zit uitsluitend in de Native-MCP externe exportverifier: `int(row.get("size") or -1)` maakte legitieme zero-byte payloads ongeldig. Daardoor rapporteerde status nog 002 en 012 als size mismatch, ondanks GREEN embedded deep verification.
-- 32.5.20 corrigeert deze verifier in de runtime-hotfix source-of-truth. De Native-MCP runtime fingerprint verandert bewust zodat releasecontroller reload/readback moet bewijzen.
-- Exacte buildbasis: fysieke live 32.5.19 ZIP SHA256 `7e8cb44576a3c2195164f20c5e3d8f81f990dbf0f8a2c10b1a9450b077db372b`.
-- Geen Type-2 finalize/delete vóór externe recoveryontvangst.
+## Actuele waarheid
+- Live vóór installatie: 32.5.20, PM 2.0.0-rc53.
+- Doelrelease: 32.5.21, PM 2.0.0-rc54.
+- Type-2 is gedeeltelijk live gemigreerd maar NIET gefinaliseerd/verwijderd.
+- Peter heeft cleanup/finalize toegestaan, maar destructive finalize blijft technisch geblokkeerd tot de actuele post-migrate recoveryset opnieuw extern is geleverd en bevestigd.
 
-## Autonome vervolgroute na installatie
-1. Controleer 32.5.20 COMPLETE 9/9, PM `2.0.0-rc53`, HA/NAS alignment en Native-MCP fingerprint current.
-2. Eis `type2_external_recovery.status=READY_FOR_EXTERNAL_DOWNLOAD`, `verified_count=11`, `failures=[]`.
-3. Download echte recovery-ZIPs ClearUp_002 t/m ClearUp_012 naar de ChatGPT-workspace.
-4. Verifieer lokaal per ZIP bestandsgrootte, SHA256, CRC en Type2 manifest/payload hashes.
-5. Lever de recovery-ZIPs aan Peter.
-6. Geen finalize/delete vóór Peters expliciete ontvangstbevestiging.
+## Live Type-2 stand op 32.5.20
+- 002: MIGRATED_PENDING_VALIDATION + validation GREEN.
+- 003: MIGRATED_PENDING_VALIDATION + revalidation GREEN; eerste poging detecteerde terecht een pre-activation publisher-writer.
+- 004: MIGRATED_PENDING_VALIDATION + validation GREEN.
+- 005: PREPARED; migratie geblokkeerd omdat gedeelde destination ReleaseController al sibling State/Publication bevat.
+- 006: MIGRATED_PENDING_VALIDATION; validatie geblokkeerd door embedded-PM PermissionError op privileged native_mcp_runtime inhoud.
+- 007: MIGRATED_PENDING_VALIDATION; validatie geblokkeerd door embedded-PM PermissionError op privileged control_plane inhoud.
+- 008–012: MIGRATED_PENDING_VALIDATION + validation GREEN.
+- Geen bron verwijderd.
 
-## Harde acceptatieregel
-Type-2 is pas 100% afgerond wanneer de volledige live keten én externe recovery-download 002–012 werkelijk GREEN zijn. Iedere nieuwe live fout betekent verder ontwikkelen.
+## 32.5.21 reparatie
+- ClearUp_005 kan veilig in een reeds bestaande gedeelde destination-directory mergen zonder sibling data te overschrijven of bij rollback te verwijderen.
+- Type-2 filesystemvalidatie wordt volledig door de privileged watcher uitgevoerd; PM blijft orchestrator en leest geen privileged payloadbomen meer.
+- Alle eerdere fail-closed checks blijven actief.
+
+## Na installatie autonoom uitvoeren
+1. Bevestig COMPLETE 9/9, PM rc54, HA/NAS alignment.
+2. ClearUp_005 migrate → validate; eis GREEN.
+3. ClearUp_006 en 007 validate; eis GREEN. Bij RED: root cause oplossen, niet finalizen.
+4. Controleer 002–012 allemaal `MIGRATED_PENDING_VALIDATION` + validation GREEN.
+5. Controleer/refresh recovery alleen waar noodzakelijk; daardoor gewijzigde artifacts maken eerdere ontvangstbevestiging ongeldig.
+6. Bouw/download de actuele exacte 002–012 recoveryset en lever die rechtstreeks als chatbestand; geen ngrok-link als eindlevering.
+7. Pas na Peters bevestiging van de ACTUELE post-migrate recoveryset: external recovery confirm → finalize 002–012 sequentieel; na iedere finalize readback GREEN en bron afwezig/destination behouden.
+8. Bij iedere fout fail-closed stoppen met destructieve vervolgacties en autonoom repareren.

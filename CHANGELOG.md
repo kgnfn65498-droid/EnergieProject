@@ -1,3 +1,11 @@
+## 32.5.21 — Type-2 live continuation hardening
+
+- Fixes the live ClearUp_005 continuation after ClearUp_011 has already created sibling State/Publication paths under the shared ReleaseController destination.
+- Directory migration now merges only byte/type-identical or absent source entries into an existing shared destination and tracks only newly-created paths for rollback; unrelated sibling data is preserved.
+- Moves Type-2 filesystem validation fully behind the privileged watcher boundary so restricted native-MCP/control-plane source trees no longer fail under the embedded PM identity.
+- Privileged validation remains fail-closed for stale path activation, missing cutover paths, old-source mutation and runtime-writer proof.
+- No Type-2 finalize/delete is performed by this release.
+
 ## 32.5.20 — Type-2 zero-byte recovery export verifier fix
 
 - Bouwt uitsluitend voort op de exact live geïnstalleerde 32.5.19 ZIP (`7e8cb44576a3c2195164f20c5e3d8f81f990dbf0f8a2c10b1a9450b077db372b`).

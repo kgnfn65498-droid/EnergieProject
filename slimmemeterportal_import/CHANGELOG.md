@@ -1,3 +1,7 @@
+## 32.5.21
+- Type-2 live-continuation fix for shared ReleaseController destination merges and privileged filesystem validation.
+- PM version rc54.
+
 # Changelog
 
 ## 32.5.20

@@ -86,12 +86,16 @@ def test_validate_routes_proof_to_privileged_commit_not_direct_atomic_write(tmp_
     def commit(root, *, operation, clearup_id, plan, explicit_user_text='', validation_proof=None):
         called['operation']=operation
         called['proof']=validation_proof
-        return {'status':'GREEN','clearup_id':clearup_id,'phase':'VALIDATION_COMMITTED','validation_status':validation_proof['status']}
+        return {
+            'schema':'energie_clearup_type2_validation_v2',
+            'status':'GREEN','clearup_id':clearup_id,'plan_sha256':plan['plan_sha256'],
+            'checks':[],'failures':[],'evidence':[],
+            'validation_authority':'privileged_watcher_full_validation',
+        }
     monkeypatch.setattr(service,'_watcher_call',commit)
-    monkeypatch.setenv('ENERGIE_CLEARUP_TYPE2_QUIESCENCE_SECONDS','0.01')
     proof=service.validate_type2(tmp_path,clearup_id='ClearUp_099',source='mcp_remote')
     assert proof['status']=='GREEN'
-    assert called['operation']=='type2_validation_commit'
-    assert called['proof']['schema']=='energie_clearup_type2_validation_v2'
+    assert called['operation']=='type2_validate'
+    assert called['proof'] is None
     # No direct writer path is required from the embedded PM anymore.
     assert not (tmp_path/service.VALIDATION_ROOT_REL/'ClearUp_099.json').exists()

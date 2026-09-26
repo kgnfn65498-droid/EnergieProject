@@ -242,6 +242,76 @@ def _copy_exact(source: Path, destination: Path) -> None:
         shutil.copy2(source, destination)
 
 
+def _merge_directory_exact(source: Path, destination: Path) -> list[Path]:
+    """Merge one source directory into an existing destination fail-closed.
+
+    Existing destination entries are allowed only when they are byte/type-identical
+    to the corresponding source entry. Unrelated pre-existing entries are retained.
+    The returned list contains only paths created by this call so rollback never
+    removes sibling data owned by another Type2 mapping.
+    """
+    if source.is_symlink() or not source.is_dir():
+        raise RequestRejected(f"merge source is not a safe directory: {source}")
+    if destination.is_symlink() or not destination.is_dir():
+        raise RequestRejected(f"merge destination is not a safe directory: {destination}")
+    created: list[Path] = []
+    for entry in sorted(source.rglob("*"), key=lambda q: (len(q.relative_to(source).parts), q.as_posix())):
+        if entry.is_symlink():
+            raise RequestRejected(f"TYPE2 merge source symlink refused: {entry}")
+        target = destination / entry.relative_to(source)
+        if entry.is_dir():
+            if target.exists() or target.is_symlink():
+                if target.is_symlink() or not target.is_dir():
+                    raise RequestRejected(f"TYPE2 merge path conflict: {target}")
+            else:
+                target.mkdir()
+                shutil.copystat(entry, target, follow_symlinks=False)
+                created.append(target)
+        elif entry.is_file():
+            if target.exists() or target.is_symlink():
+                if target.is_symlink() or not target.is_file():
+                    raise RequestRejected(f"TYPE2 merge path conflict: {target}")
+                if target.stat().st_size != entry.stat().st_size:
+                    raise RequestRejected(f"TYPE2 merge file differs: {target}")
+                if hashlib.sha256(target.read_bytes()).hexdigest() != hashlib.sha256(entry.read_bytes()).hexdigest():
+                    raise RequestRejected(f"TYPE2 merge file differs: {target}")
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(entry, target)
+                created.append(target)
+    return created
+
+
+def _mapped_rows_exact(root: Path, *, source_rel: str, destination_rel: str, source_rows: list[dict[str, Any]]) -> bool:
+    destination = root / destination_rel
+    for row in source_rows:
+        row_path = str(row.get("path") or "")
+        try:
+            suffix = Path(row_path).relative_to(source_rel).as_posix() if row_path != source_rel else "."
+        except ValueError:
+            return False
+        target = destination if suffix == "." else destination / suffix
+        if target.is_symlink():
+            return False
+        if row.get("type") == "directory":
+            if not target.is_dir():
+                return False
+        elif row.get("type") == "file":
+            if not target.is_file():
+                return False
+            if target.stat().st_size != int(row.get("size") if row.get("size") is not None else -1):
+                return False
+            h = hashlib.sha256()
+            with target.open("rb") as fh:
+                for block in iter(lambda: fh.read(1024 * 1024), b""):
+                    h.update(block)
+            if h.hexdigest() != str(row.get("sha256") or ""):
+                return False
+        else:
+            return False
+    return True
+
+
 def _remove_path(path: Path) -> None:
     if not os.path.lexists(path):
         return
@@ -260,7 +330,7 @@ def _type2_validate_request(root: Path, request: dict[str, Any]):
     if not REQUEST_ID_RE.fullmatch(request_id):
         raise RequestRejected("TYPE2 request_id ongeldig")
     operation = str(request.get("operation") or "")
-    if operation not in {"type2_prepare", "type2_refresh_recovery", "type2_migrate", "type2_validation_commit", "type2_external_recovery_confirm", "type2_finalize", "type2_restore"}:
+    if operation not in {"type2_prepare", "type2_refresh_recovery", "type2_migrate", "type2_validate", "type2_validation_commit", "type2_external_recovery_confirm", "type2_finalize", "type2_restore"}:
         raise RequestRejected("TYPE2 operation ongeldig")
     clearup_id = str(request.get("clearup_id") or "")
     release_version = str(request.get("release_version") or "").strip()
@@ -1035,14 +1105,16 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
                 # it can ever become active.
                 current_rows = _tree_rows(source, root)
                 cutover_rows[item["source"]] = current_rows
-                _copy_exact(source, destination)
-                created.append(destination)
-                expected_dest = []
-                for row in current_rows:
-                    suffix = Path(row["path"]).relative_to(item["source"]).as_posix() if row["path"] != item["source"] else "."
-                    dest_path = item["destination"] if suffix == "." else f"{item['destination']}/{suffix}"
-                    expected_dest.append({**row, "path": dest_path})
-                if _tree_rows(destination, root) != expected_dest:
+                if destination.exists() or destination.is_symlink():
+                    if destination.is_symlink() or not source.is_dir() or not destination.is_dir():
+                        raise RequestRejected(f"TYPE2 destination already exists/conflicts: {item['destination']}")
+                    created.extend(_merge_directory_exact(source, destination))
+                else:
+                    _copy_exact(source, destination)
+                    created.append(destination)
+                if not _mapped_rows_exact(
+                    root, source_rel=item["source"], destination_rel=item["destination"], source_rows=current_rows
+                ):
                     raise RuntimeError(f"TYPE2 destination verification failed: {item['destination']}")
 
             # Freeze the immutable cutover snapshot while every new destination
@@ -1167,6 +1239,114 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
             if temp_stage.exists() and not temp_stage.is_symlink():
                 shutil.rmtree(temp_stage, ignore_errors=True)
             temp_export.unlink(missing_ok=True)
+
+    if operation == "type2_validate":
+        current = _load_state_json(state, "TYPE2 state")
+        if current.get("phase") != "MIGRATED_PENDING_VALIDATION" or current.get("plan_sha256") != plan["plan_sha256"]:
+            raise RequestRejected("TYPE2 validate requires matching migrated state")
+        cutover = current.get("cutover_rows") or {}
+        activated_at = float(current.get("activated_at_epoch") or 0.0)
+        if not isinstance(cutover, dict) or not cutover or activated_at <= 0:
+            raise RequestRejected("TYPE2 cutover evidence missing")
+
+        checks: list[dict[str, Any]] = []
+        failures: list[str] = []
+        source_before: dict[str, list[dict[str, Any]]] = {}
+        for item in plan["items"]:
+            src = root / item["source"]
+            dst = root / item["destination"]
+            if not src.exists() or src.is_symlink():
+                failures.append(f"source_missing:{item['source']}")
+                continue
+            if not dst.exists() or dst.is_symlink():
+                failures.append(f"destination_missing:{item['destination']}")
+                continue
+            key = str(item.get("path_key") or "").strip()
+            if key:
+                marker_data = _read_json(_type2_activation_path(root, key))
+                if not (
+                    marker_data.get("active") is True
+                    and marker_data.get("plan_sha256") == plan["plan_sha256"]
+                    and marker_data.get("source") == item["source"]
+                    and marker_data.get("destination") == item["destination"]
+                ):
+                    failures.append(f"activation_missing:{key}")
+                if service.project_system_path(root, item["source"]).resolve() != dst.resolve():
+                    failures.append(f"active_path_not_destination:{key}")
+            src_rows = _tree_rows(src, root)
+            dst_rows = _tree_rows(dst, root)
+            baseline = cutover.get(item["source"])
+            if not isinstance(baseline, list) or not service._baseline_paths_present(dst_rows, baseline, item["source"], item["destination"]):
+                failures.append(f"cutover_paths_missing:{item['destination']}")
+            source_before[item["source"]] = src_rows
+            checks.append({
+                "source": item["source"], "destination": item["destination"], "path_key": key or None,
+                "source_rows_sha256": service._json_sha(src_rows), "destination_rows_sha256": service._json_sha(dst_rows),
+                "source_quiescence_authority": "privileged_watcher_double_snapshot",
+            })
+
+        quiet = max(0.05, float(os.environ.get("ENERGIE_CLEARUP_TYPE2_QUIESCENCE_SECONDS", "2.0")))
+        if not failures:
+            time.sleep(quiet)
+            for item in plan["items"]:
+                src = root / item["source"]
+                now = _tree_rows(src, root)
+                if now != source_before[item["source"]]:
+                    failures.append(f"old_source_still_mutating:{item['source']}")
+
+            timeout = max(0.1, float(os.environ.get("ENERGIE_CLEARUP_TYPE2_PROOF_TIMEOUT_SECONDS", "75")))
+            deadline = time.monotonic() + timeout
+            pending: list[str] = []
+            while True:
+                pending = []
+                for item in plan["items"]:
+                    proofs = item.get("runtime_proof_paths") or []
+                    if not proofs:
+                        continue
+                    destination = root / item["destination"]
+                    ok = False
+                    for rel in proofs:
+                        proof_path = destination / rel if destination.is_dir() else None
+                        if proof_path is not None and proof_path.is_file() and not proof_path.is_symlink() and proof_path.stat().st_mtime >= activated_at - 1.0:
+                            ok = True
+                            break
+                    if not ok:
+                        pending.append(item["source"])
+                if not pending or time.monotonic() >= deadline:
+                    break
+                time.sleep(min(0.5, max(0.05, deadline - time.monotonic())))
+            failures.extend(f"runtime_writer_proof_missing:{source_rel}" for source_rel in pending)
+
+        final_checks = []
+        for item in plan["items"]:
+            src = root / item["source"]
+            dst = root / item["destination"]
+            if src.exists() and dst.exists() and not src.is_symlink() and not dst.is_symlink():
+                src_rows = _tree_rows(src, root)
+                dst_rows = _tree_rows(dst, root)
+                final_checks.append({
+                    "source": item["source"], "destination": item["destination"], "path_key": item.get("path_key") or None,
+                    "source_rows_sha256": service._json_sha(src_rows), "destination_rows_sha256": service._json_sha(dst_rows),
+                    "source_quiescence_authority": "privileged_watcher_double_snapshot",
+                })
+        status = "GREEN" if not failures else "RED"
+        proof = {
+            "schema": "energie_clearup_type2_validation_v2", "status": status, "clearup_id": clearup_id,
+            "plan_sha256": plan["plan_sha256"], "checked_at": datetime.now(timezone.utc).isoformat(),
+            "checks": final_checks, "failures": failures,
+            "evidence": [x["destination"] for x in final_checks],
+            "old_source_quiescence_seconds": quiet,
+            "source_quiescence_authority": "privileged_watcher_double_snapshot",
+            "validation_authority": "privileged_watcher_full_validation",
+        }
+        validation = root / service.VALIDATION_ROOT_REL / f"{clearup_id}.json"
+        _atomic_write_json(validation, proof)
+        if _read_json(validation) != proof:
+            raise RuntimeError("TYPE2 privileged validation write/readback mismatch")
+        after = service._snapshot_release_dirs(root)
+        if after != request["mailbox_snapshot_before"]:
+            raise RuntimeError("TYPE2 release mailboxes changed during privileged validation")
+        return request_id, proof
 
     if operation == "type2_validation_commit":
         proof = request.get("validation_proof")

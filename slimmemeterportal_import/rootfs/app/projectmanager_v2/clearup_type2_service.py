@@ -588,105 +588,21 @@ def validate_type2(project_root: Path | str, *, clearup_id: str, source: str) ->
     plan = _load_plan(root, clearup_id)
     _verify_export(root, clearup_id, plan)
     _contract_checks(root, plan)
-    state_path = root / STATE_ROOT_REL / f'{clearup_id}.json'
-    try:
-        state = json.loads(state_path.read_text(encoding='utf-8'))
-    except Exception as exc:
-        raise RuntimeError('Type2 migrated state missing/unreadable') from exc
-    if not isinstance(state, dict) or state.get('phase') != 'MIGRATED_PENDING_VALIDATION' or state.get('plan_sha256') != plan['plan_sha256']:
-        raise RuntimeError('Type2 validate requires matching migrated state')
-    cutover = state.get('cutover_rows') or {}
-    activated_at=float(state.get('activated_at_epoch') or 0.0)
-    if not isinstance(cutover,dict) or not cutover or activated_at <= 0:
-        raise RuntimeError('Type2 cutover evidence missing')
 
-    # First prove that every mapping resolves to its destination and that the
-    # destination still contains every path present at cutover.  File contents
-    # may legitimately change after cutover; path loss may not.
-    checks=[]; failures=[]
-    source_before={}
-    for item in plan['items']:
-        src=root/item['source']; dst=root/item['destination']
-        if not src.exists() or src.is_symlink(): failures.append(f"source_missing:{item['source']}"); continue
-        if not dst.exists() or dst.is_symlink(): failures.append(f"destination_missing:{item['destination']}"); continue
-        key=str(item.get('path_key') or '').strip()
-        if key:
-            marker=root/Path('Data/03_Systeem/Projectmanager/ClearUp/PathActivation')/f'{key}.json'
-            try: m=json.loads(marker.read_text(encoding='utf-8'))
-            except Exception: m={}
-            if not isinstance(m,dict) or m.get('active') is not True or m.get('plan_sha256') != plan['plan_sha256'] or m.get('destination') != item['destination']:
-                failures.append(f'activation_missing:{key}')
-            if project_system_path(root,item['source']).resolve() != dst.resolve():
-                failures.append(f'active_path_not_destination:{key}')
-        src_rows=_tree_rows_for_validation(root,src)
-        dst_rows=_tree_rows_for_validation(root,dst)
-        baseline=cutover.get(item['source'])
-        if not isinstance(baseline,list) or not _baseline_paths_present(dst_rows,baseline,item['source'],item['destination']):
-            failures.append(f'cutover_paths_missing:{item["destination"]}')
-        source_before[item['source']]=src_rows
-        checks.append({'source':item['source'],'destination':item['destination'],'path_key':key or None,
-                       'source_rows_sha256':_json_sha(src_rows),'destination_rows_sha256':_json_sha(dst_rows)})
-
-    if failures:
-        status='RED'
-    else:
-        # Old source must be quiescent after path activation.  This detects a
-        # stale writer before destructive finalization.
-        quiet=max(0.05,float(os.environ.get('ENERGIE_CLEARUP_TYPE2_QUIESCENCE_SECONDS','2.0')))
-        time.sleep(quiet)
-        for item in plan['items']:
-            src=root/item['source']
-            now=_tree_rows_for_validation(root,src)
-            if now != source_before[item['source']]:
-                failures.append(f'old_source_still_mutating:{item["source"]}')
-
-        # For long-lived runtime producers, require a fresh write at the new
-        # destination after activation.  Static/state-only mappings omit this.
-        timeout=max(0.1,float(os.environ.get('ENERGIE_CLEARUP_TYPE2_PROOF_TIMEOUT_SECONDS','75')))
-        deadline=time.monotonic()+timeout
-        pending=[]
-        while True:
-            pending=[]
-            for item in plan['items']:
-                proofs=item.get('runtime_proof_paths') or []
-                if not proofs: continue
-                ok=False
-                for rel in proofs:
-                    p=(root/item['destination']/rel) if (root/item['destination']).is_dir() else None
-                    if p is not None and p.is_file() and not p.is_symlink() and p.stat().st_mtime >= activated_at - 1.0:
-                        ok=True; break
-                if not ok: pending.append(item['source'])
-            if not pending or time.monotonic() >= deadline: break
-            time.sleep(min(0.5,max(0.05,deadline-time.monotonic())))
-        for source_rel in pending:
-            failures.append(f'runtime_writer_proof_missing:{source_rel}')
-        status='GREEN' if not failures else 'RED'
-
-    # Refresh hashes after the observation window.  Finalize will require only
-    # the old source hash to remain stable; destination may continue changing.
-    final_checks=[]
-    for item in plan['items']:
-        src=root/item['source']; dst=root/item['destination']
-        if src.exists() and dst.exists():
-            final_checks.append({'source':item['source'],'destination':item['destination'],'path_key':item.get('path_key') or None,
-                                 'source_rows_sha256':_json_sha(_tree_rows_for_validation(root,src)),
-                                 'destination_rows_sha256':_json_sha(_tree_rows_for_validation(root,dst))})
-    proof={'schema':'energie_clearup_type2_validation_v2','status':status,'clearup_id':clearup_id,
-           'plan_sha256':plan['plan_sha256'],'checked_at':datetime.now(timezone.utc).isoformat(),
-           'checks':final_checks,'failures':failures,
-           'evidence':[x['destination'] for x in final_checks],
-           'old_source_quiescence_seconds':max(0.05,float(os.environ.get('ENERGIE_CLEARUP_TYPE2_QUIESCENCE_SECONDS','2.0')))}
-    # Commit validation evidence through the bounded privileged watcher. The
-    # embedded PM user does not own the system Validation directory on NAS.
-    committed = _watcher_call(
-        root,
-        operation='type2_validation_commit',
-        clearup_id=clearup_id,
-        plan=plan,
-        validation_proof=proof,
-    )
-    if committed.get('validation_status') != status or committed.get('clearup_id') != clearup_id:
-        raise RuntimeError('Type2 validation commit readback mismatch')
+    # 32.5.21: validation is executed entirely by the privileged watcher.
+    # Live 32.5.20 proved that the embedded PM identity cannot reliably read
+    # every migrated source (native-mcp/control-plane contain privileged paths).
+    # Keeping filesystem proof in the privileged boundary prevents permission
+    # failures while preserving the same fail-closed quiescence/path checks.
+    proof = _watcher_call(root, operation='type2_validate', clearup_id=clearup_id, plan=plan)
+    if not isinstance(proof, dict):
+        raise RuntimeError('Type2 privileged validation result missing')
+    if proof.get('schema') != 'energie_clearup_type2_validation_v2':
+        raise RuntimeError('Type2 privileged validation schema mismatch')
+    if proof.get('clearup_id') != clearup_id or proof.get('plan_sha256') != plan['plan_sha256']:
+        raise RuntimeError('Type2 privileged validation identity mismatch')
+    if str(proof.get('status') or '').upper() not in {'GREEN', 'RED'}:
+        raise RuntimeError('Type2 privileged validation status invalid')
     return proof
 
 def finalize_type2(project_root: Path | str, *, clearup_id: str, explicit_user_text: str, source: str) -> dict[str, Any]:

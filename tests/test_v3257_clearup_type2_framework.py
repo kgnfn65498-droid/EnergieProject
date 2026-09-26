@@ -54,11 +54,22 @@ def test_type2_prepare_migrate_finalize_restore(tmp_path, monkeypatch):
     assert (tmp_path/'Data/03_Systeem/Projectmanager/Runtime/runtime_new/state.json').read_text()=='{"x":1}\n'
 
     def _commit(root, *, operation, clearup_id, plan, explicit_user_text='', validation_proof=None):
-        assert operation == 'type2_validation_commit'
+        assert operation == 'type2_validate'
+        src_rows=service._tree_rows_for_validation(Path(root),Path(root)/'Inbox/runtime_old')
+        dst_rows=service._tree_rows_for_validation(Path(root),Path(root)/'Data/03_Systeem/Projectmanager/Runtime/runtime_new')
+        proof={
+            'schema':'energie_clearup_type2_validation_v2','status':'GREEN','clearup_id':clearup_id,
+            'plan_sha256':plan['plan_sha256'],'checks':[{
+                'source':'Inbox/runtime_old','destination':'Data/03_Systeem/Projectmanager/Runtime/runtime_new','path_key':None,
+                'source_rows_sha256':service._json_sha(src_rows),'destination_rows_sha256':service._json_sha(dst_rows),
+            }],
+            'failures':[],'evidence':['Data/03_Systeem/Projectmanager/Runtime/runtime_new'],
+            'old_source_quiescence_seconds':0.01,'validation_authority':'privileged_watcher_full_validation',
+        }
         path=Path(root)/service.VALIDATION_ROOT_REL/f'{clearup_id}.json'
         path.parent.mkdir(parents=True,exist_ok=True)
-        path.write_text(json.dumps(validation_proof),encoding='utf-8')
-        return {'status':'GREEN','clearup_id':clearup_id,'phase':'VALIDATION_COMMITTED','validation_status':validation_proof['status']}
+        path.write_text(json.dumps(proof),encoding='utf-8')
+        return proof
     monkeypatch.setattr(service,'_watcher_call',_commit)
 
     proof=service.validate_type2(tmp_path,clearup_id='ClearUp_002',source='mcp_remote')

@@ -1,19 +1,25 @@
-# Release Acceptance — 32.5.20
+# Release Acceptance — 32.5.21
 
-Doel: de laatste live externe Type-2 recovery-downloadblokkade verwijderen zonder de inmiddels GREEN bewezen PM↔privileged-watcher keten te wijzigen.
+Status: READY_FOR_USER_INCOMING
 
-Verplicht GREEN vóór aanbieding:
-1. Exacte buildbasis: fysieke live 32.5.19 SHA256 `7e8cb44576a3c2195164f20c5e3d8f81f990dbf0f8a2c10b1a9450b077db372b`.
-2. Alle release-identiteiten 32.5.20; PM `2.0.0-rc53`.
-3. Native-MCP Type-2 verifier behandelt `size=0` als 0 en nooit als ontbrekende waarde.
-4. De release-hotfix source-of-truth publiceert exact dezelfde gecorrigeerde `tools_clearup_export.py`.
-5. Zero-byte Type-2 recovery ZIP verifieert GREEN; size/hash mismatch blijft fail-closed.
-6. Bestaande Type-2 002–012, PM↔sideband, static, fresh-extract, compile, manifest/CRC/hash/safe-entry en directe atomic 32.5.19→32.5.20 blijven GREEN.
-7. Native-MCP fingerprint moet door de wijziging verschillen zodat releasecontroller reload/readback afdwingt.
-8. Geen Type-2 finalize/delete door deze release.
+## Scope
+1. Herstel de live ClearUp_005 vervolgroute wanneer `Data/03_Systeem/Projectmanager/ReleaseController` al bestaat doordat andere Type-2 mappings daar sibling `State/`/`Publication/` data hebben geplaatst.
+2. Directory-migratie mag alleen veilig mergen: bestaande corresponderende paden moeten exact type/byte-identiek zijn; niet-gerelateerde sibling data blijft onaangeraakt; rollback verwijdert uitsluitend door deze migratie nieuw aangemaakte paden.
+3. Verplaats Type-2 filesystemvalidatie volledig naar de privileged watcher. De embedded PM hoeft privileged `native_mcp_runtime`/`control_plane` inhoud niet meer direct te lezen.
+4. Behoud alle bestaande fail-closed gates: release idle, plan-hash, recovery ZIP, path activation, cutover paths, old-source quiescence, runtime writer proof en externe recoverybevestiging.
+5. Geen Type-2 finalize/delete tijdens build/acceptance.
 
-Live eindacceptatie na installatie:
-- release COMPLETE 9/9; PM rc53; HA/NAS 32.5.20 aligned; Native MCP runtime fingerprint exact current;
-- `projectmanager_status.type2_external_recovery` = `READY_FOR_EXTERNAL_DOWNLOAD`, `verified_count=11`, `failures=[]`;
-- download alle 002–012 recovery-ZIPs, controleer lokale size + SHA256 en lever ze aan Peter;
-- pas na Peters expliciete ontvangstbevestiging destructive finalize/delete hervatten.
+## Live bewijs dat 32.5.21 noodzakelijk maakt
+- 32.5.20: ClearUp_003 migreerde; eerste validatie detecteerde terecht een nog lopende publisher-writer en faalde fail-closed; revalidatie werd GREEN.
+- ClearUp_004, 008, 009, 010, 011 en 012 migreerden en valideerden GREEN.
+- ClearUp_005 bleef PREPARED: `destination already exists: .../ReleaseController` nadat ClearUp_011 sibling subtrees had aangemaakt.
+- ClearUp_006 validatie faalde onder embedded PM identiteit met `PermissionError ... Inbox/native_mcp_runtime/reload_result.json`.
+- ClearUp_007 validatie faalde onder embedded PM identiteit met `PermissionError ... Inbox/control_plane/requests`.
+- Geen finalize/delete uitgevoerd; bronnen zijn behouden.
+
+## Tests
+- Type-2/v32.5 suite: 131/131 GREEN (95 niet-v3259 + 36 v3259), 1 bekende duplicate-name warning.
+- Static: 600/600 GREEN, 2 skipped.
+- Nieuwe 32.5.21 regressies: shared-destination continuation + privileged full validation GREEN.
+- Compileall source: GREEN.
+- Fresh-extract suites, manifest/CRC/hash/safe-entry en exact atomic 32.5.20→32.5.21 moeten bij finale artifactbouw GREEN zijn.
