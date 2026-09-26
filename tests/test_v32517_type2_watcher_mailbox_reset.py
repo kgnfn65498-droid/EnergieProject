@@ -69,8 +69,8 @@ def test_watcher_call_ignores_stale_canonical_result_via_request_scoped_mailbox(
     assert observed['result_path'].startswith(service.WATCHER_RESULT_ROOT_REL.as_posix() + '/')
     assert not (root / observed['result_path']).exists()
     canonical_payload = json.loads(canonical.read_text(encoding='utf-8'))
-    assert canonical_payload['request_id'] != 'old-request'
-    assert canonical_payload['result']['clearup_id'] == 'ClearUp_099'
+    # PM ignores and does not mutate the privileged canonical audit; sideband owns it.
+    assert canonical_payload['request_id'] == 'old-request'
     assert not (root / service.WATCHER_REQUEST_REL).exists()
 
 def test_watcher_call_refuses_symlink_result_mailbox(tmp_path):

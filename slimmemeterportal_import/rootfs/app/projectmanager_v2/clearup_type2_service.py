@@ -223,7 +223,10 @@ def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str
     if request_path.exists():
         raise RuntimeError('ClearUp watcher request already active')
 
-    # 32.5.18: use a request-scoped result mailbox.  The live 32.5.16 proof
+    # 32.5.19: use a request-scoped result mailbox without requiring the PM
+    # identity to create or mutate the privileged ClearUp Runtime result area.
+    # The privileged sideband bridge owns directory creation and durable audit.
+    # The live 32.5.16 proof
     # showed that a single fixed result inode can remain stale across the
     # PM/add-on and privileged-watcher mount boundary even after the watcher
     # has completed successfully.  A unique result pathname per request removes
@@ -232,7 +235,6 @@ def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str
     result_rel = WATCHER_RESULT_ROOT_REL / f'{request_id}.json'
     result_path = project_system_path(root, str(result_rel))
     canonical_result = project_system_path(root, str(WATCHER_RESULT_REL))
-    result_path.parent.mkdir(parents=True, exist_ok=True)
     for label, path in (('request-scoped', result_path), ('canonical', canonical_result)):
         if path.is_symlink():
             raise RuntimeError(f'Type2 watcher {label} result path symlink refused')
@@ -286,7 +288,6 @@ def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str
             if result is not None:
                 if matched_envelope is None:
                     raise RuntimeError('Type2 watcher matched envelope missing')
-                _atomic_json(canonical_result, matched_envelope)
                 success = True
                 return result
             time.sleep(0.25)
@@ -297,7 +298,6 @@ def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str
             if result is not None:
                 if matched_envelope is None:
                     raise RuntimeError('Type2 watcher matched envelope missing')
-                _atomic_json(canonical_result, matched_envelope)
                 success = True
                 return result
             time.sleep(0.25)

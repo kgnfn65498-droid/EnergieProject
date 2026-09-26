@@ -24,7 +24,7 @@ def _write(path: Path, text: str) -> None:
 
 
 def _base(root: Path) -> None:
-    _write(root / 'App/VERSIE.txt', '32.5.18\n')
+    _write(root / 'App/VERSIE.txt', '32.5.19\n')
     for rel in ('Inbox/incoming', 'Inbox/processing', 'Inbox/processed', 'Inbox/failed'):
         (root / rel).mkdir(parents=True, exist_ok=True)
     (root / service.WATCHER_RESULT_REL).parent.mkdir(parents=True, exist_ok=True)
@@ -73,9 +73,9 @@ def test_request_scoped_mailbox_ignores_stale_canonical_result(tmp_path, monkeyp
     assert observed['result_rel'].startswith(service.WATCHER_RESULT_ROOT_REL.as_posix() + '/')
     assert not (root / observed['result_rel']).exists(), 'successful scoped result must be cleaned after canonical audit copy'
     canonical_payload = json.loads(canonical.read_text(encoding='utf-8'))
-    assert canonical_payload['request_id'] != 'stale-request'
-    assert canonical_payload['result']['clearup_id'] == 'ClearUp_099'
-    assert canonical.stat().st_ino != stale_inode or canonical_payload['request_id'] != 'stale-request'
+    # PM completion is request-scoped and must not mutate the privileged canonical audit.
+    assert canonical_payload['request_id'] == 'stale-request'
+    assert canonical.stat().st_ino == stale_inode
     assert not (root / service.WATCHER_REQUEST_REL).exists()
 
 

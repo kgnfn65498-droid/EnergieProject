@@ -40,6 +40,8 @@ def test_watcher_call_accepts_exact_result_in_deadline_grace(tmp_path, monkeypat
         # Deliberately after the main timeout, inside the new grace window.
         time.sleep(0.07)
         result=tmp_path/raw['result_path']
+        # Current protocol: privileged sideband owns creation of the shared result root.
+        result.parent.mkdir(parents=True, exist_ok=True)
         result.write_text(json.dumps({
             'schema':'energie_clearup_type2_result_v1',
             'request_id':raw['request_id'],

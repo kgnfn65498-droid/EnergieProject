@@ -1,3 +1,12 @@
+## 32.5.19 — Type-2 cross-identity IPC ownership fix
+
+- Bouwt uitsluitend voort op de exact live geïnstalleerde 32.5.18 ZIP (`e184f9843bb1a4ce679d5bf8efbdfd5a440ba44ccd48fd1d33c9de931094f58a`).
+- Repareert de live 32.5.18-fout `PermissionError ... ClearUp/Runtime/results`: de embedded PM maakt of muteert de privileged Type-2 result-root niet meer.
+- De privileged sideband bridge is nu de enige owner die `.../ClearUp/Runtime/results` aanmaakt en expliciet als cross-identity IPC (`0777`) publiceert; resultaatbestanden zijn leesbaar (`0666` best-effort).
+- De privileged bridge schrijft ook de vaste canonical auditkopie; de PM gebruikt uitsluitend het unieke request-scoped resultaat als completionbewijs en hoeft niet in de privileged runtime-directory te schrijven.
+- Request-id binding, path-escape/symlink/collision checks, recovery/cutover/path-rebinding/externe recovery-gates en finalize/delete fail-closed regels blijven intact.
+- Geen Type-2 finalize/delete wordt door deze release uitgevoerd.
+
 ## 32.5.18 — Type-2 request-scoped watcher result protocol
 
 - Bouwt uitsluitend voort op de exacte 32.5.17 ZIP (`d86071a825f43d6c1c65368cf5d61782ed7df9c6dd26045c607adeed9af6670d`).

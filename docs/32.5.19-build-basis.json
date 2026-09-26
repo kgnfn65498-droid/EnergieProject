@@ -1,0 +1,13 @@
+{
+  "destructive_clearup_action": false,
+  "release": "32.5.19",
+  "schema": "energie_release_build_basis_v1",
+  "scope": [
+    "type2_cross_identity_ipc_owner_fix",
+    "privileged_result_root_creation",
+    "privileged_canonical_audit_write",
+    "preserve_32518_request_scoped_protocol"
+  ],
+  "source_release": "32.5.18",
+  "source_sha256": "e184f9843bb1a4ce679d5bf8efbdfd5a440ba44ccd48fd1d33c9de931094f58a"
+}

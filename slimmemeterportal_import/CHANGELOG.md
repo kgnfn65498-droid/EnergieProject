@@ -1,3 +1,6 @@
+## 32.5.19
+- Type-2 cross-identity IPC ownership: privileged sideband maakt request-scoped result-root aan en publiceert canonical audit; embedded PM schrijft daar niet meer.
+
 # Changelog
 
 ## 32.5.18 — Type-2 request-scoped watcher result protocol
