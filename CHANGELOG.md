@@ -1,3 +1,12 @@
+## 32.5.20 — Type-2 zero-byte recovery export verifier fix
+
+- Bouwt uitsluitend voort op de exact live geïnstalleerde 32.5.19 ZIP (`7e8cb44576a3c2195164f20c5e3d8f81f990dbf0f8a2c10b1a9450b077db372b`).
+- Live 32.5.19 bewijst de echte Type-2 route GREEN voor ClearUp_002 recovery-refresh, ClearUp_002 validatie en ClearUp_012 recovery-refresh.
+- Repareert de laatste externe-deliveryblokkade in Native MCP: een legitiem leeg Type-2 payloadbestand (`size=0`) werd foutief als `-1` geïnterpreteerd en daardoor als size mismatch afgekeurd.
+- De fix staat in de release-hotfix source-of-truth die de canonieke Native-MCP `tools_clearup_export.py` exact publiceert.
+- Native-MCP fingerprint verandert bewust; de bestaande releasecontroller moet daardoor de releasegebonden reload/readback uitvoeren en exact bewijzen.
+- Geen Type-2 migrate/finalize/delete wordt door deze release uitgevoerd.
+
 ## 32.5.19 — Type-2 cross-identity IPC ownership fix
 
 - Bouwt uitsluitend voort op de exact live geïnstalleerde 32.5.18 ZIP (`e184f9843bb1a4ce679d5bf8efbdfd5a440ba44ccd48fd1d33c9de931094f58a`).

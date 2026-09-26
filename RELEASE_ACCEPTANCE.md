@@ -1,20 +1,19 @@
-# Release Acceptance — 32.5.19
+# Release Acceptance — 32.5.20
 
-Doel: de live 32.5.18 cross-identity permissionfout in de request-scoped Type-2 IPC structureel verwijderen.
+Doel: de laatste live externe Type-2 recovery-downloadblokkade verwijderen zonder de inmiddels GREEN bewezen PM↔privileged-watcher keten te wijzigen.
 
 Verplicht GREEN vóór aanbieding:
-1. Exacte buildbasis: fysieke live 32.5.18 SHA256 `e184f9843bb1a4ce679d5bf8efbdfd5a440ba44ccd48fd1d33c9de931094f58a`.
-2. Alle release-identiteiten 32.5.19; PM `2.0.0-rc52`.
-3. Embedded PM voert geen mkdir/write uit onder `Data/03_Systeem/Projectmanager/ClearUp/Runtime/results` of naar de canonical Type-2 auditkopie.
-4. Privileged sideband bridge maakt de vaste request-scoped result-root veilig aan, controleert symlink/path/request-id en zet cross-identity IPC-permissies expliciet.
-5. Privileged bridge publiceert de canonical auditkopie pas na executor-resultaat; PM completion blijft uitsluitend request-scoped.
-6. Live 32.5.18 PermissionError is als regressietest gereproduceerd en GREEN na fix.
-7. Volledige Type-2 002–012 sequence-E2E blijft GREEN.
-8. 32.5-suite, static regressies, fresh-extract, compile, manifest/CRC/hash/safe-entry en directe atomic 32.5.18→32.5.19 moeten GREEN zijn.
-9. Geen Type-2 finalize/delete door deze release.
+1. Exacte buildbasis: fysieke live 32.5.19 SHA256 `7e8cb44576a3c2195164f20c5e3d8f81f990dbf0f8a2c10b1a9450b077db372b`.
+2. Alle release-identiteiten 32.5.20; PM `2.0.0-rc53`.
+3. Native-MCP Type-2 verifier behandelt `size=0` als 0 en nooit als ontbrekende waarde.
+4. De release-hotfix source-of-truth publiceert exact dezelfde gecorrigeerde `tools_clearup_export.py`.
+5. Zero-byte Type-2 recovery ZIP verifieert GREEN; size/hash mismatch blijft fail-closed.
+6. Bestaande Type-2 002–012, PM↔sideband, static, fresh-extract, compile, manifest/CRC/hash/safe-entry en directe atomic 32.5.19→32.5.20 blijven GREEN.
+7. Native-MCP fingerprint moet door de wijziging verschillen zodat releasecontroller reload/readback afdwingt.
+8. Geen Type-2 finalize/delete door deze release.
 
 Live eindacceptatie na installatie:
-- echte ClearUp_002 refresh ingress→PM→privileged sideband geeft GREEN zonder permissionfout/timeout;
-- ClearUp_002 validate GREEN; ClearUp_012 refresh GREEN;
-- 002–012 exports deep-verify GREEN en werkelijk extern gedownload/gehasht;
-- pas daarna Type-2 100% klaar.
+- release COMPLETE 9/9; PM rc53; HA/NAS 32.5.20 aligned; Native MCP runtime fingerprint exact current;
+- `projectmanager_status.type2_external_recovery` = `READY_FOR_EXTERNAL_DOWNLOAD`, `verified_count=11`, `failures=[]`;
+- download alle 002–012 recovery-ZIPs, controleer lokale size + SHA256 en lever ze aan Peter;
+- pas na Peters expliciete ontvangstbevestiging destructive finalize/delete hervatten.

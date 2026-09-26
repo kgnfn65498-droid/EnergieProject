@@ -38,7 +38,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "sha256": "1d124e1daeeb2427b411a44a9a27555eee11ddcc0f834d26d9eb97a155b82eda"
+      "sha256": "380e232cad71f343ead479acf9d2c232bafa64cd2a534b564b2c3dd5d56ef1a1"
     },
     {
       "path": "CLEARUP_32.5.1.md",
@@ -46,7 +46,7 @@
     },
     {
       "path": "CURRENT_HANDOVER.md",
-      "sha256": "65e9cf190e9f985def1ae4e8d80fce28f297bba1da912f5ce07e47de3c88291d"
+      "sha256": "58c75b1671ab88c0cd0edbb97f02761fd16c05482c322662f07e29da2df3bc25"
     },
     {
       "path": "DANGEROUS_LEGACY_CODE.md",
@@ -78,7 +78,7 @@
     },
     {
       "path": "RELEASE_ACCEPTANCE.md",
-      "sha256": "6e7bf3124bcc9478a8200534fef2d4dc75ff2426f6b8916225d1b4f5b7ae8936"
+      "sha256": "b9da0e35ea1b22886c75d292d16975b2e468c9eacfd46a1ca7111cc3ad8e60da"
     },
     {
       "path": "ROADMAP_V10.md",
@@ -90,7 +90,7 @@
     },
     {
       "path": "VERSIE.txt",
-      "sha256": "899b6562a6ff12e1a72acb5969968851763beae6784d945b4f7bd81fba1ff22e"
+      "sha256": "36ae25394fb23962b42134e0defe2ae7d64e0fc22d95d7efe94cd20950777112"
     },
     {
       "path": "WORK_KNOWLEDGE_BOOTSTRAP.md",
@@ -151,6 +151,10 @@
     {
       "path": "docs/32.5.19-build-basis.json",
       "sha256": "ec552bf630c6da4444df13ca7305ec57b5f891809e9f7be11444e96891bc4352"
+    },
+    {
+      "path": "docs/32.5.20-build-basis.json",
+      "sha256": "86043a0a51eabb55b440751150cf986a646cb4fec0fdab8e08e9e4a3701b4a3e"
     },
     {
       "path": "docs/CLEARUP_TYPE2.md",
@@ -306,7 +310,7 @@
     },
     {
       "path": "release_test_contract.py",
-      "sha256": "60fe20bafb688bbee0be532aa44116fbb2daae3ed9068cca15c5647ffe0e3dd9"
+      "sha256": "d89f9e58a4cbfba10ce656497f2d7b0febeab7b2972ab0ed40a3d2c4235e3db4"
     },
     {
       "path": "repository.yaml",
@@ -318,7 +322,7 @@
     },
     {
       "path": "slimmemeterportal_import/CHANGELOG.md",
-      "sha256": "b32d4a97180846b452db804a3940244fdb11d63e7c1fa1af56d21855efa23813"
+      "sha256": "be33f0b65c995899ee64354a21168ba5fb87da2c9fba6d9f713433f1d0e628cd"
     },
     {
       "path": "slimmemeterportal_import/DOCS.md",
@@ -334,7 +338,7 @@
     },
     {
       "path": "slimmemeterportal_import/config.yaml",
-      "sha256": "d355e0c8c0ca86f929ec56f5cdb0a7bd977faa27643eda2d216357fcf56bfe1e"
+      "sha256": "3eb18e8bb89a184c1937fc819cdba69f000cd7e787c1ce77a846c60d9fd57d92"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/assistant_analysis_cache.py",
@@ -386,11 +390,11 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": "75c242caa81cb343f36c76c5a278130fe0d883acb352d685150b0816ad3a8d46"
+      "sha256": "5324e5248e92ee96e09dcc0bea7a40ba4babe448c08b202d5a4b5de2c6850ec5"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
-      "sha256": "b02fb0d0088d69de4e0526803c89428380b6ed9955e1432618d312d369dbe01d"
+      "sha256": "bc2572f4b8d6e9c8af5ca3791364a98e735cf41b8960c3d15f88159b03fa3f2d"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/month_closure_truth.py",
@@ -450,7 +454,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/VERSION.txt",
-      "sha256": "b3b0101b4d82b3584724b5eeec638e5c16b31509fc386c7af1fea21ce45e9981"
+      "sha256": "0569a9cd5f6fefdac49d55de6d5f6fcba1fee7a5ba4ae5e4ec1eb96f728037e6"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/projectmanager_v2/acceptance.py",
@@ -2194,7 +2198,11 @@
     },
     {
       "path": "tests/test_v32519_type2_cross_identity_ipc.py",
-      "sha256": "cbe1e9ce50f9a8abc395dc6409730172b0da14ea2597c5b14bb140321735c0ef"
+      "sha256": "22017e6ac65a501bbfda71a7567fb5199c74faab3e46209422fc7dcc0196ebdf"
+    },
+    {
+      "path": "tests/test_v32520_type2_zero_byte_export.py",
+      "sha256": "0f0d07db7e38143c13607e2cc14fc676c68414b646d271a250d0575e8c0b1977"
     },
     {
       "path": "tests/test_v3253_clearup_chat_export.py",
@@ -2418,7 +2426,7 @@
     },
     {
       "path": "tools/native_mcp_runtime_contract_hotfix.py",
-      "sha256": "d165ee5b33bf03002f1cd549039fad196f6f09567e82fe72a9637d4afc20412e"
+      "sha256": "70f98c2df0e09fe56322c93f5d8b7f627ec14b667802c8c3f437882504d46568"
     },
     {
       "path": "tools/native_mcp_runtime_guard.py",

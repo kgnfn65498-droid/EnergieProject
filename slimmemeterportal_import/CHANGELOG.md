@@ -1,13 +1,7 @@
-## 32.5.19
-- Type-2 cross-identity IPC ownership: privileged sideband maakt request-scoped result-root aan en publiceert canonical audit; embedded PM schrijft daar niet meer.
-
 # Changelog
 
-## 32.5.18 — Type-2 request-scoped watcher result protocol
+## 32.5.20
 
-- Bouwt uitsluitend voort op de exacte 32.5.17 ZIP (`d86071a825f43d6c1c65368cf5d61782ed7df9c6dd26045c607adeed9af6670d`).
-- Verwijdert de single-slot Type-2 result-mailbox uit het synchronisatieprotocol. Iedere PM-call krijgt een unieke result-path op basis van zijn 32-hex request-id.
-- De privileged sideband bridge mag alleen naar `Data/03_Systeem/Projectmanager/ClearUp/Runtime/results/<zelfde-request-id>.json` schrijven; mismatches en onveilige paden worden fail-closed geweigerd.
-- Het vaste canonical result-bestand is alleen nog auditkopie na succesvolle exacte readback en kan de volgende operatie niet meer blokkeren door stale inode/cachegedrag.
-- Succesvolle request-scoped resultaten worden na canonical auditkopie opgeruimd; fout/timed-out evidence blijft voor forensische analyse staan.
-- Bestaande recovery-, cutover-, path-rebinding-, externe-recovery- en finalize/delete-gates blijven intact. Geen destructive Type-2 actie wordt automatisch uitgevoerd.
+- Native MCP Type-2 recovery export accepteert cryptografisch geverifieerde zero-byte payloads correct als `size=0` in plaats van ze foutief als `-1` af te keuren.
+- De release-hotfix source-of-truth publiceert dezelfde gecorrigeerde verifier naar de canonieke Native-MCP runtimebron.
+- Geen Type-2 migrate, finalize of delete wordt door deze release uitgevoerd.

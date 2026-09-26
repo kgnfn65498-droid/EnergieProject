@@ -1,0 +1,9 @@
+{
+  "schema": "energie_release_build_basis_v1",
+  "from_version": "32.5.19",
+  "to_version": "32.5.20",
+  "source_artifact": "EnergieProject_v32.5.19.zip",
+  "source_sha256": "7e8cb44576a3c2195164f20c5e3d8f81f990dbf0f8a2c10b1a9450b077db372b",
+  "source_size": 6804994,
+  "reason": "live Type2 external verifier zero-byte payload bug repair"
+}

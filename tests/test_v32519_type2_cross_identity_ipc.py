@@ -126,5 +126,5 @@ def test_sideband_rejects_symlinked_dynamic_result_root(tmp_path):
 
 
 def test_current_release_and_pm_identity():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.5.19'
-    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc52'
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.5.20'
+    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc53'
