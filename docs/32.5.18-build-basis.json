@@ -1,0 +1,12 @@
+{
+  "destructive_clearup_action": false,
+  "release": "32.5.18",
+  "schema": "energie_release_build_basis_v1",
+  "scope": [
+    "type2_request_scoped_result_mailbox",
+    "eliminate_single_slot_result_inode_protocol",
+    "preserve_32516_32517_type2_hardening"
+  ],
+  "source_release": "32.5.17",
+  "source_sha256": "d86071a825f43d6c1c65368cf5d61782ed7df9c6dd26045c607adeed9af6670d"
+}

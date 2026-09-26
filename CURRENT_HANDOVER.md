@@ -1,22 +1,21 @@
-# CURRENT HANDOVER — EnergieProject 32.5.16
+# CURRENT HANDOVER — EnergieProject 32.5.18
 
 ## Actuele ontwikkelpositie
-- Runtime-statusautoriteit: canonieke `Data/03_Systeem/Projectmanager/RuntimeV2`; retired Inbox-routes zijn na hun Type-2 activatie geen actieve waarheid.
-- Live predecessor bij build: 32.5.15, exacte SHA256 `d95be5bb054c0e4b2fdd2d666a85f464fb934e2b4d20e29b3b365c03665810f3`.
-- Deze 32.5.16 vervangt alle eerdere 32.5.16-kandidaten en hashes. Alleen de fysieke ZIP die bij deze acceptance hoort mag worden gebruikt.
-- Hoofddoel: ClearUp Type-2 002–012 betrouwbaar afmaken zonder dat Peter technische tussenstappen hoeft te managen.
-- ClearUp_002 is live al gemigreerd en blijft MIGRATED_PENDING_VALIDATION; 32.5.15 recovery-refresh faalde fail-closed door post-cutover RuntimeV2-drift.
-- 32.5.16 herstelt die recovery, sluit de vluchtige PREPARED-recovery foutklasse (o.a. 012) en borgt path-rebinding van actieve readers/writers.
+- Exacte buildbasis: fysiek geaccepteerde 32.5.17 ZIP SHA256 `d86071a825f43d6c1c65368cf5d61782ed7df9c6dd26045c607adeed9af6670d`.
+- 32.5.16 is live COMPLETE; 32.5.17 is bewust niet geïnstalleerd nadat de harde eis werd aangescherpt naar structurele eliminatie van de PM↔watcher single-slot result-mailbox.
+- 32.5.18 vervangt die single-slot result-mailbox door een unieke, request-scoped result-path `Data/03_Systeem/Projectmanager/ClearUp/Runtime/results/<request_id>.json`.
+- De privileged watcher accepteert alleen exact die request-id-gebonden result-path; mismatches, escapes en symlinks fail-closed.
+- De vaste canonical result blijft alleen duurzame auditkopie nadat het request-scoped resultaat exact is gelezen. Hij is niet langer onderdeel van de synchronisatie/wachtlogica.
+- Daardoor kan een stale inode/resultaat van een vorige Type-2 operatie de volgende PM-call niet meer blokkeren of vals laten time-outen.
 - Geen destructive Type-2 finalize/delete vóór externe recoveryontvangst.
 
 ## Autonome vervolgroute na installatie
-1. Controleer 32.5.16 COMPLETE, PM/runtime readback en Native-MCP.
-2. Refresh ClearUp_002 non-destructief en deep-verify de nieuwe recovery-ZIP.
-3. Refresh/deep-verify zo nodig 003–012; alle elf exports moeten individueel GREEN zijn.
-4. Download de echte 002–012 ZIP's naar de ChatGPT-workspace en verifieer lokaal size + SHA256.
-5. Lever de ZIP's aan Peter. Stop destructive acties totdat Peter expliciet ontvangst bevestigt.
-6. Daarna validate/finalize ieder Type-2 onderdeel gecontroleerd; controleer na ieder onderdeel dat de oude route niet terugkomt.
-7. Werk autonoom door zonder normale tussencommentaren; stop alleen bij een echte harde gate.
+1. Controleer 32.5.18 COMPLETE 9/9, PM `2.0.0-rc51` en runtime readback.
+2. Voer ClearUp_002 recovery refresh via echte ingress/consumer/privileged watcher uit en eis PM-resultaat GREEN zonder timeout.
+3. Valideer ClearUp_002 live.
+4. Refresh/deep-verify ClearUp_012; daarna 002–012 individueel deep-verify.
+5. Download de echte 002–012 recovery-ZIPs naar de ChatGPT-workspace en verifieer lokaal size + SHA256.
+6. Lever recovery-ZIPs aan Peter; destructive finalize/delete blijft geblokkeerd tot expliciete ontvangstbevestiging.
 
-## Handoverregel
-Een chatwissel is pas volledig wanneer de actuele taak/PM-KB-state én de laatste exact geaccepteerde fysieke release-ZIP met bestandsnaam, grootte en SHA256 beschikbaar zijn. Een hash/checkpoint zonder fysiek artifact is geen GREEN overdracht.
+## Harde acceptatieregel
+Type-2 is pas werkelijk 100% klaar na de live 32.5.18 PM↔watcher E2E en externe recovery-download. Offline test-GREEN alleen is geen eindclaim.

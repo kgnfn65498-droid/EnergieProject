@@ -1,0 +1,11 @@
+{
+  "destructive_clearup_action": false,
+  "release": "32.5.17",
+  "schema": "energie_release_build_basis_v1",
+  "scope": [
+    "type2_watcher_result_mailbox_freshness",
+    "preserve_32516_type2_hardening"
+  ],
+  "source_release": "32.5.16",
+  "source_sha256": "a8532070eff857ff8a8367d064dc26b30d1819b0a0c608eb62875fd944c95211"
+}

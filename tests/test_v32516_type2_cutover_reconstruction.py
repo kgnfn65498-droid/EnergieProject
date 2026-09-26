@@ -215,7 +215,6 @@ def test_service_to_watcher_to_executor_refresh_path_is_green(tmp_path, monkeypa
     (dest / probe_rel).write_bytes(b'DEST-PROBE-DRIFT')
 
     request_path = root / service.WATCHER_REQUEST_REL
-    result_path = root / service.WATCHER_RESULT_REL
 
     def watcher():
         deadline = time.monotonic() + 4.0
@@ -223,6 +222,7 @@ def test_service_to_watcher_to_executor_refresh_path_is_green(tmp_path, monkeypa
             time.sleep(0.01)
         assert request_path.is_file(), 'service never emitted watcher request'
         request = json.loads(request_path.read_text(encoding='utf-8'))
+        result_path = root / request['result_path']
         try:
             request_id, result = executor.execute_type2(root, request)
             payload = {

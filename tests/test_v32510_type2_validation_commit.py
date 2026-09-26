@@ -39,7 +39,7 @@ def test_watcher_call_accepts_exact_result_in_deadline_grace(tmp_path, monkeypat
         raw=json.loads(req.read_text(encoding='utf-8'))
         # Deliberately after the main timeout, inside the new grace window.
         time.sleep(0.07)
-        result=tmp_path/'Data/03_Systeem/Projectmanager/ClearUp/Runtime/project_clearup_move_result.json'
+        result=tmp_path/raw['result_path']
         result.write_text(json.dumps({
             'schema':'energie_clearup_type2_result_v1',
             'request_id':raw['request_id'],

@@ -1,3 +1,21 @@
+## 32.5.18 — Type-2 request-scoped watcher result protocol
+
+- Bouwt uitsluitend voort op de exacte 32.5.17 ZIP (`d86071a825f43d6c1c65368cf5d61782ed7df9c6dd26045c607adeed9af6670d`).
+- Verwijdert de single-slot Type-2 result-mailbox uit het synchronisatieprotocol. Iedere PM-call krijgt een unieke result-path op basis van zijn 32-hex request-id.
+- De privileged sideband bridge mag alleen naar `Data/03_Systeem/Projectmanager/ClearUp/Runtime/results/<zelfde-request-id>.json` schrijven; mismatches en onveilige paden worden fail-closed geweigerd.
+- Het vaste canonical result-bestand is alleen nog auditkopie na succesvolle exacte readback en kan de volgende operatie niet meer blokkeren door stale inode/cachegedrag.
+- Succesvolle request-scoped resultaten worden na canonical auditkopie opgeruimd; fout/timed-out evidence blijft voor forensische analyse staan.
+- Bestaande recovery-, cutover-, path-rebinding-, externe-recovery- en finalize/delete-gates blijven intact. Geen destructive Type-2 actie wordt automatisch uitgevoerd.
+
+## 32.5.17 — Type-2 watcher result-mailbox freshness fix
+
+- Bouwt uitsluitend voort op de exact geaccepteerde 32.5.16 ZIP (`a8532070eff857ff8a8367d064dc26b30d1819b0a0c608eb62875fd944c95211`).
+- Repareert de live 32.5.16-fout waarbij de privileged watcher ClearUp_002 recovery wel GREEN afrondde, maar de embedded PM dezelfde nieuwe result niet tijdig waarnam en na ~100 s `Type2 watcher operation timeout` registreerde.
+- De Type-2 bridge verwijdert nu het vorige reguliere result-bestand vóór het publiceren van een nieuwe request, zodat watcher en PM niet dezelfde stale result-inode hergebruiken over de gedeelde NAS/containergrens.
+- Symlink/non-regular result-mailboxes worden fail-closed geweigerd; exacte request-id/schema/status-verificatie blijft verplicht.
+- Alle 32.5.16 Type-2 recovery-, cutover-, path-rebinding- en externe-recovery-gates blijven intact.
+- Geen Type-2 finalize/delete wordt automatisch uitgevoerd.
+
 ## 32.5.16 — Type-2 volledige herstel- en migratiehardening
 
 - Bouwt uitsluitend voort op de exact geverifieerde 32.5.15 releasebasis (`d95be5bb054c0e4b2fdd2d666a85f464fb934e2b4d20e29b3b365c03665810f3`).

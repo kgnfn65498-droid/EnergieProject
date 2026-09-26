@@ -82,7 +82,6 @@ def _start_watcher(root: Path, monkeypatch):
     monkeypatch.setattr(executor, '_load_clearup_type2_service', lambda _root: service)
     monkeypatch.setattr(service, 'WATCHER_TIMEOUT_SECONDS', 5.0)
     request_path = root / service.WATCHER_REQUEST_REL
-    result_path = root / service.WATCHER_RESULT_REL
 
     def watcher():
         deadline = time.monotonic() + 4.0
@@ -90,6 +89,7 @@ def _start_watcher(root: Path, monkeypatch):
             time.sleep(0.01)
         assert request_path.is_file(), 'service never emitted watcher request'
         request = json.loads(request_path.read_text(encoding='utf-8'))
+        result_path = root / request['result_path']
         try:
             request_id, result = executor.execute_type2(root, request)
             payload = {

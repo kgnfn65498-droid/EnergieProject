@@ -27,6 +27,7 @@ EXTERNAL_GATE_REL = STATE_ROOT_REL / 'TYPE2_EXTERNAL_RECOVERY_GATE.json'
 TYPE2_REQUIRED_IDS = tuple(f'ClearUp_{i:03d}' for i in range(2, 13))
 WATCHER_REQUEST_REL = Path('Inbox/project_clearup_move_request.json')
 WATCHER_RESULT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Runtime/project_clearup_move_result.json')
+WATCHER_RESULT_ROOT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Runtime/results')
 WATCHER_TIMEOUT_SECONDS = 90.0
 MAX_EXPORT_CHUNK = 32768
 PROTECTED_SOURCE_PREFIXES = (
@@ -218,10 +219,26 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str, Any], explicit_user_text: str = '', validation_proof: dict[str, Any] | None = None) -> dict[str, Any]:
-    request_path = root / WATCHER_REQUEST_REL; result_path = project_system_path(root, str(WATCHER_RESULT_REL))
+    request_path = root / WATCHER_REQUEST_REL
     if request_path.exists():
         raise RuntimeError('ClearUp watcher request already active')
+
+    # 32.5.18: use a request-scoped result mailbox.  The live 32.5.16 proof
+    # showed that a single fixed result inode can remain stale across the
+    # PM/add-on and privileged-watcher mount boundary even after the watcher
+    # has completed successfully.  A unique result pathname per request removes
+    # both stale-result reuse and same-inode replacement from the protocol.
     request_id = secrets.token_hex(16)
+    result_rel = WATCHER_RESULT_ROOT_REL / f'{request_id}.json'
+    result_path = project_system_path(root, str(result_rel))
+    canonical_result = project_system_path(root, str(WATCHER_RESULT_REL))
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    for label, path in (('request-scoped', result_path), ('canonical', canonical_result)):
+        if path.is_symlink():
+            raise RuntimeError(f'Type2 watcher {label} result path symlink refused')
+    if result_path.exists():
+        raise RuntimeError('Type2 watcher request-scoped result collision')
+
     payload = {
         'schema': TYPE2_REQUEST_SCHEMA,
         'request_id': request_id,
@@ -233,12 +250,16 @@ def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str
         'plan_sha256': plan['plan_sha256'],
         'explicit_user_approval': _token(explicit_user_text) in AFFIRMATIVE,
         'mailbox_snapshot_before': _snapshot_release_dirs(root),
-        'result_path': result_path.relative_to(root).as_posix(),
+        'result_path': result_rel.as_posix(),
     }
     if validation_proof is not None:
         payload['validation_proof'] = validation_proof
     _atomic_json(request_path, payload)
+
+    matched_envelope: dict[str, Any] | None = None
+
     def _matching_result() -> dict[str, Any] | None:
+        nonlocal matched_envelope
         if not result_path.is_file():
             return None
         try:
@@ -254,20 +275,30 @@ def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str
         result = response.get('result')
         if not isinstance(result, dict):
             raise RuntimeError('Type2 watcher result missing')
+        matched_envelope = response
         return result
 
     deadline = time.monotonic() + WATCHER_TIMEOUT_SECONDS
+    success = False
     try:
         while time.monotonic() < deadline:
             result = _matching_result()
             if result is not None:
+                if matched_envelope is None:
+                    raise RuntimeError('Type2 watcher matched envelope missing')
+                _atomic_json(canonical_result, matched_envelope)
+                success = True
                 return result
             time.sleep(0.25)
-        # Close the watcher/PM deadline-edge race for the exact same request-id.
+        # Close a real deadline-edge race without weakening request identity.
         grace_deadline = time.monotonic() + 10.0
         while time.monotonic() < grace_deadline:
             result = _matching_result()
             if result is not None:
+                if matched_envelope is None:
+                    raise RuntimeError('Type2 watcher matched envelope missing')
+                _atomic_json(canonical_result, matched_envelope)
+                success = True
                 return result
             time.sleep(0.25)
         raise RuntimeError('Type2 watcher operation timeout')
@@ -279,6 +310,17 @@ def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str
                     request_path.unlink(missing_ok=True)
         except Exception:
             pass
+        # Successful request-scoped mailbox files are transient; the canonical
+        # result above is the durable audit copy.  Failed/timed-out result files
+        # are intentionally retained for forensic evidence.
+        if success:
+            try:
+                if result_path.is_file():
+                    current = json.loads(result_path.read_text(encoding='utf-8'))
+                    if current.get('request_id') == request_id:
+                        result_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
 
 def prepare_type2(project_root: Path | str, *, clearup_id: str, source: str) -> dict[str, Any]:

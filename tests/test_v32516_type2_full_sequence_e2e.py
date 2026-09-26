@@ -18,6 +18,7 @@ for path in (str(TOOLS), str(APP), str(PM)):
 
 import clearup_type2_service as service
 import project_clearup_move_executor as executor
+import sideband_bridge
 
 IDS = [f'ClearUp_{i:03d}' for i in range(2, 13)]
 FILE_SOURCES = {
@@ -45,20 +46,16 @@ def _watch(root: Path, monkeypatch):
     monkeypatch.setattr(executor, '_load_clearup_type2_service', lambda _root: service)
     monkeypatch.setattr(service, 'WATCHER_TIMEOUT_SECONDS', 5.0)
     request_path = root / service.WATCHER_REQUEST_REL
-    result_path = root / service.WATCHER_RESULT_REL
 
     def run():
         deadline = time.monotonic() + 4
         while time.monotonic() < deadline and not request_path.is_file():
             time.sleep(0.005)
         assert request_path.is_file()
-        request = json.loads(request_path.read_text(encoding='utf-8'))
-        try:
-            rid, result = executor.execute_type2(root, request)
-            payload = {'schema': service.TYPE2_RESULT_SCHEMA, 'request_id': rid, 'status': 'completed', 'result': result}
-        except Exception as exc:  # pragma: no cover - surfaced by caller
-            payload = {'schema': service.TYPE2_RESULT_SCHEMA, 'request_id': request.get('request_id'), 'status': 'rejected', 'error': f'{type(exc).__name__}: {exc}'}
-        _json(result_path, payload)
+        # Exercise the actual release-controller sideband bridge. It validates
+        # the request-scoped result path and invokes the privileged Type2 executor.
+        payload = sideband_bridge.process_once(root)
+        assert isinstance(payload, dict)
 
     thread = threading.Thread(target=run, daemon=True)
     thread.start()

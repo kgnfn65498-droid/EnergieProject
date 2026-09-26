@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 import project_clearup_move_executor
 from system_path_contract import project_system_path
+
+_TYPE2_RESULT_ROOT='Data/03_Systeem/Projectmanager/ClearUp/Runtime/results'
+_TYPE2_RESULT_RE=re.compile(r'^'+re.escape(_TYPE2_RESULT_ROOT)+r'/([0-9a-f]{32})\.json$')
 
 _ALLOWED_RESULTS={
     'Inbox/logs/project_clearup_move_result.json',
@@ -28,7 +32,10 @@ def process_once(root: Path | str) -> dict | None:
     request_id=str(raw.get('request_id') or '') if isinstance(raw,dict) else ''
     requested_result=str(raw.get('result_path') or '').strip() if isinstance(raw,dict) else ''
     if requested_result:
-        if requested_result not in _ALLOWED_RESULTS:
+        is_type2 = isinstance(raw,dict) and str(raw.get('schema') or '') == 'energie_clearup_type2_request_v1'
+        dynamic_match = _TYPE2_RESULT_RE.fullmatch(requested_result) if is_type2 else None
+        dynamic_ok = bool(dynamic_match and dynamic_match.group(1) == request_id)
+        if requested_result not in _ALLOWED_RESULTS and not dynamic_ok:
             raise RuntimeError('sideband result path outside allowlist')
         result=(root/requested_result).resolve()
         if root not in result.parents:
