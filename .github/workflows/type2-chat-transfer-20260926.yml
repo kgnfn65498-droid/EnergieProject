@@ -1,0 +1,68 @@
+name: Type2 Chat Transfer
+on:
+  push:
+    branches:
+      - chat-transfer-type2-20260926-1637
+
+permissions:
+  contents: read
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download and verify recovery ZIPs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p recovery
+          cat > public.pem <<'EOF'
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkr9BfW7RssFJGSY8SkUp
+ZnMxIHsfYh4Lj8VV4ZOP+y1NNjqJ+O/E0A7IW30JUZuhb1V5AatHlfey3EuqDQ4R
+2Fp2ExvALL3X6zlP9JojiUqqY/+2AuNkKbOuMvRnYGue0oaGD+R7ZNahcAD/NziH
+7goiU3V01gmKyZ2oSwq6109LEqYW5ZZYfrd2gt38RI1C+8M2mERZdMTCbbeL3vGF
+RCcOAFQJ9eOnSaV+HlZt1j32uDHSqKx0UWjiUeFITjbNU6fFotEdgQl8IPebs3iA
+O9qMqB+pG5RFNuvdUfkXOmbuGQQ7C0kQ4f8JsZtX2PpAQRVGV4kxUUbU8/ha0J+z
+iwIDAQAB
+-----END PUBLIC KEY-----
+EOF
+
+          download() {
+            local name="$1" url="$2" sha="$3"
+            curl --fail --silent --show-error --location \
+              -H 'ngrok-skip-browser-warning: 1' \
+              "$url" -o "recovery/$name"
+            echo "$sha  recovery/$name" | sha256sum -c -
+            unzip -t "recovery/$name" >/dev/null
+          }
+
+          download ClearUp_002_Type2_recovery.zip 'https://quiet-delegator-underpaid.ngrok-free.dev/clearup/type2/download?clearup_id=ClearUp_002&expires=1790433079&sha256=0b2f8d32a01b6ac2def714ee4307913f336555a6a13f884f919cf439e6fa71d4&signature=645177ae37058a11e55143e820f523d3f45ed7c3c89801d965db9fc2c91fa6fb' 0b2f8d32a01b6ac2def714ee4307913f336555a6a13f884f919cf439e6fa71d4
+          download ClearUp_003_Type2_recovery.zip 'https://quiet-delegator-underpaid.ngrok-free.dev/clearup/type2/download?clearup_id=ClearUp_003&expires=1790433080&sha256=97e445adbe6d869ad0ad337676c79be795b94d2de3a7f4a9bf83794dfab1ca04&signature=d804fc8b9e9a626380cedfc81871f8e15a2f3087721daee36270b61b90ca5ffe' 97e445adbe6d869ad0ad337676c79be795b94d2de3a7f4a9bf83794dfab1ca04
+          download ClearUp_004_Type2_recovery.zip 'https://quiet-delegator-underpaid.ngrok-free.dev/clearup/type2/download?clearup_id=ClearUp_004&expires=1790433080&sha256=5ed60b17828c295af4370589ff80d5665ce7c1dcb9347cfca82afcb8dcc845e8&signature=5e1a235aa2e4596010b03b170ee4809d633719377075241fed746650528a3a2f' 5ed60b17828c295af4370589ff80d5665ce7c1dcb9347cfca82afcb8dcc845e8
+          download ClearUp_005_Type2_recovery.zip 'https://quiet-delegator-underpaid.ngrok-free.dev/clearup/type2/download?clearup_id=ClearUp_005&expires=1790433080&sha256=4dbc658e333776f6bdd48974e5baa892bef3b9e24e6826f90d4fdc1b8b7fe85f&signature=a77b8b799714a98d5e3ddb4c6d884746c42dd17f257104148b6937e00a382cb7' 4dbc658e333776f6bdd48974e5baa892bef3b9e24e6826f90d4fdc1b8b7fe85f
+          download ClearUp_006_Type2_recovery.zip 'https://quiet-delegator-underpaid.ngrok-free.dev/clearup/type2/download?clearup_id=ClearUp_006&expires=1790433080&sha256=972f9e7cd6af8a569c550c9280f9c2a3b354ced54ee9bf1e6157242dfc3e7739&signature=c401123654e5851cdc31bdeee7458fdc37114c9a653bdfb4adc0f0aebbeefc40' 972f9e7cd6af8a569c550c9280f9c2a3b354ced54ee9bf1e6157242dfc3e7739
+          download ClearUp_007_Type2_recovery.zip 'https://quiet-delegator-underpaid.ngrok-free.dev/clearup/type2/download?clearup_id=ClearUp_007&expires=1790433080&sha256=cf8224545ae1c705c20f8d1ae04aa3ab0039841484973c10266689525c55187f&signature=a7d8f9be3440617d7f9183f33509b3c8cef60969b391ce3c8c2599c628493c0c' cf8224545ae1c705c20f8d1ae04aa3ab0039841484973c10266689525c55187f
+          download ClearUp_008_Type2_recovery.zip 'https://quiet-delegator-underpaid.ngrok-free.dev/clearup/type2/download?clearup_id=ClearUp_008&expires=1790433080&sha256=d0bad6326d5d9e5c118b83ec5a1f1a1ad527bcc9c5e8e760731be82c49e2981f&signature=6ae4a4eddbf133260fb640ff4ab91c71ba20b50bf03f4544ee3987620c99ba83' d0bad6326d5d9e5c118b83ec5a1f1a1ad527bcc9c5e8e760731be82c49e2981f
+          download ClearUp_009_Type2_recovery.zip 'https://quiet-delegator-underpaid.ngrok-free.dev/clearup/type2/download?clearup_id=ClearUp_009&expires=1790433080&sha256=0dc7c356aa81220579107f090468e37eff17264349ce65f4ac1b7c92cd4881b6&signature=ba3db39e31b6bf48c1efa17ea48a288a69d82f6b4c8188c445fa11363d70fb28' 0dc7c356aa81220579107f090468e37eff17264349ce65f4ac1b7c92cd4881b6
+          download ClearUp_010_Type2_recovery.zip 'https://quiet-delegator-underpaid.ngrok-free.dev/clearup/type2/download?clearup_id=ClearUp_010&expires=1790433080&sha256=26cfb3ba12b6dba3be358eeb60e03429a7f6595655faba2734d01b61969d197f&signature=3cd5939c8f23461fb2d6ab4dd1f23dbd7a55c470627f55c328186c4be7de2e1b' 26cfb3ba12b6dba3be358eeb60e03429a7f6595655faba2734d01b61969d197f
+          download ClearUp_011_Type2_recovery.zip 'https://quiet-delegator-underpaid.ngrok-free.dev/clearup/type2/download?clearup_id=ClearUp_011&expires=1790433080&sha256=fb32304d5f8cb7fd52e80c8db32863f9286df6e94fea2fd2a3e82e688af2943b&signature=4f4b2469bff2b6c5b630a8c4518ecaa3453c5967af80c7793581870ee1c8afab' fb32304d5f8cb7fd52e80c8db32863f9286df6e94fea2fd2a3e82e688af2943b
+          download ClearUp_012_Type2_recovery.zip 'https://quiet-delegator-underpaid.ngrok-free.dev/clearup/type2/download?clearup_id=ClearUp_012&expires=1790433080&sha256=89fd691df0cecb9ba1ead570aa2b42163148f21979a9ab3ddb260ae40103f91a&signature=3dca02077d09df0889a7dd26822b469d6b87dcb37b6460da47805ed06ee5cb68' 89fd691df0cecb9ba1ead570aa2b42163148f21979a9ab3ddb260ae40103f91a
+
+          (cd recovery && sha256sum *.zip | sort > SHA256SUMS.txt)
+          zip -r -9 Type2_recovery_bundle.zip recovery >/dev/null
+          openssl rand -hex 32 > aes.pass
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
+            -in Type2_recovery_bundle.zip -out Type2_recovery_bundle.enc -pass file:aes.pass
+          openssl pkeyutl -encrypt -pubin -inkey public.pem -in aes.pass -out aes.pass.enc
+          rm -rf recovery Type2_recovery_bundle.zip aes.pass public.pem
+
+      - name: Upload encrypted transfer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: type2-chat-transfer-20260926
+          path: |
+            Type2_recovery_bundle.enc
+            aes.pass.enc
+          if-no-files-found: error
+          retention-days: 1
