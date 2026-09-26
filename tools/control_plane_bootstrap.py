@@ -3,6 +3,7 @@ from system_path_contract import project_system_path
 import http.client,json,os,socket,time
 from pathlib import Path
 import control_plane_runtime_guard
+from control_plane_binding_recreate import recreate_for_binding
 from control_plane_source_sync import sync_control_plane_source
 
 CONTAINER='energie-control-plane'
@@ -13,10 +14,14 @@ class _Conn(http.client.HTTPConnection):
     def connect(self):
         sock=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);sock.settimeout(self.timeout);sock.connect(SOCKET);self.sock=sock
 
-def _request(method,path,ok):
+def _request(method,path,ok,payload=None):
     c=_Conn()
     try:
-        c.request(method,path,body=b'');r=c.getresponse();raw=r.read()
+        body=b'';headers={}
+        if payload is not None:
+            body=json.dumps(payload,separators=(',',':')).encode('utf-8')
+            headers={'Content-Type':'application/json','Content-Length':str(len(body))}
+        c.request(method,path,body=body,headers=headers);r=c.getresponse();raw=r.read()
         if r.status not in ok:raise RuntimeError(f'control_plane_bootstrap_http_{r.status}')
         return json.loads(raw.decode()) if raw else {}
     finally:c.close()
@@ -41,8 +46,7 @@ def _clear_attempt(path:Path)->None:
     try:path.unlink(missing_ok=True)
     except OSError:pass
 
-def _existing_container_health()->tuple[bool,bool]:
-    info=_request('GET',f'/containers/{CONTAINER}/json',(200,))
+def _container_health(info)->tuple[bool,bool]:
     state=info.get('State') if isinstance(info,dict) else {}
     if not isinstance(state,dict):return False,False
     running=state.get('Running') is True
@@ -50,11 +54,40 @@ def _existing_container_health()->tuple[bool,bool]:
     healthy=running and (health is None or str(health.get('Status') or '').lower()=='healthy')
     return running,healthy
 
+def _existing_container_info()->dict:
+    info=_request('GET',f'/containers/{CONTAINER}/json',(200,))
+    return info if isinstance(info,dict) else {}
+
+def _existing_container_health()->tuple[bool,bool]:
+    return _container_health(_existing_container_info())
+
+def _arg_value(cmd,flag):
+    if not isinstance(cmd,list):return ''
+    try:i=cmd.index(flag)
+    except ValueError:return ''
+    return str(cmd[i+1]) if i+1<len(cmd) else ''
+
+def _mapping_active(root:Path)->bool:
+    legacy=(Path(root).resolve()/'Inbox/control_plane')
+    return project_system_path(root,'Inbox/control_plane')!=legacy
+
+def _binding_current(root:Path,info:dict)->bool:
+    if not _mapping_active(root):return True
+    config=info.get('Config') if isinstance(info,dict) else {}
+    host=info.get('HostConfig') if isinstance(info,dict) else {}
+    cmd=config.get('Cmd') if isinstance(config,dict) else []
+    binds=host.get('Binds') if isinstance(host,dict) else []
+    if _arg_value(cmd,'--runtime-root')!='/control-plane-runtime':return False
+    if _arg_value(cmd,'--release-controller-root')!='/release-controller':return False
+    if _arg_value(cmd,'--native-mcp-runtime-root')!='/native-mcp-runtime':return False
+    required=(':/control-plane-runtime:rw',':/release-controller:ro',':/native-mcp-runtime:ro')
+    return all(any(str(bind).endswith(suffix) for bind in (binds or [])) for suffix in required)
+
 def ensure_control_plane_current(root:Path|str,*,timeout_seconds=90.0)->dict:
     root=Path(root)
     sync=sync_control_plane_source(root)
     first=control_plane_runtime_guard.probe(root,stale_seconds=30)
-    running,healthy=_existing_container_health()
+    container_info=_existing_container_info();running,healthy=_container_health(container_info)
     if not running:
         raise RuntimeError('existing control-plane container is not running')
 
@@ -70,10 +103,19 @@ def ensure_control_plane_current(root:Path|str,*,timeout_seconds=90.0)->dict:
         and healthy
         and loaded==expected
     )
-    restarted=False
+    restarted=False;recreated=False
     direct_runtime_probe=False
+    binding_current=_binding_current(root,container_info)
 
-    if first.get('ready') is True and healthy:
+    if not binding_current:
+        final,recreated=recreate_for_binding(
+            root=root,info=container_info,expected=expected,attempt_path=attempt_path,timeout_seconds=timeout_seconds,
+            request=_request,optional_json=_optional_json,atomic=_atomic,clear_attempt=_clear_attempt,
+            probe=control_plane_runtime_guard.probe,existing_info=_existing_container_info,
+            container_health=_container_health,binding_current=_binding_current,
+        )
+        healthy=True
+    elif first.get('ready') is True and healthy:
         final=first
         _clear_attempt(attempt_path)
     elif stale_but_exact:
@@ -128,8 +170,8 @@ def ensure_control_plane_current(root:Path|str,*,timeout_seconds=90.0)->dict:
         _clear_attempt(attempt_path)
 
     result={'schema':'energie_release_controller_control_plane_bootstrap_v1','status':'GREEN',
-            'source_sync_changed':sync.get('changed') or [],'restart_performed':restarted,
-            'direct_runtime_probe':direct_runtime_probe,
+            'source_sync_changed':sync.get('changed') or [],'restart_performed':restarted,'recreate_performed':recreated,
+            'binding_current':True,'direct_runtime_probe':direct_runtime_probe,
             'expected_fingerprint':final.get('expected_fingerprint'),'loaded_fingerprint':final.get('loaded_fingerprint')}
     _atomic(project_system_path(root, 'Inbox/release_controller/control_plane_bootstrap.json'),result)
     return result

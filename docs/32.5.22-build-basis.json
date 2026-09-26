@@ -1,0 +1,14 @@
+{
+  "schema": "energie_release_build_basis_v1",
+  "from_version": "32.5.21",
+  "to_version": "32.5.22",
+  "source_artifact": "EnergieProject_v32.5.21.zip",
+  "source_sha256": "fbe0b729006bdefd2b774363ee46be3f89610d2da737bd727d89f55301716cde",
+  "source_size": 6811451,
+  "scope": [
+    "ClearUp_007 live control-plane writer rebinding",
+    "bounded canonical control-plane container recreate with rollback",
+    "canonical ReleaseController security-migration marker",
+    "preserve all Type-2 recovery and destructive gates"
+  ]
+}

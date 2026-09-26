@@ -1,3 +1,11 @@
+## 32.5.22 — Type-2 control-plane writer rebinding
+
+- Live 32.5.21 proved ClearUp_005 and ClearUp_006 GREEN, but ClearUp_007 correctly failed because the running control-plane container still wrote to retired `Inbox/control_plane` after path activation.
+- Release bootstrap now verifies the actual running control-plane command and bind identity, not only its code fingerprint/health.
+- When Type-2 mapping is active and the live container still has the legacy runtime binding, bootstrap performs one bounded recreate with the canonical ControlPlane/ReleaseController/NativeMCP mounts and exact readback; failure rolls back to the previous container and remains fail-closed.
+- The control-plane bootstrap security-migration marker now targets the canonical ReleaseController root when that root is mounted, preventing recreation from re-mutating retired `Inbox/release_controller`.
+- No Type-2 finalize/delete is performed by this release.
+
 ## 32.5.21 — Type-2 live continuation hardening
 
 - Fixes the live ClearUp_005 continuation after ClearUp_011 has already created sibling State/Publication paths under the shared ReleaseController destination.

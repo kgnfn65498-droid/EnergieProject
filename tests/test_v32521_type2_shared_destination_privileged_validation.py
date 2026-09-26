@@ -119,5 +119,5 @@ def test_validation_filesystem_proof_runs_only_in_privileged_watcher(tmp_path, m
 
 
 def test_current_release_identity():
-    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.5.21'
-    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc54'
+    assert (ROOT / 'VERSIE.txt').read_text(encoding='utf-8').strip() == '32.5.22'
+    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc55'

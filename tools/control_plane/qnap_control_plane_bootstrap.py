@@ -9,8 +9,9 @@ import control_plane as cp
 QNAP_PHYSICAL_PROJECT_ROOT = "/share/Energie_NAS/EnergieProject"
 
 
-def _security_migration_current(inbox: Path) -> bool:
-    marker = Path(inbox) / 'release_controller/platformtest_security_migration_v1.json'
+def _security_migration_current(inbox: Path, release_controller_root: Path | None = None) -> bool:
+    base = Path(release_controller_root) if release_controller_root is not None else (Path(inbox) / 'release_controller')
+    marker = base / 'platformtest_security_migration_v1.json'
     try:
         if marker.is_symlink() or not marker.is_file():
             return False
@@ -24,8 +25,8 @@ def _security_migration_current(inbox: Path) -> bool:
     }
 
 
-def _write_security_migration(inbox: Path) -> None:
-    directory = Path(inbox) / 'release_controller'
+def _write_security_migration(inbox: Path, release_controller_root: Path | None = None) -> None:
+    directory = Path(release_controller_root) if release_controller_root is not None else (Path(inbox) / 'release_controller')
     if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
         raise RuntimeError('onveilige release-controller evidence map')
     directory.mkdir(parents=True, exist_ok=True)
@@ -51,7 +52,7 @@ def _write_security_migration(inbox: Path) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _ensure_control_plane_mailboxes(runtime_root: Path, inbox: Path | None = None) -> dict:
+def _ensure_control_plane_mailboxes(runtime_root: Path, inbox: Path | None = None, release_controller_root: Path | None = None) -> dict:
     """Precreate shared producer/consumer mailboxes with live-equivalent rights.
 
     The PM and control-plane run under different container identities. 32.4.41
@@ -69,7 +70,7 @@ def _ensure_control_plane_mailboxes(runtime_root: Path, inbox: Path | None = Non
         for path in (root, root / 'requests', root / 'results')
         if not path.is_symlink()
     )
-    migration_current = _security_migration_current(inbox)
+    migration_current = _security_migration_current(inbox, release_controller_root)
     modes = {root: 0o755, root / 'requests': 0o1733, root / 'results': 0o755}
     for path, mode in modes.items():
         if path.is_symlink():
@@ -113,7 +114,7 @@ def _ensure_control_plane_mailboxes(runtime_root: Path, inbox: Path | None = Non
             os.replace(source, target)
             os.chmod(target, 0o600)
             retired = True
-    _write_security_migration(inbox)
+    _write_security_migration(inbox, release_controller_root)
 
     probe = root / 'requests' / f'.control_plane_write_probe.{os.getpid()}'
     try:
@@ -215,5 +216,9 @@ def qnap_load_bootstrap_watcher_request(inbox: Path, approved_queue: Path, relea
 cp.watcher_create_payload = qnap_watcher_create_payload
 cp.load_bootstrap_watcher_request = qnap_load_bootstrap_watcher_request
 if __name__ == "__main__":
-    _ensure_control_plane_mailboxes(Path(_argv_value('--runtime-root', '/energy-inbox/control_plane')), Path(_argv_value('--inbox', '/energy-inbox')))
+    _ensure_control_plane_mailboxes(
+        Path(_argv_value('--runtime-root', '/energy-inbox/control_plane')),
+        Path(_argv_value('--inbox', '/energy-inbox')),
+        Path(_argv_value('--release-controller-root', '/energy-inbox/release_controller')),
+    )
     raise SystemExit(cp.main())
