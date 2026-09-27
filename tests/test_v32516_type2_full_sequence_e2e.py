@@ -19,6 +19,7 @@ for path in (str(TOOLS), str(APP), str(PM)):
 import clearup_type2_service as service
 import project_clearup_move_executor as executor
 import sideband_bridge
+from system_path_contract import project_system_path
 
 IDS = [f'ClearUp_{i:03d}' for i in range(2, 13)]
 FILE_SOURCES = {
@@ -78,7 +79,9 @@ def _seed_project(root: Path) -> None:
     contract = {'release': '32.5.16', **{cid: 'GREEN' for cid in IDS}}
     (root / 'App/tools/clearup_type2_path_contract.json').write_text(json.dumps(contract, indent=2) + '\n', encoding='utf-8')
     for rel in ('Inbox/incoming', 'Inbox/processing', 'Inbox/processed', 'Inbox/failed'):
-        (root / rel).mkdir(parents=True, exist_ok=True)
+        box = root / rel
+        box.mkdir(parents=True, exist_ok=True)
+        (box / 'preserve.txt').write_text(f'preserve:{rel}\n', encoding='utf-8')
 
     plans = [json.loads((ROOT / 'tools/clearup_type2_plans' / f'{cid}.json').read_text()) for cid in IDS]
     for plan in plans:
@@ -124,6 +127,14 @@ def test_all_type2_batches_prepare_migrate_validate_confirm_finalize_end_to_end(
     monkeypatch.setenv('ENERGIE_CLEARUP_TYPE2_PROOF_TIMEOUT_SECONDS', '1')
     monkeypatch.setattr(executor, '_load_clearup_type2_service', lambda _root: service)
 
+    mailbox_before = service._snapshot_release_dirs(root)
+
+    # Prove a real mutating runtime source exists before cutover for ClearUp_007.
+    legacy_runtime = root / 'Inbox/control_plane/runtime.json'
+    before = legacy_runtime.read_text(encoding='utf-8')
+    legacy_runtime.write_text(before + 'pre-cutover-mutation\n', encoding='utf-8')
+    assert 'pre-cutover-mutation' in legacy_runtime.read_text(encoding='utf-8')
+
     # Prepare every recovery export while no destructive action is possible.
     for cid in IDS:
         result = _call(root, monkeypatch, service.prepare_type2, clearup_id=cid)
@@ -135,7 +146,17 @@ def test_all_type2_batches_prepare_migrate_validate_confirm_finalize_end_to_end(
         result = _call(root, monkeypatch, service.migrate_type2, clearup_id=cid, explicit_user_text='akkoord')
         assert result['phase'] == 'MIGRATED_PENDING_VALIDATION'
         assert result['source_preserved'] is True and result['deletion_performed'] is False
-        _touch_runtime_proofs(root, cid)
+        if cid == 'ClearUp_007':
+            # The actual path-contract now resolves the legacy control-plane path
+            # to the canonical destination.  Write through that production resolver
+            # and prove the old source stays unchanged.
+            old_snapshot = legacy_runtime.read_bytes()
+            resolved = project_system_path(root, 'Inbox/control_plane/runtime.json')
+            assert resolved == root / 'Data/03_Systeem/Projectmanager/ControlPlane/Runtime/runtime.json'
+            resolved.write_text(json.dumps({'written_after_activation': time.time()}) + '\n', encoding='utf-8')
+            assert legacy_runtime.read_bytes() == old_snapshot
+        else:
+            _touch_runtime_proofs(root, cid)
         proof = _call(root, monkeypatch, service.validate_type2, clearup_id=cid)
         assert proof['status'] == 'GREEN', proof
         assert not proof['failures']
@@ -158,7 +179,8 @@ def test_all_type2_batches_prepare_migrate_validate_confirm_finalize_end_to_end(
     assert confirmed['verified_count'] == len(IDS)
     assert confirmed['delete_allowed'] is True
 
-    # Only now may old sources be finalized. Destinations remain authoritative.
+    # Only now may old sources be finalized. Each concrete batch must then
+    # prove its recovery artifact by performing an actual restore.
     for cid in IDS:
         result = _call(root, monkeypatch, service.finalize_type2, clearup_id=cid, explicit_user_text='akkoord')
         assert result['phase'] == 'COMPLETE' and result['deletion_performed'] is True
@@ -166,6 +188,13 @@ def test_all_type2_batches_prepare_migrate_validate_confirm_finalize_end_to_end(
         for item in plan['items']:
             assert not (root / item['source']).exists()
             assert (root / item['destination']).exists()
+        restored = _call(root, monkeypatch, service.restore_type2, clearup_id=cid, explicit_user_text='akkoord')
+        assert restored['phase'] == 'RESTORED'
+        for item in plan['items']:
+            assert (root / item['source']).exists()
+            assert (root / item['destination']).exists()
+
+    assert service._snapshot_release_dirs(root) == mailbox_before
 
     gate = json.loads((root / service.EXTERNAL_GATE_REL).read_text(encoding='utf-8'))
     assert gate['status'] == 'EXTERNAL_COPY_CONFIRMED'

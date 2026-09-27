@@ -222,8 +222,11 @@ def test_handover_snapshot_carries_451_cross_chat_contract_fields():
     assert "'audit_contract':" in source
     assert "'new_chat_preflight':" in source
     orchestrator = (PM / 'orchestrator.py').read_text(encoding='utf-8')
-    assert "HARD_REQUIREMENT_CHATGPT_BUILDS_CODEX_RESEARCH_ONLY.md" in orchestrator
-    assert "HARD_REQUIREMENT_32451_COMPLETE_HANDOVER.md" in orchestrator
+    # Requirements are no longer a hard-coded subset. The current contract
+    # dynamically inventories every Markdown requirement in the canonical tree.
+    assert "Data/03_Systeem/Projectmanager/Requirements/" in orchestrator
+    assert ".glob('*.md')" in orchestrator
+    assert "if path.is_file() and not path.is_symlink()" in orchestrator
 
 
 def test_release_hold_daemon_publishes_persistent_liveness(tmp_path, monkeypatch):

@@ -3,6 +3,15 @@ import re
 
 CONTRACT_VERSION = '2026-09-11.v3'
 VALID_THINKING_LEVELS = {'MIDDEL', 'HOOG'}
+TERMINAL_REQUIRED_FIELDS = (
+    'terminal', 'step_label', 'expected_duration_seconds', 'max_wait_seconds',
+    'success_marker', 'stop_marker', 'return_required',
+)
+COMMAND_PROOF_FIELDS = (
+    'target_state', 'command_sha256', 'parser_validation', 'check_only_preflight',
+    'side_effects', 'dangerous_class', 'rollback', 'post_action_readback',
+)
+
 REQUIRED_BUILD_METADATA = (
     'thinking_level',
     'release_version',
@@ -44,6 +53,12 @@ def canonical_contract():
             'exact_previous_verified_zip_required',
             'ask_peter_for_exact_zip_if_unavailable',
             'no_github_or_reconstruction_as_build_basis',
+            'dynamic_all_requirements_discovery_required',
+            'full_kb_runtime_enforcement_required',
+            'master_development_index_required',
+            'release_artifact_retention_three',
+            'terminal_command_requires_preverified_command_proof',
+            'stale_truth_conflict_fail_closed',
         ],
     }
 
@@ -54,6 +69,45 @@ def _positive_int(value):
     except (TypeError, ValueError):
         return None
     return number if number > 0 else None
+
+
+def normalize_terminal_instruction(raw):
+    if not isinstance(raw, dict):
+        raw = {}
+    required = raw.get('required') is True
+    proof_raw = raw.get('proof') if isinstance(raw.get('proof'), dict) else {}
+    proof = {
+        'target_state': str(proof_raw.get('target_state') or '').strip(),
+        'command_sha256': str(proof_raw.get('command_sha256') or '').strip().lower(),
+        'parser_validation': str(proof_raw.get('parser_validation') or '').strip(),
+        'check_only_preflight': str(proof_raw.get('check_only_preflight') or '').strip(),
+        'side_effects': str(proof_raw.get('side_effects') or '').strip(),
+        'dangerous_class': str(proof_raw.get('dangerous_class') or '').strip(),
+        'rollback': str(proof_raw.get('rollback') or '').strip(),
+        'post_action_readback': str(proof_raw.get('post_action_readback') or '').strip(),
+    }
+    result = {
+        'required': required,
+        'terminal': str(raw.get('terminal') or '').strip(),
+        'step_label': str(raw.get('step_label') or '').strip(),
+        'expected_duration_seconds': _positive_int(raw.get('expected_duration_seconds')),
+        'max_wait_seconds': _positive_int(raw.get('max_wait_seconds')),
+        'success_marker': str(raw.get('success_marker') or '').strip(),
+        'stop_marker': str(raw.get('stop_marker') or '').strip(),
+        'return_required': str(raw.get('return_required') or '').strip(),
+        'reason': str(raw.get('reason') or '').strip(),
+        'proof': proof,
+    }
+    missing = []
+    if required:
+        for field in TERMINAL_REQUIRED_FIELDS:
+            if not result.get(field):
+                missing.append(field)
+        if not result['reason']:
+            missing.append('reason')
+    result['missing'] = missing
+    result['compliant'] = (not required) or not missing
+    return result
 
 
 def normalize_build_metadata(raw, *, steps_total=None):
@@ -75,6 +129,7 @@ def normalize_build_metadata(raw, *, steps_total=None):
         'estimated_test_verification_seconds': _positive_int(raw.get('estimated_test_verification_seconds')),
         'step_estimates_seconds': estimates,
         'original_estimate_recorded_at': str(raw.get('original_estimate_recorded_at') or '').strip(),
+        'terminal_instruction': normalize_terminal_instruction(raw.get('terminal_instruction')),
     }
     if steps_total is not None:
         try:
@@ -119,6 +174,37 @@ def build_metadata_from_command(item):
     return normalize_build_metadata(raw, steps_total=(item or {}).get('steps_total'))
 
 
+def _release_at_least(value, minimum):
+    try:
+        current = tuple(int(part) for part in str(value or '').split('.'))
+        floor = tuple(int(part) for part in str(minimum or '').split('.'))
+    except ValueError:
+        return False
+    return len(current) == 3 and len(floor) == 3 and current >= floor
+
+
+def _enforce_command_proof(metadata, terminal_instruction):
+    if terminal_instruction.get('required') is not True:
+        terminal_instruction['proof_missing'] = []
+        terminal_instruction['proof_compliant'] = True
+        return terminal_instruction
+    if not _release_at_least(metadata.get('release_version'), '32.5.24'):
+        terminal_instruction['proof_missing'] = []
+        terminal_instruction['proof_compliant'] = True
+        return terminal_instruction
+    proof = terminal_instruction.get('proof') if isinstance(terminal_instruction.get('proof'), dict) else {}
+    missing = [field for field in COMMAND_PROOF_FIELDS if not proof.get(field)]
+    sha = str(proof.get('command_sha256') or '')
+    if sha and (len(sha) != 64 or any(ch not in '0123456789abcdef' for ch in sha.lower())):
+        if 'command_sha256' not in missing:
+            missing.append('command_sha256')
+    terminal_instruction['proof_missing'] = missing
+    terminal_instruction['proof_compliant'] = not missing
+    if missing:
+        terminal_instruction['compliant'] = False
+    return terminal_instruction
+
+
 def evaluate_build_contract(task, progress=None):
     task = task if isinstance(task, dict) else {}
     required = task.get('build_contract_required') is True
@@ -138,12 +224,16 @@ def evaluate_build_contract(task, progress=None):
     progress = progress if isinstance(progress, dict) else {}
     total = max(1, int(task.get('steps_total') or metadata.get('steps_total') or 1))
     step = max(1, min(total, int(task.get('step') or 1)))
+    terminal_instruction = normalize_terminal_instruction(metadata.get('terminal_instruction'))
+    terminal_instruction = _enforce_command_proof(metadata, terminal_instruction)
     result = canonical_contract()
     result.update(metadata)
     result.update({
         'required': required,
-        'compliant': (not required) or not missing,
+        'compliant': ((not required) or not missing) and terminal_instruction.get('compliant') is True,
         'missing': missing,
+        'terminal_instruction': terminal_instruction,
+        'terminal_compliant': terminal_instruction.get('compliant') is True,
         'step': step,
         'steps_total': total,
         'step_label': f'Stap {step}/{total}',

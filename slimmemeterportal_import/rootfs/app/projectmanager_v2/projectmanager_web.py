@@ -147,6 +147,18 @@ def render_projectmanager_progress(project_root) -> str:
     blockers = progress.get('blockers') if isinstance(progress.get('blockers'), list) else []
     blockers_text = ', '.join(str(item) for item in blockers if str(item).strip()) or 'geen'
     contract = status.get('development_build_contract') if isinstance(status.get('development_build_contract'), dict) else {}
+    terminal = contract.get('terminal_instruction') if isinstance(contract.get('terminal_instruction'), dict) else {}
+    terminal_html = ''
+    if terminal.get('required') is True:
+        terminal_html = (
+            '<p><strong>Terminal-instructie:</strong> ' + esc(terminal.get('terminal') or '-') +
+            ' | ' + esc(terminal.get('step_label') or '-') +
+            ' | duur ' + esc(terminal.get('expected_duration_seconds')) + ' s' +
+            ' | max wachten ' + esc(terminal.get('max_wait_seconds')) + ' s</p>' +
+            '<p>Succes: ' + esc(terminal.get('success_marker') or '-') +
+            ' | Stop/fout: ' + esc(terminal.get('stop_marker') or '-') +
+            ' | Terugsturen: ' + esc(terminal.get('return_required') or '-') + '</p>'
+        )
     color = str(progress.get('status_color') or (status.get('health') or {}).get('status') or 'NOG_TE_CONTROLEREN').upper()
     border = {'GREEN': '#2e7d32', 'ORANGE': '#d18b00', 'RED': '#b3261e'}.get(color, '#6b7280')
     return f'''<section id="pmv2-progress" style="margin:16px 0;padding:14px;border:2px solid {border};border-radius:10px">
@@ -158,6 +170,7 @@ def render_projectmanager_progress(project_root) -> str:
 <p><strong>Development Build Contract</strong>: {esc(contract.get('contract_version'))} | Denksetting: {esc(contract.get('thinking_level'))}</p>
 <p>Oorspronkelijke raming: {esc(contract.get('estimated_total_seconds'))} s | Test/verificatie: {esc(contract.get('estimated_test_verification_seconds'))} s | Contract: {esc('GREEN' if contract.get('compliant') is True else ('ROOD' if contract.get('required') else 'n.v.t.'))}</p>
 <p>Planningstrend: {esc(progress.get('planning_trend') or 'insufficient_data')} | Blockers: {esc(blockers_text)}</p>
+{terminal_html}
 </section>'''
 
 

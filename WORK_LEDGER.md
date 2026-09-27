@@ -1,3 +1,9 @@
+## 2026-09-27 — 32.5.24 integrated DS9/Spock + Incoming closure
+- UDL-011 FULL_KB/document-only enforcement wordt technisch gesloten in 32.5.24 met dynamic discovery, completeness gate, Master Index pointer, runtime logs en fail-closed truth reconciliation.
+- Artifactretentie wordt 3 met officiële nieuwste naam en previous-archieven.
+- Proefcommando's zijn verboden; een uitzonderlijke host/tunnelroute vereist volledig command-proof en exact-state preflight/rollback/readback.
+- Huidige 32.5.23 Incoming zelf is leeg; blocker zit in control-plane/ReleaseController-runtime. Recovery repareert die keten vóór nieuwe ZIP-plaatsing en gebruikt Incoming niet als recovery-transport.
+
 ## 2026-09-23 — 32.4.67 complete settlement reconciliation
 
 - V66 live audit proved release-chain GREEN but settlement-observability RED because 65→66 settlement still executed under loaded V65 code.
@@ -615,3 +621,17 @@
 - 32.5.23+ now performs one fail-closed control-plane prepare/binding proof per exact release fence before the ready shortcut and reuses the existing bounded recreate/rollback implementation.
 - Exact predecessor TDD: 3 RED / 1 GREEN; repaired targeted: 4/4 GREEN; impact: 43/43 GREEN; complete 32.5 regressions: 138/138 GREEN; static: 600/600 GREEN + 2 skipped; compileall GREEN.
 - No production action, restart, recreate, finalize or delete was performed during development.
+
+## 2026-09-26 — 32.5.24 N+1 activation carrier
+- Live 32.5.23 reached COMPLETE 9/9 but did not move the control-plane writer: legacy Inbox heartbeat remained fresh and canonical runtime stayed stale.
+- Root cause is transition code-loading order, not the 32.5.23 binding algorithm: the 5.23 transition was executed by predecessor 5.22 controller code and current code is loaded only after COMPLETE.
+- 32.5.24 therefore carries the exact 5.23 runtime-adapter bytes forward and changes only release identity/current-facing docs/tests.
+
+
+## 2026-09-27 — 32.5.24 command-proof/root-path recurrence closure
+- Symptom: the first proposed one-command tunnel failed before execution because it hardcoded `/share/Energie_NAS/EnergieProject`, while live QNAP configuration proves `/share/CACHEDEV1_DATA/AI Projecten/EnergieProject`.
+- Deeper audit found a second defect before any protected mutation: the tunnel still expected the stale `0dc5...` runtime fingerprint and did not install the validated recovery carrier.
+- Root cause: command-proof checked script/hash but failed to cross-check host path + desired control-plane generation against live container/config evidence.
+- Fix: proven-root allowlist in QNAP bootstrap; tunnel installs exact carrier SHA `daf47911...ca62e0`, expects `bba109...60e0e`, preserves old source/container/attempt for rollback, and keeps Incoming/Processing empty.
+- Regression: tunnel syntax/check-only/success/rollback + QNAP root aliases; affected control-plane/PM regression bundle GREEN.
+- Permanent prevention: every host command must resolve/verify project root from current/live evidence before mutation; script SHA validation alone is insufficient command proof.

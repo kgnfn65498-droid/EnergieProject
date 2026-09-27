@@ -1,41 +1,60 @@
-# Release Acceptance — 32.5.23
+# Release Acceptance — 32.5.24 integrated final
 
-Status: READY FOR INCOMING — LIVE TYPE-2 GATE REQUIRED
+Pre-installatie vereist: changed-surface tests GREEN; volledige toepasselijke 32.5-regressie; exact ZIP CRC/manifest/SHA256SUMS/compile/shell; FULL_KB/Requirements dynamic-discovery tests; retentie-3 tests; tunnel check-only/state-machine/rollback tests.
 
-## Scope
-1. Fix only the 32.5.22 live gap where `ensure_control_plane_current()` exists but is skipped when Native MCP is already current.
-2. For 32.5.23+, prove/prepare the control-plane binding once per exact release fence before the ready Native-MCP shortcut.
-3. Reuse the 32.5.22 bounded binding recreate + rollback path; no new actuator or lifecycle owner.
-4. Fail closed when binding preparation fails or cannot prove `binding_current=true`.
-5. Preserve all Type-2 recovery, validation, external-copy and finalize/delete gates.
+Live-required: één expliciet goedgekeurde bounded tunnel-run indien de 32.5.23 control-plane/ReleaseController blokkade nog aanwezig is; daarna control-plane GREEN, watcher GREEN, ReleaseController IDLE, Incoming/Processing leeg. Vervolgens exact één officiële 32.5.24-ZIP via Incoming -> Processing -> live -> Processed. PM/runtime moet daarna 32.5.24, FULL_KB COMPLETE, dynamische Requirements-discovery en Master Index/current-truth readback tonen.
 
-## Live evidence before build
-- 32.5.22 is COMPLETE 9/9; NAS/HA 32.5.22; PM rc55.
-- ClearUp_005 and ClearUp_006 validate GREEN.
-- ClearUp_007 remains RED because the live control-plane still updates legacy `Inbox/control_plane` while canonical `Data/03_Systeem/Projectmanager/ControlPlane/Runtime` is stale.
-- 32.5.22 bootstrap correctly detects/recreates the binding when called.
-- Proven call-path defect: `NativeRuntimeCoordinator.align()` returns `native_mcp_current` before `control_plane_prepare()` when Native MCP guard is already ready.
+Geen GREEN op documentatie alleen, enqueue alleen, of pre-installatie zonder live readback.
+De bestaande split-state-gate blijft onverkort onderdeel van release acceptance; NAS/HA/PM/runtime mogen niet uiteenlopen.
 
-## TDD / regression acceptance
-- Exact 32.5.22 baseline: new v32523 regression = 3 RED / 1 GREEN.
-- After code repair: v32523 targeted = 4/4 GREEN.
-- Impact regression chunk = 43/43 GREEN.
-- Complete 32.5 regression set = 138/138 GREEN, with one known duplicate-name warning.
-- Static suite = 600/600 GREEN + 2 skipped.
-- Source compileall = GREEN.
+# Release Acceptance — 32.5.24 replacement
 
-## Final pre-install acceptance
-- Canonical builder regenerates MANIFEST.sha256 and SHA256SUMS.json from exact payload bytes.
-- Exact physical ZIP artifact-integrity/readback: GREEN.
-- Exact fresh-extract complete 32.5 set: 138/138 GREEN, one known duplicate-name warning.
-- Exact fresh-extract static: 600/600 GREEN + 2 skipped.
-- Exact fresh-extract compileall: GREEN.
-- Exact isolated atomic 32.5.22→32.5.23: LIVE_ACCEPTANCE → ACCEPTED.
+Status: PRE-INSTALL GREEN — LIVE FUNCTIONAL ACCEPTANCE REMAINS REQUIRED AFTER INSTALL
 
-## Live-only gate after install
-1. 32.5.23 COMPLETE 9/9; PM rc56; NAS/HA aligned.
-2. Canonical ControlPlane runtime heartbeat fresh; legacy `Inbox/control_plane` quiescent.
-3. ClearUp_007 revalidation GREEN through the real PM→privileged watcher route.
-4. Readback all ClearUp_002–012 GREEN.
-5. Current post-migrate recovery bundle delivered directly in ChatGPT and receipt explicitly confirmed by Peter.
-6. Only then may finalize/delete 002–012 proceed sequentially with readback.
+## Binding requirements implemented
+- N+1 predecessor-controller activation for the 32.5.23 control-plane repair.
+- Project Manager live truth: functional LIVE_REQUIRED cannot close before LIVE_PROVEN; technical release acceptance remains separate.
+- New-chat/handoff/status/task/intake/acceptance are runtime-first and cannot retain proven-stale blockers.
+- Type-2 historical recovery receipt and current recovery bytes are separate truths; stale “not received” blockers are reconciled without weakening current-set integrity.
+- Development updates require Step X/Y + elapsed/ETA; exceptional terminal fallback requires terminal, step, duration, max wait, success/stop markers and return requirement.
+- PM detects multi-release carry-forward/version stacking and requires a concrete blocker/next action.
+- Requirements discovery dynamically inventories the canonical Requirements/*.md register instead of relying on a hard-coded subset.
+- No parallel watcher/controller/status chain.
+
+## Type-2 pre-install E2E gate
+Exact ClearUp_002..012 fixture route executes:
+`prepare -> export verify -> migrate -> path activation -> validate -> external-recovery truth/gate -> finalize -> delete-readback -> restore`.
+
+Additionally:
+- incoming/processing/processed/failed are non-empty and byte/hash unchanged;
+- an active runtime source mutates before cutover;
+- post-activation writer uses the canonical path only;
+- ClearUp_007 proves legacy control-plane quiescence + canonical writer proof;
+- each item remains fail-closed on plan/recovery/validation mismatch;
+- restore is practically executed.
+
+## Pre-install audit evidence
+- 32.5 family: 166/166 GREEN.
+- broader PM/handoff/build-contract regression set: 72/72 GREEN.
+- static: 600/600 GREEN + 2 skipped.
+- compileall: GREEN.
+- MANIFEST.sha256 and SHA256SUMS.json generated from exact payload.
+- canonical builder excludes runtime/test caches and pyc/pyo files and applies the atomic ZIP safety gate.
+
+## Live-only functional acceptance after install
+Technical install may become ACCEPTED while these remain LIVE_REQUIRED. Functional Type-2/PM closure requires LIVE_PROVEN for the actual runtime, including fresh canonical control-plane heartbeat, quiescent legacy writer, ClearUp_007 GREEN and required new-chat/handoff smoke evidence. No destructive live ClearUp is authorized by pre-install acceptance alone.
+
+## Control-plane read-only release-controller acceptance
+- Recreated control-plane MUST keep `Data/03_Systeem/Projectmanager/ReleaseController:/release-controller:ro`.
+- Bootstrap security-marker writes MUST target the existing writable `/control-plane-runtime` mount, never `/release-controller`.
+- Acceptance regression: `tests/test_v32524_control_plane_readonly_release_controller.py`.
+
+- Bootstrap-only `--security-root` MUST be removed from `sys.argv` before delegation to `control_plane.main()`; exact regression is part of `test_v32524_control_plane_readonly_release_controller.py`.
+
+
+## QNAP root/tunnel acceptance addendum
+- Candidate is RED if QNAP bootstrap only accepts one assumed host root.
+- Candidate is RED if tunnel desired fingerprint equals the stale failed-attempt fingerprint.
+- Required tests: proven host-root aliases accepted, unknown root rejected; tunnel `sh -n`; `--check-only` read-only; successful recreate reaches corrected runtime fingerprint; create-failure restores previous source/container/attempt and watcher.
+- Required ordering regression: watcher/ReleaseController must be quiescent before carrier install; a simulated source-resync on watcher-stop must not be able to replace the carrier after quiescence. Double SHA readback with bounded race-window is mandatory.
+- Any command text shown to Peter must resolve/verify the live project root before invoking the exact tunnel SHA.

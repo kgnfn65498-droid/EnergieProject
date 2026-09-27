@@ -129,7 +129,8 @@ def run_embedded(stop_event, *, runtime, interval_seconds=60, on_failure=None, o
     """
     failures = 0
     interval = max(60, int(interval_seconds))
-    loaded_path_binding = active_mapping_fingerprint(runtime.config.project_root)
+    project_root = getattr(runtime.config, 'project_root', None)
+    loaded_path_binding = active_mapping_fingerprint(runtime.config.project_root) if project_root else None
     while not stop_event.is_set():
         cycle_started = time.time()
         try:
@@ -144,8 +145,8 @@ def run_embedded(stop_event, *, runtime, interval_seconds=60, on_failure=None, o
                     on_success()
                 except Exception:
                     logging.exception('Projectmanager success callback failed safely')
-            current_path_binding = active_mapping_fingerprint(runtime.config.project_root)
-            if current_path_binding != loaded_path_binding:
+            current_path_binding = active_mapping_fingerprint(runtime.config.project_root) if project_root else None
+            if project_root and current_path_binding != loaded_path_binding:
                 overlay=_reconcile_pm_runtime_before_rebind(runtime)
                 return {'state':'rebind_required','failures':failures,'reason':'system_path_binding_changed','overlay':overlay}
         except Exception as exc:

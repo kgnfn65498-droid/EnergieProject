@@ -78,10 +78,18 @@ def _binding_current(root:Path,info:dict)->bool:
     cmd=config.get('Cmd') if isinstance(config,dict) else []
     binds=host.get('Binds') if isinstance(host,dict) else []
     if _arg_value(cmd,'--runtime-root')!='/control-plane-runtime':return False
+    if _arg_value(cmd,'--security-root')!='/control-plane-runtime':return False
     if _arg_value(cmd,'--release-controller-root')!='/release-controller':return False
     if _arg_value(cmd,'--native-mcp-runtime-root')!='/native-mcp-runtime':return False
     required=(':/control-plane-runtime:rw',':/release-controller:ro',':/native-mcp-runtime:ro')
-    return all(any(str(bind).endswith(suffix) for bind in (binds or [])) for suffix in required)
+    if not all(any(str(bind).endswith(suffix) for bind in (binds or [])) for suffix in required):return False
+    if str(config.get('Image') or '')!='python:3.12-slim':return False
+    if str(host.get('NetworkMode') or '')!='none':return False
+    if host.get('ReadonlyRootfs') is not True:return False
+    if set(host.get('CapDrop') or [])!={'ALL'}:return False
+    if set(host.get('CapAdd') or [])!={'DAC_OVERRIDE','DAC_READ_SEARCH','FOWNER'}:return False
+    if not any('no-new-privileges' in str(item) for item in (host.get('SecurityOpt') or [])):return False
+    return True
 
 def ensure_control_plane_current(root:Path|str,*,timeout_seconds=90.0)->dict:
     root=Path(root)

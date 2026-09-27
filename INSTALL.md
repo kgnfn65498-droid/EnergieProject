@@ -1,3 +1,9 @@
+# 32.5.24 integrated final — installatiegrens
+
+De normale installatie blijft één officiële `EnergieProject_v32.5.24.zip` via `Inbox/incoming`. Voor de huidige bekende 32.5.23 runtimeblokkade wordt vóór plaatsing van de ZIP uitsluitend het vooraf gevalideerde eenmalige tunnelrunbook gebruikt. De tunnel vereist lege Incoming/Processing en installeert 32.5.24 niet; hij herstelt alleen de bestaande control-plane/watcher/ReleaseController-keten naar GREEN/IDLE.
+
+Geen alternatieve watcher/controller, geen handmatige move naar Processing, geen losse hotpatches en geen Type-2 delete. Een protected tunneluitvoering vereist expliciete approval voor exact die stop/start/recreate-actie. Na tunnel GREEN wordt de officiële ZIP één keer in Incoming geplaatst en de normale keten live gevalideerd.
+
 # Installatie — EnergieProject 32.4.44
 
 32.4.44 gebruikt uitsluitend de bestaande releaseketen. Plaats de volledig geverifieerde `EnergieProject_v32.4.44.zip` pas na expliciete productiegoedkeuring in de canonieke Incoming-route.

@@ -1,3 +1,24 @@
+## 32.5.24 integrated final — DS9/Spock continuity + FULL_KB + release recovery
+
+- Integreert de aanvullende 32.5.25-scope terug in één nieuwe 32.5.24: dynamische volledige Requirements-discovery, FULL_KB runtime-enforcement, DS9 Master Development Index-routering, stale/conflict fail-closed reconciliation en runtime-log/readback naar Master Index + Current Truth.
+- Release-artifactarchief bewaart maximaal drie geverifieerde ZIPs; nieuwste behoudt de officiële releasenaam, oudere kandidaten worden ondubbelzinnig `previous_*` hernoemd en pas na hash/size/CRC/registry-readback opgeschoond.
+- Terminal/hostcommando's voor 32.5.24+ vereisen vooraf machineleesbaar command-proof: exact target, script/command-SHA, parservalidatie, read-only/check-only preflight, side effects/danger-class, rollback en post-action readback.
+- QNAP control-plane bootstrap ondersteunt alle bewezen project-root aliases en matcht exact de gevalideerde recovery-carrierbytes.
+- `tools/release_32524_incoming_tunnel.sh` is een eenmalig bounded herstelpad voor de huidige 32.5.23 control-plane/ReleaseController-blokkade. Het vereist lege Incoming/Processing, verandert geen release-ZIP, heeft check-only preflight, timeouts en rollback en eindigt alleen GREEN als control-plane + watcher + ReleaseController IDLE bewezen zijn.
+- De normale releaseroute blijft één keten: officiële ZIP -> Incoming -> één watcher/ReleaseController -> Processing -> live acceptance -> Processed. Geen tweede watcher/controller/installerrouting.
+
+## 32.5.24 replacement — PM live truth + complete Type-2 closure
+- Live QNAP boundary fix: bestaande correct gemodede control-plane bind-mappen worden niet meer onnodig gechmod; dit voorkomt startup-falen onder CapDrop=ALL.
+- Supersedes the earlier 32.5.24 N+1-only candidate while retaining the required predecessor-controller carrier.
+- Adds fail-closed recovery receipt/current-set reconciliation, full 002–012 finalize/delete/restore E2E, PM LIVE_PROVEN closure enforcement, progress/terminal metadata enforcement and version-stacking detection.
+- PM rc58; no new watcher/controller/status chain.
+
+## 32.5.24 — predecessor-controller activation carrier
+- No functional change to the 32.5.23 runtime adapter.
+- Version-only N+1 carrier so the already-loaded 32.5.23 controller can execute the control-plane prepare/binding proof while installing 32.5.24.
+- Adds a regression that binds this behavior to the exact predecessor adapter bytes and 32.5.24 release fence.
+- PM version rc57.
+
 ## 32.5.23 — Type-2 control-plane prepare before Native-MCP shortcut
 
 - Live 32.5.22 proved the bounded control-plane binding detector/recreate code itself correct, but also proved it was not invoked when Native MCP was already current.
@@ -2198,3 +2219,17 @@
 - The exception is fail-closed: predecessor `App` must still be active, canonical candidate/rollback paths must be absent, journal paths must match exactly and the withdrawn artifact SHA must be valid.
 - Any filesystem residue, malformed identity or path mismatch still returns `atomic_artifact_mismatch`.
 - Added regression proving the replacement proceeds through atomic install and rewrites the journal to the new artifact identity.
+
+### 32.5.24 — QNAP canonical control-plane containercontract closure
+- Recreate-container behoudt `CapDrop: ALL` en `no-new-privileges`, maar krijgt exact de reeds bewezen QNAP filesystem-capabilities `DAC_OVERRIDE`, `DAC_READ_SEARCH`, `FOWNER` voor de writable canonical runtime bind.
+- `docker-compose.containerstation.yml` en recreate-payload gebruiken hetzelfde contract, inclusief `--security-root /control-plane-runtime`.
+- Binding readback accepteert alleen het volledige contract: runtime/security/release/native mounts, image, network, readonly rootfs, CapDrop, exacte CapAdd en no-new-privileges.
+- Correct bestaande mailbox/stale_activation modes worden niet onnodig ge-chmod; Type-2-logica blijft ongewijzigd.
+
+
+### 32.5.24 — QNAP host-root + tunnel command-proof correction
+- Pre-install review caught that `/share/Energie_NAS/EnergieProject` is not the active QNAP host path on this system; the proven physical path is `/share/CACHEDEV1_DATA/AI Projecten/EnergieProject` with `/share/AI Projecten/EnergieProject` as known alias.
+- `qnap_control_plane_bootstrap.py` now accepts only the three explicitly proven project-root identities instead of one hardcoded host path.
+- The bounded Incoming tunnel now promotes the previously validated recovery-carrier bootstrap (SHA256 `daf47911...ca62e0`) and requires the corrected runtime fingerprint `bba109...60e0e`; the stale `0dc5...` fingerprint remains pre-state evidence only.
+- Live retry evidence exposed a TOCTOU race: the watcher is itself the ReleaseController writer and could source-sync the old 32.5.23 bootstrap back if the carrier was written before quiescence. Tunnel ordering is now watcher stop -> carrier install -> SHA readback -> 2s race-window -> second SHA readback -> control-plane recreate; regression simulates this exact resync.
+- Terminal delivery must resolve/verify the actual project root before script execution; no blind hardcoded `/share/Energie_NAS/...` `cd`.

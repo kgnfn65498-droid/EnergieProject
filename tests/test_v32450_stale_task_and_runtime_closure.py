@@ -51,11 +51,12 @@ def test_32450_native_mcp_guard_refreshes_in_main_loop_even_outside_maintenance_
     assert guard_call < release_gate
 
 
-def test_32450_control_plane_uses_canonical_project_root_only():
+def test_32450_control_plane_uses_canonical_compose_and_proven_host_aliases():
     compose = (ROOT / 'tools/control_plane/docker-compose.containerstation.yml').read_text(encoding='utf-8')
     bootstrap = (ROOT / 'tools/control_plane/qnap_control_plane_bootstrap.py').read_text(encoding='utf-8')
 
     assert 'CACHEDEV1' not in compose
-    assert 'CACHEDEV1' not in bootstrap
     assert '/share/Energie_NAS/EnergieProject' in compose
-    assert 'QNAP_PHYSICAL_PROJECT_ROOT = "/share/Energie_NAS/EnergieProject"' in bootstrap
+    assert 'QNAP_ALLOWED_PROJECT_ROOTS = {' in bootstrap
+    assert '"/share/CACHEDEV1_DATA/AI Projecten/EnergieProject"' in bootstrap
+    assert '"/share/AI Projecten/EnergieProject"' in bootstrap

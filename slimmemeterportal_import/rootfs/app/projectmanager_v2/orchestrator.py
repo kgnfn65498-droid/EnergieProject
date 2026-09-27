@@ -20,6 +20,20 @@ from handoff_queue import HandoffQueue
 from handoff_result_ingress import HandoffResultIngressConsumer
 from issue_repair_evidence import collect_issue_repair_evidence
 from handover import build_handover, cross_chat_contracts
+from development_context_enforcement import build_development_context
+CANONICAL_REQUIREMENTS_ROOT = 'Data/03_Systeem/Projectmanager/Requirements/'
+
+
+def _requirements_inventory(project_root):
+    root = Path(project_root or '.')
+    req = root / CANONICAL_REQUIREMENTS_ROOT
+    if req.is_symlink() or not req.is_dir():
+        return []
+    return sorted(
+        path.relative_to(root).as_posix()
+        for path in req.glob('*.md')
+        if path.is_file() and not path.is_symlink()
+    )
 from handover_snapshot import HandoverSnapshotService
 from health_engine import summarize_health_with_self_audit
 from mode_bridge import ModeBridge
@@ -605,22 +619,29 @@ class ProjectmanagerRuntime:
         status['approved_actions'] = self.approved_actions.open_items()
         status['handoffs'] = self.handoffs.open_items()
         status['canonical_roadmap'] = self.roadmap.canonical_metadata()
+        release_version = str((status.get('release') or {}).get('version') or '')
+        observe_release = getattr(self.roadmap, 'observe_release', None)
+        status['release_carry_forward_alerts'] = observe_release(release_version) if callable(observe_release) else []
         status['acceptance_matrix'] = self.roadmap.acceptance_summary()
         status['development_efficiency'] = (status.get('progress') or {}).get('development_efficiency') or {}
-        status['development_context'] = {
-            'runtime_truth': 'Inbox/projectmanager_v2/RuntimeV2/development_context/current.json',
-            'runtime_truth_primary': True,
-            'active_context':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_ACTIVE_DEVELOPMENT_CONTEXT.md',
-            'manifest':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_DEVELOPMENT_MANIFEST.md',
-            'ledger':'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/01_UNIFIED_DEVELOPMENT_LEDGER.md',
-            'requirements': [
-                'Data/03_Systeem/Projectmanager/Requirements/HARD_REQUIREMENT_RELEASE_AUDIT_RECURRENCE_BADGES.md',
-                'Data/03_Systeem/Projectmanager/Requirements/HARD_REQUIREMENT_LIVE_HANDOVER_NEW_CHAT.md',
-                'Data/03_Systeem/Projectmanager/Requirements/HARD_REQUIREMENT_CHATGPT_BUILDS_CODEX_RESEARCH_ONLY.md',
-                'Data/03_Systeem/Projectmanager/Requirements/HARD_REQUIREMENT_32451_COMPLETE_HANDOVER.md',
-            ],
-            'live_handover_primary':True,
-        }
+        config = getattr(self, 'config', None)
+        project_root = getattr(config, 'project_root', None)
+        if project_root is not None:
+            status['development_context'] = build_development_context(project_root, status)
+            status['development_context']['requirements_root'] = CANONICAL_REQUIREMENTS_ROOT
+            inventory = _requirements_inventory(project_root)
+            status['development_context']['requirements_inventory_crosscheck'] = {
+                'status': 'GREEN' if inventory == list(status['development_context'].get('requirements') or []) else 'RED',
+                'count': len(inventory),
+            }
+            if status['development_context']['requirements_inventory_crosscheck']['status'] != 'GREEN':
+                reconciliation = status['development_context'].setdefault('truth_reconciliation', {})
+                reconciliation['status'] = 'RED'
+                reconciliation['fail_closed'] = True
+                reconciliation.setdefault('conflicts', []).append({'kind': 'requirements_inventory_mismatch'})
+        else:
+            context = status.setdefault('development_context', {})
+            context.setdefault('runtime_truth_primary', True)
         status.update(cross_chat_contracts())
         status['conversation_intake'] = self.conversation_intake.summary()
         issues = getattr(self.base, 'issues', None)

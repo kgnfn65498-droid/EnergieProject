@@ -24,6 +24,11 @@ EXPORT_ROOT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Exports')
 STATE_ROOT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/State')
 VALIDATION_ROOT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Validation')
 EXTERNAL_GATE_REL = STATE_ROOT_REL / 'TYPE2_EXTERNAL_RECOVERY_GATE.json'
+DELIVERY_CHECKPOINT_REL = STATE_ROOT_REL / 'CHECKPOINT_TYPE2_002_012_EXTERNAL_DELIVERY_READY_20260926.json'
+RECEIPT_REQUIREMENT_RELS = (
+    Path('Data/03_Systeem/Projectmanager/Requirements/HARD_REQUIREMENT_32_5_24_PROJECTMANAGER_LIVE_TRUTH.md'),
+    Path('Data/03_Systeem/Projectmanager/Requirements/HARD_REQUIREMENT_32_5_24_PM_PROGRESS_RELEASE_TYPE2_CLOSURE.md'),
+)
 TYPE2_REQUIRED_IDS = tuple(f'ClearUp_{i:03d}' for i in range(2, 13))
 WATCHER_REQUEST_REL = Path('Inbox/project_clearup_move_request.json')
 WATCHER_RESULT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Runtime/project_clearup_move_result.json')
@@ -488,6 +493,108 @@ def _verified_required_exports(root: Path) -> list[dict[str, Any]]:
     return verified
 
 
+def _load_json_dict(path: Path) -> dict[str, Any] | None:
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _receipt_requirement_evidence(root: Path) -> list[str]:
+    evidence = []
+    required_tokens = (
+        'reeds heeft ontvangen',
+        'reeds ontvangen type-2 recovery',
+        'reeds ontvangen type-2 recovery mag niet',
+    )
+    for rel in RECEIPT_REQUIREMENT_RELS:
+        path = root / rel
+        if path.is_symlink() or not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding='utf-8').lower()
+        except OSError:
+            continue
+        if any(token in text for token in required_tokens):
+            evidence.append(rel.as_posix())
+    return evidence
+
+
+def reconcile_external_recovery_truth(project_root: Path | str) -> dict[str, Any]:
+    """Reconcile stale delivery/receipt state without weakening the delete gate.
+
+    User receipt and current-set integrity are separate truths.  A historical
+    receipt remains true even when a later recovery refresh changes one ZIP.
+    Delete is allowed only when the current 002..012 exports still match the
+    exact externally delivered checkpoint.
+    """
+    root = Path(project_root).resolve()
+    evidence_refs = _receipt_requirement_evidence(root)
+    delivery = _load_json_dict(root / DELIVERY_CHECKPOINT_REL)
+    current = _verified_required_exports(root)
+    gate_path = root / EXTERNAL_GATE_REL
+    existing = _load_json_dict(gate_path) or {}
+
+    receipt_confirmed = bool(evidence_refs)
+    delivered_rows = {}
+    delivery_valid = False
+    if isinstance(delivery, dict):
+        rows = delivery.get('downloads')
+        delivery_valid = (
+            str(delivery.get('status') or '') == 'READY_FOR_EXTERNAL_DOWNLOAD'
+            and int(delivery.get('required_count') or 0) == len(TYPE2_REQUIRED_IDS)
+            and int(delivery.get('verified_count') or 0) == len(TYPE2_REQUIRED_IDS)
+            and not (delivery.get('failures') or [])
+            and isinstance(rows, list)
+        )
+        if delivery_valid:
+            delivered_rows = {
+                str(row.get('clearup_id') or ''): row
+                for row in rows if isinstance(row, dict)
+            }
+            delivery_valid = set(delivered_rows) == set(TYPE2_REQUIRED_IDS)
+
+    mismatches = []
+    if delivery_valid:
+        for row in current:
+            prior = delivered_rows.get(row['clearup_id'])
+            if not isinstance(prior, dict):
+                mismatches.append({'clearup_id': row['clearup_id'], 'reason': 'missing_from_delivered_checkpoint'})
+                continue
+            for field in ('artifact', 'size', 'sha256', 'plan_sha256'):
+                if prior.get(field) != row.get(field):
+                    mismatches.append({
+                        'clearup_id': row['clearup_id'], 'field': field,
+                        'delivered': prior.get(field), 'current': row.get(field),
+                    })
+
+    exact_current_set = receipt_confirmed and delivery_valid and not mismatches
+    payload = {
+        **existing,
+        'schema': 'energie_clearup_type2_external_recovery_gate_v3',
+        'receipt_confirmed': receipt_confirmed,
+        'receipt_evidence_refs': evidence_refs,
+        'delivery_checkpoint': DELIVERY_CHECKPOINT_REL.as_posix() if delivery_valid else '',
+        'current_set_verified_count': len(current),
+        'current_set_integrity': 'MATCHES_DELIVERED_SET' if exact_current_set else (
+            'CURRENT_SET_CHANGED_AFTER_RECEIPT' if receipt_confirmed and delivery_valid else 'RECEIPT_OR_DELIVERY_EVIDENCE_INCOMPLETE'
+        ),
+        'current_set_mismatches': mismatches,
+        'confirmed_exports': current if exact_current_set else list(existing.get('confirmed_exports') or []),
+        'status': 'EXTERNAL_COPY_CONFIRMED' if exact_current_set else (
+            'CURRENT_SET_CHANGED_AFTER_RECEIPT' if receipt_confirmed and delivery_valid else 'BLOCK_DELETE_UNTIL_CURRENT_SET_PROVEN'
+        ),
+        'delete_allowed': bool(exact_current_set),
+        'reconciled_at': datetime.now(timezone.utc).isoformat(),
+        'reconciliation_rule': 'receipt truth is persistent; destructive eligibility requires exact current-set identity',
+    }
+    _atomic_json(gate_path, payload)
+    return payload
+
+
 def _load_external_gate(root: Path) -> dict[str, Any]:
     path = root / EXTERNAL_GATE_REL
     if path.is_symlink() or not path.is_file():
@@ -508,9 +615,15 @@ def _assert_external_recovery_confirmed(root: Path) -> dict[str, Any]:
         raise RuntimeError('active release unreadable for Type2 external gate') from exc
     if _version_tuple(active) < (32, 5, 16):
         return {'status': 'LEGACY_PRE_32_5_16', 'delete_allowed': True}
-    gate = _load_external_gate(root)
+    if _version_tuple(active) >= (32, 5, 24):
+        gate = reconcile_external_recovery_truth(root)
+    else:
+        gate = _load_external_gate(root)
     if gate.get('status') != 'EXTERNAL_COPY_CONFIRMED' or gate.get('delete_allowed') is not True:
-        raise RuntimeError('Type2 finalize blocked until external recovery copy is explicitly confirmed')
+        integrity = str(gate.get('current_set_integrity') or '')
+        if gate.get('receipt_confirmed') is True and integrity == 'CURRENT_SET_CHANGED_AFTER_RECEIPT':
+            raise RuntimeError('Type2 finalize blocked: user receipt is confirmed but current recovery set changed after delivery')
+        raise RuntimeError('Type2 finalize blocked until current recovery set is explicitly confirmed/proven against external delivery evidence')
     confirmed = gate.get('confirmed_exports')
     if not isinstance(confirmed, list) or len(confirmed) != len(TYPE2_REQUIRED_IDS):
         raise RuntimeError('Type2 external recovery confirmation set incomplete')

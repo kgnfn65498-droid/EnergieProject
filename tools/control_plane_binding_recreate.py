@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Callable
 
 CONTAINER = 'energie-control-plane'
+CONTROL_PLANE_CAPS = ['DAC_OVERRIDE', 'DAC_READ_SEARCH', 'FOWNER']
 
 
 def _host_project_root(info: dict) -> str:
@@ -28,6 +29,7 @@ def _desired_container_payload(host_root: str) -> dict:
             '--approved-queue', '/pm-approved/queue.json',
             '--runtime-evidence', '/runtime-evidence',
             '--runtime-root', '/control-plane-runtime',
+            '--security-root', '/control-plane-runtime',
             '--release-controller-root', '/release-controller',
             '--native-mcp-runtime-root', '/native-mcp-runtime',
             '--host-project-root', base,
@@ -55,6 +57,7 @@ def _desired_container_payload(host_root: str) -> dict:
             'NetworkMode': 'none',
             'ReadonlyRootfs': True,
             'CapDrop': ['ALL'],
+            'CapAdd': list(CONTROL_PLANE_CAPS),
             'SecurityOpt': ['no-new-privileges'],
             'RestartPolicy': {'Name': 'unless-stopped', 'MaximumRetryCount': 0},
             'Tmpfs': {'/tmp': 'size=16m,mode=1777'},

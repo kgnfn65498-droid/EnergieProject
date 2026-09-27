@@ -1,0 +1,21 @@
+{
+  "schema": "energie_release_build_basis_v2",
+  "from_version": "32.5.23",
+  "to_version": "32.5.24",
+  "source_artifact": "EnergieProject_v32.5.23.zip",
+  "source_sha256": "a1238939297dec600a0e5b6c9519ac7c7ed9651b80c515418c7a526af60c8e09",
+  "source_size": 6820911,
+  "pm_version": "2.0.0-rc58",
+  "scope": [
+    "retain predecessor-loaded 32.5.23 control-plane prepare logic through the N+1 32.5.24 transition",
+    "enforce PM LIVE_REQUIRED to LIVE_PROVEN functional closure and runtime-first handoff/status truth",
+    "enforce Step X/Y plus elapsed/ETA and bounded terminal-fallback metadata",
+    "detect multi-release carry-forward/version stacking",
+    "separate historical Type-2 recovery receipt from current recovery-set integrity",
+    "prove ClearUp_002..012 prepare/export/migrate/path activation/validate/recovery gate/finalize/delete-readback/restore",
+    "prove ClearUp_007 canonical writer handoff and legacy control-plane quiescence",
+    "preserve fail-closed destructive gates and add no parallel watcher/controller/status chain",
+    "fix real control-plane recreate mount/write mismatch: keep ReleaseController read-only and route bootstrap security marker to canonical writable ControlPlane Runtime"
+  ],
+  "live_boundary_regression": "tests/test_v32524_control_plane_readonly_release_controller.py"
+}

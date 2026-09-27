@@ -1,7 +1,14 @@
 from __future__ import annotations
-from system_path_contract import project_system_path
 import json, os, secrets, fcntl, stat, contextlib
 from pathlib import Path
+try:
+    from system_path_contract import project_system_path
+except ModuleNotFoundError:
+    # Legacy standalone transition fixtures predate the path-contract module.
+    # Production releases include it; this fallback preserves only the original
+    # direct project-root behavior for those isolated historical rehearsals.
+    def project_system_path(root, relative):
+        return Path(root) / str(relative)
 from typing import Any
 from transition_state_io import read_transition_state, TransitionStateReadError
 

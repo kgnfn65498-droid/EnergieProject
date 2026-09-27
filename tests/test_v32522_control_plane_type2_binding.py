@@ -34,6 +34,7 @@ def _container_info(*, canonical: bool) -> dict:
     if canonical:
         cmd += [
             '--runtime-root', '/control-plane-runtime',
+            '--security-root', '/control-plane-runtime',
             '--release-controller-root', '/release-controller',
             '--native-mcp-runtime-root', '/native-mcp-runtime',
         ]
@@ -44,8 +45,15 @@ def _container_info(*, canonical: bool) -> dict:
         ]
     return {
         'State': {'Running': True, 'Health': {'Status': 'healthy'}},
-        'Config': {'Cmd': cmd},
-        'HostConfig': {'Binds': binds},
+        'Config': {'Cmd': cmd, 'Image': 'python:3.12-slim'},
+        'HostConfig': {
+            'Binds': binds,
+            'NetworkMode': 'none',
+            'ReadonlyRootfs': True,
+            'CapDrop': ['ALL'],
+            'CapAdd': ['DAC_OVERRIDE', 'DAC_READ_SEARCH', 'FOWNER'],
+            'SecurityOpt': ['no-new-privileges'],
+        },
     }
 
 
@@ -74,8 +82,10 @@ def test_bootstrap_recreates_legacy_binding_once_after_type2_activation(tmp_path
             return _container_info(canonical=current['canonical'])
         if method == 'POST' and path.startswith('/containers/create?name=energie-control-plane'):
             assert payload is not None
-            assert '/control-plane-runtime' in payload['Cmd']
+            assert payload['Cmd'][payload['Cmd'].index('--runtime-root') + 1] == '/control-plane-runtime'
+            assert payload['Cmd'][payload['Cmd'].index('--security-root') + 1] == '/control-plane-runtime'
             assert any(str(x).endswith(':/control-plane-runtime:rw') for x in payload['HostConfig']['Binds'])
+            assert set(payload['HostConfig']['CapAdd']) == {'DAC_OVERRIDE', 'DAC_READ_SEARCH', 'FOWNER'}
             current['canonical'] = True
             return {'Id': 'new'}
         return {}

@@ -10,6 +10,10 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - DAC_READ_SEARCH
+      - FOWNER
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
@@ -23,6 +27,8 @@ services:
       - --runtime-evidence
       - /runtime-evidence
       - --runtime-root
+      - /control-plane-runtime
+      - --security-root
       - /control-plane-runtime
       - --release-controller-root
       - /release-controller

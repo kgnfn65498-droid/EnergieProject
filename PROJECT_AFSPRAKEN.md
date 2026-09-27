@@ -238,3 +238,17 @@
 - Finale PM heartbeat/self-audit gebruikt actuele FINAL-cycle tijd en mag niet door een lange cyclus kunstmatig stale worden.
 - Release-owned closure-taken en commands van oudere releases moeten automatisch worden gesupersedeerd op hard runtime/atomic bewijs.
 - 32.4.44 wordt uitsluitend gebouwd vanaf de exacte geverifieerde 32.4.43 ZIP.
+
+## 32.5.24 — DS9/Spock continuity, FULL_KB, logs en artifactretentie
+- Nieuwe chat met alleen `verder` laadt live runtime, hoogste checkpoint, alle Requirements dynamisch, Active Context, Handover, Master Development Index, relevante Ledger/lessons en artifactregister vóór ontwikkelwerk.
+- FULL_KB = rapportage-KB + technische Projectmanager-KB + Requirements + actuele Handover + runtime/checkpoint + Master Index; bij development/release ook PROJECT_AFSPRAKEN + CHANGELOG. Eén KB-root is nooit COMPLETE.
+- PM schrijft na betekenisvolle blokken runtime development-context/logtruth en synchroniseert Master Index + Current Truth; stale/conflict wordt fail-closed gereconcilieerd.
+- Release-ZIP-retentie is drie: nieuwste kandidaat heeft exact de officiële releasenaam, oudere valide kandidaten worden ondubbelzinnig hernoemd; oudste pas weg na nieuwe hash/size/CRC/registry-readback GREEN.
+- Een terminal/tunnelcommando is nooit een proefballon: exact target, script/command-SHA, parsercheck, check-only preflight, side effects, danger-class, rollback, maximale wachttijd en post-action readback moeten vóór presentatie bewezen zijn.
+- Incoming-recovery gebruikt geen release-ZIP als hersteltransport en creëert geen tweede watcher/controller/installer.
+
+
+## 32.5.24 — harde aanvulling command-proof voor QNAP hostpaden
+- Een QNAP-hostcommando mag nooit een projectpad hardcoden op basis van een logische projectnaam alleen. Eerst current working root of bewezen Container Station/config-root valideren; alleen bewezen aliases mogen als fallback.
+- Voor deze installatie zijn bewezen: `/share/CACHEDEV1_DATA/AI Projecten/EnergieProject`, `/share/AI Projecten/EnergieProject` en de logische/containercontract-identiteit `/share/Energie_NAS/EnergieProject`; een commando mag niet aannemen dat alle drie fysiek als hostdirectory bestaan.
+- Een tunnel/recovery-command is pas command-proof als naast SHA/syntax/check-only ook de gewenste post-runtime fingerprint verschilt van en correct is ten opzichte van de stale pre-state fingerprint.

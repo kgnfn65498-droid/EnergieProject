@@ -213,11 +213,15 @@ class ProjectmanagerConversationRuntime:
     def _speech_for_truth(truth: dict) -> str:
         release = truth.get('release_version') or 'onbekend'
         label = (truth.get('progress') or {}).get('step_label') or 'voortgang onbekend'
+        progress = truth.get('progress') or {}
+        elapsed = progress.get('elapsed_seconds')
+        eta = progress.get('estimated_remaining_seconds')
+        time_text = f' Verstreken: {elapsed} s; ETA: {eta} s.' if elapsed is not None and eta is not None else ' Tijd/ETA: nog niet bewezen.'
         blockers = truth.get('blockers') or []
         next_action = truth.get('next_action') or 'nog niet bepaald'
         if blockers:
-            return f'{release}: {label}. Blocker: {blockers[0]}. Volgende stap: {next_action}.'
-        return f'{release}: {label}. Geen blocker. Volgende stap: {next_action}.'
+            return f'{release}: {label}.{time_text} Blocker: {blockers[0]}. Volgende stap: {next_action}.'
+        return f'{release}: {label}.{time_text} Geen blocker. Volgende stap: {next_action}.'
 
     @staticmethod
     def _parameters(action: str, text: str, status: dict) -> dict:

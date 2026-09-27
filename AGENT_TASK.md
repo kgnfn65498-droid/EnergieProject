@@ -1,49 +1,40 @@
-# AGENT_TASK — EnergieProject 32.5.23
+# AGENT_TASK — EnergieProject 32.5.24 replacement
 
-- task_id: V32523-TYPE2-CONTROL-PLANE-PREPARE-2026-09-26
+- task_id: V32524-PM-TYPE2-LIVE-TRUTH-CLOSURE-2026-09-26
 - mode: DEVELOPMENT
 - thinking: HIGH
 - owner: ChatGPT/Spock
-- step: 1/1
 - production_authority: NO
 
 ## Doel
-Sluit de laatste live Type-2 blocker structureel: na Type-2 path activation moet de releasecontroller de daadwerkelijke `energie-control-plane` containerbinding bewijzen/repareren, óók wanneer Native MCP al current is. Hierdoor kan ClearUp_007 na installatie quiescent/GREEN worden zonder Peter als terminal- of Container Station-transportlaag.
+Lever één vervangende 32.5.24 die de noodzakelijke N+1 control-plane activatie behoudt én de bindende 32.5.24 Project Manager/Type-2 eisen technisch afdwingt zonder nieuwe watcher/controller/statusketen.
 
 ## Scope
-- exacte fysieke 32.5.22 ZIP als enige buildbasis;
-- `NativeRuntimeCoordinator.align()` laat voor 32.5.23+ exact één control-plane prepare/binding-proof per release fence uitvoeren vóór de `native_mcp_current` shortcut;
-- bestaande `ensure_control_plane_current()` / bounded binding recreate uit 32.5.22 hergebruiken; geen tweede actuatorroute;
-- fail-closed op ontbrekende/RED/unproven binding evidence;
-- na proces-reexec mag dezelfde COMPLETE release eenmaal opnieuw worden bewezen, daarna idempotent binnen dezelfde runtime;
-- regressietests voor ready-Native-MCP + legacy control-plane binding, failure en idempotentie.
+- exact fysieke 32.5.23 ZIP als buildbasis;
+- predecessor-controller/N+1 control-plane activatie behouden;
+- PM versie 2.0.0-rc58;
+- LIVE_REQUIRED functioneel nooit definitief sluiten zonder LIVE_PROVEN;
+- new-chat/handoff/status/task/intake/acceptance runtime-first houden;
+- Step X/Y + elapsed/ETA technisch afdwingen en tonen;
+- uitzonderlijke terminalfallback alleen compliant met terminal, stap, duur, maximale wachttijd, succes-/stopmarker en retourvereiste;
+- versie-opstapeling/carry-forward proactief signaleren;
+- historische Type-2 recovery-ontvangst scheiden van actuele recoveryset-integriteit;
+- ClearUp_002..012 volledige E2E: prepare -> export verify -> migrate -> path activation -> validate -> external recovery gate -> finalize -> delete-readback -> restore;
+- ClearUp_007 expliciet bewijzen met canonieke control-plane writer-handoff en quiescente legacy bron.
 
-## Niet wijzigen
-- geen nieuwe lifecycle-owner, watcher of publisher;
-- geen automatische HA-installatie/restart;
-- geen NAS reboot/restart;
-- geen Type-2 finalize/delete tijdens build/audit;
-- geen handmatige productie-statefabricage;
-- geen terminalstap voor Peter.
-
-## Bewezen feiten
-- live 32.5.22 is COMPLETE 9/9, NAS/HA 32.5.22, PM rc55;
-- ClearUp_005 en 006 zijn GREEN;
-- ClearUp_007 blijft RED omdat live `energie-control-plane` nog legacy `Inbox/control_plane` schrijft;
-- 32.5.22 `ensure_control_plane_current()` detecteert/repareert die binding correct wanneer aangeroepen;
-- 32.5.22 `NativeRuntimeCoordinator.align()` roept prepare niet aan wanneer Native MCP guard al ready is.
+## Veiligheidsgrenzen
+- geen NAS/HA restart tijdens build;
+- geen live Type-2 finalize/delete tijdens build;
+- geen nieuwe lifecycle-owner/watcher/publisher;
+- geen versoepeling van recovery-, validation- of releasegates;
+- destructive live Type-2 pas na actuele plan/recovery/validation/live-proof exact GREEN.
 
 ## Acceptatie
-- nieuwe regressie RED op exact 32.5.22 gedrag en GREEN na fix;
-- 32.5.23+ ready-Native-MCP pad bewijst prepare/binding vóór shortcut;
-- prepare-failure blokkeert fail-closed;
-- dezelfde release fence prepare maximaal eenmaal per proces;
-- oudere releasegedragingen blijven compatibel;
-- volledige 32.5-suite GREEN;
+- 32.5-regressiefamilie volledig GREEN;
+- oudere PM/handoff/build-contract regressies relevant voor deze scope GREEN;
 - static suite GREEN;
-- exact physical ZIP fresh-extract GREEN;
-- exacte 32.5.22→32.5.23 atomic simulatie GREEN;
-- artifact CRC/MANIFEST/SHA256SUMS/release-identiteit GREEN.
+- canonical release builder filtert caches/pyc en weigert verboden ZIP-members;
+- exact fysieke ZIP fresh-extract: CRC, manifest, SHA256SUMS, compile en dezelfde relevante regressies GREEN;
+- live-only functional gates blijven LIVE_REQUIRED tot installatiebewijs aanwezig is.
 
-## Stopcriteria
-Alleen stoppen bij echte safety/artifact blocker of wanneer definitieve geverifieerde ZIP gereed is. Geen productieactie in deze taak.
+- De bestaande host-capability Platform Qualification blijft een apart bewijscontract naast release acceptance; geen testverzwakking.

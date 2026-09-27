@@ -20,6 +20,7 @@ from opportunity_register import OpportunityRegister
 from proactive_policy import evaluate_signal
 from progress_truth import build_task_progress
 from development_build_contract import evaluate_build_contract, canonical_contract
+from development_context_enforcement import build_development_context
 from persistence import atomic_write_json
 from research_queue import ResearchQueue
 from retention import retention_candidates, apply_retention
@@ -588,16 +589,28 @@ class ManagerService:
         rather than aborting the manager cycle.
         """
         contract = status.get('development_build_contract') if isinstance(status.get('development_build_contract'), dict) else {}
+        development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else None
+        if development_context is None:
+            config = getattr(self, 'config', None)
+            project_root = getattr(config, 'project_root', None)
+            development_context = build_development_context(project_root, status) if project_root is not None else {}
         runtime_context = {
-            'schema': 'energie_pmv2_runtime_development_context_v1',
+            'schema': 'energie_pmv2_runtime_development_context_v2',
             'release_version': str((status.get('release') or {}).get('version') or ''),
             'contract_version': str(contract.get('contract_version') or ''),
             'process_rules': list(contract.get('process_rules') or []),
             'static_paths': {
-                'active_context': 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_ACTIVE_DEVELOPMENT_CONTEXT.md',
-                'manifest': 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_DEVELOPMENT_MANIFEST.md',
-                'ledger': 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/01_UNIFIED_DEVELOPMENT_LEDGER.md',
+                'master_index': development_context.get('master_index'),
+                'active_context': development_context.get('active_context'),
+                'manifest': development_context.get('manifest'),
+                'ledger': development_context.get('ledger'),
+                'ledger_current_truth': development_context.get('ledger_current_truth'),
             },
+            'requirements': list(development_context.get('requirements') or []),
+            'requirements_dynamic_discovery': development_context.get('requirements_dynamic_discovery') is True,
+            'requirements_count': int(development_context.get('requirements_count') or 0),
+            'full_kb': development_context.get('full_kb') or {},
+            'truth_reconciliation': development_context.get('truth_reconciliation') or {},
             'runtime_truth_primary': True,
         }
         atomic_write_json(self.root / 'development_context' / 'current.json', runtime_context)
@@ -689,11 +702,47 @@ class ManagerService:
             '### Machineleesbare Development Build Contract-regels',
             rules_text,
         ])
-        return [
+        development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else None
+        if development_context is None:
+            config = getattr(self, 'config', None)
+            project_root = getattr(config, 'project_root', None)
+            development_context = build_development_context(project_root, status) if project_root is not None else {}
+        full_kb = development_context.get('full_kb') if isinstance(development_context.get('full_kb'), dict) else {}
+        reconciliation = development_context.get('truth_reconciliation') if isinstance(development_context.get('truth_reconciliation'), dict) else {}
+        master = '\n'.join([
+            '## Projectmanager runtime-routering',
+            f"- Release: **{release}**",
+            f"- Requirements dynamisch ontdekt: **{development_context.get('requirements_count', 0)}**",
+            f"- FULL_KB: **{full_kb.get('status', 'RED')}**",
+            f"- Hoogste checkpoint: `{(full_kb.get('checkpoint') or {}).get('path', '')}`",
+            f"- Truth reconciliation: **{reconciliation.get('status', 'RED')}**",
+            '- Runtime gebruikt deze Master Development Index als verplichte administratieve router.',
+        ])
+        current_truth = '\n'.join([
+            '## Projectmanager live current-truth readback',
+            f"- Release: **{release}**",
+            f"- FULL_KB: **{full_kb.get('status', 'RED')}**",
+            f"- Requirements: **{development_context.get('requirements_count', 0)}** dynamisch ontdekt.",
+            f"- Truth reconciliation: **{reconciliation.get('status', 'RED')}**",
+            f"- Conflicts: **{len(reconciliation.get('conflicts') or [])}**",
+            f"- Hoogste checkpoint: `{(full_kb.get('checkpoint') or {}).get('path', '')}`",
+            '- Deze sectie is runtime-gegenereerd en vervangt geen handmatige/historische ledgerinhoud.',
+        ])
+        results = [
             self.document_sync.update(root / '00_ACTIVE_DEVELOPMENT_CONTEXT.md', 'PROJECTMANAGER_V2_DEVELOPMENT_CONTEXT', active, placement='top'),
             self.document_sync.update(root / '00_DEVELOPMENT_MANIFEST.md', 'PROJECTMANAGER_V2_DEVELOPMENT_MANIFEST', manifest, placement='top'),
             self.document_sync.update(root / '01_UNIFIED_DEVELOPMENT_LEDGER.md', 'PROJECTMANAGER_V2_DEVELOPMENT_LEDGER', ledger, placement='top'),
         ]
+        try:
+            release_tuple = tuple(int(part) for part in release.split('.'))
+        except ValueError:
+            release_tuple = ()
+        if release_tuple >= (32, 5, 24):
+            results.extend([
+                self.document_sync.update(root / '00_MASTER_DEVELOPMENT_INDEX.md', 'PROJECTMANAGER_V2_RUNTIME_ROUTER', master, placement='top'),
+                self.document_sync.update(root / '01A_LEDGER_CURRENT_TRUTH.md', 'PROJECTMANAGER_V2_RUNTIME_CURRENT_TRUTH', current_truth, placement='top'),
+            ])
+        return results
 
     def _sync_managed_documents(self, status: dict):
         kb_dir = Path(self.config.reports_root) / 'KnowledgeBase'

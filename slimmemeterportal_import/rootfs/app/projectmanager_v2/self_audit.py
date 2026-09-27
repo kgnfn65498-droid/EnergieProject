@@ -306,6 +306,7 @@ class SelfAuditor:
                     ('acceptance_matrix', 'acceptance_matrix_mismatch'),
                     ('development_efficiency', 'development_efficiency_mismatch'),
                     ('development_context', 'development_context_mismatch'),
+                    ('development_build_contract', 'development_build_contract_mismatch'),
                 ])
             for field, reason in coordination_fields:
                 if status.get(field) != handover.get(field):
@@ -321,6 +322,33 @@ class SelfAuditor:
             )
             if status_issue_ids != handover_issue_ids:
                 invalid.append({'path': 'handover/current.json', 'reason': 'open_issues_mismatch'})
+
+            if _release_at_least(self.running_release_version or ((status.get('release') or {}).get('version')), '32.5.24'):
+                development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
+                if development_context.get('requirements_dynamic_discovery') is not True:
+                    invalid.append({'path': 'status/current.json', 'reason': 'requirements_dynamic_discovery_missing'})
+                requirements = development_context.get('requirements') if isinstance(development_context.get('requirements'), list) else []
+                if not requirements or int(development_context.get('requirements_count') or 0) != len(requirements):
+                    invalid.append({'path': 'status/current.json', 'reason': 'requirements_dynamic_discovery_incomplete'})
+                full_kb = development_context.get('full_kb') if isinstance(development_context.get('full_kb'), dict) else {}
+                if full_kb.get('status') != 'COMPLETE' or full_kb.get('complete') is not True:
+                    invalid.append({'path': 'status/current.json', 'reason': 'full_kb_runtime_enforcement_incomplete'})
+                if not str(development_context.get('master_index') or '').endswith('00_MASTER_DEVELOPMENT_INDEX.md'):
+                    invalid.append({'path': 'status/current.json', 'reason': 'master_development_index_missing'})
+                reconciliation = development_context.get('truth_reconciliation') if isinstance(development_context.get('truth_reconciliation'), dict) else {}
+                if reconciliation.get('status') != 'GREEN' or reconciliation.get('fail_closed') is True:
+                    invalid.append({'path': 'status/current.json', 'reason': 'development_truth_conflict'})
+
+            if status.get('mode') == 'DEVELOPMENT' and isinstance(status.get('active_task'), dict):
+                task = status.get('active_task') or {}
+                if task.get('build_contract_required') is True:
+                    progress = status.get('progress') if isinstance(status.get('progress'), dict) else {}
+                    for field in ('step_label', 'elapsed_seconds', 'estimated_remaining_seconds'):
+                        if progress.get(field) in (None, ''):
+                            invalid.append({'path': 'status/current.json', 'reason': f'development_progress_missing:{field}'})
+                    contract = status.get('development_build_contract') if isinstance(status.get('development_build_contract'), dict) else {}
+                    if contract.get('compliant') is not True:
+                        invalid.append({'path': 'status/current.json', 'reason': 'development_build_contract_noncompliant'})
 
             s_task = status.get('active_task') or {}
             h_task = handover.get('active_task') or {}

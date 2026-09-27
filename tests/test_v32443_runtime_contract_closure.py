@@ -537,10 +537,13 @@ def test_32443_self_audit_accepts_current_development_build_contract_v3(tmp_path
     status = json.loads(status_path.read_text(encoding='utf-8'))
     status['active_task'] = task
     status['development_build_contract'] = evaluate_build_contract(task, {})
+    status['progress'] = {'step_label':'Stap 1/1','elapsed_seconds':0,'estimated_remaining_seconds':600}
     _write(status_path, status)
     handover_path = tmp_path/'handover/current.json'
     handover = json.loads(handover_path.read_text(encoding='utf-8'))
     handover['active_task'] = {key:task[key] for key in ('id','status','step','steps_total')}
+    handover['progress'] = status['progress']
+    handover['development_build_contract'] = status['development_build_contract']
     _write(handover_path, handover)
 
     audit = SelfAuditor(tmp_path, running_release_version='32.4.43').run(require_coordination=True)

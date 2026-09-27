@@ -6,11 +6,7 @@ import os
 import sys
 import tempfile
 import control_plane as cp
-QNAP_ALLOWED_PROJECT_ROOTS = {
-    "/share/Energie_NAS/EnergieProject",
-    "/share/AI Projecten/EnergieProject",
-    "/share/CACHEDEV1_DATA/AI Projecten/EnergieProject",
-}
+QNAP_PHYSICAL_PROJECT_ROOT = "/share/Energie_NAS/EnergieProject"
 
 
 def _security_migration_current(inbox: Path, release_controller_root: Path | None = None) -> bool:
@@ -167,7 +163,7 @@ def _consume_argv_pair(flag: str) -> None:
 
 def qnap_watcher_create_payload(host_project_root: str) -> dict:
     host_root = str(host_project_root).rstrip("/")
-    if host_root not in QNAP_ALLOWED_PROJECT_ROOTS:
+    if host_root != QNAP_PHYSICAL_PROJECT_ROOT:
         raise RuntimeError("onverwachte QNAP host project-root")
     return {
         "Image": cp.WATCHER_IMAGE,

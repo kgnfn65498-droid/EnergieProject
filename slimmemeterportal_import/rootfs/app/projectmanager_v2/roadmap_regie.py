@@ -327,7 +327,23 @@ class RoadmapRegie:
                     changed.append(dict(item))
                     continue
                 if item.get('status') in {'ACTIVE', 'BLOCKED'}:
+                    if item.get('acceptance_matrix_required') is True:
+                        state = item.get('acceptance_state')
+                        if item.get('live_required') is True and state != 'LIVE_PROVEN':
+                            item['status'] = 'BLOCKED'
+                            item['completion_blocker'] = 'LIVE_REQUIRED_WITHOUT_LIVE_PROVEN'
+                            item['updated_at'] = now
+                            changed.append(dict(item))
+                            continue
+                        if item.get('live_required') is not True and state not in {'TEST_GREEN','LIVE_PROVEN','CLOSED_COLD'}:
+                            item['status'] = 'BLOCKED'
+                            item['completion_blocker'] = 'TEST_ACCEPTANCE_NOT_PROVEN'
+                            item['updated_at'] = now
+                            changed.append(dict(item))
+                            continue
+                        item['acceptance_state'] = 'CLOSED_COLD'
                     item.update({'status': 'DONE', 'updated_at': now})
+                    item.pop('completion_blocker', None)
                     changed.append(dict(item))
         if changed:
             self._save(data)
@@ -368,6 +384,39 @@ class RoadmapRegie:
             return dict(item)
         raise KeyError(key)
 
+    def observe_release(self, release_version: str):
+        version = str(release_version or '').strip()
+        if not version:
+            return []
+        data = self._load()
+        changed = False
+        alerts = []
+        now = datetime.now(timezone.utc).isoformat()
+        for item in data.get('items', []):
+            if item.get('status') == 'DONE':
+                continue
+            history = list(item.get('open_release_history') or [])
+            if version not in history:
+                history.append(version)
+                item['open_release_history'] = history[-20:]
+                item['updated_at'] = now
+                changed = True
+            if len(history) >= 3:
+                carry = list(item.get('carry_forward') or [])
+                blocker = str(item.get('blocker') or item.get('completion_blocker') or '').strip()
+                next_action = str(item.get('next_action') or '').strip()
+                alerts.append({
+                    'key': item.get('key'), 'release_count': len(history),
+                    'releases': history, 'carry_forward': carry,
+                    'blocker': blocker or 'concrete_blocker_required',
+                    'next_action': next_action or 'concrete_next_action_required',
+                    'status': 'VERSION_STACKING_ATTENTION',
+                })
+        if changed:
+            self._save(data)
+        return alerts
+
+
     def acceptance_summary(self):
         items = [item for item in self.all() if item.get('acceptance_matrix_required') is True]
         counts = {state: 0 for state in VALID_ACCEPTANCE_STATES}
@@ -378,7 +427,18 @@ class RoadmapRegie:
                 counts[state] += 1
             if state not in {'LIVE_PROVEN','CLOSED_COLD'}:
                 blockers.append({'key': item.get('key'),'state': state,'ledger_refs': list(item.get('ledger_refs') or []),'required_tests': list(item.get('required_tests') or []),'carry_forward': list(item.get('carry_forward') or [])})
-        return {'schema': 'energie_roadmap_ledger_acceptance_matrix_v1','counts': counts,'blockers': blockers,'items_total': len(items)}
+        carry_forward_alerts = []
+        for item in self.all():
+            history = list(item.get('open_release_history') or [])
+            if item.get('status') != 'DONE' and len(history) >= 3:
+                carry_forward_alerts.append({
+                    'key': item.get('key'), 'release_count': len(history), 'releases': history,
+                    'carry_forward': list(item.get('carry_forward') or []),
+                    'blocker': str(item.get('blocker') or item.get('completion_blocker') or 'concrete_blocker_required'),
+                    'next_action': str(item.get('next_action') or 'concrete_next_action_required'),
+                    'status': 'VERSION_STACKING_ATTENTION',
+                })
+        return {'schema': 'energie_roadmap_ledger_acceptance_matrix_v1','counts': counts,'blockers': blockers,'items_total': len(items),'carry_forward_alerts': carry_forward_alerts}
 
     def canonical_metadata(self):
         data = self._load()

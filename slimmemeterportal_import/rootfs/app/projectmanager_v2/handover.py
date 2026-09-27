@@ -24,11 +24,15 @@ def cross_chat_contracts():
         'new_chat_preflight': {
             'manual_reexplanation_required': False,
             'required_context': [
+                'master_development_index',
                 'active_development_context',
                 'development_manifest',
                 'unified_development_ledger',
                 'runtime_handover',
                 'requirements',
+                'full_kb_runtime_enforcement',
+                'highest_checkpoint',
+                'release_artifact_register',
                 'relevant_incident_evidence',
             ],
             'short_commands_supported': ['verder', 'audit', 'bouw verder'],

@@ -15,6 +15,7 @@ from ingress_policy import IncomingItem,IngressDecision,decide_incoming
 from minimal_release_preflight import verify_candidate
 from release_controller import ReleaseController,ReleaseState,Status
 from release_runtime_adapter import NativeRuntimeCoordinator
+from release_artifact_retention import retain_release_artifact
 from state_store import StateStore
 
 CONTROL_PLANE_CONTAINER='energie-control-plane'
@@ -229,13 +230,28 @@ class ReleaseControllerService:
                 return state
             try:
                 post_live_required=tuple(int(part) for part in str(state.to_version).split('.')[:3]) >= (32,5,5)
+                artifact_retention_required=tuple(int(part) for part in str(state.to_version).split('.')[:3]) >= (32,5,24)
             except ValueError:
                 post_live_required=False
+                artifact_retention_required=False
             if post_live_required:
                 audit=write_post_live_audit(self.root,state)
                 if audit.get('status')!='GREEN':
                     self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':'post_live_audit_red','release_id':state.release_id,'generation':state.generation})
                     return state
+                if artifact_retention_required:
+                    processed=self.root/'Inbox/processed'/state.artifact_name
+                    try:
+                        retention=retain_release_artifact(
+                            self.root, processed,
+                            expected_sha256=state.artifact_sha256,
+                            expected_size=processed.stat().st_size,
+                            retention=3,
+                        )
+                    except Exception as exc:
+                        self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':f'release_artifact_retention_failed:{type(exc).__name__}:{exc}','release_id':state.release_id,'generation':state.generation})
+                        return state
+                    self._runtime({'status':'COMPLETE','phase':'COMPLETE','reason':'post_live_audit_and_artifact_retention_green','release_id':state.release_id,'generation':state.generation,'artifact_retention':retention})
         if state and state.status==Status.ROLLED_BACK.value:self._settle_rolled_back(state)
         recovery=self._reconcile_idle_processing()
         if recovery is not None:
