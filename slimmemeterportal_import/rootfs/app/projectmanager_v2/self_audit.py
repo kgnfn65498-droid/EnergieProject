@@ -338,6 +338,20 @@ class SelfAuditor:
                 reconciliation = development_context.get('truth_reconciliation') if isinstance(development_context.get('truth_reconciliation'), dict) else {}
                 if reconciliation.get('status') != 'GREEN' or reconciliation.get('fail_closed') is True:
                     invalid.append({'path': 'status/current.json', 'reason': 'development_truth_conflict'})
+                if _release_at_least(self.running_release_version or ((status.get('release') or {}).get('version')), '32.5.25'):
+                    preflight = status.get('new_chat_preflight') if isinstance(status.get('new_chat_preflight'), dict) else {}
+                    if preflight.get('ready') is not True or preflight.get('manual_reexplanation_required') is not False:
+                        invalid.append({'path': 'status/current.json', 'reason': 'new_chat_resume_preflight_not_ready'})
+                    for field in ('highest_checkpoint','master_index','active_context','ledger','ledger_current_truth','decision_log','development_changelog','spock_context','ticket_issue_index','knowledgebase_inventory'):
+                        if not str(preflight.get(field) or '').strip():
+                            invalid.append({'path': 'status/current.json', 'reason': f'new_chat_resume_context_missing:{field}'})
+                    if preflight.get('resume_command') != 'verder':
+                        invalid.append({'path': 'status/current.json', 'reason': 'new_chat_resume_command_missing'})
+                    if int(preflight.get('requirements_count') or 0) != len(requirements):
+                        invalid.append({'path': 'status/current.json', 'reason': 'new_chat_requirements_count_mismatch'})
+                    handover_preflight = handover.get('new_chat_preflight') if isinstance(handover.get('new_chat_preflight'), dict) else {}
+                    if preflight != handover_preflight:
+                        invalid.append({'path': 'handover/current.json', 'reason': 'new_chat_preflight_mismatch'})
 
             if status.get('mode') == 'DEVELOPMENT' and isinstance(status.get('active_task'), dict):
                 task = status.get('active_task') or {}

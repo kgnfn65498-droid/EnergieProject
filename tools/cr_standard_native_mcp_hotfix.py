@@ -568,7 +568,7 @@ def _preflight_transforms(root: Path) -> list[dict[str, str]]:
 def apply(root: Path) -> dict:
     root = Path(root).resolve()
     backup_root = root / BACKUP_ROOT
-    result_path = root / RESULT_REL
+    result_path = project_system_path(root, RESULT_REL)
     changes: list[dict[str, str]] = []
     changed_paths: list[Path] = []
     preflight: list[dict[str, str]] = []

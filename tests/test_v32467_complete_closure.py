@@ -297,7 +297,8 @@ def test_v67_to_synthetic_v68_keeps_manual_ha_boundary(monkeypatch):
         def read(self): return b'{"result":"ok"}'
     def fake(request,timeout=15): calls.append(request.full_url); return Response()
     monkeypatch.setattr(main.urllib.request,"urlopen",fake)
-    assert main.APP_VERSION == "32.4.67"
-    result=main._request_supervisor_target_update("token","32.4.68")
+    from release_test_contract import CURRENT_RELEASE
+    assert main.APP_VERSION == CURRENT_RELEASE
+    result=main._request_supervisor_target_update("token","99.99.99")
     assert result["status"] == "GREEN" and result["requested"] is False
     assert calls == ["http://supervisor/store/reload"]

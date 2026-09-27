@@ -12,8 +12,14 @@
     "ClearUp_011": "GREEN",
     "ClearUp_012": "GREEN"
   },
-  "release": "32.5.24",
+  "external_gate_persistence_authority": "privileged_watcher_only",
+  "github_publisher_binding_recreate_required": true,
+  "native_mcp_log_writers_canonical": true,
+  "post_delete_rule": "Every finalized legacy source must be absent continuously through the soak window while every canonical destination remains present; any reappearance is RED.",
+  "post_delete_source_reappearance_soak_seconds": 20,
+  "release": "32.5.25",
   "rule": "All active readers/writers for the inventoried Type2 scope use system_path_contract or an explicitly protected functional Inbox bridge. Concrete Type2 plans ClearUp_002..012 are bundled in this release.",
   "schema": "energie_clearup_type2_path_contract_v1",
-  "status": "GREEN"
+  "status": "GREEN",
+  "writer_leak_closure": true
 }

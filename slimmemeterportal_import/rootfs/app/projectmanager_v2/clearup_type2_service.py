@@ -523,7 +523,7 @@ def _receipt_requirement_evidence(root: Path) -> list[str]:
     return evidence
 
 
-def reconcile_external_recovery_truth(project_root: Path | str) -> dict[str, Any]:
+def reconcile_external_recovery_truth(project_root: Path | str, *, persist: bool = False) -> dict[str, Any]:
     """Reconcile stale delivery/receipt state without weakening the delete gate.
 
     User receipt and current-set integrity are separate truths.  A historical
@@ -591,7 +591,8 @@ def reconcile_external_recovery_truth(project_root: Path | str) -> dict[str, Any
         'reconciled_at': datetime.now(timezone.utc).isoformat(),
         'reconciliation_rule': 'receipt truth is persistent; destructive eligibility requires exact current-set identity',
     }
-    _atomic_json(gate_path, payload)
+    if persist:
+        _atomic_json(gate_path, payload)
     return payload
 
 
@@ -616,7 +617,7 @@ def _assert_external_recovery_confirmed(root: Path) -> dict[str, Any]:
     if _version_tuple(active) < (32, 5, 16):
         return {'status': 'LEGACY_PRE_32_5_16', 'delete_allowed': True}
     if _version_tuple(active) >= (32, 5, 24):
-        gate = reconcile_external_recovery_truth(root)
+        gate = reconcile_external_recovery_truth(root, persist=False)
     else:
         gate = _load_external_gate(root)
     if gate.get('status') != 'EXTERNAL_COPY_CONFIRMED' or gate.get('delete_allowed') is not True:

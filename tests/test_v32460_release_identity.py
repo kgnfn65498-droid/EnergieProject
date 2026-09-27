@@ -21,15 +21,17 @@ def _module_value(path: Path, name: str) -> str:
     raise AssertionError(f"{name} missing from {path}")
 
 
-def test_62_release_identity_is_coherent():
+def test_current_release_identity_is_coherent():
     contract = ROOT / "release_test_contract.py"
     release_contract = {}
     exec(contract.read_text(encoding="utf-8"), release_contract)
+    target = release_contract["CURRENT_RELEASE"]
 
-    assert release_contract["CURRENT_RELEASE"] == TARGET
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == TARGET
-    assert yaml.safe_load((ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8"))["version"] == TARGET
-    assert _module_value(ROOT / "slimmemeterportal_import/rootfs/app/main.py", "APP_VERSION") == TARGET
-    assert _module_value(ROOT / "slimmemeterportal_import/rootfs/app/mode_entrypoint.py", "TARGET_RELEASE_VERSION") == TARGET
-    assert (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()[0] == f"## {TARGET} — complete settlement reconciliation and executor-boundary closure"
-    assert (ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8").splitlines()[0] == f"## {TARGET}"
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == target
+    assert yaml.safe_load((ROOT / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8"))["version"] == target
+    assert _module_value(ROOT / "slimmemeterportal_import/rootfs/app/main.py", "APP_VERSION") == target
+    assert _module_value(ROOT / "slimmemeterportal_import/rootfs/app/mode_entrypoint.py", "TARGET_RELEASE_VERSION") == target
+    assert (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()[0].startswith(f"## {target}")
+    addon=(ROOT / "slimmemeterportal_import/CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+    assert addon[0] == "# Changelog" and addon[2].startswith(f"## {target}")
+

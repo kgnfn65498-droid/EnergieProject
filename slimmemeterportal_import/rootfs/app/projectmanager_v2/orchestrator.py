@@ -51,6 +51,41 @@ from state_reconciliation import StateReconciler
 from release_controller_state import load_release_controller_state, release_active, release_view
 
 
+def build_new_chat_preflight(status: dict, development_context: dict, active: dict | None, decisions: list[dict] | None) -> dict:
+    full_kb = development_context.get('full_kb') if isinstance(development_context.get('full_kb'), dict) else {}
+    reconciliation = development_context.get('truth_reconciliation') if isinstance(development_context.get('truth_reconciliation'), dict) else {}
+    checkpoint = full_kb.get('checkpoint') if isinstance(full_kb.get('checkpoint'), dict) else {}
+    release_version = str((status.get('release') or {}).get('version') or '').strip()
+    ready = bool(
+        full_kb.get('status') == 'COMPLETE'
+        and full_kb.get('complete') is True
+        and reconciliation.get('status') == 'GREEN'
+        and reconciliation.get('fail_closed') is not True
+        and str(checkpoint.get('path') or '').strip()
+        and release_version
+    )
+    return {
+        'ready': ready,
+        'manual_reexplanation_required': not ready,
+        'resume_command': 'verder',
+        'live_release': release_version,
+        'highest_checkpoint': str(checkpoint.get('path') or ''),
+        'master_index': development_context.get('master_index'),
+        'active_context': development_context.get('active_context'),
+        'ledger': development_context.get('ledger'),
+        'ledger_current_truth': development_context.get('ledger_current_truth'),
+        'decision_log': development_context.get('decision_log'),
+        'development_changelog': development_context.get('development_changelog'),
+        'spock_context': development_context.get('spock_context'),
+        'ticket_issue_index': development_context.get('ticket_issue_index'),
+        'knowledgebase_inventory': development_context.get('knowledgebase_inventory'),
+        'requirements_count': int(development_context.get('requirements_count') or 0),
+        'truth_reconciliation': reconciliation.get('status'),
+        'next_action': (active or {}).get('next_action') or status.get('next_action') or '',
+        'protected_approval_required': bool(decisions),
+    }
+
+
 def _read_manager_version(app_root) -> str:
     path = Path(app_root or '.') / 'VERSION.txt'
     try:
@@ -169,6 +204,7 @@ class ProjectmanagerRuntime:
             self.handoffs,
             getattr(self.base, 'issues', None),
             audit=self.base.audit,
+            project_root=config.project_root,
         )
         self._operation_lock = threading.RLock()
         self.conversation_approval = ConversationApprovalCoordinator(
@@ -643,6 +679,10 @@ class ProjectmanagerRuntime:
             context = status.setdefault('development_context', {})
             context.setdefault('runtime_truth_primary', True)
         status.update(cross_chat_contracts())
+        development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
+        preflight = dict(status.get('new_chat_preflight') or {})
+        preflight.update(build_new_chat_preflight(status, development_context, active, decisions))
+        status['new_chat_preflight'] = preflight
         status['conversation_intake'] = self.conversation_intake.summary()
         issues = getattr(self.base, 'issues', None)
         status['open_issues'] = issues.open_items() if issues is not None else status.get('open_issues', [])
@@ -668,6 +708,7 @@ class ProjectmanagerRuntime:
         handover['acceptance_matrix'] = status.get('acceptance_matrix', {})
         handover['development_efficiency'] = status.get('development_efficiency', {})
         handover['development_context'] = status.get('development_context', {})
+        handover['new_chat_preflight'] = status.get('new_chat_preflight', {})
         handover['conversation_intake'] = status.get('conversation_intake', {})
         handover['state_reconciliation'] = status.get('state_reconciliation', {})
         handover['cycle_generation'] = status.get('cycle_generation')

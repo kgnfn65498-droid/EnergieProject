@@ -1,3 +1,10 @@
+## 2026-09-27 — 32.5.25 Type-2 physical closure + DS9 continuity
+- Rejected first 32.5.25 candidate after live writer audit proved `Inbox/logs/...native_mcp_runtime_contract_hotfix...` and `Inbox/github_publisher_state.json` could still be recreated.
+- Replacement 32.5.25 is rebuilt from exact 32.5.24 SHA `cb1b503606ad99f7b3796f3856c58da7c6066a45f4d375efdfd5d8f36e36701b`.
+- Writer closure includes Native-MCP/CR canonical path resolution, GitHub-publisher canonical binding/recreate, and post-delete source-reappearance soak.
+- FULL_KB/new-chat contract explicitly includes Decision Log, Development Changelog, Spock Context, Full-KB audit, Ticket/Issue Index and KB Inventory.
+- No live Type-2 deletion during build; after live install use fresh validation then sequential 002→012 finalize with stop-on-first-RED.
+
 ## 2026-09-27 — 32.5.24 integrated DS9/Spock + Incoming closure
 - UDL-011 FULL_KB/document-only enforcement wordt technisch gesloten in 32.5.24 met dynamic discovery, completeness gate, Master Index pointer, runtime logs en fail-closed truth reconciliation.
 - Artifactretentie wordt 3 met officiële nieuwste naam en previous-archieven.

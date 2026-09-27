@@ -327,11 +327,11 @@ def test_two_consecutive_releases_close_with_restart_between_hold_and_atomic(mon
     assert accepted == [a, b]
 
 
-def test_ha_publisher_writes_local_and_shared_canonical_state():
+def test_ha_publisher_writes_local_and_type2_resolved_canonical_state():
     text = (ROOT / 'slimmemeterportal_import/rootfs/app/main.py').read_text(encoding='utf-8')
-    assert 'GITHUB_CANONICAL_PUBLISH_STATE = NAS_RELEASE_ROOT / "github_publication_state.json"' in text
+    assert 'GITHUB_CANONICAL_PUBLISH_STATE = None' in text
     writer = text.split('def _write_github_publish_state(payload):', 1)[1].split('\n\ndef ', 1)[0]
-    assert '(GITHUB_PUBLISH_STATE, GITHUB_CANONICAL_PUBLISH_STATE)' in writer
+    assert 'project_system_path(NAS_LAYOUT_ROOT, "Inbox/github_publication_state.json")' in writer
     assert 'os.replace(tmp, path)' in writer
 
 

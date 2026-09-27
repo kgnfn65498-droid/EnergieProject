@@ -11,6 +11,7 @@ from atomic_release_adapter import AtomicReleaseAdapter
 from controller_lock import controller_lease
 from control_plane_bootstrap import ensure_control_plane_current
 from ha_delivery_adapter import HADelivery
+from github_publisher_binding import ensure_github_publisher_binding_current
 from ingress_policy import IncomingItem,IngressDecision,decide_incoming
 from minimal_release_preflight import verify_candidate
 from release_controller import ReleaseController,ReleaseState,Status
@@ -229,11 +230,14 @@ class ReleaseControllerService:
                 self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':'completed_delivery_settlement_capability_missing'})
                 return state
             try:
-                post_live_required=tuple(int(part) for part in str(state.to_version).split('.')[:3]) >= (32,5,5)
-                artifact_retention_required=tuple(int(part) for part in str(state.to_version).split('.')[:3]) >= (32,5,24)
+                release_tuple=tuple(int(part) for part in str(state.to_version).split('.')[:3])
+                post_live_required=release_tuple >= (32,5,5)
+                artifact_retention_required=release_tuple >= (32,5,24)
+                publisher_binding_required=release_tuple >= (32,5,25)
             except ValueError:
                 post_live_required=False
                 artifact_retention_required=False
+                publisher_binding_required=False
             if post_live_required:
                 audit=write_post_live_audit(self.root,state)
                 if audit.get('status')!='GREEN':
@@ -251,7 +255,15 @@ class ReleaseControllerService:
                     except Exception as exc:
                         self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':f'release_artifact_retention_failed:{type(exc).__name__}:{exc}','release_id':state.release_id,'generation':state.generation})
                         return state
-                    self._runtime({'status':'COMPLETE','phase':'COMPLETE','reason':'post_live_audit_and_artifact_retention_green','release_id':state.release_id,'generation':state.generation,'artifact_retention':retention})
+                    if publisher_binding_required:
+                        try:
+                            publisher_binding=ensure_github_publisher_binding_current(self.root)
+                        except Exception as exc:
+                            self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':f'github_publisher_binding_failed:{type(exc).__name__}:{exc}','release_id':state.release_id,'generation':state.generation})
+                            return state
+                        self._runtime({'status':'COMPLETE','phase':'COMPLETE','reason':'post_live_audit_retention_and_publisher_binding_green','release_id':state.release_id,'generation':state.generation,'artifact_retention':retention,'github_publisher_binding':publisher_binding})
+                    else:
+                        self._runtime({'status':'COMPLETE','phase':'COMPLETE','reason':'post_live_audit_and_artifact_retention_green','release_id':state.release_id,'generation':state.generation,'artifact_retention':retention})
         if state and state.status==Status.ROLLED_BACK.value:self._settle_rolled_back(state)
         recovery=self._reconcile_idle_processing()
         if recovery is not None:

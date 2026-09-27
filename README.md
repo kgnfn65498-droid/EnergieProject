@@ -1,5 +1,5 @@
-## Release 32.5.15
+## Release 32.5.25
 
-32.5.15 is de minimale structurele herstelrelease op exact 32.5.14. De scope is beperkt tot de bewezen ClearUp-/releaseketenfouten: post-migrate recovery-refresh, diepe ZIP-verificatie, onafhankelijke sibling-downloads, canonieke Projectmanager RuntimeV2 voor Native MCP en definitieve verwijdering van de releasekritieke losse App/VERSIE.txt-bind uit de control-plane-configuratie.
+32.5.25 is de geïntegreerde Type-2 fysieke closure- en DS9/Spock-continuïteitsrelease op exact geverifieerde 32.5.24. Hij sluit de resterende legacy writers, bindt de autonome GitHub publisher aan de canonieke Type-2 paden, controleert na finalize dat verwijderde bronnen niet opnieuw verschijnen, en maakt FULL_KB/new-chat `verder` fail-closed machine-verifieerbaar inclusief Decision Log en Development Changelog.
 
-Er worden geen Type-2 bronnen verwijderd of gefinaliseerd door deze release. Externe recovery-download en expliciete bevestiging blijven verplicht vóór finalize/delete.
+Installatie zelf wist geen Type-2 data. Destructieve 002–012 finalize vindt pas plaats na live releaseacceptatie, canonieke writer-readback en fresh live validatie.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime, timezone
+from pathlib import Path
 import re
 
 
@@ -151,14 +152,90 @@ def _is_release_bound_maintenance_task(task):
     return any(marker in text for marker in release_maintenance_markers)
 
 
+def _chat_switch_resume_checkpoint(project_root):
+    if not project_root:
+        return None
+    try:
+        from development_context_enforcement import highest_checkpoint
+        cp = highest_checkpoint(Path(project_root))
+    except Exception:
+        return None
+    payload = cp.get('payload') if isinstance(cp, dict) and isinstance(cp.get('payload'), dict) else {}
+    if (
+        cp.get('status') != 'GREEN'
+        or payload.get('schema') != 'energie_chat_switch_checkpoint_v2'
+        or payload.get('status') != 'READY_FOR_NEW_CHAT'
+        or not str(payload.get('target_release') or '').strip()
+    ):
+        return None
+    return {'path': str(cp.get('path') or ''), 'payload': payload}
+
+
+def _checkpoint_supersedes_task(task, checkpoint):
+    if not isinstance(checkpoint, dict):
+        return None
+    payload = checkpoint.get('payload') if isinstance(checkpoint.get('payload'), dict) else {}
+    gap = str(payload.get('known_handover_gap') or '').lower()
+    if 'active_task is stale' not in gap:
+        return None
+    text = ' '.join(str(task.get(field) or '') for field in ('title', 'goal', 'next_action')).lower()
+    clearup_ids = set(re.findall(r'clearup[_ -]?\d{3}', gap))
+    task_ids = set(re.findall(r'clearup[_ -]?\d{3}', text))
+    if not clearup_ids or not (clearup_ids & task_ids):
+        return None
+    refs = _clean_refs([checkpoint.get('path')])
+    if not refs:
+        return None
+    target = str(payload.get('target_release') or '').strip()
+    return {
+        'disposition': 'SUPERSEDED',
+        'reason': f'authoritative chat-switch checkpoint marks this active task stale; resume target is {target}',
+        'evidence_refs': refs,
+        'changed': True,
+        'superseded_by': 'state_reconciliation:chat_switch_checkpoint',
+    }
+
+
+def _checkpoint_resume_task_spec(checkpoint, *, runtime, now):
+    if not isinstance(checkpoint, dict):
+        return None
+    payload = checkpoint.get('payload') if isinstance(checkpoint.get('payload'), dict) else {}
+    target = str(payload.get('target_release') or '').strip()
+    live = str(((runtime or {}).get('release') or {}).get('version') or '').strip()
+    if not target or live != target:
+        return None
+    type2 = payload.get('type2') if isinstance(payload.get('type2'), dict) else {}
+    scope = str(type2.get('scope') or 'post-live release closure').strip()
+    evidence = _clean_refs([checkpoint.get('path')])
+    return {
+        'title': f'{target} replacement closure hervatten',
+        'goal': f'{scope}; DS9/Spock continuity and new-chat closure',
+        'mode': 'DEVELOPMENT',
+        'steps_total': 4,
+        'priority': 1,
+        'build_metadata': {
+            'thinking_level': 'HOOG',
+            'release_version': target,
+            'estimated_total_seconds': 3600,
+            'estimated_test_verification_seconds': 1800,
+            'step_estimates_seconds': [600, 900, 1500, 600],
+            'original_estimate_recorded_at': now.isoformat(),
+            'terminal_instruction': {'required': False},
+        },
+        'next_action': 'new_chat_verder_e2e; verify canonical writer quiescence; then controlled Type-2 002-012 finalization',
+        'evidence_refs': evidence,
+    }
+
+
 class StateReconciler:
-    def __init__(self, tasks, decisions, commands, handoffs, issues, audit=None):
+    def __init__(self, tasks, decisions, commands, handoffs, issues, audit=None, project_root=None):
         self.tasks = tasks
         self.decisions = decisions
         self.commands = commands
         self.handoffs = handoffs
         self.issues = issues
         self.audit = audit
+        self.project_root = Path(project_root) if project_root else None
 
     def _evaluate_decision(self, decision, command, runtime, release_validation):
         if decision.get('status') == 'SUPERSEDED':
@@ -273,9 +350,12 @@ class StateReconciler:
             'changed': True,
         }
 
-    def _evaluate_task(self, task, runtime=None, release_validation=None):
+    def _evaluate_task(self, task, runtime=None, release_validation=None, checkpoint=None):
         if task.get('status') in FINAL_TASK_STATUSES:
             return None
+        checkpoint_override = _checkpoint_supersedes_task(task, checkpoint)
+        if checkpoint_override is not None:
+            return checkpoint_override
         if task.get('id') == LEGACY_DEVELOPMENT_TASK_ID:
             mode = _runtime_mode(runtime)
             release = (runtime or {}).get('release') or {}
@@ -340,6 +420,7 @@ class StateReconciler:
     def reconcile(self, *, runtime, release_validation=None, now=None, issue_repairs=None):
         now = now or datetime.now(timezone.utc)
         results = []
+        checkpoint = _chat_switch_resume_checkpoint(self.project_root)
 
         for decision in self.decisions.all():
             command = None
@@ -375,7 +456,7 @@ class StateReconciler:
             })
 
         for task in self.tasks.all():
-            evaluated = self._evaluate_task(task, runtime=runtime, release_validation=release_validation)
+            evaluated = self._evaluate_task(task, runtime=runtime, release_validation=release_validation, checkpoint=checkpoint)
             if evaluated is None:
                 continue
             changed = False
@@ -396,6 +477,37 @@ class StateReconciler:
                 'evidence_refs': evaluated['evidence_refs'],
                 'changed': changed,
             })
+
+        resume_spec = _checkpoint_resume_task_spec(checkpoint, runtime=runtime, now=now)
+        if resume_spec is not None and self.tasks.active() is None:
+            target = str(resume_spec['build_metadata']['release_version'])
+            checkpoint_path = str((resume_spec.get('evidence_refs') or [''])[0])
+            existing = [
+                item for item in self.tasks.all()
+                if (
+                    str((item.get('build_metadata') or {}).get('release_version') or '') == target
+                    and (
+                        item.get('status') not in FINAL_TASK_STATUSES
+                        or checkpoint_path in (item.get('evidence_refs') or [])
+                    )
+                )
+            ]
+            if not existing:
+                created = self.tasks.start(
+                    resume_spec['title'], resume_spec['goal'],
+                    mode=resume_spec['mode'], steps_total=resume_spec['steps_total'],
+                    priority=resume_spec['priority'], build_metadata=resume_spec['build_metadata'],
+                )
+                for ref in resume_spec['evidence_refs']:
+                    created = self.tasks.progress(created['id'], next_action=resume_spec['next_action'], evidence_ref=ref)
+                results.append({
+                    'entity_type': 'task',
+                    'id': created.get('id'),
+                    'disposition': 'RESUMED_FROM_CHECKPOINT',
+                    'reason': f'authoritative chat-switch checkpoint resumes target {target}',
+                    'evidence_refs': resume_spec['evidence_refs'],
+                    'changed': True,
+                })
 
         if self.handoffs is not None:
             for handoff in self.handoffs.open_items():

@@ -1483,6 +1483,22 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
             raise RuntimeError(f"TYPE2 finalize delete failed; quarantine preserved: {run_root}: {exc}") from exc
         if any(os.path.lexists(root / item["source"]) for item in manifest["items"]):
             raise RuntimeError("TYPE2 finalize source readback failed")
+        # 32.5.25+: physical deletion is not enough.  Prove for a bounded soak
+        # window that no long-lived legacy writer recreates the removed path and
+        # that every canonical destination remains present.  This specifically
+        # catches periodic writers such as the 15-second GitHub publisher loop.
+        post_delete_soak = max(0.05, float(os.environ.get("ENERGIE_CLEARUP_TYPE2_POST_DELETE_SOAK_SECONDS", "20.0")))
+        deadline = time.monotonic() + post_delete_soak
+        while True:
+            recreated = [item["source"] for item in manifest["items"] if os.path.lexists(root / item["source"])]
+            if recreated:
+                raise RuntimeError("TYPE2 source reappeared after delete: " + ",".join(recreated))
+            missing_destinations = [item["destination"] for item in manifest["items"] if not os.path.lexists(root / item["destination"])]
+            if missing_destinations:
+                raise RuntimeError("TYPE2 destination disappeared during post-delete soak: " + ",".join(missing_destinations))
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(min(0.5, max(0.01, deadline - time.monotonic())))
         after = service._snapshot_release_dirs(root)
         if after != request["mailbox_snapshot_before"]:
             raise RuntimeError("TYPE2 release mailboxes changed during finalize")
@@ -1491,6 +1507,8 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
             "removed_sources": [x["source"] for x in manifest["items"]],
             "destinations_retained": [x["destination"] for x in manifest["items"]],
             "delete_performed": True,
+            "post_delete_soak_seconds": post_delete_soak,
+            "source_reappearance_proof": "GREEN",
         }
         _atomic_write_json(state, {**result, "plan_sha256": plan["plan_sha256"]})
         return request_id, result

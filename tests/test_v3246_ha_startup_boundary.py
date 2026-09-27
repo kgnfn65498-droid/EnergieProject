@@ -35,5 +35,5 @@ def test_nas_cr_service_startup_has_no_active_tls_import_dependency():
     s=(APP/'projectmanager_v2/nas_container_cr_service.py').read_text()
     assert 'docker_engine_tls_client' not in s
     assert 'nas_docker_tls' not in s
-    assert "'Inbox' / 'nas_container_cr_local'" in s
+    assert "project_system_path(self.project_root, 'Inbox/nas_container_cr_local')" in s
     assert 'energie_nas_container_cr_local_request_v1' in s

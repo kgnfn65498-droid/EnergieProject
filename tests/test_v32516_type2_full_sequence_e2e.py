@@ -184,6 +184,8 @@ def test_all_type2_batches_prepare_migrate_validate_confirm_finalize_end_to_end(
     for cid in IDS:
         result = _call(root, monkeypatch, service.finalize_type2, clearup_id=cid, explicit_user_text='akkoord')
         assert result['phase'] == 'COMPLETE' and result['deletion_performed'] is True
+        assert result['source_reappearance_proof'] == 'GREEN'
+        assert result['post_delete_soak_seconds'] >= 0.02
         plan = service._load_plan(root, cid)
         for item in plan['items']:
             assert not (root / item['source']).exists()

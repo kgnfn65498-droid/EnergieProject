@@ -9,6 +9,12 @@ ACTIVE_CONTEXT = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lesso
 MANIFEST = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_DEVELOPMENT_MANIFEST.md'
 LEDGER = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/01_UNIFIED_DEVELOPMENT_LEDGER.md'
 LEDGER_CURRENT = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/01A_LEDGER_CURRENT_TRUTH.md'
+DECISION_LOG = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/02_DECISION_LOG.md'
+DEVELOPMENT_CHANGELOG = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/03_DEVELOPMENT_CHANGELOG.md'
+SPOCK_CONTEXT = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/04_SPOCK_CONTEXT.md'
+FULL_KB_AUDIT = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/05_FULL_KB_AUDIT_20260927.md'
+TICKET_ISSUE_INDEX = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/05_TICKET_ISSUE_INDEX.md'
+KB_INVENTORY = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/06_KNOWLEDGEBASE_INVENTORY_20260927.md'
 REQUIREMENTS_DIR = 'Data/03_Systeem/Projectmanager/Requirements'
 HANDOVER = 'Data/03_Systeem/Projectmanager/Handover/CURRENT_DEVELOPMENT_HANDOVER.md'
 REPORT_KB = 'Data/02_Output/Rapportages/KnowledgeBase'
@@ -111,6 +117,12 @@ def evaluate_full_kb(project_root: Path | str, *, development_release: bool = Tr
         'development_manifest': _regular(root / MANIFEST),
         'unified_development_ledger': _regular(root / LEDGER),
         'ledger_current_truth': _regular(root / LEDGER_CURRENT),
+        'decision_log': _regular(root / DECISION_LOG),
+        'development_changelog': _regular(root / DEVELOPMENT_CHANGELOG),
+        'spock_context': _regular(root / SPOCK_CONTEXT),
+        'full_kb_audit': _regular(root / FULL_KB_AUDIT),
+        'ticket_issue_index': _regular(root / TICKET_ISSUE_INDEX),
+        'knowledgebase_inventory': _regular(root / KB_INVENTORY),
         'highest_checkpoint': cp.get('status') == 'GREEN',
     }
     if development_release:
@@ -153,7 +165,15 @@ def current_truth_reconciliation(project_root: Path | str, status: dict | None =
     cp = highest_checkpoint(root)
     cp_payload = cp.get('payload') if isinstance(cp.get('payload'), dict) else {}
     cp_live = str(cp_payload.get('live_release') or cp_payload.get('live_production') or '').strip()
-    if live and cp_live and live != cp_live:
+    cp_target = str(cp_payload.get('target_release') or '').strip()
+    target_reached = bool(
+        live
+        and cp_target
+        and live == cp_target
+        and cp_payload.get('schema') == 'energie_chat_switch_checkpoint_v2'
+        and cp_payload.get('status') == 'READY_FOR_NEW_CHAT'
+    )
+    if live and cp_live and live != cp_live and not target_reached:
         conflicts.append({'kind': 'checkpoint_live_release_conflict', 'live': live, 'checkpoint': cp_live, 'checkpoint_path': cp.get('path')})
     return {
         'schema': 'energie_development_truth_reconciliation_v1',
@@ -179,6 +199,12 @@ def build_development_context(project_root: Path | str, status: dict | None = No
         'manifest': MANIFEST,
         'ledger': LEDGER,
         'ledger_current_truth': LEDGER_CURRENT,
+        'decision_log': DECISION_LOG,
+        'development_changelog': DEVELOPMENT_CHANGELOG,
+        'spock_context': SPOCK_CONTEXT,
+        'full_kb_audit': FULL_KB_AUDIT,
+        'ticket_issue_index': TICKET_ISSUE_INDEX,
+        'knowledgebase_inventory': KB_INVENTORY,
         'requirements': requirements,
         'requirements_dynamic_discovery': True,
         'requirements_count': len(requirements),

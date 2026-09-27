@@ -32,6 +32,7 @@ if [ -z "$DOCKER" ]; then
 fi
 [ -n "$DOCKER" ] || { echo "FOUT: Docker/Container Station CLI niet gevonden" >&2; exit 2; }
 [ -f "$PUBLISHER" ] || { echo "FOUT: nas_github_publisher.sh ontbreekt" >&2; exit 2; }
+[ -f "$ROOT/App/tools/system_path_contract.sh" ] || { echo "FOUT: system_path_contract.sh ontbreekt" >&2; exit 2; }
 [ -d "$PRIVATE" ] || { echo "FOUT: private publishermap ontbreekt" >&2; exit 2; }
 [ -f "$KNOWN_HOSTS" ] || { echo "FOUT: vooraf gepinde GitHub known_hosts ontbreekt" >&2; exit 2; }
 grep -Fqx "$OFFICIAL_GITHUB_ED25519" "$KNOWN_HOSTS" || { echo "FOUT: GitHub Ed25519 host key wijkt af" >&2; exit 2; }
@@ -63,7 +64,7 @@ CONTRACT_SHA_BEFORE=""
 if [ -f "$ROOT/Inbox/ha_publication_required.json" ]; then
   CONTRACT_SHA_BEFORE="$(sha256sum "$ROOT/Inbox/ha_publication_required.json" | awk '{print $1}')"
 fi
-"$DOCKER" run --rm --entrypoint /bin/sh -v "$PRIVATE:/publisher-private:rw" -v "$ROOT/Inbox:/energy/Inbox:rw" "$RUNTIME_IMAGE" -ec '
+"$DOCKER" run --rm --entrypoint /bin/sh -v "$PRIVATE:/publisher-private:rw" -v "$ROOT/Inbox:/energy/Inbox:rw" -v "$ROOT/Data/03_Systeem:/energy/Data/03_Systeem:rw" -v "$ROOT/App/tools/system_path_contract.sh:/energy/App/tools/system_path_contract.sh:ro" "$RUNTIME_IMAGE" -ec '
   set -eu
   printf probe > /publisher-private/.rw-probe; rm -f /publisher-private/.rw-probe
   printf probe > /energy/Inbox/.publisher-rw-probe; rm -f /energy/Inbox/.publisher-rw-probe
@@ -95,6 +96,8 @@ echo PUBLISHER_DEPLOY_KEY_READY
   -e ENERGIE_ROOT=/energy \
   -e ENERGIE_PUBLISHER_PRIVATE_ROOT=/publisher-private \
   -v "$ROOT/Inbox:/energy/Inbox:rw" \
+  -v "$ROOT/Data/03_Systeem:/energy/Data/03_Systeem:rw" \
+  -v "$ROOT/App/tools/system_path_contract.sh:/energy/App/tools/system_path_contract.sh:ro" \
   -v "$PRIVATE:/publisher-private:rw" \
   -v "$PUBLISHER:/usr/local/bin/nas_github_publisher.sh:ro" \
   "$RUNTIME_IMAGE" \

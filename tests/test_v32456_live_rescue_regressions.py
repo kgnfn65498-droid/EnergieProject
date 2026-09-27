@@ -16,10 +16,11 @@ for value in (str(APP), str(PM), str(TOOLS)):
         sys.path.insert(0, value)
 
 
-def test_rc44_contract_is_carried_forward_by_rc45_release():
-    # Regression family retained: 32.4.57/rc45 must preserve the rc44 rescue
-    # behavior while publishing the new coherent Projectmanager identity.
-    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == '2.0.0-rc45'
+def test_historical_rescue_contract_is_carried_forward_by_current_release():
+    # The behavior regressions below are the historical contract; mutable target
+    # identity must follow the current release contract instead of freezing rc45.
+    from release_test_contract import CURRENT_PM_VERSION
+    assert (PM / 'VERSION.txt').read_text(encoding='utf-8').strip() == CURRENT_PM_VERSION
 
 
 def test_project_constitution_current_handover_and_work_ledger_exist():

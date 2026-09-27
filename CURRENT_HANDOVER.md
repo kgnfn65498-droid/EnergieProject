@@ -1,65 +1,43 @@
-# CURRENT HANDOVER — EnergieProject 32.5.24
-## Integrated final — DS9/Spock + FULL_KB + Incoming closure
+# CURRENT HANDOVER — EnergieProject 32.5.25
+## Type-2 fysieke closure + DS9/Spock continuïteit
 
-- Live predecessor: 32.5.23.
-- Deze 32.5.24 vervangt alle eerdere 32.5.24-kandidaten en neemt de besproken DS9/Spock KB/PM/logging-, retentie-3- en command-proof-eisen integraal mee.
-- Runtime moet alle Requirements dynamisch ontdekken en FULL_KB alleen COMPLETE noemen als rapportage-KB, technische PM-KB, Requirements, Handover, hoogste checkpoint/runtime, Master Development Index en bij ontwikkeling PROJECT_AFSPRAKEN + CHANGELOG aanwezig zijn.
-- PM schrijft runtime development-context v2 en synchroniseert Master Development Index + Ledger Current Truth met readback; conflict tussen live/checkpoint/status is fail-closed.
-- Artifactretentie = 3; nieuwste officiële releasenaam, oudere `previous_*`; geen suffix-bestand naar Incoming.
-- Huidige live recovery vóór plaatsing van de nieuwe ZIP: uitsluitend het begrensde `release_32524_incoming_tunnel.sh`-pad, met lege Incoming/Processing en exact-current-state preflight.
-- Tunnel moet de watcher/ReleaseController eerst quiescent maken vóór carrier/source-replacement; daarna dubbele SHA-readback met race-window. Dit voorkomt dat live 32.5.23 source-sync de nieuwe bootstrap terugdraait.
-- Dangerous/protected stop/start/recreate blijft expliciete approval-gate; algemene `verder` is geen approval.
-- Na tunnel GREEN gaat exact één officiële 32.5.24-ZIP naar Incoming en moet de normale keten zonder handmatige move eindigen in live 32.5.24 + Processed.
-- Geen Type-2 destructive actie in deze release-installatie.
+Deze statische handover bevat uitsluitend de releasecontracten; **Runtime-statusautoriteit** blijft de actuele runtime/readback. `Inbox/release_controller/current.json` is een compatibiliteitspad dat via het Type-2 system-path-contract naar de canonieke ReleaseController-state resolveert zodra die mapping actief is.
 
-# CURRENT HANDOVER — EnergieProject 32.5.24 replacement
+## Doel van 32.5.25
+- Alle legacy Type-2 bronnen `ClearUp_002` t/m `ClearUp_012` moeten na finalize fysiek verdwijnen.
+- Geen actieve writer mag een verwijderd legacy pad opnieuw aanmaken.
+- Iedere finalize bewijst bron-afwezigheid én behoud van de canonieke bestemming gedurende een post-delete soak; reappearance = RED.
+- De huidige extern bevestigde recoveryset blijft de recoverybasis; finalize blijft exact plan/recovery/validation-gated.
 
-## Current live truth before replacement install
-- Historische release-statusspiegel `Inbox/release_controller/current.json` blijft alleen compatibiliteitsevidence; canonieke runtime/readback blijft leidend.
-- Runtime-statusautoriteit: actuele live runtime/readback gaat altijd vóór statische handovertekst of oudere checkpoints.
-- 32.5.23 reached COMPLETE 9/9; PM rc56.
-- Exact 32.5.23 artifact SHA256 `a1238939297dec600a0e5b6c9519ac7c7ed9651b80c515418c7a526af60c8e09`.
-- Legacy `Inbox/control_plane/runtime.json` remained the active writer while canonical `ControlPlane/Runtime/runtime.json` was stale.
-- ClearUp_007 live validation therefore remained RED.
-- The previous 32.5.24 candidate SHA `3d2ce89c45afdd9a67879ea7ce46f81a7d2202292067e6bb92b0bf923b43e2aa` is SUPERSEDED and must not be installed.
+## Structurele reparaties
+- Native-MCP runtime-contract hotfix en CR-standard hotfix schrijven na activatie uitsluitend via `project_system_path` naar canonieke logs.
+- De GitHub-publisher krijgt canonieke `Data/03_Systeem` + `system_path_contract.sh` mounts. ReleaseController 32.5.25 controleert/recreëert de legacy publisher-binding automatisch na COMPLETE en rolt terug bij mislukking.
+- Embedded PM reconcileert Type-2 external-recovery truth read-only; alleen de privileged watcher mag de protected recovery-gate persistent wijzigen.
+- Type-2 finalize voert hard-move/delete/readback uit en bewaakt daarna standaard 20 s op source reappearance terwijl alle destinations aanwezig moeten blijven.
 
-## Replacement 32.5.24 scope
-- Retain N+1 activation carrier so predecessor-loaded 32.5.23 code executes the control-plane binding proof during the 32.5.24 transition.
-- PM rc58 implements the two 32.5.24 hard-requirement sets: live truth/closure plus progress/release-regie/Type-2 closure.
-- Historical Type-2 recovery receipt and current-set integrity are separate. Receipt must never regress to “not received”; changed current bytes remain a concrete fail-closed integrity blocker.
-- Full 002–012 E2E acceptance now includes practical restore and release-mailbox preservation.
-- LIVE_REQUIRED cannot close without LIVE_PROVEN, including task completion.
-- Step X/Y + elapsed/ETA and exceptional terminal metadata are technically enforced.
-- PM flags version stacking/carry-forward.
+## DS9 / Spock / Knowledge Base
+32.5.25 dwingt FULL_KB technisch af. Verplicht zijn beide KB-roots, alle dynamisch ontdekte Requirements, actuele Handover, hoogste checkpoint, Master Development Index, Active Context, Development Manifest, Unified Ledger, Ledger Current Truth, **Decision Log**, **Development Changelog**, **Spock Context**, Full-KB audit, Ticket/Issue Index, KB Inventory, PROJECT_AFSPRAKEN en App CHANGELOG.
 
-## Source acceptance
-- 147/147 32.5 GREEN.
-- 72/72 broader PM/handoff/build-contract GREEN.
-- 600/600 static GREEN + 2 skipped.
-- 165/165 complete current 32.5 family GREEN after QNAP root/tunnel correction.
-- compileall GREEN.
+De canonieke administratieve router blijft `00_MASTER_DEVELOPMENT_INDEX.md`; er wordt geen parallelle projectwaarheid gemaakt.
 
-## After exact replacement install
-1. Require release COMPLETE 9/9, NAS/HA 32.5.24 and PM rc58 runtime proof.
-2. Prove canonical ControlPlane heartbeat fresh and legacy Inbox/control_plane quiescent.
-3. Revalidate ClearUp_007 through real CommandIngress -> PM -> privileged watcher and require GREEN.
-4. Reconcile all 002–012 current plan/recovery/validation truth.
-5. Recovery receipt remains confirmed; if current recovery bytes differ from the previously delivered set, report only the exact changed-set blocker and deliver/prove that current set before delete.
-6. Record required PM live acceptance (including new_chat_verder_e2e) as LIVE_PROVEN before functional COMPLETE.
-7. Only after every current destructive gate is exact may live finalize/delete proceed; then prove legacy sources absent, canonical destinations present and release mailboxes intact.
+## Nieuwe chat
+De runtime bouwt `new_chat_preflight` fail-closed. Alleen wanneer FULL_KB COMPLETE, truth reconciliation GREEN, live release aanwezig en hoogste checkpoint bekend zijn geldt:
+- `ready=true`;
+- `manual_reexplanation_required=false`;
+- `resume_command=verder`;
+- pointers naar Master Index, Active Context, Ledger Current Truth, Decision Log, Development Changelog, Spock Context, Ticket/Issue Index en KB Inventory aanwezig.
 
-## 32.5.24 live-boundary correction
-- Real incoming exposed a predecessor runtime blocker before 32.5.24 could be consumed.
-- Root cause: desired recreated control-plane correctly kept `ReleaseController` read-only, but bootstrap still attempted to atomically write its security marker inside that read-only mount.
-- Replacement 32.5.24 preserves the read-only security boundary and routes only that marker to `/control-plane-runtime`, which is already the canonical writable runtime mount.
-- Do not weaken the release-controller bind to rw.
+Een nieuwe chat met alleen **`verder`** moet daarom vanaf de laatst bewezen live waarheid hervatten. Dit wordt na live installatie nog één keer E2E bewezen; vóór die live proef is het PRE-INSTALL bewezen maar niet LIVE_PROVEN.
 
-- Final parser-boundary fix: the bootstrap consumes `--security-root` before calling the existing control-plane parser; otherwise the correct mount fix would still fail at process startup.
+## Releasegrens
+- Buildbasis: exact geverifieerde 32.5.24 artifact SHA256 `cb1b503606ad99f7b3796f3856c58da7c6066a45f4d375efdfd5d8f36e36701b`.
+- PM target: `2.0.0-rc60`.
+- Oude 32.5.25 artifact SHA256 `85557cb336c1ca46242ba614f5df8f7db808fbbcab99961b0d4b856cc8473c64` is **SUPERSEDED / NIET INSTALLEREN**.
+- Finale 32.5.25 artifactidentiteit wordt uitsluitend door het externe finale pre-install checkpoint vastgelegd nadat exact fresh-extract volledig GREEN is.
+- De installatie zelf verwijdert geen Type-2 bron. Na live 32.5.25 COMPLETE volgt writer-binding/quiescence-readback, fresh 002–012 validation, daarna de reeds goedgekeurde sequentiële finalize 002→012, stop-on-first-RED, gevolgd door een globale absence-soak.
+## Runtime task/checkpoint reconciliatie
+- De hoogste `energie_chat_switch_checkpoint_v2` is machine-authority voor een expliciet als stale gemarkeerde actieve taak.
+- Zodra exact `target_release=32.5.25` live is, geldt `live_release=32.5.24` in die pre-install checkpoint niet als conflict maar als bewezen target-reached overgang.
+- De stale ClearUp_001-taak wordt dan met checkpoint-evidence `SUPERSEDED`; als geen actuele taak resteert wordt één 32.5.25 DEVELOPMENT closure-taak hervat met `new_chat_verder_e2e` en writer/Type-2 closure als next action.
+- Een willekeurige checkpoint/live mismatch blijft fail-closed; deze uitzondering geldt uitsluitend voor het exacte READY_FOR_NEW_CHAT target-reached contract.
 
-
-## 32.5.24 pre-install tunnel correction — 27-09-2026
-- Vorige tunnelcommand met `cd /share/Energie_NAS/EnergieProject` is REJECTED; dat pad bestaat niet als QNAP-hostdirectory in de actieve omgeving.
-- Geen protected mutatie uitgevoerd door die mislukte commandopoging.
-- QNAP bootstrap in de nieuwe candidate accepteert de bewezen host aliases en heeft SHA256 `daf47911d307b8c8ffc9f4a3f7eb993e41df1e8f50c4e81fd4148ae289ca62e0`.
-- Tunnel source is hersteld: stale pre-fingerprint `0dc5...`; gewenste post-fingerprint `bba109...`; exact recovery-carrier wordt eerst geplaatst met rollback-copy.
-- Oude tunnel SHA `143e9165...` en approval daarop zijn SUPERSEDED. Nieuwe exact-script SHA wordt pas na finale rebuild/audit als uitvoerbaar vastgelegd.

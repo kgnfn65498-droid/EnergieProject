@@ -1,3 +1,13 @@
+## 32.5.25 — Type-2 fysieke writer-closure + DS9/new-chat hardening
+- Supersedes rejected 32.5.25 SHA `85557cb336c1ca46242ba614f5df8f7db808fbbcab99961b0d4b856cc8473c64`.
+- Closes remaining legacy Type-2 writers: Native-MCP/CR hotfix results resolve through `project_system_path`; GitHub publisher is automatically rebound to canonical Data/system-path mounts after release completion.
+- Type-2 finalize now proves old source paths are physically absent and canonical destinations remain present throughout a production 20 s post-delete reappearance soak; any re-created source is RED.
+- External-recovery gate persistence remains privileged-watcher-only; embedded PM reconciliation is read-only.
+- FULL_KB now explicitly requires Decision Log, Development Changelog, Spock Context, Full-KB Audit, Ticket/Issue Index and KB Inventory in addition to existing DS9/Requirements/Handover/Ledger sources.
+- Dynamic `new_chat_preflight` is fail-closed and exposes `resume_command=verder`; self-audit requires all continuity pointers and exact runtime-handover match.
+- PM target `2.0.0-rc60`.
+- Stale `ClearUp_001` active-task handover is now reconciled from the authoritative chat-switch checkpoint; when the 32.5.25 target becomes live the predecessor checkpoint is recognized as target-reached rather than a false truth conflict, and a current 32.5.25 closure task is resumed with `new_chat_verder_e2e` as an explicit next gate.
+
 ## 32.5.24 integrated final — DS9/Spock continuity + FULL_KB + release recovery
 
 - Integreert de aanvullende 32.5.25-scope terug in één nieuwe 32.5.24: dynamische volledige Requirements-discovery, FULL_KB runtime-enforcement, DS9 Master Development Index-routering, stale/conflict fail-closed reconciliation en runtime-log/readback naar Master Index + Current Truth.
