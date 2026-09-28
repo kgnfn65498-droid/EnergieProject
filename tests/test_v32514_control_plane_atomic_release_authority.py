@@ -36,20 +36,21 @@ def _release_request(version="32.5.13", *, rid="a"*32):
 
 def _plane(tmp_path: Path, request: dict, *, stale_bind_version="32.5.12"):
     inbox=tmp_path/"Inbox"; approved=tmp_path/"approved.json"; version=tmp_path/"VERSIE.txt"; evidence=tmp_path/"RuntimeEvidence"
+    system_root=tmp_path/"Data/03_Systeem/Projectmanager"
     approved.write_text('{"items": []}\n', encoding="utf-8")
     version.write_text(stale_bind_version+"\n", encoding="utf-8")
     evidence.mkdir()
-    _write(inbox/"control_plane/requests/native_mcp_reload.json", request)
-    _write(inbox/"release_controller/current.json", {
+    _write(system_root/"ControlPlane/Runtime/requests/native_mcp_reload.json", request)
+    _write(tmp_path/"Data/03_Systeem/Projectmanager/ReleaseController/current.json", {
         "phase":"COMPLETE","status":"COMPLETE","release_id":request["release_id"],
         "generation":request["generation"],"to_version":request["release_version"],
         "artifact_sha256":request["artifact_sha256"],
     })
-    _write(inbox/"atomic_app_swap_state.json", {
+    _write(tmp_path/"Data/03_Systeem/Projectmanager/ReleaseController/State/atomic_app_swap_state.json", {
         "state":"ACCEPTED","from_version":"32.5.12","to_version":request["release_version"],
         "artifact_sha256":request["artifact_sha256"],
     })
-    _write(inbox/"native_mcp_runtime/runtime_guard.json", {
+    _write(system_root/"RuntimeEvidence/NativeMCP/runtime_guard.json", {
         "status":"RELOAD_REQUIRED","reload_required":True,"expected_fingerprint":request["expected_fingerprint"],
     })
     return cp.ControlPlane(
@@ -76,21 +77,21 @@ def test_release_reload_uses_atomic_authority_when_version_bind_is_stale(tmp_pat
     assert docker.restarts==1
     assert result and result[0]["status"]=="GREEN"
     assert result[0]["request_id"]==request["request_id"]
-    assert not list((inbox/"projectmanager_v2/RuntimeV2/control_plane_archive").glob("native_mcp_reload.stale.*"))
+    assert not list((tmp_path/"Data/03_Systeem/Projectmanager/RuntimeV2/control_plane_archive").glob("native_mcp_reload.stale.*"))
 
 
 def test_stale_release_scoped_request_uses_controller_owner_not_stale_bind(tmp_path):
     current=_release_request("32.5.13",rid="b"*32)
     stale=_release_request("32.5.12",rid="c"*32)
     plane,inbox,_=_plane(tmp_path,stale,stale_bind_version="32.5.12")
-    _write(inbox/"release_controller/current.json", {
+    _write(tmp_path/"Data/03_Systeem/Projectmanager/ReleaseController/current.json", {
         "phase":"COMPLETE","status":"COMPLETE","release_id":current["release_id"],
         "generation":current["generation"],"to_version":current["release_version"],
         "artifact_sha256":current["artifact_sha256"],
     })
     assert plane.process_once()==[]
     assert not (inbox/"control_plane/requests/native_mcp_reload.json").exists()
-    archived=list((inbox/"projectmanager_v2/RuntimeV2/control_plane_archive").glob("native_mcp_reload.stale.32.5.12.*.json"))
+    archived=list((tmp_path/"Data/03_Systeem/Projectmanager/RuntimeV2/control_plane_archive").glob("native_mcp_reload.stale.32.5.12.*.json"))
     assert len(archived)==1
 
 
@@ -98,16 +99,16 @@ def test_release_authority_rejects_atomic_artifact_mismatch(tmp_path):
     from control_plane_release_bridge import authorize_release_native_request
     request=_release_request()
     plane,inbox,_=_plane(tmp_path,request)
-    _write(inbox/"atomic_app_swap_state.json", {
+    _write(tmp_path/"Data/03_Systeem/Projectmanager/ReleaseController/State/atomic_app_swap_state.json", {
         "state":"ACCEPTED","from_version":"32.5.12","to_version":"32.5.13","artifact_sha256":"f"*64,
     })
     try:
         authorize_release_native_request(
-            request_path=inbox/"control_plane/requests/native_mcp_reload.json",
-            controller_state_path=inbox/"release_controller/current.json",
+            request_path=tmp_path/"Data/03_Systeem/Projectmanager/ControlPlane/Runtime/requests/native_mcp_reload.json",
+            controller_state_path=tmp_path/"Data/03_Systeem/Projectmanager/ReleaseController/current.json",
             version_path=plane.version_path,
-            runtime_guard_path=inbox/"native_mcp_runtime/runtime_guard.json",
-            atomic_state_path=inbox/"atomic_app_swap_state.json",
+            runtime_guard_path=tmp_path/"Data/03_Systeem/Projectmanager/RuntimeEvidence/NativeMCP/runtime_guard.json",
+            atomic_state_path=tmp_path/"Data/03_Systeem/Projectmanager/ReleaseController/State/atomic_app_swap_state.json",
         )
     except RuntimeError as exc:
         assert "authorization rejected" in str(exc)

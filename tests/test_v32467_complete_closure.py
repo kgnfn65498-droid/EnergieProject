@@ -73,7 +73,7 @@ def _completed_root(tmp_path: Path, *, target="32.4.67"):
     controller_dir = inbox / "release_controller"
     processed.mkdir(parents=True)
     runtime.mkdir()
-    controller_dir.mkdir()
+    controller_dir.mkdir(); (controller_dir / "Publication").mkdir()
     app = tmp_path / "App"
     app.mkdir()
     (app / "VERSIE.txt").write_text(target)
@@ -253,7 +253,7 @@ def test_v67_fail_closed_matrix_for_completed_backfill(tmp_path):
 
 def test_v67_foreign_contract_blocks_backfill(tmp_path):
     state, artifact, pub_path = _completed_root(tmp_path)
-    marker = tmp_path / "Inbox/ha_publication_required.json"
+    marker = tmp_path / "Inbox/release_controller/Publication/ha_publication_required.json"
     marker.write_text(json.dumps({
         "version": state.to_version, "release_id": "foreign", "generation": state.generation,
         "processed_zip": state.artifact_name, "processed_zip_sha256": state.artifact_sha256,

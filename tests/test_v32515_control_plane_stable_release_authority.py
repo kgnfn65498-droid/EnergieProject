@@ -134,7 +134,7 @@ def test_release_scoped_reload_uses_post_migration_state_without_version_file(tm
     evidence = tmp_path / "RuntimeEvidence"
     approved.write_text('{"items": []}\n', encoding="utf-8")
     evidence.mkdir()
-    _write(inbox / "control_plane/requests/native_mcp_reload.json", request)
+    _write(tmp_path / "Data/03_Systeem/Projectmanager/ControlPlane/Runtime/requests/native_mcp_reload.json", request)
     _write(release_root / "current.json", _controller())
     _write(release_root / "State/atomic_app_swap_state.json", _atomic())
     _write(native_root / "runtime_guard.json", _guard())

@@ -214,7 +214,7 @@ class RuntimeCollector:
         shared_publication_path = project_system_path(self.project_root, 'Inbox/github_publication_state.json')
         installer_lock_path = inbox / '.installer.lock'
         atomic = self._read_json(atomic_path) or {}
-        publication_contract = self._read_json(inbox / 'ha_publication_required.json') or {}
+        publication_contract = self._read_json(project_system_path(self.project_root, 'Inbox/release_controller/Publication/ha_publication_required.json')) or {}
 
         # 32.4.18 canonical publication truth: prefer the shared state written by
         # the active HA publisher, then the HA-local state, and only then the

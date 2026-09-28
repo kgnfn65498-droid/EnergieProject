@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from capability_registry import discover_capabilities
+from development_handover_sync import evaluate_handover_freshness
 
 MASTER_INDEX = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_MASTER_DEVELOPMENT_INDEX.md'
 ACTIVE_CONTEXT = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_ACTIVE_DEVELOPMENT_CONTEXT.md'
@@ -33,6 +34,13 @@ def _regular(path: Path) -> bool:
 
 def _safe_dir(path: Path) -> bool:
     return path.exists() and not path.is_symlink() and path.is_dir()
+
+
+def _version_tuple(value: str) -> tuple[int, ...]:
+    try:
+        return tuple(int(part) for part in str(value).split('.')[:3])
+    except ValueError:
+        return ()
 
 
 def discover_requirements(project_root: Path | str) -> list[str]:
@@ -177,6 +185,15 @@ def current_truth_reconciliation(project_root: Path | str, status: dict | None =
     )
     if live and cp_live and live != cp_live and not target_reached:
         conflicts.append({'kind': 'checkpoint_live_release_conflict', 'live': live, 'checkpoint': cp_live, 'checkpoint_path': cp.get('path')})
+    handover_freshness = {'status': 'NOT_REQUIRED', 'fail_closed': False, 'reasons': []}
+    if max(_version_tuple(live), _version_tuple(cp_target)) >= (32, 5, 28):
+        handover_freshness = evaluate_handover_freshness(root, checkpoint=cp, status=status)
+        if handover_freshness.get('status') != 'GREEN':
+            conflicts.append({
+                'kind': 'handover_freshness_conflict',
+                'checkpoint_path': cp.get('path'),
+                'reasons': list(handover_freshness.get('reasons') or []),
+            })
     return {
         'schema': 'energie_development_truth_reconciliation_v1',
         'status': 'RED' if conflicts else 'GREEN',
@@ -184,6 +201,7 @@ def current_truth_reconciliation(project_root: Path | str, status: dict | None =
         'live_release': live,
         'status_release': status_release,
         'highest_checkpoint': cp.get('path') or '',
+        'handover_freshness': handover_freshness,
         'conflicts': conflicts,
     }
 
@@ -213,6 +231,7 @@ def build_development_context(project_root: Path | str, status: dict | None = No
         'requirements_count': len(requirements),
         'full_kb': full_kb,
         'truth_reconciliation': reconciliation,
+        'handover_freshness': reconciliation.get('handover_freshness') or {},
         'capability_registry': capabilities,
         'capability_registry_required_before_unavailable': True,
         'live_handover_primary': True,

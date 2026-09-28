@@ -46,7 +46,7 @@ def _desired_container_payload(host_root: str) -> dict:
         'HostConfig': {
             'Binds': [
                 f'{base}/Data/03_Systeem/Projectmanager/ControlPlane:/control-plane:ro',
-                f'{base}/Inbox:/energy-inbox:rw',
+                f'{base}/Inbox:/energy-inbox:ro',
                 f'{base}/Data/03_Systeem/Projectmanager/RuntimeV2/approved_actions:/pm-approved:ro',
                 f'{base}/Data/03_Systeem/Projectmanager/RuntimeEvidence:/runtime-evidence:ro',
                 f'{base}/Data/03_Systeem/Projectmanager/ControlPlane/Runtime:/control-plane-runtime:rw',

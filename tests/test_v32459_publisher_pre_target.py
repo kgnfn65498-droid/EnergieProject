@@ -67,11 +67,19 @@ def _configure(tmp_path: Path):
     (live / "MANIFEST.sha256").write_text("previous-manifest", encoding="utf-8")
     candidate = processing / "EnergieProject_v32.4.60.zip"
     artifact_sha, target_manifest_sha = _candidate(candidate)
-    marker = inbox / "ha_publication_required.json"
+    marker = tmp_path / "Data/03_Systeem/Projectmanager/ReleaseController/Publication/ha_publication_required.json"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    activation = tmp_path / "Data/03_Systeem/Projectmanager/ClearUp/PathActivation/release_controller.json"
+    activation.parent.mkdir(parents=True, exist_ok=True)
+    activation.write_text(json.dumps({
+        "schema": "energie_clearup_system_path_contract_v1", "active": True,
+        "key": "release_controller", "source": "Inbox/release_controller",
+        "destination": "Data/03_Systeem/Projectmanager/ReleaseController",
+    }), encoding="utf-8")
     contract = _pre_target_contract(candidate.name, artifact_sha, target_manifest_sha, _sha(live / "MANIFEST.sha256"))
     marker.write_text(json.dumps(contract), encoding="utf-8")
-    current = inbox / "release_controller/current.json"
-    current.parent.mkdir()
+    current = tmp_path / "Data/03_Systeem/Projectmanager/ReleaseController/current.json"
+    current.parent.mkdir(parents=True, exist_ok=True)
     current.write_text(json.dumps({
         "release_id": contract["release_id"], "generation": contract["generation"],
         "to_version": contract["version"], "artifact_sha256": contract["processed_zip_sha256"],
@@ -91,7 +99,7 @@ def _with_paths(live: Path, processing: Path, processed: Path, marker: Path, sta
         "GITHUB_RELEASE_STAGE": main.GITHUB_RELEASE_STAGE,
     }
     main.NAS_PROJECT_ROOT = live
-    main.NAS_RELEASE_ROOT = marker.parent
+    main.NAS_RELEASE_ROOT = processing.parent
     main.NAS_RELEASE_PROCESSING = processing
     main.NAS_RELEASE_ARCHIVE = processed
     main.HA_PUBLICATION_REQUIRED = marker
@@ -190,7 +198,7 @@ def test_pre_target_contract_requires_matching_active_controller_identity(tmp_pa
     original = _with_paths(live, processing, processed, marker, stage)
     try:
         contract = json.loads(marker.read_text(encoding="utf-8"))
-        current = marker.parent / "release_controller/current.json"
+        current = marker.parents[1] / "current.json"
         current.parent.mkdir(exist_ok=True)
         current.write_text(json.dumps({
             "release_id": contract["release_id"], "generation": contract["generation"],
@@ -229,9 +237,18 @@ def test_controller_owned_pre_target_contract_settles_only_after_target_runtime(
     controller = ReleaseController()
     state = controller.new_state(from_version="32.4.59", to_version="32.4.60", artifact_sha256=artifact_sha, artifact_name=artifact.name)
     state.phase = Phase.PUBLISHING.value
+    activation = root / "Data/03_Systeem/Projectmanager/ClearUp/PathActivation/release_controller.json"
+    activation.parent.mkdir(parents=True, exist_ok=True)
+    activation.write_text(json.dumps({
+        "schema": "energie_clearup_system_path_contract_v1", "active": True,
+        "key": "release_controller", "source": "Inbox/release_controller",
+        "destination": "Data/03_Systeem/Projectmanager/ReleaseController",
+    }), encoding="utf-8")
+    (root / "Data/03_Systeem/Projectmanager/ReleaseController").mkdir(parents=True, exist_ok=True)
     delivery = HADelivery(root)
     assert delivery.prepare_pre_target(state).status == "WAITING"
-    contract = json.loads((inbox / "ha_publication_required.json").read_text(encoding="utf-8"))
+    marker = root / "Data/03_Systeem/Projectmanager/ReleaseController/Publication/ha_publication_required.json"
+    contract = json.loads(marker.read_text(encoding="utf-8"))
     (inbox / "github_publication_state.json").write_text(json.dumps({
         "published": True, "target_exact": True, "remote_head": "deadbeef",
         **{key: contract[key] for key in ("version", "release_id", "generation", "processed_zip", "processed_zip_sha256", "target_manifest_sha256")},
@@ -246,6 +263,6 @@ def test_controller_owned_pre_target_contract_settles_only_after_target_runtime(
     runtime.joinpath("current.json").write_text(json.dumps({"version": "32.4.60"}), encoding="utf-8")
     state.phase = Phase.ACCEPTED.value
     assert delivery.align(state).status == "GREEN"
-    assert not (inbox / "ha_publication_required.json").exists()
+    assert not marker.exists()
     assert not artifact.exists()
     assert (inbox / "processed" / artifact.name).is_file()

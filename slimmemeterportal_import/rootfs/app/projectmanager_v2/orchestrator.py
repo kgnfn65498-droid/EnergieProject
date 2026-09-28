@@ -195,7 +195,7 @@ class ProjectmanagerRuntime:
             audit=self.base.audit,
         )
         self.release_validation_path = (
-            Path(config.project_root) / 'Inbox' / 'operating_mode' / 'release_validation_hold.json'
+            project_system_path(Path(config.project_root), 'Inbox/operating_mode/release_validation_hold.json')
         )
         self.state_reconciler = StateReconciler(
             self.base.tasks,

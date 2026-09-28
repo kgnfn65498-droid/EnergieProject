@@ -1,14 +1,14 @@
-# AGENT_RESULT — 32.5.27
+# AGENT_RESULT — 32.5.28
 
-Status: PREINSTALL GREEN
+Status: PREPACKAGE GREEN / FINAL ZIP NOT BUILT YET
 
-- Buildbasis: exact 32.5.26 SHA256 `e0ffa48b93e42b8ef09319775b1a54b8e25a9e7719a30d347762c1dcdeed71f5`.
-- Processing is permanent: present+empty idle; only ZIP moves Incoming -> Processing -> Processed.
-- Final Type-3/Inbox cleanup cannot remove Processing.
-- Canonical GitHub publication state remains under `Data/03_Systeem/Projectmanager/ReleaseController/Publication`; no Inbox fallback.
-- Canonical publication writer contract is normalized after completed-release reconciliation to directory `0777`, state files `0666` for the existing cross-identity HA writer.
-- Type-2 002–012 remains CLOSED and was not rerun live.
-- Selected regression acceptance: 876 passed + static 2 skipped.
-- Python compileall GREEN; shell syntax 13/13 GREEN.
-- Historical `test_v32524_incoming_tunnel.py` runtime simulation is not part of this release scope and times out in this isolated harness; its shell syntax remains GREEN.
-- Repository offline-child guard test is harness-shadowed by `/opt/python-hooks/sitecustomize.py`; direct repository tests and static suite remain GREEN. This environment limitation is not treated as product evidence.
+- Buildbasis: exact verified 32.5.27 SHA256 `ea3674ebc32067a7c71b5798f33cb3e9de03f1d1c178dcb96e0f73e7dc4e89f2`.
+- Recovery-first final Inbox cleanup implemented with pre-mutation recovery ZIP, manifest/hash/CRC verification, bounded export chunks and exact external-confirmation gate.
+- Privileged apply revalidates plan, recovery ZIP and live source bytes immediately before mutation.
+- `Inbox/processing` is permanent: incoming -> processing -> HA exact -> processed; two consecutive releases reuse the mailbox.
+- Exact 32.5.27 predecessor release-path bytes prove the 32.5.28 candidate is claimed from Incoming and archives only after HA target exact.
+- Always-current development handover is automatic and fail-closed on stale/mismatched generation.
+- Type-2 002–012 remains CLOSED; Type-3 inventory GREEN; final Inbox inventory READY; no live cleanup executed.
+- Full collected test set covered with zero open failures; compileall GREEN; shell syntax GREEN.
+- PM target `2.0.0-rc63`.
+- Remaining: final package/manifests, fresh-extract acceptance and final audits.

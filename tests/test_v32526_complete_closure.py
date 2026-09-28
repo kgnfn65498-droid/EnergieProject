@@ -74,6 +74,7 @@ def test_32526_active_file_contract_never_falls_back_when_canonical_payload_abse
     root = tmp_path / "p"
     canonical = root / "Data/03_Systeem/Projectmanager/ReleaseController/Publication"
     canonical.mkdir(parents=True)
+    _activation(root, "release_controller", "Inbox/release_controller", "Data/03_Systeem/Projectmanager/ReleaseController")
     _activation(root, "github_publication_state", "Inbox/github_publication_state.json", "Data/03_Systeem/Projectmanager/ReleaseController/Publication/github_publication_state.json")
     resolved = system_path_contract.project_system_path(root, "Inbox/github_publication_state.json")
     assert resolved == canonical / "github_publication_state.json"
@@ -94,6 +95,7 @@ def _seed_delivery(root: Path):
     s = _state(sha, artifact.name)
     pubdir = root / "Data/03_Systeem/Projectmanager/ReleaseController/Publication"
     pubdir.mkdir(parents=True)
+    _activation(root, "release_controller", "Inbox/release_controller", "Data/03_Systeem/Projectmanager/ReleaseController")
     _activation(root, "github_publication_state", "Inbox/github_publication_state.json", "Data/03_Systeem/Projectmanager/ReleaseController/Publication/github_publication_state.json")
     _activation(root, "github_publisher_state", "Inbox/github_publisher_state.json", "Data/03_Systeem/Projectmanager/ReleaseController/Publication/github_publisher_state.json")
     _activation(root, "ha_runtime", "Inbox/ha_runtime", "Data/03_Systeem/Projectmanager/RuntimeEvidence/HomeAssistant")
@@ -107,7 +109,7 @@ def test_32526_exact_legacy_publication_is_reconciled_and_release_archives(tmp_p
     delivery = HADelivery(root, timeout_seconds=1)
     first = delivery.prepare_pre_target(state)
     assert first.status == "WAITING"
-    marker = root / "Inbox/ha_publication_required.json"
+    marker = root / "Data/03_Systeem/Projectmanager/ReleaseController/Publication/ha_publication_required.json"
     payload = json.loads(marker.read_text(encoding="utf-8"))
     exact = dict(payload)
     exact.update({"published": True, "target_exact": True, "local_head": "abc123", "remote_head": "abc123"})
@@ -132,7 +134,7 @@ def test_32526_wrong_generation_or_commit_mismatch_is_never_promoted(tmp_path):
     _, state = _seed_delivery(root)
     delivery = HADelivery(root, timeout_seconds=1)
     delivery.prepare_pre_target(state)
-    payload = json.loads((root / "Inbox/ha_publication_required.json").read_text(encoding="utf-8"))
+    payload = json.loads((root / "Data/03_Systeem/Projectmanager/ReleaseController/Publication/ha_publication_required.json").read_text(encoding="utf-8"))
     bad = dict(payload)
     bad.update({"published": True, "target_exact": True, "generation": "WRONG", "local_head": "a", "remote_head": "b"})
     _j(root / "Inbox/github_publication_state.json", bad)
@@ -157,7 +159,7 @@ def _publisher_info(root: Path, *, current_labels: bool) -> dict:
         "Id": "x", "Name": "/energie-github-publisher",
         "Config": {"Image": "alpine/git:2.47.2", "Labels": labels},
         "HostConfig": {"NetworkMode": "bridge", "Binds": [
-            f"{root}/Inbox:/energy/Inbox:rw",
+            f"{root}/Inbox:/energy/Inbox:ro",
             f"{root}/Data/03_Systeem:/energy/Data/03_Systeem:rw",
             f"{root}/App/tools/system_path_contract.sh:/energy/App/tools/system_path_contract.sh:ro",
             f"{root}/App/tools/nas_github_publisher.sh:/usr/local/bin/nas_github_publisher.sh:ro",
@@ -254,12 +256,12 @@ def test_32526_native_mcp_contains_resume_and_verified_release_artifact_export_c
     assert "CURRENT_CHAT_SWITCH_POINTER.json" in hotfix.RESUME_CONTEXT_BLOCK
 
 
-def test_32527_release_identity_rc62():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.5.27"
-    assert (PM / "VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc62"
+def test_32528_release_identity_rc63():
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.5.28"
+    assert (PM / "VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc63"
     contract = (ROOT / "release_test_contract.py").read_text(encoding="utf-8")
-    assert 'CURRENT_RELEASE = "32.5.27"' in contract
-    assert 'CURRENT_PM_VERSION = "2.0.0-rc62"' in contract
+    assert 'CURRENT_RELEASE = "32.5.28"' in contract
+    assert 'CURRENT_PM_VERSION = "2.0.0-rc63"' in contract
 
 
 def test_32526_historical_transport_artifact_is_known_cleanup_debt():

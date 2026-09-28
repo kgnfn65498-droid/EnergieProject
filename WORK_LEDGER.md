@@ -648,3 +648,9 @@
 - Original five-bucket Type-3 classification was recovered: 13 review groups. Twelve are already canonically resolved by Type-2; the remaining crash-cleanup result path is rebound out of Inbox.
 - Final Inbox target is encoded as a guarded reversible cleanup: flat failed, obsolete hold/historical files retired, processing ephemeral, publisher lock canonical, projectmanager_v2 last after approval receipt proof.
 - Release closure and retained predecessor retrieval are both hard release gates for 32.5.26.
+
+## 2026-09-28 — 32.5.28 recovery-first + always-current handover
+- Exact 32.5.27 predecessor artifact SHA `ea3674ebc32067a7c71b5798f33cb3e9de03f1d1c178dcb96e0f73e7dc4e89f2` hersteld als buildbasis; geen GitHub/productie-reconstructie.
+- Finale Inbox cleanup blijft via bestaande request-scoped sideband + `project_clearup_move_executor.py`; geen derde executor.
+- Nieuwe bindende scope: recovery-ZIP vóór cleanup + external confirmation gate, en machine-verifieerbare always-current development handover met stale=RED/release-blocking.
+- Type-2 002–012 blijft CLOSED; `Inbox/processing` permanent.

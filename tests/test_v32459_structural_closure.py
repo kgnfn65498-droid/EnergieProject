@@ -12,7 +12,7 @@ def state(root):
     c=ReleaseController(); s=c.new_state(from_version='32.4.58',to_version='32.4.59',artifact_sha256='a'*64,artifact_name='EnergieProject_v32.4.59.zip');s.phase=Phase.ACCEPTED.value;s.status=Status.ACTIVE.value;s.step=7;return s
 
 def layout(root,s):
-    (root/'Inbox/processing').mkdir(parents=True); (root/'Inbox/ha_runtime').mkdir(parents=True)
+    (root/'Inbox/processing').mkdir(parents=True); (root/'Inbox/ha_runtime').mkdir(parents=True); (root/'Inbox/release_controller/Publication').mkdir(parents=True)
     (root/'Inbox/processing'/s.artifact_name).write_bytes(b'x')
     s.artifact_sha256=sha(root/'Inbox/processing'/s.artifact_name)
     (root/'App').mkdir();(root/'App/MANIFEST.sha256').write_text('target')
@@ -26,23 +26,23 @@ def pub(root,s,payload):
       'target_manifest_sha256':payload['target_manifest_sha256'],'remote_head':'deadbeef','publication_contract_removed':False}))
 
 def test_completed_release_with_matching_ha_but_open_publication_contract_is_not_delivery_green(tmp_path):
-    s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);p=contract(d,s);(tmp_path/'Inbox/ha_publication_required.json').write_text(json.dumps(p));(tmp_path/'Inbox/ha_runtime/current.json').write_text(json.dumps({'version':s.to_version}))
+    s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);p=contract(d,s);(tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').write_text(json.dumps(p));(tmp_path/'Inbox/ha_runtime/current.json').write_text(json.dumps({'version':s.to_version}))
     out=d.align(s);assert out.status!='GREEN';assert (tmp_path/'Inbox/processing'/s.artifact_name).is_file();assert not (tmp_path/'Inbox/processed'/s.artifact_name).exists()
 
 def test_publication_result_must_match_release_id_generation_artifact_and_manifest(tmp_path):
-    s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);p=contract(d,s);(tmp_path/'Inbox/ha_publication_required.json').write_text(json.dumps(p));(tmp_path/'Inbox/ha_runtime/current.json').write_text(json.dumps({'version':s.to_version}));pub(tmp_path,s,p)
+    s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);p=contract(d,s);(tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').write_text(json.dumps(p));(tmp_path/'Inbox/ha_runtime/current.json').write_text(json.dumps({'version':s.to_version}));pub(tmp_path,s,p)
     q=json.loads((tmp_path/'Inbox/github_publication_state.json').read_text());q['generation']='foreign';(tmp_path/'Inbox/github_publication_state.json').write_text(json.dumps(q))
-    assert d.align(s).status!='GREEN';assert (tmp_path/'Inbox/ha_publication_required.json').exists()
+    assert d.align(s).status!='GREEN';assert (tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').exists()
 
 def test_completed_release_settles_exact_owned_publication_contract_before_processed(tmp_path):
-    s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);p=contract(d,s);(tmp_path/'Inbox/ha_publication_required.json').write_text(json.dumps(p));(tmp_path/'Inbox/ha_runtime/current.json').write_text(json.dumps({'version':s.to_version}));pub(tmp_path,s,p)
-    out=d.align(s);assert out.status=='GREEN';assert not (tmp_path/'Inbox/ha_publication_required.json').exists();assert not (tmp_path/'Inbox/processing'/s.artifact_name).exists();assert (tmp_path/'Inbox/processed'/s.artifact_name).is_file()
+    s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);p=contract(d,s);(tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').write_text(json.dumps(p));(tmp_path/'Inbox/ha_runtime/current.json').write_text(json.dumps({'version':s.to_version}));pub(tmp_path,s,p)
+    out=d.align(s);assert out.status=='GREEN';assert not (tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').exists();assert not (tmp_path/'Inbox/processing'/s.artifact_name).exists();assert (tmp_path/'Inbox/processed'/s.artifact_name).is_file()
 
 def test_completed_release_does_not_remove_foreign_or_unproven_contract(tmp_path):
-    s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);p=contract(d,s);p['generation']='foreign';(tmp_path/'Inbox/ha_publication_required.json').write_text(json.dumps(p));(tmp_path/'Inbox/ha_runtime/current.json').write_text(json.dumps({'version':s.to_version}));out=d.align(s);assert out.status=='BLOCKED';assert (tmp_path/'Inbox/ha_publication_required.json').exists()
+    s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);p=contract(d,s);p['generation']='foreign';(tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').write_text(json.dumps(p));(tmp_path/'Inbox/ha_runtime/current.json').write_text(json.dumps({'version':s.to_version}));out=d.align(s);assert out.status=='BLOCKED';assert (tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').exists()
 
 def test_next_release_can_create_publication_contract_after_predecessor_complete(tmp_path):
-    s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);p=contract(d,s);(tmp_path/'Inbox/ha_publication_required.json').write_text(json.dumps(p));(tmp_path/'Inbox/ha_runtime/current.json').write_text(json.dumps({'version':s.to_version}));pub(tmp_path,s,p);assert d.align(s).status=='GREEN';assert not (tmp_path/'Inbox/ha_publication_required.json').exists()
+    s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);p=contract(d,s);(tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').write_text(json.dumps(p));(tmp_path/'Inbox/ha_runtime/current.json').write_text(json.dumps({'version':s.to_version}));pub(tmp_path,s,p);assert d.align(s).status=='GREEN';assert not (tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').exists()
 
 def test_processed_means_complete_not_merely_atomic_accepted(tmp_path):
     s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);out=d.align(s);assert out.status!='GREEN';assert (tmp_path/'Inbox/processing'/s.artifact_name).exists();assert not (tmp_path/'Inbox/processed'/s.artifact_name).exists()
@@ -63,13 +63,13 @@ def test_controller_does_not_claim_next_incoming_until_completed_delivery_settle
             return Outcome.blocked('predecessor_publication_unsettled')
     service=rcs.ReleaseControllerService(tmp_path,A(),stable_polls=2)
     s=ReleaseController().new_state(from_version='32.4.58',to_version='32.4.59',artifact_sha256='a'*64,artifact_name='59.zip');s.phase='COMPLETE';s.status='COMPLETE';s.step=8;service.store.save(s.to_dict())
-    (tmp_path/'Inbox').mkdir(exist_ok=True);(tmp_path/'Inbox/ha_publication_required.json').write_text('{}');inc=tmp_path/'Inbox/incoming';inc.mkdir();(inc/'EnergieProject_v32.4.60.zip').write_bytes(b'next')
+    (tmp_path/'Inbox/release_controller/Publication').mkdir(parents=True,exist_ok=True);(tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').write_text('{}');inc=tmp_path/'Inbox/incoming';inc.mkdir();(inc/'EnergieProject_v32.4.60.zip').write_bytes(b'next')
     service.cycle();assert (inc/'EnergieProject_v32.4.60.zip').exists();runtime=json.loads((tmp_path/'Inbox/release_controller/runtime.json').read_text());assert runtime['status']=='BLOCKED'
 
 def test_59_to_60_simulated_release_requires_no_manual_contract_cleanup(tmp_path):
-    s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);p=contract(d,s);(tmp_path/'Inbox/ha_publication_required.json').write_text(json.dumps(p));(tmp_path/'Inbox/ha_runtime/current.json').write_text(json.dumps({'version':s.to_version}));pub(tmp_path,s,p);assert d.align(s).status=='GREEN';assert not (tmp_path/'Inbox/ha_publication_required.json').exists()
+    s=state(tmp_path);layout(tmp_path,s);d=HADelivery(tmp_path);p=contract(d,s);(tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').write_text(json.dumps(p));(tmp_path/'Inbox/ha_runtime/current.json').write_text(json.dumps({'version':s.to_version}));pub(tmp_path,s,p);assert d.align(s).status=='GREEN';assert not (tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').exists()
     # A successor can now create its own independent contract without conflict.
     n=ReleaseController().new_state(from_version='32.4.59',to_version='32.4.60',artifact_sha256='b'*64,artifact_name='EnergieProject_v32.4.60.zip')
     (tmp_path/'Inbox/processing'/n.artifact_name).write_bytes(b'next');n.artifact_sha256=sha(tmp_path/'Inbox/processing'/n.artifact_name)
     rb=tmp_path/'App.__rollback_32.4.59';rb.mkdir();(rb/'MANIFEST.sha256').write_text('59')
-    p60=d._contract(n,d._active_artifact(n));d._ensure_contract(n,p60,tmp_path/'Inbox/ha_publication_required.json');assert json.loads((tmp_path/'Inbox/ha_publication_required.json').read_text())['release_id']==n.release_id
+    p60=d._contract(n,d._active_artifact(n));d._ensure_contract(n,p60,tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json');assert json.loads((tmp_path/'Inbox/release_controller/Publication/ha_publication_required.json').read_text())['release_id']==n.release_id

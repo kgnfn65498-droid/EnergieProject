@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'tools/release_32524_incoming_tunnel.sh'
 CP_SRC = ROOT / 'tools/control_plane'
-FP = 'bba109cac86821cdbb91be11fa4a06a411aee2a9a7b09174dc7ebc393cd60e0e'
+FP = '781274e8cbf9096e0c50a35b55cc0d9f2fd8090ab87916884167cda8e0e95036'
 STALE_FP = '0dc5d7d08afedd2538b667cf973b8ff21839bde3456b2aae2b3179d3faccd325'
 
 
@@ -87,7 +87,7 @@ if a and a[0]=='start':
     s[name]=True; save(s)
     if name=='energie-control-plane':
         p=root/'Data/03_Systeem/Projectmanager/ControlPlane/Runtime/runtime.json'; p.parent.mkdir(parents=True,exist_ok=True)
-        p.write_text(json.dumps({'loaded_fingerprint':'bba109cac86821cdbb91be11fa4a06a411aee2a9a7b09174dc7ebc393cd60e0e'}))
+        p.write_text(json.dumps({'loaded_fingerprint':'781274e8cbf9096e0c50a35b55cc0d9f2fd8090ab87916884167cda8e0e95036'}))
     if name=='energie-release-watcher':
         p=root/'Data/03_Systeem/Projectmanager/ReleaseController/runtime.json'
         p.write_text(json.dumps({'status':'IDLE','phase':'IDLE'}))

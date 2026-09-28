@@ -41,7 +41,7 @@ class SwapPaths:
             rollback=root / f"App.__rollback_{from_version}",
             inbox=inbox,
             journal=project_system_path(root, 'Inbox/atomic_app_swap_state.json'),
-            lock=inbox / ".atomic_app_swap.lock",
+            lock=project_system_path(root, 'Inbox/release_controller/State/atomic_app_swap.lock'),
             from_version=from_version,
             to_version=to_version,
         )
@@ -54,7 +54,7 @@ def write_journal_atomic(
     artifact_sha256: str,
     error: str = "",
 ) -> dict[str, Any]:
-    paths.inbox.mkdir(parents=True, exist_ok=True)
+    paths.journal.parent.mkdir(parents=True, exist_ok=True)
     payload: dict[str, Any] = {
         "state": state,
         "from_version": paths.from_version,
@@ -67,7 +67,7 @@ def write_journal_atomic(
 
     fd, tmp_name = tempfile.mkstemp(
         prefix=f"{paths.journal.name}.tmp.",
-        dir=str(paths.inbox),
+        dir=str(paths.journal.parent),
         text=True,
     )
     tmp = Path(tmp_name)
@@ -97,7 +97,7 @@ def load_journal(paths: SwapPaths) -> dict[str, Any] | None:
 
 
 def acquire_swap_lock(paths: SwapPaths) -> None:
-    paths.inbox.mkdir(parents=True, exist_ok=True)
+    paths.lock.parent.mkdir(parents=True, exist_ok=True)
     try:
         paths.lock.mkdir()
     except FileExistsError as exc:
@@ -682,7 +682,7 @@ def assert_no_release_conflict(
     if incoming.is_dir() and any(incoming.glob("*.zip")):
         raise RecoveryRequired("incoming release conflict is active")
 
-    atomic_lock = inbox / ".atomic_app_swap.lock"
+    atomic_lock = project_system_path(root, 'Inbox/release_controller/State/atomic_app_swap.lock')
     if atomic_lock.exists():
         raise RecoveryRequired(f"atomic swap lock conflict is active: {atomic_lock}")
 

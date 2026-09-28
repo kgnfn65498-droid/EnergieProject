@@ -1,16 +1,14 @@
-# CURRENT HANDOVER — EnergieProject 32.5.27
-## Persistent Processing mailbox + canonical publication writer contract
+# CURRENT HANDOVER — EnergieProject 32.5.28
+## Recovery-first final Inbox cleanup + always-current handover
 
-Deze statische handover bevat uitsluitend releasecontracten; **Runtime-statusautoriteit** blijft de actuele runtime/readback via `Inbox/release_controller/current.json` en de canonieke Type-2 system-path mapping.
+Buildbasis: exact `EnergieProject_v32.5.27.zip`, SHA256 `ea3674ebc32067a7c71b5798f33cb3e9de03f1d1c178dcb96e0f73e7dc4e89f2`. Live productie blijft 32.5.27 totdat de normale Incoming-keten 32.5.28 volledig heeft verwerkt. Type-2 ClearUp_002–012 blijft CLOSED.
 
-Buildbasis: exact `EnergieProject_v32.5.26.zip`, SHA256 `e0ffa48b93e42b8ef09319775b1a54b8e25a9e7719a30d347762c1dcdeed71f5`. Type-2 ClearUp_002–012 blijft CLOSED en wordt niet opnieuw uitgevoerd.
+32.5.28 voegt vóór de finale Type-3/Inbox-cleanup een recovery-first grens toe: exact cleanupplan -> pre-mutation payloadsnapshot -> manifest/source hashes -> recovery ZIP -> deep verify -> bounded export -> exacte externe bevestiging. Zonder die bevestiging kan live apply niet starten. De bestaande sideband + `project_clearup_move_executor.py` blijven de enige privileged filesystem-boundary; er is geen derde executor.
 
-32.5.27 corrigeert één live bewezen modeldefect uit 32.5.26: `Inbox/processing` is een permanente mailbox in de keten `incoming -> processing -> processed`. Na settlement verhuist alleen de ZIP; `processing` blijft bestaan en moet idle leeg zijn. Post-live audit en finale Type-3/Inbox-cleanup volgen voortaan dit contract en mogen de map niet verwijderen.
+De releaseketen blijft bindend: `Incoming -> processing -> HA exact -> processed`. Processing is permanent en idle aanwezig/leeg. De 32.5.27 releasepadmodules zijn byte-identiek gebleven en de predecessor-boundary bewijst dat een 32.5.28-kandidaat Incoming verlaat, in Processing wacht zolang HA nog 32.5.27 is en pas na exacte HA-target met dezelfde SHA256 naar Processed gaat.
 
-De door ClearUp_011 vastgelegde GitHub-publication-state blijft uitsluitend canoniek onder `Data/03_Systeem/Projectmanager/ReleaseController/Publication`. Er is geen fallback naar Inbox. Omdat de HA-publisher cross-identity atomisch schrijft via een tijdelijk bestand + replace, normaliseert de completed-release reconciliation de canonieke Publication-directory naar 0777 en bestaande statebestanden naar 0666, gelijk aan de bestaande gedeelde IPC-conventie.
+Development continuity is vanaf 32.5.28 technisch fail-closed: checkpoint, current pointer en current handover voeren één generation/fingerprint. Stale/missing/mismatch blokkeert release-ready; ManagerService herstelt een half bijgewerkte generatie autonoom. Nieuwe-chat `verder` hervat vanaf de nieuwste geldige checkpoint-truth.
 
-De finale Type-3/Inbox-cleanup blijft dezelfde bewezen 32.5.x request-scoped sideband/executor gebruiken. `failed` wordt plat; legacy restanten worden bounded/reversibel verplaatst; `Inbox/projectmanager_v2` blijft de laatste cleanup-actie. `Inbox/processing` is expliciet uitgesloten van cleanup.
+Runtime-statusautoriteit: mutable live status komt uitsluitend uit `Inbox/release_controller/current.json` en de canonieke runtime/state-readback; dit statische handoverdocument claimt geen mutable live Status.
 
-Release acceptance en host-capability Platform Qualification blijven gescheiden contracten. Platform Qualification is geen releasegate en bestaande tests worden niet verwijderd of verzwakt om een build GREEN te maken.
-
-Live-only bewijs na installatie: exact releasepad, canonieke publication writer-permissions, post-live audit present+empty Processing, finale Type-3/Inbox-cleanup en resurrection soak. Geen handmatige ZIP-move als normale route.
+Na installatie blijft de finale live ClearUp geblokkeerd totdat de recovery-ZIP in chat is geleverd/gedownload en exact extern is bevestigd. Daarna: cleanup, 20 s resurrection soak en post-cleanup audit.

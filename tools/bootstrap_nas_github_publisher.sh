@@ -16,6 +16,11 @@ else
 fi
 
 SYSTEM="$ROOT/Data/03_Systeem"
+. "$ROOT/App/tools/system_path_contract.sh"
+RELEASE_CONTROLLER_ROOT="$(energie_system_path "$ROOT" release_controller Inbox/release_controller Data/03_Systeem/Projectmanager/ReleaseController)"
+CONTRACT="$RELEASE_CONTROLLER_ROOT/Publication/ha_publication_required.json"
+PROBE_DIR="$ROOT/Data/03_Systeem/Projectmanager/Runtime/Probes"
+mkdir -p "$PROBE_DIR"
 PUBLISHER="$ROOT/App/tools/nas_github_publisher.sh"
 PRIVATE="$SYSTEM/Projectmanager/Private/github_publisher"
 PUBLIC_KEY="$PRIVATE/id_ed25519.pub"
@@ -61,16 +66,17 @@ fi
 echo PUBLISHER_RUNTIME_EXEC_GREEN
 
 CONTRACT_SHA_BEFORE=""
-if [ -f "$ROOT/Inbox/ha_publication_required.json" ]; then
-  CONTRACT_SHA_BEFORE="$(sha256sum "$ROOT/Inbox/ha_publication_required.json" | awk '{print $1}')"
+if [ -f "$CONTRACT" ]; then
+  CONTRACT_SHA_BEFORE="$(sha256sum "$CONTRACT" | awk '{print $1}')"
 fi
-"$DOCKER" run --rm --entrypoint /bin/sh -v "$PRIVATE:/publisher-private:rw" -v "$ROOT/Inbox:/energy/Inbox:rw" -v "$ROOT/Data/03_Systeem:/energy/Data/03_Systeem:rw" -v "$ROOT/App/tools/system_path_contract.sh:/energy/App/tools/system_path_contract.sh:ro" "$RUNTIME_IMAGE" -ec '
+"$DOCKER" run --rm --entrypoint /bin/sh -v "$PRIVATE:/publisher-private:rw" -v "$ROOT/Inbox:/energy/Inbox:ro" -v "$ROOT/Data/03_Systeem:/energy/Data/03_Systeem:rw" -v "$ROOT/App/tools/system_path_contract.sh:/energy/App/tools/system_path_contract.sh:ro" "$RUNTIME_IMAGE" -ec '
   set -eu
   printf probe > /publisher-private/.rw-probe; rm -f /publisher-private/.rw-probe
-  printf probe > /energy/Inbox/.publisher-rw-probe; rm -f /energy/Inbox/.publisher-rw-probe
+  mkdir -p /energy/Data/03_Systeem/Projectmanager/Runtime/Probes
+  printf probe > /energy/Data/03_Systeem/Projectmanager/Runtime/Probes/.publisher-rw-probe; rm -f /energy/Data/03_Systeem/Projectmanager/Runtime/Probes/.publisher-rw-probe
 '
 if [ -n "$CONTRACT_SHA_BEFORE" ]; then
-  [ "$(sha256sum "$ROOT/Inbox/ha_publication_required.json" | awk '{print $1}')" = "$CONTRACT_SHA_BEFORE" ] || { echo "FOUT: contract wijzigde tijdens preflight" >&2; exit 4; }
+  [ "$(sha256sum "$CONTRACT" | awk '{print $1}')" = "$CONTRACT_SHA_BEFORE" ] || { echo "FOUT: contract wijzigde tijdens preflight" >&2; exit 4; }
 fi
 echo PUBLISHER_BIND_MOUNTS_GREEN
 
@@ -95,7 +101,7 @@ echo PUBLISHER_DEPLOY_KEY_READY
   --entrypoint /bin/sh \
   -e ENERGIE_ROOT=/energy \
   -e ENERGIE_PUBLISHER_PRIVATE_ROOT=/publisher-private \
-  -v "$ROOT/Inbox:/energy/Inbox:rw" \
+  -v "$ROOT/Inbox:/energy/Inbox:ro" \
   -v "$ROOT/Data/03_Systeem:/energy/Data/03_Systeem:rw" \
   -v "$ROOT/App/tools/system_path_contract.sh:/energy/App/tools/system_path_contract.sh:ro" \
   -v "$PRIVATE:/publisher-private:rw" \
@@ -106,7 +112,7 @@ sleep 2
 "$DOCKER" ps --filter "name=^/${CONTAINER_NAME}$" --format '{{.Names}}' | grep -Fxq "$CONTAINER_NAME" || { "$DOCKER" logs "$CONTAINER_NAME" 2>&1 | tail -n 30 >&2 || true; echo "FOUT: publishercontainer draait niet" >&2; exit 6; }
 [ ! -e "$PRIVATE/enabled" ] || { echo "FOUT: publisher stond onverwacht al enabled" >&2; exit 6; }
 if [ -n "$CONTRACT_SHA_BEFORE" ]; then
-  [ "$(sha256sum "$ROOT/Inbox/ha_publication_required.json" | awk '{print $1}')" = "$CONTRACT_SHA_BEFORE" ] || { echo "FOUT: contract wijzigde tijdens bootstrap" >&2; exit 6; }
+  [ "$(sha256sum "$CONTRACT" | awk '{print $1}')" = "$CONTRACT_SHA_BEFORE" ] || { echo "FOUT: contract wijzigde tijdens bootstrap" >&2; exit 6; }
 fi
 
 echo PUBLISHER_WAITING_GREEN

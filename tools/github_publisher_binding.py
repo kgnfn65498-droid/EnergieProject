@@ -91,7 +91,7 @@ def binding_current(info: dict, project_root: Path | str | None = None) -> bool:
         return False
     binds = _bind_map(info)
     expected = {
-        '/energy/Inbox': (f'{host_root}/Inbox', 'rw'),
+        '/energy/Inbox': (f'{host_root}/Inbox', 'ro'),
         '/energy/Data/03_Systeem': (f'{host_root}/Data/03_Systeem', 'rw'),
         '/energy/App/tools/system_path_contract.sh': (f'{host_root}/App/tools/system_path_contract.sh', 'ro'),
         '/usr/local/bin/nas_github_publisher.sh': (f'{host_root}/App/tools/nas_github_publisher.sh', 'ro'),
@@ -135,7 +135,7 @@ def _desired_payload(info: dict, project_root: Path | str | None = None) -> dict
         },
         'HostConfig': {
             'Binds': [
-                f'{host_root}/Inbox:/energy/Inbox:rw',
+                f'{host_root}/Inbox:/energy/Inbox:ro',
                 f'{host_root}/Data/03_Systeem:/energy/Data/03_Systeem:rw',
                 f'{host_root}/App/tools/system_path_contract.sh:/energy/App/tools/system_path_contract.sh:ro',
                 f'{host_root}/App/tools/nas_github_publisher.sh:/usr/local/bin/nas_github_publisher.sh:ro',
@@ -164,7 +164,7 @@ def _info() -> dict | None:
 
 def ensure_github_publisher_binding_current(root: Path | str, *, timeout_seconds: float = 45.0) -> dict:
     root = Path(root)
-    contract = root / 'Inbox/ha_publication_required.json'
+    contract = project_system_path(root, 'Inbox/release_controller/Publication/ha_publication_required.json')
     if contract.exists():
         raise RuntimeError('publisher binding recreate refused while publication contract is active')
     info = _info()

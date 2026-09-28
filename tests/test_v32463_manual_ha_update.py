@@ -15,6 +15,7 @@ for value in (str(APP), str(TOOLS)):
 import main
 from ha_delivery_adapter import HADelivery
 from release_controller import Phase, ReleaseController
+from system_path_contract import project_system_path
 
 
 def test_predecessor_publisher_only_refreshes_store_after_github_target(monkeypatch):
@@ -50,16 +51,20 @@ def _root(tmp_path, predecessor="32.4.64", target="32.4.65"):
     state.phase=Phase.ACCEPTED.value
     delivery=HADelivery(root, timeout_seconds=0)
     payload=delivery._contract(state,artifact)
-    (inbox/"ha_publication_required.json").write_text(json.dumps(payload))
-    (inbox/"github_publication_state.json").write_text(json.dumps({
+    marker=project_system_path(root, "Inbox/release_controller/Publication/ha_publication_required.json")
+    marker.parent.mkdir(parents=True,exist_ok=True)
+    marker.write_text(json.dumps(payload))
+    pub_state=project_system_path(root, "Inbox/github_publication_state.json")
+    pub_state.parent.mkdir(parents=True,exist_ok=True)
+    pub_state.write_text(json.dumps({
         "published":True,"target_exact":True,"remote_head":"deadbeef",
         **{k:payload[k] for k in ("version","release_id","generation","processed_zip","processed_zip_sha256","target_manifest_sha256")}
     }))
-    return root,state,delivery,artifact,runtime
+    return root,state,delivery,artifact,runtime,marker
 
 
 def test_exact_github_with_predecessor_ha_runtime_waits_without_timeout(tmp_path):
-    root,state,delivery,artifact,runtime=_root(tmp_path)
+    root,state,delivery,artifact,runtime,marker=_root(tmp_path)
     (runtime/"current.json").write_text(json.dumps({"version":"32.4.64"}))
     outcome=delivery.align(state)
     assert outcome.status=="WAITING"
@@ -69,10 +74,10 @@ def test_exact_github_with_predecessor_ha_runtime_waits_without_timeout(tmp_path
 
 
 def test_exact_target_runtime_settles_manual_wait_and_archives_processing(tmp_path):
-    root,state,delivery,artifact,runtime=_root(tmp_path)
+    root,state,delivery,artifact,runtime,marker=_root(tmp_path)
     (runtime/"current.json").write_text(json.dumps({"version":"32.4.65"}))
     outcome=delivery.align(state)
     assert outcome.status=="GREEN"
     assert not artifact.exists()
     assert (root/"Inbox/processed"/artifact.name).is_file()
-    assert not (root/"Inbox/ha_publication_required.json").exists()
+    assert not marker.exists()

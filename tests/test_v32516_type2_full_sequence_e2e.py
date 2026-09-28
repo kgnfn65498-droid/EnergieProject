@@ -46,11 +46,13 @@ def _json(path: Path, value: dict) -> None:
 def _watch(root: Path, monkeypatch):
     monkeypatch.setattr(executor, '_load_clearup_type2_service', lambda _root: service)
     monkeypatch.setattr(service, 'WATCHER_TIMEOUT_SECONDS', 5.0)
-    request_path = root / service.WATCHER_REQUEST_REL
-
     def run():
         deadline = time.monotonic() + 4
-        while time.monotonic() < deadline and not request_path.is_file():
+        request_path = project_system_path(root, service.WATCHER_REQUEST_REL.as_posix())
+        while time.monotonic() < deadline:
+            request_path = project_system_path(root, service.WATCHER_REQUEST_REL.as_posix())
+            if request_path.is_file():
+                break
             time.sleep(0.005)
         assert request_path.is_file()
         # Exercise the actual release-controller sideband bridge. It validates

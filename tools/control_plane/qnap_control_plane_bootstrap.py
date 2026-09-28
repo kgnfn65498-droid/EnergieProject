@@ -14,7 +14,7 @@ QNAP_ALLOWED_PROJECT_ROOTS = {
 
 
 def _security_migration_current(inbox: Path, release_controller_root: Path | None = None) -> bool:
-    base = Path(release_controller_root) if release_controller_root is not None else (Path(inbox) / 'release_controller')
+    base = Path(release_controller_root) if release_controller_root is not None else (Path(inbox).parent / 'Data/03_Systeem/Projectmanager/ReleaseController')
     marker = base / 'platformtest_security_migration_v1.json'
     try:
         if marker.is_symlink() or not marker.is_file():
@@ -30,7 +30,7 @@ def _security_migration_current(inbox: Path, release_controller_root: Path | Non
 
 
 def _write_security_migration(inbox: Path, release_controller_root: Path | None = None) -> None:
-    directory = Path(release_controller_root) if release_controller_root is not None else (Path(inbox) / 'release_controller')
+    directory = Path(release_controller_root) if release_controller_root is not None else (Path(inbox).parent / 'Data/03_Systeem/Projectmanager/ReleaseController')
     if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
         raise RuntimeError('onveilige release-controller evidence map')
     directory.mkdir(parents=True, exist_ok=True)
@@ -191,7 +191,7 @@ def qnap_watcher_create_payload(host_project_root: str) -> dict:
     }
 
 def _current_watcher_command(inbox: Path, approval: dict, live_version: str) -> dict:
-    command_queue = Path(inbox) / "projectmanager_v2" / "RuntimeV2" / "commands" / "queue.json"
+    command_queue = Path(inbox).parent / "Data/03_Systeem/Projectmanager/RuntimeV2/commands/queue.json"
     data = cp._load_json(command_queue)
     command_id = str(approval.get("command_id") or "").strip()
     decision_id = str(approval.get("decision_id") or "").strip()
@@ -209,8 +209,9 @@ def _current_watcher_command(inbox: Path, approval: dict, live_version: str) -> 
         return item
     raise RuntimeError("actueel goedgekeurd watcher command ontbreekt")
 
-def qnap_load_bootstrap_watcher_request(inbox: Path, approved_queue: Path, release_controller_root: Path, version_path: Path | None = None):
-    request = cp._load_json(Path(inbox) / "watcher_recreate_request.json")
+def qnap_load_bootstrap_watcher_request(inbox: Path, approved_queue: Path, release_controller_root: Path, version_path: Path | None = None, runtime_root: Path | None = None):
+    runtime = Path(runtime_root) if runtime_root is not None else (Path(inbox).parent / "Data/03_Systeem/Projectmanager/ControlPlane/Runtime")
+    request = cp._load_json(runtime / "requests/watcher_recreate.json")
     live_version = cp.stable_release_version(Path(inbox), Path(release_controller_root))
     stable_required = {
         "schema": "energie_watcher_recreate_request_v1",

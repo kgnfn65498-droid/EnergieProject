@@ -79,8 +79,8 @@ class ReleaseRecoveryService:
     def recover(self) -> dict[str, Any]:
         version = self._version()
         atomic = self._load_json(project_system_path(self.project_root, 'Inbox/atomic_app_swap_state.json'))
-        hold = self._load_json(self.inbox / 'operating_mode/release_validation_hold.json')
-        mode = self._load_json(self.inbox / 'operating_mode/operating_mode_state.json')
+        hold = self._load_json(project_system_path(self.project_root, 'Inbox/operating_mode/release_validation_hold.json'))
+        mode = self._load_json(project_system_path(self.project_root, 'Inbox/operating_mode/operating_mode_state.json'))
         watcher = self._watcher()
         isolated = self._isolate_terminal_project_cr_request(version)
         effective_mode = str(mode.get('effective_mode') or mode.get('base_mode') or mode.get('mode') or '')

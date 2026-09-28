@@ -14,7 +14,7 @@ CONTRACT_VERSION = 3
 CONTAINER_NAME = 'energie-release-watcher'
 EXPECTED_IMAGE = 'python:3.12-slim'
 EXPECTED_COMMAND = ['sh', '/energy/App/tools/release_watcher.sh']
-REQUEST_REL = Path('Inbox/watcher_recreate_request.json')
+REQUEST_REL = Path('Inbox/control_plane/requests/watcher_recreate.json')
 REQUIRED_CAP_ADD = {'DAC_OVERRIDE', 'DAC_READ_SEARCH', 'FOWNER'}
 
 def expected_spec() -> dict:
@@ -80,7 +80,7 @@ def _write_recreate_request(root: Path, reason: str) -> dict:
         'reason': reason,
         'confirmation_required': f'RECREATE WATCHER {release_version}',
     }
-    path = root / REQUEST_REL
+    path = project_system_path(root, REQUEST_REL.as_posix())
     if path.is_file():
         existing = json.loads(path.read_text(encoding='utf-8'))
         stable_keys = ('schema','request_id','operation','release_version','container','contract_version','spec_fingerprint','confirmation_required')

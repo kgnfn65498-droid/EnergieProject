@@ -144,9 +144,19 @@ def test_delivery_settles_on_exact_github_and_exact_ha_even_with_ha_delivery_red
     )
     state.phase = Phase.ACCEPTED.value
     state.phase_started_at_epoch = 0
+    activation = root / "Data/03_Systeem/Projectmanager/ClearUp/PathActivation/release_controller.json"
+    activation.parent.mkdir(parents=True, exist_ok=True)
+    activation.write_text(json.dumps({
+        "schema": "energie_clearup_system_path_contract_v1", "active": True,
+        "key": "release_controller", "source": "Inbox/release_controller",
+        "destination": "Data/03_Systeem/Projectmanager/ReleaseController",
+    }), encoding="utf-8")
+    (root / "Data/03_Systeem/Projectmanager/ReleaseController").mkdir(parents=True, exist_ok=True)
     delivery = HADelivery(root)
     payload = delivery._contract(state, artifact)
-    (inbox / "ha_publication_required.json").write_text(json.dumps(payload), encoding="utf-8")
+    contract = root / "Data/03_Systeem/Projectmanager/ReleaseController/Publication/ha_publication_required.json"
+    contract.parent.mkdir(parents=True, exist_ok=True)
+    contract.write_text(json.dumps(payload), encoding="utf-8")
     (inbox / "github_publication_state.json").write_text(json.dumps({
         "published": True,
         "target_exact": True,
@@ -163,7 +173,7 @@ def test_delivery_settles_on_exact_github_and_exact_ha_even_with_ha_delivery_red
     assert outcome.status == "GREEN"
     assert not artifact.exists()
     assert (inbox / "processed" / artifact.name).is_file()
-    assert not (inbox / "ha_publication_required.json").exists()
+    assert not contract.exists()
 
 
 def test_native_successor_controller_has_nine_phases_and_enters_publishing_first():

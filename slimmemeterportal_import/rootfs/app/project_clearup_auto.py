@@ -24,7 +24,7 @@ from project_close_state import load_project_close
 
 APPROVAL_RELATIVE = Path("Data/03_Systeem/Projectmanager/State/32_4_25_scope_cleanup_and_history_repair_20260909.md")
 MAX_CR_AGE_SECONDS = 30 * 86400
-CLEARUP_MOVE_REQUEST_RELATIVE = Path("Inbox/project_clearup_move_request.json")
+CLEARUP_MOVE_REQUEST_RELATIVE = Path("Inbox/projectmanager_v2/RuntimeV2/clearup/project_clearup_move_request.json")
 CLEARUP_MOVE_RESULT_RELATIVE = Path("Inbox/logs/project_clearup_move_result.json")
 CLEARUP_MOVE_REQUEST_SCHEMA = "energie_project_clearup_move_request_v1"
 CLEARUP_MOVE_RESULT_SCHEMA = "energie_project_clearup_move_result_v1"
@@ -56,7 +56,7 @@ def _apply_clearup_via_watcher(
     started_monotonic: float,
     pre_acceptance: bool,
 ) -> dict[str, Any]:
-    request_path = root / CLEARUP_MOVE_REQUEST_RELATIVE
+    request_path = project_system_path(root, CLEARUP_MOVE_REQUEST_RELATIVE.as_posix())
     result_path = project_system_path(root, str(CLEARUP_MOVE_RESULT_RELATIVE))
     if request_path.is_symlink() or result_path.is_symlink():
         raise RuntimeError("CLEARUP watcher bridge weigert symlink request/result pad")

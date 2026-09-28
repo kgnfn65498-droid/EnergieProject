@@ -74,8 +74,9 @@ def test_32525_native_mcp_hotfix_writers_resolve_canonical_logs(tmp_path, monkey
 
 def _publisher_info(*, canonical: bool) -> dict:
     root='/share/CACHEDEV1_DATA/AI Projecten/EnergieProject'
+    inbox_mode='ro' if canonical else 'rw'
     binds=[
-        f'{root}/Inbox:/energy/Inbox:rw',
+        f'{root}/Inbox:/energy/Inbox:{inbox_mode}',
         f'{root}/Data/03_Systeem/Projectmanager/Private/github_publisher:/publisher-private:rw',
         f'{root}/App/tools/nas_github_publisher.sh:/usr/local/bin/nas_github_publisher.sh:ro',
     ]
@@ -98,6 +99,7 @@ def test_32525_github_publisher_binding_requires_and_builds_canonical_type2_moun
     payload=_desired_payload(legacy)
     binds=payload['HostConfig']['Binds']
     assert any('/Data/03_Systeem:/energy/Data/03_Systeem:rw' in x for x in binds)
+    assert any('/Inbox:/energy/Inbox:ro' in x for x in binds)
     assert any('/App/tools/system_path_contract.sh:/energy/App/tools/system_path_contract.sh:ro' in x for x in binds)
     assert binding_current(_publisher_info(canonical=True)) is True
     src=(ROOT/'tools/release_controller_service.py').read_text(encoding='utf-8')

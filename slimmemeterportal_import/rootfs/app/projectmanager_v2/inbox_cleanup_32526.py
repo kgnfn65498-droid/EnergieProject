@@ -8,11 +8,14 @@ sideband, and waits for the privileged watcher/executor to return the result.
 All mutations therefore stay on the proven 32.5.x execution boundary.
 """
 
+import base64
 import hashlib
 import json
 import os
 import secrets
+import shutil
 import time
+import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -23,9 +26,10 @@ MIN_VERSION = (32, 5, 26)
 SCOPED_REQUEST_SCHEMA = "energie_clearup_scoped_request_v1"
 SCOPED_RESULT_SCHEMA = "energie_clearup_scoped_result_v1"
 PLAN_SCHEMA = "energie_clearup_scoped_plan_v1"
-WATCHER_REQUEST_REL = Path("Inbox/project_clearup_move_request.json")
+WATCHER_REQUEST_REL = Path("Inbox/projectmanager_v2/RuntimeV2/clearup/project_clearup_move_request.json")
 WATCHER_RESULT_ROOT_REL = Path("Data/03_Systeem/Projectmanager/ClearUp/Runtime/results")
 WATCHER_TIMEOUT_SECONDS = 90.0
+RECOVERY_CHUNK_MAX = 32768
 
 FINAL_LEGACY = (
     "Inbox/release_hold_tmp",
@@ -34,6 +38,9 @@ FINAL_LEGACY = (
     "Inbox/ha_publication_required.json.corrective.22616",
     "Inbox/ha_publication_required.json.settled.10928",
     "Inbox/.github_publisher.lock",
+    "Inbox/watcher_recreate_request.json",
+    "Inbox/project_clearup_move_request.json",
+    "Inbox/.publisher-rw-probe",
 )
 FAILED_BUCKETS = ("corrupt", "rejected", "rolled_back", "withdrawn", "duplicates")
 CONSUMED = {"APPLIED", "IGNORED_ALREADY_RESOLVED", "REJECTED", "RESOLVED", "CONSUMED"}
@@ -83,6 +90,77 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
         os.replace(tmp, path)
     finally:
         tmp.unlink(missing_ok=True)
+
+
+def _recovery_paths(root: Path, version: str) -> tuple[Path, Path, Path]:
+    safe_version = str(version).replace("/", "_").replace("\\", "_")
+    stage = root / "Data/03_Systeem/Projectmanager/ClearUp/Recovery" / f"FinalInbox_v{safe_version}"
+    export = root / "Data/03_Systeem/Projectmanager/ClearUp/Exports" / f"FinalInboxCleanup_v{safe_version}_recovery.zip"
+    state = root / "Data/03_Systeem/Projectmanager/ClearUp/State" / f"FINAL_INBOX_RECOVERY_v{safe_version}.json"
+    return stage, export, state
+
+
+def _copy_exact(source: Path, target: Path) -> None:
+    if source.is_symlink() or not source.exists():
+        raise RuntimeError(f"recovery source missing/unsafe:{source}")
+    if source.is_file():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, target, symlinks=False)
+
+
+def _remove_internal_tree(path: Path) -> None:
+    """Remove only private recovery staging; never used for live Inbox cleanup."""
+    if not path.exists():
+        return
+    if path.is_symlink() or not path.is_dir():
+        raise RuntimeError("internal recovery staging path unsafe")
+    for item in sorted(path.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if item.is_symlink():
+            raise RuntimeError("internal recovery staging symlink refused")
+        if item.is_dir():
+            item.rmdir()
+        else:
+            item.unlink()
+    path.rmdir()
+
+
+def _verify_final_recovery_zip(path: Path, expected_manifest: dict[str, Any] | None = None) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError("final Inbox recovery ZIP missing/unsafe")
+    try:
+        with zipfile.ZipFile(path) as archive:
+            bad = archive.testzip()
+            if bad:
+                raise RuntimeError(f"final Inbox recovery ZIP corrupt:{bad}")
+            manifest = json.loads(archive.read("RECOVERY_MANIFEST.json"))
+            if not isinstance(manifest, dict) or manifest.get("schema") != "energie_final_inbox_recovery_v1":
+                raise RuntimeError("final Inbox recovery manifest invalid")
+            if manifest.get("deletion_performed") is not False:
+                raise RuntimeError("final Inbox recovery manifest is not pre-mutation")
+            if expected_manifest is not None and manifest != expected_manifest:
+                raise RuntimeError("final Inbox recovery manifest mismatch")
+            names = set(archive.namelist())
+            for item in manifest.get("items") or []:
+                rows = item.get("source_rows") if isinstance(item, dict) else None
+                if not isinstance(rows, list):
+                    raise RuntimeError("final Inbox recovery source_rows missing")
+                for row in rows:
+                    if not isinstance(row, dict) or row.get("type") != "file":
+                        continue
+                    member = "original/" + str(row.get("path") or "")
+                    if member not in names:
+                        raise RuntimeError(f"final Inbox recovery payload missing:{member}")
+                    data = archive.read(member)
+                    if len(data) != int(row.get("size") if row.get("size") is not None else -1):
+                        raise RuntimeError(f"final Inbox recovery payload size mismatch:{member}")
+                    if hashlib.sha256(data).hexdigest() != str(row.get("sha256") or ""):
+                        raise RuntimeError(f"final Inbox recovery payload hash mismatch:{member}")
+            return manifest
+    except (OSError, KeyError, json.JSONDecodeError, zipfile.BadZipFile) as exc:
+        raise RuntimeError("final Inbox recovery ZIP verification failed") from exc
 
 
 def _release_version(root: Path) -> str:
@@ -354,8 +432,199 @@ def build_cleanup_plan(project_root: Path | str) -> dict[str, Any]:
     return {**identity, "plan_sha256": plan_sha256, "confirmation_required": f"APPLY INBOX CLEANUP {plan_sha256[:16]}"}
 
 
-def _watcher_call(root: Path, *, operation: str, plan: dict[str, Any] | None = None, run_id: str = "", explicit_approval: bool = False) -> dict[str, Any]:
-    request_path = root / WATCHER_REQUEST_REL
+def prepare_final_inbox_recovery(project_root: Path | str, *, source: str = "") -> dict[str, Any]:
+    root = Path(project_root).resolve()
+    plan = build_cleanup_plan(root)
+    version = str(plan["release_version"])
+    stage, export, state_path = _recovery_paths(root, version)
+    temp_stage = stage.with_name(stage.name + f".tmp-{secrets.token_hex(6)}")
+    temp_export = export.with_name(export.name + f".tmp-{secrets.token_hex(6)}")
+    items: list[dict[str, Any]] = []
+    try:
+        temp_stage.mkdir(parents=True, exist_ok=False)
+        seen: set[str] = set()
+        for action in plan.get("actions") or []:
+            kind = str(action.get("kind") or "")
+            source_rel = str(action.get("source") or "")
+            if kind not in {"flatten_failed_file", "quarantine"} or not source_rel or source_rel in seen:
+                continue
+            seen.add(source_rel)
+            source_path = root / source_rel
+            before_rows = _tree_rows(source_path, root)
+            if not before_rows:
+                raise RuntimeError(f"recovery source missing:{source_rel}")
+            staged = temp_stage / "original" / source_rel
+            _copy_exact(source_path, staged)
+            after_rows = _tree_rows(source_path, root)
+            staged_rows = _tree_rows(staged, temp_stage / "original")
+            if after_rows != before_rows:
+                raise RuntimeError(f"recovery source changed during snapshot:{source_rel}")
+            if staged_rows != before_rows:
+                raise RuntimeError(f"recovery staged payload mismatch:{source_rel}")
+            items.append({"source": source_rel, "kind": kind, "source_rows": before_rows})
+
+        manifest = {
+            "schema": "energie_final_inbox_recovery_v1",
+            "classification": "TYPE3_FINAL_INBOX",
+            "release_version": version,
+            "plan_sha256": plan["plan_sha256"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "items": items,
+            "deletion_performed": False,
+        }
+        _atomic_json(temp_stage / "RECOVERY_MANIFEST.json", manifest)
+        export.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(temp_export, "w", zipfile.ZIP_DEFLATED) as archive:
+            for path in sorted(temp_stage.rglob("*"), key=lambda p: p.as_posix()):
+                if path.is_symlink():
+                    raise RuntimeError("recovery staging symlink refused")
+                arc = path.relative_to(temp_stage).as_posix()
+                if path.is_dir():
+                    archive.writestr(arc.rstrip("/") + "/", b"")
+                else:
+                    archive.write(path, arc)
+        _verify_final_recovery_zip(temp_export, manifest)
+        for item in items:
+            if _tree_rows(root / item["source"], root) != item["source_rows"]:
+                raise RuntimeError(f"recovery source changed after snapshot:{item['source']}")
+
+        if stage.exists():
+            if stage.is_symlink() or not stage.is_dir():
+                raise RuntimeError("recovery stage path unsafe")
+            _remove_internal_tree(stage)
+        os.replace(temp_stage, stage)
+        os.replace(temp_export, export)
+        artifact_sha = _sha(export)
+        confirmation = f"CONFIRM INBOX RECOVERY {artifact_sha[:16]}"
+        state = {
+            "schema": "energie_final_inbox_recovery_state_v1",
+            "status": "GREEN",
+            "release_version": version,
+            "plan_sha256": plan["plan_sha256"],
+            "artifact": export.name,
+            "size": export.stat().st_size,
+            "sha256": artifact_sha,
+            "item_count": len(items),
+            "external_confirmed": False,
+            "external_confirmation_required": confirmation,
+            "prepared_at": datetime.now(timezone.utc).isoformat(),
+            "deletion_performed": False,
+            "source": str(source or ""),
+        }
+        _atomic_json(state_path, state)
+        return {**state, "deletion_performed": False}
+    finally:
+        if temp_stage.exists() and not temp_stage.is_symlink():
+            try:
+                _remove_internal_tree(temp_stage)
+            except OSError:
+                pass
+        temp_export.unlink(missing_ok=True)
+
+
+def final_inbox_recovery_export_info(project_root: Path | str) -> dict[str, Any]:
+    root = Path(project_root).resolve()
+    version = _release_version(root)
+    _stage, export, state_path = _recovery_paths(root, version)
+    state = _json(state_path)
+    if state.get("schema") != "energie_final_inbox_recovery_state_v1" or state.get("status") != "GREEN":
+        raise RuntimeError("final Inbox recovery state missing/invalid")
+    manifest = _verify_final_recovery_zip(export)
+    sha = _sha(export)
+    if str(state.get("artifact") or "") != export.name or int(state.get("size") or -1) != export.stat().st_size or str(state.get("sha256") or "") != sha:
+        raise RuntimeError("final Inbox recovery artifact identity mismatch")
+    if str(manifest.get("plan_sha256") or "") != str(state.get("plan_sha256") or ""):
+        raise RuntimeError("final Inbox recovery plan identity mismatch")
+    return {
+        "status": "GREEN",
+        "release_version": version,
+        "artifact": export.name,
+        "size": export.stat().st_size,
+        "sha256": sha,
+        "plan_sha256": manifest["plan_sha256"],
+        "item_count": len(manifest.get("items") or []),
+        "external_confirmed": state.get("external_confirmed") is True,
+        "external_confirmation_required": state.get("external_confirmation_required"),
+        "deletion_performed": False,
+    }
+
+
+def final_inbox_recovery_export_chunk(project_root: Path | str, *, offset: int = 0, max_bytes: int = RECOVERY_CHUNK_MAX) -> dict[str, Any]:
+    if type(offset) is not int or offset < 0:
+        raise ValueError("offset must be a non-negative integer")
+    if type(max_bytes) is not int or max_bytes < 1 or max_bytes > RECOVERY_CHUNK_MAX:
+        raise ValueError(f"max_bytes must be 1..{RECOVERY_CHUNK_MAX}")
+    root = Path(project_root).resolve()
+    info = final_inbox_recovery_export_info(root)
+    _stage, export, _state = _recovery_paths(root, info["release_version"])
+    total = export.stat().st_size
+    if offset > total:
+        raise ValueError("offset beyond EOF")
+    with export.open("rb") as handle:
+        handle.seek(offset)
+        data = handle.read(max_bytes)
+    nxt = offset + len(data)
+    return {
+        **info,
+        "offset": offset,
+        "bytes": len(data),
+        "next_offset": nxt,
+        "eof": nxt >= total,
+        "chunk_sha256": hashlib.sha256(data).hexdigest(),
+        "base64": base64.b64encode(data).decode("ascii"),
+    }
+
+
+def validate_final_inbox_recovery_for_apply(project_root: Path | str, plan: dict[str, Any], supplied: dict[str, Any] | None = None, *, require_external_confirmation: bool = True) -> dict[str, Any]:
+    root = Path(project_root).resolve()
+    version = str(plan.get("release_version") or _release_version(root))
+    _stage, export, state_path = _recovery_paths(root, version)
+    state = _json(state_path)
+    if state.get("schema") != "energie_final_inbox_recovery_state_v1" or state.get("status") != "GREEN":
+        raise RuntimeError("recovery missing")
+    if str(state.get("plan_sha256") or "") != str(plan.get("plan_sha256") or ""):
+        raise RuntimeError("recovery stale plan")
+    manifest = _verify_final_recovery_zip(export)
+    artifact_sha = _sha(export)
+    if str(state.get("sha256") or "") != artifact_sha or int(state.get("size") or -1) != export.stat().st_size:
+        raise RuntimeError("recovery artifact identity mismatch")
+    if str(manifest.get("plan_sha256") or "") != str(plan.get("plan_sha256") or ""):
+        raise RuntimeError("recovery manifest plan mismatch")
+    if supplied is not None:
+        if str(supplied.get("plan_sha256") or "") != str(plan.get("plan_sha256") or "") or str(supplied.get("sha256") or "") != artifact_sha:
+            raise RuntimeError("recovery request identity mismatch")
+    if require_external_confirmation:
+        if state.get("external_confirmed") is not True or str(state.get("external_confirmed_sha256") or "") != artifact_sha:
+            raise RuntimeError("recovery external confirmation missing")
+    for item in manifest.get("items") or []:
+        source_rel = str(item.get("source") or "")
+        rows = item.get("source_rows")
+        if not source_rel or not isinstance(rows, list) or _tree_rows(root / source_rel, root) != rows:
+            raise RuntimeError(f"recovery source mismatch:{source_rel}")
+    return {"sha256": artifact_sha, "size": export.stat().st_size, "plan_sha256": plan["plan_sha256"], "artifact": export.name}
+
+
+def confirm_final_inbox_recovery(project_root: Path | str, *, explicit_user_text: str, source: str) -> dict[str, Any]:
+    root = Path(project_root).resolve()
+    plan = build_cleanup_plan(root)
+    version = str(plan["release_version"])
+    _stage, _export, state_path = _recovery_paths(root, version)
+    state = _json(state_path)
+    expected = str(state.get("external_confirmation_required") or "")
+    normalized = " ".join(str(explicit_user_text or "").strip().split()).upper()
+    if source != "mcp_remote" or not expected or normalized != expected.upper():
+        return {"status": "APPROVAL_REQUIRED", "executed": False, "confirmation_required": expected}
+    proof = validate_final_inbox_recovery_for_apply(root, plan, require_external_confirmation=False)
+    updated = dict(state)
+    updated["external_confirmed"] = True
+    updated["external_confirmed_sha256"] = proof["sha256"]
+    updated["external_confirmed_at"] = datetime.now(timezone.utc).isoformat()
+    _atomic_json(state_path, updated)
+    return {"status": "GREEN", "executed": True, **proof, "external_confirmed": True}
+
+
+def _watcher_call(root: Path, *, operation: str, plan: dict[str, Any] | None = None, run_id: str = "", explicit_approval: bool = False, recovery: dict[str, Any] | None = None) -> dict[str, Any]:
+    request_path = project_system_path(root, WATCHER_REQUEST_REL.as_posix())
     if request_path.is_symlink():
         raise RuntimeError("scoped cleanup request path symlink refused")
     if request_path.exists():
@@ -378,6 +647,8 @@ def _watcher_call(root: Path, *, operation: str, plan: dict[str, Any] | None = N
     if plan is not None:
         payload["plan"] = plan
         payload["plan_sha256"] = plan.get("plan_sha256")
+    if recovery is not None:
+        payload["recovery"] = dict(recovery)
     if run_id:
         payload["run_id"] = run_id
     _atomic_json(request_path, payload)
@@ -409,6 +680,19 @@ def _watcher_call(root: Path, *, operation: str, plan: dict[str, Any] | None = N
 def apply_final_inbox_cleanup(project_root: Path | str, *, explicit_user_text: str, source: str) -> dict[str, Any]:
     root = Path(project_root).resolve()
     plan = build_cleanup_plan(root)
+    recovery = None
+    if _version_tuple(plan.get("release_version", "")) >= (32, 5, 28):
+        try:
+            recovery = validate_final_inbox_recovery_for_apply(root, plan, require_external_confirmation=True)
+        except RuntimeError as exc:
+            reason = str(exc)
+            status = "RECOVERY_CONFIRMATION_REQUIRED" if "confirmation" in reason or "missing" in reason else "RECOVERY_STALE"
+            return {
+                "status": status,
+                "executed": False,
+                "plan_sha256": plan["plan_sha256"],
+                "recovery_error": reason,
+            }
     normalized = " ".join(str(explicit_user_text or "").strip().split()).upper()
     if source != "mcp_remote" or normalized != plan["confirmation_required"].upper():
         return {
@@ -418,7 +702,7 @@ def apply_final_inbox_cleanup(project_root: Path | str, *, explicit_user_text: s
             "confirmation_required": plan["confirmation_required"],
             "action_count": len(plan["actions"]),
         }
-    result = _watcher_call(root, operation="scoped_apply", plan=plan, explicit_approval=True)
+    result = _watcher_call(root, operation="scoped_apply", plan=plan, explicit_approval=True, recovery=recovery)
     return {**result, "plan_sha256": plan["plan_sha256"], "confirmation_required": plan["confirmation_required"]}
 
 

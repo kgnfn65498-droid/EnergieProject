@@ -172,7 +172,7 @@ def test_32441_embedded_pm_consumes_local_and_remote_approval_ingress(tmp_path):
     config = build_embedded_config(tmp_path / 'project', tmp_path / 'pm', running_release_version='32.4.41')
     roots = [item for item in str(config.approval_ingress_root).split(':') if item]
     normalized = [item.replace('\\', '/') for item in roots]
-    assert any(item.endswith('/Inbox/projectmanager_v2/ApprovalIngress') for item in normalized)
+    assert not any(item.endswith('/Inbox/projectmanager_v2/ApprovalIngress') for item in normalized)
     assert any(item.endswith('/Data/03_Systeem/Projectmanager/ApprovalIngress') for item in normalized)
 
 

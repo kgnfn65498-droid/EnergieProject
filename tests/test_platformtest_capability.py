@@ -236,7 +236,7 @@ def _plane(tmp_path, docker):
     version.write_text('32.4.59\n', encoding='utf-8')
     evidence = tmp_path / 'evidence'
     evidence.mkdir()
-    request = inbox / 'control_plane/requests/platformtest_run.json'
+    request = tmp_path / 'Data/03_Systeem/Projectmanager/ControlPlane/Runtime/requests/platformtest_run.json'
     request.parent.mkdir(parents=True)
     request.write_text(json.dumps({
         'schema': cp.PLATFORMTEST_REQUEST_SCHEMA,
@@ -274,7 +274,7 @@ def test_platformtest_executor_returns_green_and_removes_container(tmp_path):
     assert result['test_counts']['passed'] == 12
     assert result['test_counts']['skipped'] == 2
     assert docker.started is True and docker.removed is True
-    persisted = json.loads((inbox / 'control_plane/results/platformtest_run.json').read_text())
+    persisted = json.loads((plane.result_root / 'results/platformtest_run.json').read_text())
     assert persisted['request_id'] == '3' * 32
 
 
@@ -290,7 +290,7 @@ def test_platformtest_executor_nonzero_is_terminal_red(tmp_path):
     assert result['test_counts']['failed'] == 1
     assert result['test_counts']['passed'] == 11
     assert docker.removed is True
-    assert cp.terminal_result(inbox / 'control_plane/results/platformtest_run.json', cp.load_platformtest_request(inbox)) is True
+    assert cp.terminal_result(plane.result_root / 'results/platformtest_run.json', cp.load_platformtest_request(inbox, plane.result_root)) is True
 
 
 def test_platformtest_terminal_result_rejects_incomplete_forged_green(tmp_path):
@@ -307,7 +307,7 @@ def test_platformtest_terminal_result_rejects_incomplete_forged_green(tmp_path):
 def test_platformtest_retry_reconciles_exact_stopped_container(tmp_path):
     docker = _FakeDocker()
     cp, plane, inbox = _plane(tmp_path, docker)
-    request = cp.load_platformtest_request(inbox)
+    request = cp.load_platformtest_request(inbox, plane.result_root)
     image_id = 'sha256:' + ('7' * 64)
     attempt = {
         'schema': 'energie_platformtest_attempt_v1', 'status': 'RUNNING',
@@ -315,7 +315,7 @@ def test_platformtest_retry_reconciles_exact_stopped_container(tmp_path):
         'source_sha256': request['source_sha256'], 'test_profile': request['test_profile'],
         'image_id': image_id,
     }
-    attempt_path = inbox / 'control_plane/results/platformtest_attempt.json'
+    attempt_path = plane.result_root / 'results/platformtest_attempt.json'
     attempt_path.parent.mkdir(parents=True, exist_ok=True)
     attempt_path.write_text(json.dumps(attempt), encoding='utf-8')
     docker.created = (

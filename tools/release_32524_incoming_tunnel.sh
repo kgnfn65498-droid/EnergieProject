@@ -18,11 +18,11 @@ CP_ROOT="$ROOT/Data/03_Systeem/Projectmanager/ControlPlane"
 CANON_QNAP="$CP_ROOT/qnap_control_plane_bootstrap.py"
 CURRENT_QNAP_SHA="203bfef028a79445f18a0d3ac714f2488bce26a3a948916dfc3ef7797202fa2c"
 CARRIER="$ROOT/Data/03_Systeem/Projectmanager/Maintenance/RecoveryCarrier32_5_24/qnap_control_plane_bootstrap.py"
-CARRIER_SHA="daf47911d307b8c8ffc9f4a3f7eb993e41df1e8f50c4e81fd4148ae289ca62e0"
-CP_SHA="7e3201434f60bb0c573d4a1bd11b92426b59fe7b186b1ec47d9077dc02d070eb"
+CARRIER_SHA="f3453e9029a2cf549db748559051fd6b67fc1d9f7e19097e5fa61c853de6cd3e"
+CP_SHA="76386dd8eb032eadca41b2b180de1d38556be923530065e366e0a65f43121ee6"
 BRIDGE_SHA="044df2390c4c911ecb725539726a1e1b219ecf36900d3ff9ce6a7d659f766c6f"
 AUTH_SHA="db14b9d2751999c83e83a313cae0f3a4bb89a627be38d308907f14be819b7021"
-EXPECTED_FP="bba109cac86821cdbb91be11fa4a06a411aee2a9a7b09174dc7ebc393cd60e0e"
+EXPECTED_FP="781274e8cbf9096e0c50a35b55cc0d9f2fd8090ab87916884167cda8e0e95036"
 STALE_ATTEMPT_FP="0dc5d7d08afedd2538b667cf973b8ff21839bde3456b2aae2b3179d3faccd325"
 ATTEMPT="$ROOT/Data/03_Systeem/Projectmanager/ReleaseController/control_plane_restart_attempt.json"
 CANON_RUNTIME="$ROOT/Data/03_Systeem/Projectmanager/ControlPlane/Runtime/runtime.json"
@@ -141,7 +141,7 @@ mark "CANONICAL_NAME_FREE"
   --health-interval 30s --health-timeout 5s --health-retries 3 --health-start-period 10s \
   --tmpfs /tmp:size=16m,mode=1777 \
   -v "$ROOT/Data/03_Systeem/Projectmanager/ControlPlane:/control-plane:ro" \
-  -v "$ROOT/Inbox:/energy-inbox:rw" \
+  -v "$ROOT/Inbox:/energy-inbox:ro" \
   -v "$ROOT/Data/03_Systeem/Projectmanager/RuntimeV2/approved_actions:/pm-approved:ro" \
   -v "$ROOT/Data/03_Systeem/Projectmanager/RuntimeEvidence:/runtime-evidence:ro" \
   -v "$ROOT/Data/03_Systeem/Projectmanager/ControlPlane/Runtime:/control-plane-runtime:rw" \

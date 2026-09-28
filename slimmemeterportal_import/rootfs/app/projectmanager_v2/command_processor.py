@@ -443,12 +443,41 @@ class CommandProcessor:
                     result['executed'] = True
                     result['action'] = 'clearup_apply'
                     result['transport_intent'] = 'admin_update'
-                elif hint in {'inbox_cleanup_inventory','inbox_cleanup_apply','inbox_cleanup_restore'}:
+                elif hint in {
+                    'inbox_cleanup_inventory','inbox_cleanup_prepare_recovery','inbox_cleanup_export_info',
+                    'inbox_cleanup_export_chunk','inbox_cleanup_external_recovery_confirm',
+                    'inbox_cleanup_apply','inbox_cleanup_restore'
+                }:
                     if not self.project_root:
                         raise RuntimeError('32.5.26 Inbox cleanup requires project_root')
-                    from inbox_cleanup_32526 import inventory_final_inbox_cleanup, apply_final_inbox_cleanup, restore_final_inbox_cleanup
+                    from inbox_cleanup_32526 import (
+                        inventory_final_inbox_cleanup, prepare_final_inbox_recovery,
+                        final_inbox_recovery_export_info, final_inbox_recovery_export_chunk,
+                        confirm_final_inbox_recovery, apply_final_inbox_cleanup, restore_final_inbox_cleanup,
+                    )
                     if hint=='inbox_cleanup_inventory':
                         result=dict(inventory_final_inbox_cleanup(self.project_root))
+                    elif hint=='inbox_cleanup_prepare_recovery':
+                        result=dict(prepare_final_inbox_recovery(self.project_root, source=str(item.get('source') or '')))
+                    elif hint=='inbox_cleanup_export_info':
+                        result=dict(final_inbox_recovery_export_info(self.project_root))
+                    elif hint=='inbox_cleanup_export_chunk':
+                        raw=str(item.get('text') or '').strip()
+                        try:
+                            args=json.loads(raw) if raw else {}
+                        except json.JSONDecodeError as exc:
+                            raise RuntimeError('Inbox cleanup export chunk text must be JSON') from exc
+                        result=dict(final_inbox_recovery_export_chunk(
+                            self.project_root,
+                            offset=int(args.get('offset') or 0),
+                            max_bytes=int(args.get('max_bytes') or 32768),
+                        ))
+                    elif hint=='inbox_cleanup_external_recovery_confirm':
+                        result=dict(confirm_final_inbox_recovery(
+                            self.project_root,
+                            explicit_user_text=str(item.get('text') or ''),
+                            source=str(item.get('source') or ''),
+                        ))
                     elif hint=='inbox_cleanup_apply':
                         result=dict(apply_final_inbox_cleanup(
                             self.project_root, explicit_user_text=str(item.get('text') or ''), source=str(item.get('source') or ''),
@@ -457,7 +486,10 @@ class CommandProcessor:
                         result=dict(restore_final_inbox_cleanup(
                             self.project_root, run_id=str(item.get('artifact_path') or ''), explicit_user_text=str(item.get('text') or ''), source=str(item.get('source') or ''),
                         ))
-                    result['executed']=hint in {'inbox_cleanup_apply','inbox_cleanup_restore'} and result.get('status')=='GREEN'
+                    result['executed']=hint in {
+                        'inbox_cleanup_prepare_recovery','inbox_cleanup_external_recovery_confirm',
+                        'inbox_cleanup_apply','inbox_cleanup_restore'
+                    } and result.get('status')=='GREEN'
                     result['action']=hint
                     result['transport_intent']='admin_update'
                 elif hint in {'clearup_type3_inventory','clearup_type3_apply','clearup_type3_restore'}:

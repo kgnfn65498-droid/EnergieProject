@@ -12,6 +12,7 @@ from cr_evidence import evaluate_cr_closure
 from health_engine import evaluate_quarter_hour_heartbeat
 from manager_config import ManagerConfig
 from manager_service import ManagerService
+from system_path_contract import project_system_path
 
 BASE = Path(__file__).resolve().parent
 
@@ -37,7 +38,7 @@ def live_probe(project_root, input_root):
     cr_dir = Path(project_root) / 'Data' / '03_Systeem' / 'Projectmanager' / 'State'
     cr_files = sorted(cr_dir.glob('crash_recovery_closure_*.json'))
     version_path = Path(project_root) / 'App' / 'VERSIE.txt'
-    mode_path = Path(project_root) / 'Inbox' / 'operating_mode' / 'operating_mode_state.json'
+    mode_path = project_system_path(Path(project_root), 'Inbox/operating_mode/operating_mode_state.json')
     probe = {'heartbeat_path': str(heartbeat_path), 'cr_path': str(cr_files[-1]) if cr_files else None, 'version_path': str(version_path), 'mode_path': str(mode_path)}
     probe['heartbeat'] = evaluate_quarter_hour_heartbeat(_read_json(heartbeat_path), now=now) if heartbeat_path.is_file() else {'status':'RED','reason':'missing'}
     probe['cr'] = evaluate_cr_closure(_read_json(cr_files[-1])) if cr_files else {'status':'ORANGE','reason':'missing'}

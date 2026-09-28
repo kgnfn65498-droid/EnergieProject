@@ -40,7 +40,7 @@ services:
       - "2"
     volumes:
       - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/ControlPlane:/control-plane:ro"
-      - "/share/Energie_NAS/EnergieProject/Inbox:/energy-inbox:rw"
+      - "/share/Energie_NAS/EnergieProject/Inbox:/energy-inbox:ro"
       - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/RuntimeV2/approved_actions:/pm-approved:ro"
       - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/RuntimeEvidence:/runtime-evidence:ro"
       - "/share/Energie_NAS/EnergieProject/Data/03_Systeem/Projectmanager/ControlPlane/Runtime:/control-plane-runtime:rw"

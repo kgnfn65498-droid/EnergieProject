@@ -30,7 +30,7 @@ RECEIPT_REQUIREMENT_RELS = (
     Path('Data/03_Systeem/Projectmanager/Requirements/HARD_REQUIREMENT_32_5_24_PM_PROGRESS_RELEASE_TYPE2_CLOSURE.md'),
 )
 TYPE2_REQUIRED_IDS = tuple(f'ClearUp_{i:03d}' for i in range(2, 13))
-WATCHER_REQUEST_REL = Path('Inbox/project_clearup_move_request.json')
+WATCHER_REQUEST_REL = Path('Inbox/projectmanager_v2/RuntimeV2/clearup/project_clearup_move_request.json')
 WATCHER_RESULT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Runtime/project_clearup_move_result.json')
 WATCHER_RESULT_ROOT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Runtime/results')
 WATCHER_TIMEOUT_SECONDS = 90.0
@@ -224,9 +224,37 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str, Any], explicit_user_text: str = '', validation_proof: dict[str, Any] | None = None) -> dict[str, Any]:
-    request_path = root / WATCHER_REQUEST_REL
+    request_path = project_system_path(root, WATCHER_REQUEST_REL.as_posix())
+    if request_path.is_symlink():
+        raise RuntimeError('ClearUp watcher request path symlink refused')
     if request_path.exists():
-        raise RuntimeError('ClearUp watcher request already active')
+        existing_request = None
+        try:
+            existing_request = json.loads(request_path.read_text(encoding='utf-8'))
+        except Exception:
+            pass
+        existing_id = str((existing_request or {}).get('request_id') or '')
+        completed_path = project_system_path(root, WATCHER_RESULT_REL.as_posix())
+        completed = None
+        try:
+            if completed_path.is_file() and not completed_path.is_symlink():
+                completed = json.loads(completed_path.read_text(encoding='utf-8'))
+        except Exception:
+            completed = None
+        if (
+            existing_id
+            and isinstance(completed, dict)
+            and completed.get('request_id') == existing_id
+            and completed.get('schema') == TYPE2_RESULT_SCHEMA
+            and completed.get('status') == 'completed'
+        ):
+            request_path.unlink(missing_ok=True)
+        else:
+            detail = (
+                f" path={request_path.relative_to(root).as_posix()} operation={(existing_request or {}).get('operation')} request_id={existing_id}"
+                if existing_request else f" path={request_path.relative_to(root).as_posix()}"
+            )
+            raise RuntimeError('ClearUp watcher request already active' + detail)
 
     # 32.5.19: use a request-scoped result mailbox without requiring the PM
     # identity to create or mutate the privileged ClearUp Runtime result area.
@@ -308,13 +336,29 @@ def _watcher_call(root: Path, *, operation: str, clearup_id: str, plan: dict[str
             time.sleep(0.25)
         raise RuntimeError('Type2 watcher operation timeout')
     finally:
+        # A Type-2 migration can activate pm_runtime while this request is in
+        # flight.  The migration copy may therefore contain the same request at
+        # the newly canonical path.  Remove both the original and the current
+        # resolved copy, but only when request identity matches exactly.
+        # Include the retired legacy location as well. During the first pm_runtime
+        # cutover the in-flight request itself can be copied into the canonical
+        # destination; later recovery/compatibility operations must not leave
+        # either copy behind. Identity matching below keeps this removal scoped
+        # to the exact request.
+        request_cleanup_paths = {request_path, root / WATCHER_REQUEST_REL}
         try:
-            if request_path.is_file():
-                current = json.loads(request_path.read_text(encoding='utf-8'))
-                if current.get('request_id') == request_id:
-                    request_path.unlink(missing_ok=True)
+            request_cleanup_paths.add(project_system_path(root, WATCHER_REQUEST_REL.as_posix()))
         except Exception:
             pass
+        for cleanup_path in request_cleanup_paths:
+            try:
+                if cleanup_path.is_symlink() or not cleanup_path.is_file():
+                    continue
+                current = json.loads(cleanup_path.read_text(encoding='utf-8'))
+                if current.get('request_id') == request_id:
+                    cleanup_path.unlink(missing_ok=True)
+            except Exception:
+                pass
         # Successful request-scoped mailbox files are transient; the canonical
         # result above is the durable audit copy.  Failed/timed-out result files
         # are intentionally retained for forensic evidence.

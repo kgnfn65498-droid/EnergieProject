@@ -560,8 +560,9 @@ def watcher_create_payload(host_project_root: str) -> dict:
     }
 
 
-def load_bootstrap_watcher_request(inbox: Path, approved_queue: Path, release_controller_root: Path, version_path: Path | None = None):
-    request = _load_json(Path(inbox) / 'watcher_recreate_request.json')
+def load_bootstrap_watcher_request(inbox: Path, approved_queue: Path, release_controller_root: Path, version_path: Path | None = None, runtime_root: Path | None = None):
+    runtime = Path(runtime_root) if runtime_root is not None else (Path(inbox).parent / 'Data/03_Systeem/Projectmanager/ControlPlane/Runtime')
+    request = _load_json(runtime / 'requests' / 'watcher_recreate.json')
     version = stable_release_version(Path(inbox), Path(release_controller_root))
     required = {
         'schema': 'energie_watcher_recreate_request_v1',
@@ -611,9 +612,9 @@ class ControlPlane:
         self.runtime_evidence = Path(runtime_evidence)
         self.host_project_root = host_project_root
         self.docker = docker or DockerUnixClient()
-        self.result_root = Path(runtime_root) if runtime_root is not None else (self.inbox / 'control_plane')
-        self.release_controller_root = Path(release_controller_root) if release_controller_root is not None else (self.inbox / 'release_controller')
-        self.native_mcp_runtime_root = Path(native_mcp_runtime_root) if native_mcp_runtime_root is not None else (self.inbox / 'native_mcp_runtime')
+        self.result_root = Path(runtime_root) if runtime_root is not None else (self.inbox.parent / 'Data/03_Systeem/Projectmanager/ControlPlane/Runtime')
+        self.release_controller_root = Path(release_controller_root) if release_controller_root is not None else (self.inbox.parent / 'Data/03_Systeem/Projectmanager/ReleaseController')
+        self.native_mcp_runtime_root = Path(native_mcp_runtime_root) if native_mcp_runtime_root is not None else (self.inbox.parent / 'Data/03_Systeem/Projectmanager/RuntimeEvidence/NativeMCP')
 
     def _wait_json(self, path: Path, predicate, timeout: float):
         deadline = time.monotonic() + timeout
@@ -628,7 +629,7 @@ class ControlPlane:
         raise RuntimeError(f'timeout op live readback: {path}')
 
     def recreate_watcher(self) -> dict:
-        request, approval = load_bootstrap_watcher_request(self.inbox, self.approved_queue, self.release_controller_root, self.version_path)
+        request, approval = load_bootstrap_watcher_request(self.inbox, self.approved_queue, self.release_controller_root, self.version_path, self.result_root)
         self.docker.ping()
         self.docker.inspect_image(WATCHER_IMAGE)
         rollback_name = f'{WATCHER_CONTAINER}-rollback-control-plane'
@@ -702,7 +703,7 @@ class ControlPlane:
             # This deliberately avoids recreating retired PM RuntimeV2 under Inbox.
             return self.result_root / 'archive'
         # Historical fixtures/releases preserve their original archive contract.
-        return self.inbox / 'projectmanager_v2' / 'RuntimeV2' / 'control_plane_archive'
+        return self.inbox.parent / 'Data/03_Systeem/Projectmanager/RuntimeV2/control_plane_archive'
 
     def _reconcile_fenced_native_attempt(self, request: dict, result_path: Path) -> dict | None:
         previous = _optional_json(result_path)
@@ -939,7 +940,7 @@ class ControlPlane:
     def process_once(self):
         self._write_runtime_marker()
         results = []
-        watcher_request = self.inbox / 'watcher_recreate_request.json'
+        watcher_request = self.result_root / 'requests' / 'watcher_recreate.json'
         if watcher_request.is_file() and not watcher_request.is_symlink():
             try:
                 request_id = str(_load_json(watcher_request).get('request_id') or '')

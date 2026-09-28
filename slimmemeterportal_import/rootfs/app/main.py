@@ -84,7 +84,7 @@ MONITORING_HISTORY_PATH = Path("/config/output/monitoring_history.jsonl")
 PROJECT_CLEARUP_STATE_PATH = Path("/config/output/project_clearup_state.json")
 PROJECT_CLEARUP_MAX_SECONDS = 60 * 60
 TZ = ZoneInfo("Europe/Amsterdam")
-APP_VERSION = "32.5.27"
+APP_VERSION = "32.5.28"
 PROJECT_CLEARUP_RUNTIME_RELATIVE = Path("Inbox/logs/project_clearup_runtime.json")
 APP_PROCESS_STARTED_AT = datetime.now(TZ)
 # v9.8: diagnosepakket verduidelijkt hergebruik van de gecertificeerde productiekern.
@@ -117,7 +117,7 @@ NAS_RELEASE_INBOX = NAS_RELEASE_ROOT / "incoming"
 NAS_RELEASE_PROCESSING = NAS_RELEASE_ROOT / "processing"
 NAS_RELEASE_ARCHIVE = NAS_RELEASE_ROOT / "processed"
 NAS_RELEASE_FAILED = NAS_RELEASE_ROOT / "failed"
-HA_PUBLICATION_REQUIRED = NAS_RELEASE_ROOT / "ha_publication_required.json"
+HA_PUBLICATION_REQUIRED = project_system_path(NAS_LAYOUT_ROOT, "Inbox/release_controller/Publication/ha_publication_required.json")
 # Compatibility injection point for isolated publisher tests; production resolves through Type2 path contract.
 GITHUB_CANONICAL_PUBLISH_STATE = None
 CRASH_RECOVERY_CLEANUP_ROOT = NAS_DATA_ROOT / "03_Systeem/Projectmanager/CrashRecovery/Cleanup"

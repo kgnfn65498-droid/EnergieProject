@@ -16,6 +16,7 @@ sys.path.insert(0,str(APP))
 sys.path.insert(0,str(PM))
 
 import clearup_type2_service as service
+from system_path_contract import project_system_path
 
 
 def _write(path: Path, text: str) -> None:
@@ -32,7 +33,7 @@ def test_watcher_call_accepts_exact_result_in_deadline_grace(tmp_path, monkeypat
     monkeypatch.setattr(service,'WATCHER_TIMEOUT_SECONDS',0.05)
 
     def writer():
-        req=tmp_path/'Inbox/project_clearup_move_request.json'
+        req=project_system_path(tmp_path,'Inbox/projectmanager_v2/RuntimeV2/clearup/project_clearup_move_request.json')
         deadline=time.monotonic()+1
         while not req.exists() and time.monotonic()<deadline:
             time.sleep(0.002)
@@ -57,7 +58,7 @@ def test_watcher_call_accepts_exact_result_in_deadline_grace(tmp_path, monkeypat
 
 def test_validate_routes_proof_to_privileged_commit_not_direct_atomic_write(tmp_path, monkeypatch):
     _write(tmp_path/'App/VERSIE.txt','32.5.10\n')
-    _write(tmp_path/'Inbox/release_controller/current.json',json.dumps({'status':'COMPLETE','phase':'COMPLETE'}))
+    _write(project_system_path(tmp_path,'Inbox/release_controller/current.json'),json.dumps({'status':'COMPLETE','phase':'COMPLETE'}))
     for rel in ('Inbox/incoming','Inbox/processing','Inbox/processed','Inbox/failed'):
         (tmp_path/rel).mkdir(parents=True,exist_ok=True)
     _write(tmp_path/'Inbox/runtime_old/state.json','old\n')

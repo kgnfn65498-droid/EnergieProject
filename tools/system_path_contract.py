@@ -45,16 +45,22 @@ FILE_KEYS=frozenset({
 
 def _active(root:Path,key:str,destination:Path)->bool:
     marker=root/ACTIVATION_ROOT/f'{key}.json'
-    if marker.is_symlink() or not marker.is_file() or destination.is_symlink(): return False
+    if marker.is_symlink() or not marker.is_file(): return False
     try: data=json.loads(marker.read_text(encoding='utf-8'))
     except Exception: return False
     marker_active=isinstance(data,dict) and data.get('schema')==SCHEMA and data.get('key')==key and data.get('active') is True
-    if not marker_active:return False
-    if destination.exists():return True
-    if key in FILE_KEYS:
-        parent=destination.parent
-        return parent.is_dir() and not parent.is_symlink()
-    return False
+    if not marker_active: return False
+    # Once Type-2 activation is recorded, the canonical system path is permanent.
+    # Missing canonical payload/directories may be recreated only below Data/03_Systeem;
+    # falling back to Inbox would resurrect retired writers after ClearUp.
+    current=destination
+    while True:
+        if current.is_symlink():
+            raise RuntimeError(f'unsafe canonical system path symlink: {current}')
+        if current == root or current.parent == current:
+            break
+        current=current.parent
+    return True
 
 def project_system_path(project_root:Path|str, relative:str)->Path:
     root=Path(project_root).resolve(); rel=str(relative).replace('\\','/').strip('/')

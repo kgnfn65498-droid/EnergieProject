@@ -360,7 +360,7 @@ class ProtectedActionExecutor:
             'contract_version': 3,
             'confirmation_required': f'RECREATE WATCHER {release_version}',
         }
-        target = self.project_root / 'Inbox/watcher_recreate_request.json'
+        target = self.control_plane_request_root / 'watcher_recreate.json'
         pending = self._read_json_object(target)
         if pending is not None and pending.get('request_id') != request_id:
             # A stale request may exist from a previous release.  It is safe to

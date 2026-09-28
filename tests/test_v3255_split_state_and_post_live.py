@@ -94,7 +94,7 @@ def test_split_state_recovery_publishes_then_installs_without_contract_recompute
     first = delivery.prepare_pre_target(state)
     assert first.status == "WAITING"
     assert "split_state_recovery_active" in first.evidence
-    contract_path = tmp_path / "Inbox/ha_publication_required.json"
+    contract_path = tmp_path / "Inbox/release_controller/Publication/ha_publication_required.json"
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
 
     # Canonical publisher advances target while local App is still the accepted

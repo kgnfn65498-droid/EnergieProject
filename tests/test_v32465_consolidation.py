@@ -18,6 +18,7 @@ for value in (str(APP), str(TOOLS)):
 import main
 from ha_delivery_adapter import HADelivery
 from release_controller import Phase, ReleaseController
+from system_path_contract import project_system_path
 
 V64_ARTIFACT_SHA = "875939a6d2112b69cf0b6da37d6c36216c80494aec00bbd78fdf59c37ea6acce"
 V64_MAIN_SHA = "ee26e4a1ff2ede372ab576f256433ceb6f2865ff042ffdecc20a09b0d80d6877"
@@ -60,7 +61,9 @@ def _release_root(tmp_path: Path, from_version: str, to_version: str):
     state.phase = Phase.ACCEPTED.value
     delivery = HADelivery(root, timeout_seconds=0)
     payload = delivery._contract(state, artifact)
-    (inbox / "ha_publication_required.json").write_text(json.dumps(payload), encoding="utf-8")
+    marker = project_system_path(root, "Inbox/release_controller/Publication/ha_publication_required.json")
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(json.dumps(payload), encoding="utf-8")
     (inbox / "github_publication_state.json").write_text(json.dumps({
         "published": True,
         "target_exact": True,
@@ -70,7 +73,7 @@ def _release_root(tmp_path: Path, from_version: str, to_version: str):
             "processed_zip_sha256", "target_manifest_sha256"
         )},
     }), encoding="utf-8")
-    return root, state, delivery, artifact, runtime
+    return root, state, delivery, artifact, runtime, marker
 
 
 def test_v64_predecessor_fixture_is_byte_exact_and_artifact_bound():
@@ -108,7 +111,7 @@ def test_exact_v64_predecessor_to_v65_refreshes_store_only(monkeypatch):
 
 
 def test_v64_to_v65_waits_then_settles_only_after_exact_manual_ha_target(tmp_path):
-    root, state, delivery, artifact, runtime = _release_root(tmp_path, "32.4.64", "32.4.65")
+    root, state, delivery, artifact, runtime, marker = _release_root(tmp_path, "32.4.64", "32.4.65")
     (runtime / "current.json").write_text(json.dumps({"version": "32.4.64"}), encoding="utf-8")
     waiting = delivery.align(state)
     assert waiting.status == "WAITING"
@@ -121,7 +124,7 @@ def test_v64_to_v65_waits_then_settles_only_after_exact_manual_ha_target(tmp_pat
     assert green.status == "GREEN"
     assert not artifact.exists()
     assert (root / "Inbox/processed" / artifact.name).is_file()
-    assert not (root / "Inbox/ha_publication_required.json").exists()
+    assert not marker.exists()
 
 
 def test_v65_n_plus_one_predecessor_contract_for_synthetic_v66(monkeypatch):
@@ -151,7 +154,7 @@ def test_v65_n_plus_one_predecessor_contract_for_synthetic_v66(monkeypatch):
 
 
 def test_v65_to_v66_manual_wait_and_complete_contract_is_regression_proven(tmp_path):
-    root, state, delivery, artifact, runtime = _release_root(tmp_path, "32.4.65", "32.4.66")
+    root, state, delivery, artifact, runtime, marker = _release_root(tmp_path, "32.4.65", "32.4.66")
     (runtime / "current.json").write_text(json.dumps({"version": "32.4.65"}), encoding="utf-8")
     waiting = delivery.align(state)
     assert waiting.status == "WAITING"

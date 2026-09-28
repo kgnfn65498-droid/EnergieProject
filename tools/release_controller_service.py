@@ -163,7 +163,7 @@ def write_post_live_audit(root:Path,state:ReleaseState)->dict:
     atomic=j(project_system_path(root, 'Inbox/atomic_app_swap_state.json'))
     processed=root/'Inbox/processed'/state.artifact_name
     processing=root/'Inbox/processing'/state.artifact_name
-    contract=root/'Inbox/ha_publication_required.json'
+    contract=project_system_path(root, 'Inbox/release_controller/Publication/ha_publication_required.json')
     checks={
         'controller_complete':state.status==Status.COMPLETE.value and state.phase=='COMPLETE' and state.step==state.total,
         'app_version_exact':app_version==state.to_version,
@@ -298,7 +298,7 @@ class ReleaseControllerService:
                 if out.status!='GREEN':
                     self._runtime({'status':out.status,'phase':'COMPLETE','reason':out.reason,'release_id':state.release_id,'generation':state.generation})
                     return state
-            elif (self.root/'Inbox/ha_publication_required.json').exists():
+            elif (project_system_path(self.root, 'Inbox/release_controller/Publication/ha_publication_required.json')).exists():
                 # Legacy/test adapters without reconciliation are tolerated only
                 # when there is no outstanding publication ownership to settle.
                 self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':'completed_delivery_settlement_capability_missing'})

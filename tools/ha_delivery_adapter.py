@@ -237,7 +237,7 @@ class HADelivery:
         remote=str(pub.get('remote_head') or '').strip();local=str(pub.get('local_head') or '').strip()
         if not remote or not local or remote!=local:
             raise RuntimeError('completed_reconcile_git_head_mismatch')
-        marker=self.root/'Inbox/ha_publication_required.json'
+        marker=project_system_path(self.root, 'Inbox/release_controller/Publication/ha_publication_required.json')
         if marker.exists():
             current=_json(marker)
             if not current or not self._identity_matches(current,exact):
@@ -268,7 +268,7 @@ class HADelivery:
             return Outcome.blocked(str(exc),'preserve COMPLETE release; inspect exact completed-settlement evidence')
 
     def reconcile_completed_delivery(self,s:ReleaseState)->Outcome:
-        marker=self.root/'Inbox/ha_publication_required.json'
+        marker=project_system_path(self.root, 'Inbox/release_controller/Publication/ha_publication_required.json')
         if marker.exists():
             # An open exact marker still uses the normal fenced settlement path.
             out=self.align(s)
@@ -292,7 +292,7 @@ class HADelivery:
         # + manifest evidence.
         return self._normalize_settlement_observability(s)
     def prepare_pre_target(self,s:ReleaseState)->Outcome:
-        marker=self.root/'Inbox/ha_publication_required.json'
+        marker=project_system_path(self.root, 'Inbox/release_controller/Publication/ha_publication_required.json')
         try:
             artifact=self._active_artifact(s)
             if artifact.parent.name!='processing':return Outcome.blocked('pre_target_artifact_not_processing')
@@ -332,7 +332,7 @@ class HADelivery:
             return Outcome.blocked('github_pre_target_identity_timeout','inspect exact publisher evidence; do not install before GitHub target is exact')
         return Outcome.waiting('github_pre_target_pending','pre_target_publication_contract_ready')
     def align(self,s:ReleaseState)->Outcome:
-        marker=self.root/'Inbox/ha_publication_required.json'
+        marker=project_system_path(self.root, 'Inbox/release_controller/Publication/ha_publication_required.json')
         try:
             artifact=self._active_artifact(s)
             existing=_json(marker)

@@ -138,9 +138,10 @@ def test_32457_control_plane_release_auth_is_exactly_fenced():
 def test_32457_native_mcp_restart_attempt_is_fenced_and_reconciled_without_second_restart(tmp_path):
     expected='d'*64
     inbox=tmp_path/'Inbox'
-    request_dir=inbox/'control_plane/requests';request_dir.mkdir(parents=True)
-    state_dir=inbox/'release_controller';state_dir.mkdir(parents=True)
-    guard_dir=inbox/'native_mcp_runtime';guard_dir.mkdir(parents=True)
+    system_root=tmp_path/'Data/03_Systeem/Projectmanager'
+    request_dir=system_root/'ControlPlane/Runtime/requests';request_dir.mkdir(parents=True)
+    state_dir=system_root/'ReleaseController';state_dir.mkdir(parents=True)
+    guard_dir=system_root/'RuntimeEvidence/NativeMCP';guard_dir.mkdir(parents=True)
     version_path=tmp_path/'App/VERSIE.txt';version_path.parent.mkdir(parents=True);version_path.write_text('32.4.57')
     runtime_evidence=tmp_path/'runtime-evidence';runtime_evidence.mkdir()
     approved=tmp_path/'approved.json';approved.write_text(json.dumps({'items':[]}))
@@ -192,7 +193,7 @@ def test_32457_native_mcp_restart_attempt_is_fenced_and_reconciled_without_secon
 
     cp.process_once()
     assert docker.restarts==1
-    still=json.loads((inbox/'control_plane/results/native_mcp_reload.json').read_text())
+    still=json.loads((system_root/'ControlPlane/Runtime/results/native_mcp_reload.json').read_text())
     assert still['status']=='RED'
 
     (runtime_evidence/'native_mcp_runtime_fingerprint.json').write_text(json.dumps({
@@ -201,7 +202,7 @@ def test_32457_native_mcp_restart_attempt_is_fenced_and_reconciled_without_secon
     reconciled=cp.process_once()
     assert docker.restarts==1
     assert reconciled and reconciled[0]['status']=='GREEN'
-    final=json.loads((inbox/'control_plane/results/native_mcp_reload.json').read_text())
+    final=json.loads((system_root/'ControlPlane/Runtime/results/native_mcp_reload.json').read_text())
     assert final['status']=='GREEN'
     assert final['side_effect_state']=='PROVEN_BY_READBACK'
     assert final['request_id']==request['request_id']

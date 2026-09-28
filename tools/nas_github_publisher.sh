@@ -3,7 +3,8 @@ set -eu
 
 ROOT="${ENERGIE_ROOT:-/energy}"
 . "$ROOT/App/tools/system_path_contract.sh"
-CONTRACT="$ROOT/Inbox/ha_publication_required.json"
+RELEASE_CONTROLLER_ROOT="$(energie_system_path "$ROOT" release_controller Inbox/release_controller Data/03_Systeem/Projectmanager/ReleaseController)"
+CONTRACT="$RELEASE_CONTROLLER_ROOT/Publication/ha_publication_required.json"
 PROCESSING="$ROOT/Inbox/processing"
 PROCESSED="$ROOT/Inbox/processed"
 STATE="$(energie_system_path "$ROOT" github_publisher_state Inbox/github_publisher_state.json Data/03_Systeem/Projectmanager/ReleaseController/Publication/github_publisher_state.json)"

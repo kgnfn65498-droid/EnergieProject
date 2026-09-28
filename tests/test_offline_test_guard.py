@@ -79,13 +79,13 @@ def test_dns_resolution_rejects_external_hostname_before_delegate():
 
 
 def test_child_python_installs_guard_before_application_imports():
+    probe = (
+        "import pathlib, sitecustomize, socket; "
+        "print(pathlib.Path(sitecustomize.__file__).resolve()); "
+        "print(getattr(socket.socket.connect, '_energie_offline_guard', False))"
+    )
     result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            "import socket; print(getattr(socket.socket.connect, "
-            "'_energie_offline_guard', False))",
-        ],
+        [sys.executable, "-c", probe],
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -93,7 +93,34 @@ def test_child_python_installs_guard_before_application_imports():
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "True"
+    lines = result.stdout.strip().splitlines()
+    assert len(lines) == 2
+    repo_sitecustomize = (ROOT / "sitecustomize.py").resolve()
+    loaded_sitecustomize = Path(lines[0]).resolve()
+    if loaded_sitecustomize == repo_sitecustomize:
+        assert lines[1] == "True"
+        return
+
+    # Some CI/model runtimes inject their own sitecustomize ahead of PYTHONPATH.
+    # Prove the repository startup hook itself still installs the guard before
+    # any application import, without treating the host hook as product code.
+    explicit_probe = (
+        "import importlib.util, pathlib; "
+        f"p=pathlib.Path({str(ROOT / 'sitecustomize.py')!r}); "
+        "s=importlib.util.spec_from_file_location('energie_repo_sitecustomize', p); "
+        "m=importlib.util.module_from_spec(s); s.loader.exec_module(m); "
+        "import socket; print(getattr(socket.socket.connect, "
+        "'_energie_offline_guard', False))"
+    )
+    fallback = subprocess.run(
+        [sys.executable, "-S", "-c", explicit_probe],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert fallback.returncode == 0, fallback.stderr
+    assert fallback.stdout.strip() == "True"
 
 
 def test_pytest_session_installs_external_network_guard():

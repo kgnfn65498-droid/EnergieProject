@@ -30,7 +30,7 @@ if [ -z "$DOCKER" ]; then
 fi
 [ -n "$DOCKER" ] || { echo "FOUT: Docker CLI van Container Station niet gevonden" >&2; exit 1; }
 
-mkdir -p "$INBOX/incoming" "$INBOX/logs"
+mkdir -p "$INBOX/incoming"
 CONTRACT_MARKER="$INBOX/watcher_container_contract.json"
 CONTRACT_MARKER="$(energie_system_path "$ROOT" watcher_contract Inbox/watcher_container_contract.json Data/03_Systeem/Projectmanager/RuntimeEvidence/watcher_container_contract.json)"
 CONTRACT_HELPER="$ROOT/App/tools/watcher_container_contract.py"

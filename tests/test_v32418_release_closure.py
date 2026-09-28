@@ -347,7 +347,7 @@ def test_pending_current_contract_cannot_be_satisfied_by_previous_release_public
         'publication_contract_removed': True,
         'message': 'previous release published',
     })
-    _write_json(project / 'Inbox/ha_publication_required.json', {
+    _write_json(project / 'Inbox/release_controller/Publication/ha_publication_required.json', {
         'status': 'publication_required',
         'version': '32.4.18',
     })

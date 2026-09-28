@@ -33,7 +33,7 @@ def _atomic_json(path: Path, payload: dict) -> None:
 
 def process_once(root: Path | str) -> dict | None:
     root=Path(root).resolve()
-    request=root/'Inbox/project_clearup_move_request.json'
+    request=project_system_path(root,'Inbox/projectmanager_v2/RuntimeV2/clearup/project_clearup_move_request.json')
     if request.is_symlink():
         raise RuntimeError('sideband request symlink refused')
     if not request.is_file():

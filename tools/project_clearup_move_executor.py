@@ -156,7 +156,8 @@ def _validate_common(root: Path, request: dict[str, Any]) -> tuple[str, str, str
             raise RequestRejected("pre-acceptance CLEARUP rollbackversie is ongeldig")
         if (root / "Inbox/.installer.lock").exists():
             raise RequestRejected("pre-acceptance CLEARUP weigert actieve installer lock")
-        if (root / "Inbox/.atomic_app_swap.lock").exists():
+        atomic_lock = project_system_path(root, 'Inbox/release_controller/State/atomic_app_swap.lock')
+        if atomic_lock.exists() or (root / "Inbox/.atomic_app_swap.lock").exists():
             raise RequestRejected("pre-acceptance CLEARUP weigert actieve atomic swap lock")
         processing = root / "Inbox/processing"
         if processing.is_dir() and any(processing.glob("*.zip")):
@@ -1515,27 +1516,79 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
         _atomic_write_json(state, {**result, "plan_sha256": plan["plan_sha256"]})
         return request_id, result
 
-    # type2_restore: non-destructively recreate original source from recovery staging; destination is retained.
+    # type2_restore: 32.5.28+ recovery must preserve the migrated system-path
+    # architecture.  Recovery may repopulate a missing canonical destination,
+    # but must never recreate or reactivate a retired Inbox writer path.
+    release_version = str(request.get("release_version") or "").strip()
+    try:
+        release_tuple = tuple(int(part) for part in release_version.split(".")[:3])
+    except ValueError as exc:
+        raise RequestRejected("TYPE2 restore releaseversie ongeldig") from exc
+    canonical_restore = release_tuple >= (32, 5, 28)
     restored = []
-    for item in manifest["items"]:
-        source = root / item["source"]
-        staged = stage / "original" / item["source"]
-        if source.exists():
+    restored_destinations = []
+    if canonical_restore:
+        for item in manifest["items"]:
+            source = root / item["source"]
+            destination = root / item["destination"]
+            staged = stage / "original" / item["source"]
+            if os.path.lexists(source):
+                raise RequestRejected(f"TYPE2 32.5.28+ restore refuses retired Inbox source: {item['source']}")
+            if destination.is_symlink():
+                raise RequestRejected(f"TYPE2 canonical restore destination symlink refused: {item['destination']}")
+            if not destination.exists():
+                _copy_exact(staged, destination)
+                if not _mapped_rows_exact(
+                    root, source_rel=item["source"], destination_rel=item["destination"], source_rows=item["source_rows"]
+                ):
+                    raise RuntimeError(f"TYPE2 canonical restore verification failed: {item['destination']}")
+                restored_destinations.append(item["destination"])
+            key = str(item.get("path_key") or "").strip()
+            if key:
+                _set_type2_activation(
+                    root, key=key, source=item["source"], destination=item["destination"], active=True,
+                    clearup_id=clearup_id, plan_sha256=plan["plan_sha256"]
+                )
+    else:
+        for item in manifest["items"]:
+            source = root / item["source"]
+            staged = stage / "original" / item["source"]
+            if source.exists():
+                if _tree_rows(source, root) != item["source_rows"]:
+                    raise RequestRejected(f"TYPE2 existing source differs; restore refused: {item['source']}")
+                continue
+            _copy_exact(staged, source)
             if _tree_rows(source, root) != item["source_rows"]:
-                raise RequestRejected(f"TYPE2 existing source differs; restore refused: {item['source']}")
-            continue
-        _copy_exact(staged, source)
-        if _tree_rows(source, root) != item["source_rows"]:
-            raise RuntimeError(f"TYPE2 restore verification failed: {item['source']}")
-        restored.append(item["source"])
-    for item in manifest["items"]:
-        key=str(item.get("path_key") or "").strip()
-        if key:
-            _set_type2_activation(root,key=key,source=item["source"],destination=item["destination"],active=False,clearup_id=clearup_id,plan_sha256=plan["plan_sha256"])
+                raise RuntimeError(f"TYPE2 restore verification failed: {item['source']}")
+            restored.append(item["source"])
+        for item in manifest["items"]:
+            key=str(item.get("path_key") or "").strip()
+            if key:
+                _set_type2_activation(root,key=key,source=item["source"],destination=item["destination"],active=False,clearup_id=clearup_id,plan_sha256=plan["plan_sha256"])
+        # Historical (<32.5.28) restore recreates the old source tree by design.
+        # The cutover recovery snapshot can contain the in-flight migration
+        # request itself; that request is transient transport state and must not
+        # become active again after restore. Remove only a valid stale Type-2
+        # request from the restored legacy location.
+        legacy_request = root / service.WATCHER_REQUEST_REL
+        if legacy_request.is_symlink():
+            raise RequestRejected("TYPE2 restored legacy watcher request symlink refused")
+        if legacy_request.is_file():
+            try:
+                stale = json.loads(legacy_request.read_text(encoding="utf-8"))
+            except Exception:
+                stale = None
+            if isinstance(stale, dict) and stale.get("schema") == TYPE2_SCHEMA:
+                legacy_request.unlink(missing_ok=True)
     after = service._snapshot_release_dirs(root)
     if after != request["mailbox_snapshot_before"]:
         raise RuntimeError("TYPE2 release mailboxes changed during restore")
-    result = {"status": "GREEN", "clearup_id": clearup_id, "phase": "RESTORED", "restored_sources": restored, "destinations_untouched": True, "delete_performed": False}
+    result = {
+        "status": "GREEN", "clearup_id": clearup_id, "phase": "RESTORED",
+        "restored_sources": restored, "restored_destinations": restored_destinations,
+        "destinations_untouched": not bool(restored_destinations), "delete_performed": False,
+        "legacy_sources_recreated": bool(restored), "path_activation_retained": canonical_restore,
+    }
     _atomic_write_json(state, {**result, "plan_sha256": plan["plan_sha256"]})
     return request_id, result
 
@@ -1612,6 +1665,16 @@ def _scoped_cleanup_validate(root: Path, request: dict[str, Any]):
         current = service.build_cleanup_plan(root)
         if supplied_sha != str(current.get("plan_sha256") or "") or supplied != current:
             raise RequestRejected("scoped cleanup live plan changed; fresh inventory required")
+        if release_tuple >= (32, 5, 28):
+            recovery = request.get("recovery")
+            if not isinstance(recovery, dict):
+                raise RequestRejected("scoped cleanup recovery proof missing")
+            try:
+                service.validate_final_inbox_recovery_for_apply(
+                    root, current, recovery, require_external_confirmation=True
+                )
+            except Exception as exc:
+                raise RequestRejected(f"scoped cleanup recovery proof invalid:{exc}") from exc
         actions = list(current.get("actions") or [])
         pm_positions = [idx for idx, item in enumerate(actions) if item.get("source") == "Inbox/projectmanager_v2"]
         if pm_positions and pm_positions != [len(actions) - 1]:

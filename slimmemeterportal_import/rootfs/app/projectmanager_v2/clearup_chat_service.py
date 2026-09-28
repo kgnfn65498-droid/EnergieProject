@@ -20,7 +20,7 @@ ROOTS = (
 AFFIRMATIVE = {'akkoord','ja','yes','approve','goedgekeurd','goedkeuren'}
 STAGING_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/Staging/ClearUp_001')
 RESULT_REL = Path('Data/03_Systeem/Projectmanager/ClearUp/State/ClearUp_001_apply.json')
-WATCHER_REQUEST_REL = Path('Inbox/project_clearup_move_request.json')
+WATCHER_REQUEST_REL = Path('Inbox/projectmanager_v2/RuntimeV2/clearup/project_clearup_move_request.json')
 WATCHER_RESULT_REL = Path('Inbox/logs/project_clearup_move_result.json')
 WATCHER_SCHEMA = 'energie_clearup_type1_delete_request_v1'
 WATCHER_RESULT_SCHEMA = 'energie_clearup_type1_delete_result_v1'
@@ -141,7 +141,7 @@ def _atomic_json(path: Path, payload: dict[str,Any]) -> None:
 
 
 def _watcher_delete(root: Path, *, live_rows: list[dict[str,Any]], release_mailbox_before: dict[str,list[dict[str,Any]]]) -> dict[str,Any]:
-    request_path=root/WATCHER_REQUEST_REL; result_path=project_system_path(root, str(WATCHER_RESULT_REL))
+    request_path=project_system_path(root, WATCHER_REQUEST_REL.as_posix()); result_path=project_system_path(root, str(WATCHER_RESULT_REL))
     if request_path.exists(): raise RuntimeError('ClearUp watcher request already active')
     try:
         existing=json.loads(result_path.read_text(encoding='utf-8')) if result_path.is_file() else {}

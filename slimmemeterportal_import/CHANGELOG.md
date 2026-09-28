@@ -1,9 +1,9 @@
 # Changelog
 
-## 32.5.27 — persistent Processing mailbox + canonical publication writer contract
-- Corrects the 32.5.26 Processing-model defect: `Inbox/processing` is a permanent mailbox in `incoming -> processing -> processed`; only the release ZIP leaves it after settlement, the empty directory remains.
-- Post-live acceptance now requires Processing to exist, be a real directory and be empty; final Type-3/Inbox cleanup is forbidden from removing it.
-- ReleaseController, HA delivery and ingress recovery all preserve/recreate the permanent Processing mailbox.
-- Hardens the canonical ClearUp_011 publication destination for cross-identity HA writes: `ReleaseController/Publication` is normalized to directory mode `0777` and existing publication-state files to `0666` at completed-release reconciliation, without any fallback to Inbox.
-- Keeps GitHub publication state exclusively at the canonical `Data/03_Systeem/Projectmanager/ReleaseController/Publication` location.
-- PM target `2.0.0-rc62`; Type-2 002-012 remains CLOSED.
+## 32.5.28 — recovery-first final Inbox cleanup + always-current handover
+- Adds pre-mutation recovery packaging/export for the final Inbox cleanup, with source SHA256 manifest, deep ZIP verification, bounded chunks and exact external-confirmation gating.
+- Privileged cleanup apply revalidates current plan, recovery ZIP and live source bytes immediately before mutation; stale/mutated recovery evidence fails closed.
+- Re-proves the release standard `Incoming -> processing -> HA exact -> processed` for two consecutive releases while preserving the permanent Processing mailbox.
+- Adds exact 32.5.27 predecessor-boundary proof: the unchanged predecessor release-path bytes claim 32.5.28 from Incoming and archive only after exact HA target settlement.
+- Adds automatic development-handover generation/freshness reconciliation; stale pointer/handover/checkpoint truth blocks release-ready and ManagerService self-heals partial generations.
+- PM target `2.0.0-rc63`; Type-2 002–012 remains CLOSED.

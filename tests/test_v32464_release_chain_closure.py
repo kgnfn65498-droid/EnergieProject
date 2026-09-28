@@ -103,14 +103,14 @@ def test_63_to_64_waits_durably_in_processing_until_manual_ha_target(tmp_path):
     assert waiting.reason == "WAITING_MANUAL_HA_UPDATE"
     assert artifact.is_file()
     assert not (root / "Inbox/processed" / artifact.name).exists()
-    assert (root / "Inbox/ha_publication_required.json").is_file()
+    assert (root / "Inbox/release_controller/Publication/ha_publication_required.json").is_file()
 
     (runtime / "current.json").write_text(json.dumps({"version": "32.4.64"}), encoding="utf-8")
     green = delivery.align(state)
     assert green.status == "GREEN"
     assert not artifact.exists()
     assert (root / "Inbox/processed" / artifact.name).is_file()
-    assert not (root / "Inbox/ha_publication_required.json").exists()
+    assert not (root / "Inbox/release_controller/Publication/ha_publication_required.json").exists()
 
 
 def test_v64_n_plus_one_predecessor_boundary_for_synthetic_65(monkeypatch):
@@ -160,7 +160,7 @@ def test_delivery_reconciles_crash_after_archive_before_complete_state_write(tmp
     outcome = delivery.align(state)
     assert outcome.status == "GREEN"
     assert dst.is_file()
-    assert not (root / "Inbox/ha_publication_required.json").exists()
+    assert not (root / "Inbox/release_controller/Publication/ha_publication_required.json").exists()
 
 
 def test_completed_delivery_reconciliation_is_idempotent_after_contract_cleanup(tmp_path):
