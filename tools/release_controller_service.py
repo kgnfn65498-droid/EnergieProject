@@ -97,8 +97,27 @@ def _atomic_json(path:Path,payload:dict)->None:
     try:tmp.write_text(json.dumps(payload,ensure_ascii=False,indent=2,sort_keys=True)+'\n',encoding='utf-8');os.replace(tmp,path)
     finally:tmp.unlink(missing_ok=True)
 
+def ensure_publication_writer_contract(root:Path)->dict:
+    root=Path(root)
+    canonical=root/'Data/03_Systeem/Projectmanager/ReleaseController/Publication'
+    if canonical.exists() and (canonical.is_symlink() or not canonical.is_dir()):
+        raise RuntimeError('canonical_publication_directory_unsafe')
+    canonical.mkdir(parents=True,exist_ok=True)
+    os.chmod(canonical,0o777)
+    touched=[]
+    for name in ('github_publication_state.json','github_publisher_state.json'):
+        path=canonical/name
+        if path.is_symlink():
+            raise RuntimeError('canonical_publication_state_symlink:'+name)
+        if path.exists():
+            if not path.is_file():
+                raise RuntimeError('canonical_publication_state_not_file:'+name)
+            os.chmod(path,0o666);touched.append(name)
+    return {'status':'GREEN','directory_mode':'0777','state_mode':'0666','files':touched}
+
 def verify_publication_writer_quiescence(root:Path,state:ReleaseState,*,soak_seconds:float|None=None)->dict:
     root=Path(root)
+    writer_contract=ensure_publication_writer_contract(root)
     try:
         release_tuple=tuple(int(part) for part in str(state.to_version).split('.')[:3])
     except ValueError:
@@ -127,7 +146,7 @@ def verify_publication_writer_quiescence(root:Path,state:ReleaseState,*,soak_sec
         time.sleep(min(0.25,max(0.01,deadline-time.monotonic())))
     remaining=[path.relative_to(root).as_posix() for path in legacy if path.exists()]
     if remaining:raise RuntimeError('legacy_publication_writer_reappeared_after_soak:'+','.join(remaining))
-    return {'status':'GREEN','required':True,'legacy_paths_absent':True,'legacy_source_reappearance_proof':'GREEN','soak_seconds':soak,'paths':[p.relative_to(root).as_posix() for p in legacy]}
+    return {'status':'GREEN','required':True,'legacy_paths_absent':True,'legacy_source_reappearance_proof':'GREEN','soak_seconds':soak,'paths':[p.relative_to(root).as_posix() for p in legacy],'writer_contract':writer_contract}
 
 def write_post_live_audit(root:Path,state:ReleaseState)->dict:
     root=Path(root)
@@ -163,7 +182,7 @@ def write_post_live_audit(root:Path,state:ReleaseState)->dict:
             'legacy_publication_state_absent':not (root/'Inbox/github_publication_state.json').exists(),
             'legacy_publisher_state_absent':not (root/'Inbox/github_publisher_state.json').exists(),
             'canonical_publication_state_present':project_system_path(root,'Inbox/github_publication_state.json')==(root/'Data/03_Systeem/Projectmanager/ReleaseController/Publication/github_publication_state.json'),
-            'processing_directory_absent':not (root/'Inbox/processing').exists(),
+            'processing_directory_present_and_empty':(root/'Inbox/processing').is_dir() and not (root/'Inbox/processing').is_symlink() and not any((root/'Inbox/processing').iterdir()),
         })
     status='GREEN' if all(checks.values()) else 'RED'
     payload={'schema':'energie_post_live_release_audit_v1','status':status,'release_id':state.release_id,'generation':state.generation,'version':state.to_version,'artifact_name':state.artifact_name,'artifact_sha256':state.artifact_sha256,'observed_at_epoch':time.time(),'checks':checks,'recommendation':'release_closed_next_development_safe' if status=='GREEN' else 'block_next_release_investigate_post_live_audit'}
@@ -175,6 +194,10 @@ class ReleaseControllerService:
         self.root=Path(root);self.adapter=adapter;self.controller=ReleaseController()
         self.stable_polls=max(2,int(stable_polls));self.ingress_stale_seconds=max(30,int(ingress_stale_seconds))
         self.samples={};self.counts={}
+        processing=self.root/'Inbox/processing'
+        if processing.exists() and (processing.is_symlink() or not processing.is_dir()):
+            raise RuntimeError('unsafe processing mailbox')
+        processing.mkdir(parents=True,exist_ok=True)
     @property
     def store(self):
         # The system-path mapping may activate while this long-lived service
@@ -251,8 +274,6 @@ class ReleaseControllerService:
         dst=failed/(p.stem+'.rolled_back.zip');i=1
         while dst.exists():dst=failed/(p.stem+f'.rolled_back.{i}.zip');i+=1
         os.replace(p,dst)
-        try:p.parent.rmdir()
-        except OSError:pass
     def cycle(self):
         state=self._load_state()
         if state and state.status not in {Status.COMPLETE.value,Status.ROLLED_BACK.value}:

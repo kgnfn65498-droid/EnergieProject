@@ -197,15 +197,13 @@ def reconcile(project_root: Path | str, *, stale_seconds: int = DEFAULT_STALE_SE
     incoming = root / 'Inbox/incoming'
     processing = root / 'Inbox/processing'
     failed = root / 'Inbox/failed'
-    for path in (incoming, failed, project_system_path(root, 'Inbox/logs')):
+    for path in (incoming, processing, failed, project_system_path(root, 'Inbox/logs')):
         if path.exists() and (path.is_symlink() or not path.is_dir()):
             raise RuntimeError(f'unsafe recovery directory: {path}')
         path.mkdir(parents=True, exist_ok=True)
-    if processing.exists() and (processing.is_symlink() or not processing.is_dir()):
-        raise RuntimeError(f'unsafe recovery directory: {processing}')
 
     incoming_items = _regular_files(incoming)
-    processing_items = _regular_files(processing) if processing.exists() else []
+    processing_items = _regular_files(processing)
     lock = root / 'Inbox/.installer.lock'
     lock_state, lock_age = _lock_freshness(lock, now=now_value, stale_seconds=stale_seconds)
     if lock_state == 'unsafe':

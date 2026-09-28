@@ -254,12 +254,12 @@ def test_32526_native_mcp_contains_resume_and_verified_release_artifact_export_c
     assert "CURRENT_CHAT_SWITCH_POINTER.json" in hotfix.RESUME_CONTEXT_BLOCK
 
 
-def test_32526_release_identity_rc61():
-    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.5.26"
-    assert (PM / "VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc61"
+def test_32527_release_identity_rc62():
+    assert (ROOT / "VERSIE.txt").read_text(encoding="utf-8").strip() == "32.5.27"
+    assert (PM / "VERSION.txt").read_text(encoding="utf-8").strip() == "2.0.0-rc62"
     contract = (ROOT / "release_test_contract.py").read_text(encoding="utf-8")
-    assert 'CURRENT_RELEASE = "32.5.26"' in contract
-    assert 'CURRENT_PM_VERSION = "2.0.0-rc61"' in contract
+    assert 'CURRENT_RELEASE = "32.5.27"' in contract
+    assert 'CURRENT_PM_VERSION = "2.0.0-rc62"' in contract
 
 
 def test_32526_historical_transport_artifact_is_known_cleanup_debt():

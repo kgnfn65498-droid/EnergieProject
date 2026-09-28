@@ -48,15 +48,11 @@ class HADelivery:
             if src.is_file():
                 if src.is_symlink() or _sha(src)!=s.artifact_sha256:raise RuntimeError('processing_artifact_hash_mismatch')
                 src.unlink()
-            try:src.parent.rmdir()
-            except OSError:pass
             return dst
         if src.is_symlink() or not src.is_file():raise RuntimeError('processing_artifact_missing')
         if _sha(src)!=s.artifact_sha256:raise RuntimeError('processing_artifact_hash_mismatch')
         os.replace(src,dst)
         if not dst.is_file() or dst.is_symlink() or _sha(dst)!=s.artifact_sha256:raise RuntimeError('processed_archive_readback_failed')
-        try:src.parent.rmdir()
-        except OSError:pass
         return dst
     def _manifest_sha(self,p):
         if not Path(p).is_file():raise RuntimeError('manifest_missing')

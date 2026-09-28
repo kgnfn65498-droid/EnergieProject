@@ -1,11 +1,9 @@
 # Changelog
 
-## 32.5.26 — autonomous release closure + Type-3/final Inbox cleanup
-- Reuses the proven 32.5.x request-scoped privileged sideband/executor for the original Type-3/final Inbox cleanup; no parallel executor and no 32.4 auto-ClearUp reactivation.
-- Keeps Type-2 ClearUp_002–012 closed and untouched.
-- Makes `Inbox/failed` structurally flat for 32.5.26+ and updates corrupt/rejected/duplicate/rolled-back writers accordingly.
-- Makes `Inbox/processing` ephemeral: created only when a release is claimed and removed after successful or rolled-back settlement.
-- Rebinds Crash Recovery cleanup request/result state and GitHub publisher lock to canonical Projectmanager paths.
-- Removes the legacy ApprovalIngress fallback and moves `Inbox/projectmanager_v2` only as the final guarded cleanup step after receipt proof.
-- Adds capability-provenance continuity so new chats must discover valid 32.5.x executors before concluding a capability is unavailable; 32.4 auto-ClearUp is explicitly historical/forbidden for this path.
-- PM `2.0.0-rc61`.
+## 32.5.27 — persistent Processing mailbox + canonical publication writer contract
+- Corrects the 32.5.26 Processing-model defect: `Inbox/processing` is a permanent mailbox in `incoming -> processing -> processed`; only the release ZIP leaves it after settlement, the empty directory remains.
+- Post-live acceptance now requires Processing to exist, be a real directory and be empty; final Type-3/Inbox cleanup is forbidden from removing it.
+- ReleaseController, HA delivery and ingress recovery all preserve/recreate the permanent Processing mailbox.
+- Hardens the canonical ClearUp_011 publication destination for cross-identity HA writes: `ReleaseController/Publication` is normalized to directory mode `0777` and existing publication-state files to `0666` at completed-release reconciliation, without any fallback to Inbox.
+- Keeps GitHub publication state exclusively at the canonical `Data/03_Systeem/Projectmanager/ReleaseController/Publication` location.
+- PM target `2.0.0-rc62`; Type-2 002-012 remains CLOSED.

@@ -1,18 +1,14 @@
-# AGENT_RESULT — EnergieProject 32.5.26
+# AGENT_RESULT — 32.5.27
 
-Status: PRE-INSTALL VERIFICATION.
+Status: PREINSTALL GREEN
 
-Exact predecessor: 32.5.25 SHA256 `bc667f11d6a22ef4588add6c213baff21c5b7ebd6591e5b4820732d5a9bbaf4a`.
-
-32.5.26 bevat in één release:
-- autonome evidence-bound Processing -> Processed settlement;
-- vlakke `Inbox/failed` voor 32.5.26+ en alle bekende actieve failed-writers daarop aangepast;
-- `Inbox/processing` uitsluitend transactioneel/on-demand en na settlement weer afwezig;
-- originele vijfdelige Type-3 betekenis hersteld en 13 oorspronkelijke Type-3 groepen expliciet geïnventariseerd;
-- finale Inbox-cleanup via de bewezen 32.5.x request-scoped privileged sideband (`sideband_bridge.py` + `project_clearup_move_executor.py`), dus geen nieuwe parallelle executor en geen heractivatie van de riskante 32.4 auto-ClearUp route;
-- crash-cleanup, publisher-lock en ApprovalIngress naar canonieke systeemlocaties omgebonden;
-- `Inbox/projectmanager_v2` uitsluitend als laatste guarded cleanupstap na receipt-proof;
-- PM capability-provenance/current-truth zodat een nieuwe chat bestaande 32.5.x uitvoerroutes niet opnieuw kan missen;
-- mandatory new-chat resume-context en retention-3 predecessor export/download capability.
-
-Type-2 002-012 blijft CLOSED/GREEN en wordt niet opnieuw uitgevoerd. Productie is tijdens de build niet gemuteerd. Live-only gates blijven LIVE_REQUIRED totdat exact 32.5.26 via de normale Incoming-keten is geïnstalleerd.
+- Buildbasis: exact 32.5.26 SHA256 `e0ffa48b93e42b8ef09319775b1a54b8e25a9e7719a30d347762c1dcdeed71f5`.
+- Processing is permanent: present+empty idle; only ZIP moves Incoming -> Processing -> Processed.
+- Final Type-3/Inbox cleanup cannot remove Processing.
+- Canonical GitHub publication state remains under `Data/03_Systeem/Projectmanager/ReleaseController/Publication`; no Inbox fallback.
+- Canonical publication writer contract is normalized after completed-release reconciliation to directory `0777`, state files `0666` for the existing cross-identity HA writer.
+- Type-2 002–012 remains CLOSED and was not rerun live.
+- Selected regression acceptance: 876 passed + static 2 skipped.
+- Python compileall GREEN; shell syntax 13/13 GREEN.
+- Historical `test_v32524_incoming_tunnel.py` runtime simulation is not part of this release scope and times out in this isolated harness; its shell syntax remains GREEN.
+- Repository offline-child guard test is harness-shadowed by `/opt/python-hooks/sitecustomize.py`; direct repository tests and static suite remain GREEN. This environment limitation is not treated as product evidence.

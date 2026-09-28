@@ -255,6 +255,10 @@ def inventory_final_inbox_cleanup(project_root: Path | str) -> dict[str, Any]:
     missing = [rel for rel in CANONICAL_REQUIRED if not (root / rel).exists() or (root / rel).is_symlink()]
     contract_blockers = _binding_contract(root)
     blockers: list[str] = []
+    if processing.is_symlink() or not processing.is_dir():
+        blockers.append("processing_mailbox_missing_or_unsafe")
+    elif any(processing.iterdir()):
+        blockers.append("processing_mailbox_not_empty")
     if (root / "Inbox/ha_publication_required.json").exists():
         blockers.append("active_ha_publication_contract")
     if unconsumed:
@@ -273,7 +277,7 @@ def inventory_final_inbox_cleanup(project_root: Path | str) -> dict[str, Any]:
         "missing_canonical_destinations": missing,
         "contract_blockers": contract_blockers,
         "legacy_candidates": [rel for rel in FINAL_LEGACY if (root / rel).exists()],
-        "processing_directory_present": processing.is_dir(),
+        "processing_directory_present_and_empty": processing.is_dir() and not processing.is_symlink() and not any(processing.iterdir()),
         "projectmanager_v2_present": (root / "Inbox/projectmanager_v2").exists(),
         "projectmanager_v2_last": True,
         "privileged_executor": "App/tools/project_clearup_move_executor.py",
@@ -321,10 +325,10 @@ def build_cleanup_plan(project_root: Path | str) -> dict[str, Any]:
         actions.append({"kind": "quarantine", "source": rel, "tree_sha256": _tree_digest(rows), "rows": rows})
 
     processing = root / "Inbox/processing"
-    if processing.is_dir():
-        if any(processing.iterdir()):
-            raise RuntimeError("processing_not_empty")
-        actions.append({"kind": "remove_empty_dir", "source": "Inbox/processing", "role": "ephemeral_processing"})
+    if processing.is_symlink() or not processing.is_dir():
+        raise RuntimeError("processing_mailbox_missing_or_unsafe")
+    if any(processing.iterdir()):
+        raise RuntimeError("processing_not_empty")
 
     pm_legacy = root / "Inbox/projectmanager_v2"
     if pm_legacy.exists():

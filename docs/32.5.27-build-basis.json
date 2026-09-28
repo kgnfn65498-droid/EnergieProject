@@ -1,0 +1,10 @@
+{
+  "schema": "energie_32527_build_basis_v1",
+  "release": "32.5.27",
+  "predecessor": "32.5.26",
+  "predecessor_sha256": "e0ffa48b93e42b8ef09319775b1a54b8e25a9e7719a30d347762c1dcdeed71f5",
+  "reason": "Correct persistent Inbox/processing semantics and canonical publication cross-identity writer contract proven by live 32.5.26.",
+  "type2_002_012": "CLOSED_DO_NOT_RERUN",
+  "processing_contract": "permanent mailbox; present+empty when idle",
+  "publication_contract": "canonical Data/03_Systeem location retained; no Inbox fallback"
+}

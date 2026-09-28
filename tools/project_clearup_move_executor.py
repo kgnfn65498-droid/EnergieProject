@@ -1741,7 +1741,7 @@ def execute_scoped_cleanup(root: Path, request: dict[str, Any]) -> tuple[str, di
                     raise RuntimeError(f"scoped failed flatten readback failed:{source_rel}")
                 journal.append({**action, "kind": kind})
             elif kind == "remove_empty_dir":
-                allowed = {"Inbox/processing", *(f"Inbox/failed/{name}" for name in service.FAILED_BUCKETS)}
+                allowed = {*(f"Inbox/failed/{name}" for name in service.FAILED_BUCKETS)}
                 if source_rel not in allowed:
                     raise RequestRejected(f"scoped empty-dir removal outside allowlist:{source_rel}")
                 if source.exists():
@@ -1771,15 +1771,16 @@ def execute_scoped_cleanup(root: Path, request: dict[str, Any]) -> tuple[str, di
             raise RuntimeError("projectmanager_v2 remains after scoped cleanup")
         if any((root / rel).exists() for rel in service.FINAL_LEGACY):
             raise RuntimeError("one or more final legacy paths remain after scoped cleanup")
-        if (root / "Inbox/processing").exists():
-            raise RuntimeError("processing directory remains after scoped cleanup")
+        processing=root/'Inbox/processing'
+        if processing.is_symlink() or not processing.is_dir() or any(processing.iterdir()):
+            raise RuntimeError("processing mailbox must remain present and empty after scoped cleanup")
         failed = root / "Inbox/failed"
         if failed.is_dir() and any(item.is_dir() for item in failed.iterdir()):
             raise RuntimeError("failed directory is not flat after scoped cleanup")
 
         soak = float(os.environ.get("ENERGIE_INBOX_CLEANUP_SOAK_SECONDS", "20"))
         deadline = time.monotonic() + max(0.0, soak)
-        forbidden = [*service.FINAL_LEGACY, "Inbox/processing", "Inbox/projectmanager_v2", "Inbox/ha_publication_required.json"]
+        forbidden = [*service.FINAL_LEGACY, "Inbox/projectmanager_v2", "Inbox/ha_publication_required.json"]
         forbidden.extend(f"Inbox/failed/{name}" for name in service.FAILED_BUCKETS)
         while time.monotonic() < deadline:
             appeared = [rel for rel in forbidden if (root / rel).exists()]
@@ -1801,7 +1802,7 @@ def execute_scoped_cleanup(root: Path, request: dict[str, Any]) -> tuple[str, di
             "moved_count": len(journal),
             "projectmanager_v2_removed_last": bool(not any(x.get("source") == "Inbox/projectmanager_v2" for x in journal) or journal[-1].get("source") == "Inbox/projectmanager_v2"),
             "failed_flat": True,
-            "processing_directory_absent": True,
+            "processing_directory_present_and_empty": True,
             "legacy_reappearance_proof": "GREEN",
             "soak_seconds": soak,
             "clearup_root": run_root.relative_to(root).as_posix(),

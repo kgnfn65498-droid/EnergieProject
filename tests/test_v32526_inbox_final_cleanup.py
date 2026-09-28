@@ -70,9 +70,11 @@ def test_32526_rolled_back_archive_is_flat(tmp_path):
     assert not p.exists()
     assert (root / "Inbox/failed/EnergieProject_v32.5.26.rolled_back.zip").is_file()
     assert not any(x.is_dir() for x in (root / "Inbox/failed").iterdir())
+    assert (root / "Inbox/processing").is_dir()
+    assert not any((root / "Inbox/processing").iterdir())
 
 
-def test_32526_processing_is_ephemeral_and_removed_after_archive(tmp_path):
+def test_32527_processing_is_permanent_and_empty_after_archive(tmp_path):
     import release_controller_service as rcs
     import release_ingress_recovery as rir
     from ha_delivery_adapter import HADelivery
@@ -82,19 +84,22 @@ def test_32526_processing_is_ephemeral_and_removed_after_archive(tmp_path):
     (root / "Inbox/failed").mkdir(parents=True)
     service = rcs.ReleaseControllerService(root, adapter=None)
     assert service._reconcile_idle_processing() is None
-    assert not (root / "Inbox/processing").exists()
+    assert (root / "Inbox/processing").is_dir()
+    assert not any((root / "Inbox/processing").iterdir())
 
     rir.reconcile(root, stale_seconds=30, now=time.time())
-    assert not (root / "Inbox/processing").exists()
+    assert (root / "Inbox/processing").is_dir()
+    assert not any((root / "Inbox/processing").iterdir())
 
     src = root / "Inbox/processing/EnergieProject_v32.5.26.zip"
-    src.parent.mkdir(parents=True); src.write_bytes(b"owned")
+    src.parent.mkdir(parents=True, exist_ok=True); src.write_bytes(b"owned")
     import hashlib
     sha = hashlib.sha256(src.read_bytes()).hexdigest()
     s = SimpleNamespace(artifact_name=src.name, artifact_sha256=sha)
     dst = HADelivery(root)._archive_complete(s)
     assert dst.is_file()
-    assert not (root / "Inbox/processing").exists()
+    assert (root / "Inbox/processing").is_dir()
+    assert not any((root / "Inbox/processing").iterdir())
 
     publisher = (ROOT / "tools/nas_github_publisher.sh").read_text(encoding="utf-8")
     assert 'mkdir -p "$ROOT/Inbox" "$PROCESSING"' not in publisher
@@ -183,13 +188,16 @@ def test_32526_final_inbox_cleanup_flattens_and_projectmanager_is_last(tmp_path,
     ]
     assert not any(p.is_dir() for p in failed.iterdir())
     for rel in (
-        "Inbox/release_hold_tmp", "Inbox/processing", "Inbox/crash_recovery_cleanup_result.json",
+        "Inbox/release_hold_tmp", "Inbox/crash_recovery_cleanup_result.json",
         "Inbox/github_publication_state.pre_59_recovery.json",
         "Inbox/ha_publication_required.json.corrective.22616",
         "Inbox/ha_publication_required.json.settled.10928",
         "Inbox/.github_publisher.lock", "Inbox/projectmanager_v2",
     ):
         assert not (root / rel).exists(), rel
+    assert (root / "Inbox/processing").is_dir()
+    assert not any((root / "Inbox/processing").iterdir())
+    assert out["processing_directory_present_and_empty"] is True
     assert out["projectmanager_v2_removed_last"] is True
     assert out["legacy_reappearance_proof"] == "GREEN"
     assert (root / out["manifest"]).is_file()
@@ -276,9 +284,10 @@ def test_32526_command_processor_exposes_bounded_final_inbox_cleanup():
     assert "restore_final_inbox_cleanup" in source
 
 
-def test_32526_post_live_audit_requires_processing_directory_absent():
+def test_32527_post_live_audit_requires_processing_mailbox_present_and_empty():
     source=(ROOT/'tools/release_controller_service.py').read_text(encoding='utf-8')
-    assert "'processing_directory_absent':not (root/'Inbox/processing').exists()" in source
+    assert "'processing_directory_present_and_empty':" in source
+    assert "'processing_directory_absent'" not in source
 
 
 def test_32526_flat_failed_archive_is_not_generic_hygiene_debt(tmp_path):
