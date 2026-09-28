@@ -31,13 +31,30 @@ MAPPINGS={
  'release_transition_lock':('Inbox/.release-transition.operation.lock','Data/03_Systeem/Projectmanager/Runtime/Locks/release-transition.operation.lock'),
 }
 PREFIXES=sorted(((src,key,dst) for key,(src,dst) in MAPPINGS.items()), key=lambda x:len(x[0]), reverse=True)
+# File-valued Type-2 mappings stay canonical after activation even when the
+# payload is temporarily absent. Falling back to the retired Inbox source in
+# that state lets long-lived writers recreate exactly the legacy paths Type-2
+# removed (the 32.5.25 publication-state incident). Directory mappings still
+# require the canonical directory itself to exist.
+FILE_KEYS=frozenset({
+ 'publisher_history','latest_release_status','watcher_contract','control_plane_yaml',
+ 'watcher_heartbeat_legacy','watcher_heartbeat_v2','atomic_state',
+ 'github_publication_state','github_publisher_state','nas_cr_lock',
+ 'release_controller_lock','release_transition_lock',
+})
 
 def _active(root:Path,key:str,destination:Path)->bool:
     marker=root/ACTIVATION_ROOT/f'{key}.json'
-    if marker.is_symlink() or not marker.is_file() or destination.is_symlink() or not destination.exists(): return False
+    if marker.is_symlink() or not marker.is_file() or destination.is_symlink(): return False
     try: data=json.loads(marker.read_text(encoding='utf-8'))
     except Exception: return False
-    return isinstance(data,dict) and data.get('schema')==SCHEMA and data.get('key')==key and data.get('active') is True
+    marker_active=isinstance(data,dict) and data.get('schema')==SCHEMA and data.get('key')==key and data.get('active') is True
+    if not marker_active:return False
+    if destination.exists():return True
+    if key in FILE_KEYS:
+        parent=destination.parent
+        return parent.is_dir() and not parent.is_symlink()
+    return False
 
 def project_system_path(project_root:Path|str, relative:str)->Path:
     root=Path(project_root).resolve(); rel=str(relative).replace('\\','/').strip('/')

@@ -1,3 +1,15 @@
+## 32.5.26 — autonomous release closure + original Type-3 / final Inbox cleanup
+- Fixes the 32.5.25 publication-state split: exact GitHub evidence can be reconciled only when release_id, generation, artifact SHA256, target manifest and local/remote commit identity all match; release then closes autonomously Processing -> Processed.
+- Processing is transactional: idle code no longer creates the directory and successful/rolled-back settlement removes the empty directory.
+- Failed release storage is flat for 32.5.26+: corrupt/rejected/rolled-back/duplicate states are encoded in filenames instead of nested subdirectories; historical pre-32.5.26 behavior remains regression-compatible.
+- Rebinds Crash Recovery cleanup request/result state from Inbox to `Data/03_Systeem/Projectmanager/CrashRecovery/Cleanup`.
+- Moves the GitHub publisher lock to canonical `Projectmanager/Runtime/Locks`; retired Inbox publisher/publication writers are fail-closed and bounded-soak checked.
+- Restores the original ClearUp Type-3 meaning: 13 dependency/runtime-review groups, not generic project-hygiene debt. Type-2 has already resolved 12 groups; the remaining stale crash-cleanup Inbox result is closed by the final Inbox cleanup.
+- Adds guarded reversible final Inbox cleanup: flatten `failed`, retire `release_hold_tmp` and historical publication/HA files, remove idle `processing`, retire the legacy publisher lock, and move `Inbox/projectmanager_v2` last only after all legacy approvals are proven consumed.
+- Projectmanager ApprovalIngress now uses only the canonical `Data/03_Systeem/Projectmanager/ApprovalIngress`; RuntimeV2 remains resolved through the canonical system-path contract.
+- Adds mandatory new-chat `projectmanager_resume_context` preflight and verified retention-3 release artifact export/chunk/signed-download support so a future chat can retrieve the exact predecessor without a user re-upload.
+- PM target `2.0.0-rc61`; Type-2 002-012 remains CLOSED and is not rerun.
+
 ## 32.5.25 — Type-2 fysieke writer-closure + DS9/new-chat hardening
 - Supersedes rejected 32.5.25 SHA `85557cb336c1ca46242ba614f5df8f7db808fbbcab99961b0d4b856cc8473c64`.
 - Closes remaining legacy Type-2 writers: Native-MCP/CR hotfix results resolve through `project_system_path`; GitHub publisher is automatically rebound to canonical Data/system-path mounts after release completion.

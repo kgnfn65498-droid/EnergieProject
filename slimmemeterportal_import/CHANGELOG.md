@@ -1,9 +1,11 @@
 # Changelog
 
-## 32.5.25 — Type-2 writer closure + Projectmanager continuity hardening
-- Rebinds the autonomous GitHub publisher to canonical Type-2 paths and keeps rollback on recreate failure.
-- Removes direct legacy log writes from Native-MCP/CR hotfixes.
-- Adds post-delete source-reappearance detection to Type-2 finalize.
-- Keeps external recovery-gate persistence behind the privileged watcher boundary.
-- Expands FULL_KB and new-chat preflight/self-audit to Decision Log, Development Changelog, Spock Context, Full-KB audit, Ticket/Issue Index and KB Inventory.
-- PM `2.0.0-rc60`.
+## 32.5.26 — autonomous release closure + Type-3/final Inbox cleanup
+- Reuses the proven 32.5.x request-scoped privileged sideband/executor for the original Type-3/final Inbox cleanup; no parallel executor and no 32.4 auto-ClearUp reactivation.
+- Keeps Type-2 ClearUp_002–012 closed and untouched.
+- Makes `Inbox/failed` structurally flat for 32.5.26+ and updates corrupt/rejected/duplicate/rolled-back writers accordingly.
+- Makes `Inbox/processing` ephemeral: created only when a release is claimed and removed after successful or rolled-back settlement.
+- Rebinds Crash Recovery cleanup request/result state and GitHub publisher lock to canonical Projectmanager paths.
+- Removes the legacy ApprovalIngress fallback and moves `Inbox/projectmanager_v2` only as the final guarded cleanup step after receipt proof.
+- Adds capability-provenance continuity so new chats must discover valid 32.5.x executors before concluding a capability is unavailable; 32.4 auto-ClearUp is explicitly historical/forbidden for this path.
+- PM `2.0.0-rc61`.

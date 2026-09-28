@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from capability_registry import discover_capabilities
+
 MASTER_INDEX = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_MASTER_DEVELOPMENT_INDEX.md'
 ACTIVE_CONTEXT = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_ACTIVE_DEVELOPMENT_CONTEXT.md'
 MANIFEST = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_DEVELOPMENT_MANIFEST.md'
@@ -191,6 +193,7 @@ def build_development_context(project_root: Path | str, status: dict | None = No
     requirements = discover_requirements(root)
     full_kb = evaluate_full_kb(root, development_release=True)
     reconciliation = current_truth_reconciliation(root, status)
+    capabilities = discover_capabilities(root)
     return {
         'runtime_truth': 'Inbox/projectmanager_v2/RuntimeV2/development_context/current.json',
         'runtime_truth_primary': True,
@@ -210,5 +213,7 @@ def build_development_context(project_root: Path | str, status: dict | None = No
         'requirements_count': len(requirements),
         'full_kb': full_kb,
         'truth_reconciliation': reconciliation,
+        'capability_registry': capabilities,
+        'capability_registry_required_before_unavailable': True,
         'live_handover_primary': True,
     }

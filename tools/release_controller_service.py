@@ -69,13 +69,23 @@ def _sha(path:Path)->str:
     with path.open('rb') as f:
         for c in iter(lambda:f.read(1024*1024),b''):h.update(c)
     return h.hexdigest()
+def _version_tuple(value):
+    try:return tuple(int(part) for part in str(value).split('.')[:3])
+    except ValueError:return ()
 def _integral(path:Path)->bool:
     try:
         with zipfile.ZipFile(path) as z:return z.testzip() is None
     except Exception:return False
-def _regular_zips(path:Path)->list[Path]:
+def _flat_failed_layout(root:Path)->bool:
+    try:v=(Path(root)/'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+    except OSError:return False
+    return _version_tuple(v)>=(32,5,26)
+def _regular_zips(path:Path,*,create:bool=True)->list[Path]:
     if path.exists() and (path.is_symlink() or not path.is_dir()):raise RuntimeError('unsafe incoming directory')
-    path.mkdir(parents=True,exist_ok=True);out=[]
+    if not path.exists():
+        if not create:return []
+        path.mkdir(parents=True,exist_ok=True)
+    out=[]
     for p in path.glob('*.zip'):
         if p.is_symlink() or not p.is_file():raise RuntimeError('unsafe incoming item')
         out.append(p)
@@ -86,6 +96,38 @@ def _atomic_json(path:Path,payload:dict)->None:
     tmp=path.with_name(path.name+f'.tmp-{os.getpid()}')
     try:tmp.write_text(json.dumps(payload,ensure_ascii=False,indent=2,sort_keys=True)+'\n',encoding='utf-8');os.replace(tmp,path)
     finally:tmp.unlink(missing_ok=True)
+
+def verify_publication_writer_quiescence(root:Path,state:ReleaseState,*,soak_seconds:float|None=None)->dict:
+    root=Path(root)
+    try:
+        release_tuple=tuple(int(part) for part in str(state.to_version).split('.')[:3])
+    except ValueError:
+        release_tuple=()
+    if release_tuple < (32,5,26):
+        return {'status':'GREEN','required':False,'legacy_paths_absent':True,'soak_seconds':0.0}
+    canonical=root/'Data/03_Systeem/Projectmanager/ReleaseController/Publication'
+    legacy=[root/'Inbox/github_publication_state.json',root/'Inbox/github_publisher_state.json']
+    canonical_targets={
+        'Inbox/github_publication_state.json':canonical/'github_publication_state.json',
+        'Inbox/github_publisher_state.json':canonical/'github_publisher_state.json',
+    }
+    if not canonical.is_dir() or canonical.is_symlink():raise RuntimeError('canonical_publication_directory_missing_or_unsafe')
+    for source,target in canonical_targets.items():
+        if Path(project_system_path(root,source))!=target:
+            raise RuntimeError('publication_path_contract_not_canonical:'+source)
+    for path in legacy:
+        if path.is_symlink():raise RuntimeError('legacy_publication_path_symlink')
+        if path.exists():
+            if not path.is_file():raise RuntimeError('legacy_publication_path_not_file')
+            path.unlink()
+    soak=float(os.environ.get('ENERGIE_PUBLICATION_WRITER_SOAK_SECONDS','20')) if soak_seconds is None else float(soak_seconds)
+    deadline=time.monotonic()+max(0.0,soak)
+    while time.monotonic()<deadline:
+        if any(path.exists() for path in legacy):raise RuntimeError('legacy_publication_writer_reappeared_during_soak')
+        time.sleep(min(0.25,max(0.01,deadline-time.monotonic())))
+    remaining=[path.relative_to(root).as_posix() for path in legacy if path.exists()]
+    if remaining:raise RuntimeError('legacy_publication_writer_reappeared_after_soak:'+','.join(remaining))
+    return {'status':'GREEN','required':True,'legacy_paths_absent':True,'legacy_source_reappearance_proof':'GREEN','soak_seconds':soak,'paths':[p.relative_to(root).as_posix() for p in legacy]}
 
 def write_post_live_audit(root:Path,state:ReleaseState)->dict:
     root=Path(root)
@@ -114,6 +156,15 @@ def write_post_live_audit(root:Path,state:ReleaseState)->dict:
         'processed_archived':processed.is_file() and not processed.is_symlink() and _sha(processed)==state.artifact_sha256,
         'processing_empty_for_release':not processing.exists(),
     }
+    try:release_tuple=tuple(int(part) for part in str(state.to_version).split('.')[:3])
+    except ValueError:release_tuple=()
+    if release_tuple >= (32,5,26):
+        checks.update({
+            'legacy_publication_state_absent':not (root/'Inbox/github_publication_state.json').exists(),
+            'legacy_publisher_state_absent':not (root/'Inbox/github_publisher_state.json').exists(),
+            'canonical_publication_state_present':project_system_path(root,'Inbox/github_publication_state.json')==(root/'Data/03_Systeem/Projectmanager/ReleaseController/Publication/github_publication_state.json'),
+            'processing_directory_absent':not (root/'Inbox/processing').exists(),
+        })
     status='GREEN' if all(checks.values()) else 'RED'
     payload={'schema':'energie_post_live_release_audit_v1','status':status,'release_id':state.release_id,'generation':state.generation,'version':state.to_version,'artifact_name':state.artifact_name,'artifact_sha256':state.artifact_sha256,'observed_at_epoch':time.time(),'checks':checks,'recommendation':'release_closed_next_development_safe' if status=='GREEN' else 'block_next_release_investigate_post_live_audit'}
     _atomic_json(project_system_path(root, 'Inbox/release_controller/post_live_audit.json'),payload)
@@ -139,7 +190,7 @@ class ReleaseControllerService:
         self.store.save(s.to_dict());self._runtime({'phase':s.phase,'status':s.status,'release_id':s.release_id,'generation':s.generation,
             'to_version':s.to_version,'step':s.step,'total':s.total,'blocker':s.blocker,'required_action':s.required_action,'wait_reason':s.wait_reason})
     def _deduplicate(self,items,selected_name):
-        failed=self.root/'Inbox/failed/duplicates';failed.mkdir(parents=True,exist_ok=True)
+        failed=(self.root/'Inbox/failed') if _flat_failed_layout(self.root) else (self.root/'Inbox/failed/duplicates');failed.mkdir(parents=True,exist_ok=True)
         for p in items:
             if p.name==selected_name:continue
             digest=_sha(p);dst=failed/(p.stem+'.duplicate.'+digest[:12]+'.zip');i=1
@@ -147,7 +198,7 @@ class ReleaseControllerService:
             os.replace(p,dst)
     def _quarantine(self,p:Path,category:str,suffix:str):
         if p.is_symlink() or not p.is_file():raise RuntimeError('unsafe quarantine source')
-        target_dir=self.root/'Inbox/failed'/category;target_dir.mkdir(parents=True,exist_ok=True)
+        target_dir=(self.root/'Inbox/failed') if _flat_failed_layout(self.root) else (self.root/'Inbox/failed'/category);target_dir.mkdir(parents=True,exist_ok=True)
         digest=_sha(p);dst=target_dir/(p.stem+f'.{suffix}.{digest[:12]}.zip');i=1
         while dst.exists():dst=target_dir/(p.stem+f'.{suffix}.{digest[:12]}.{i}.zip');i+=1
         os.replace(p,dst)
@@ -155,7 +206,7 @@ class ReleaseControllerService:
         self.samples.pop(p.name,None);self.counts.pop(p.name,None)
         return dst
     def _reconcile_idle_processing(self):
-        processing_dir=self.root/'Inbox/processing';items=_regular_zips(processing_dir)
+        processing_dir=self.root/'Inbox/processing';items=_regular_zips(processing_dir,create=False)
         if not items:return None
         if len(items)>1:return IngressDecision('BLOCKED','multiple_processing_items')
         p=items[0];age=max(0.0,time.time()-p.stat().st_mtime)
@@ -196,10 +247,12 @@ class ReleaseControllerService:
     def _settle_rolled_back(self,s):
         p=self.root/'Inbox/processing'/s.artifact_name
         if not p.is_file():return
-        failed=self.root/'Inbox/failed/rolled_back';failed.mkdir(parents=True,exist_ok=True)
+        failed=(self.root/'Inbox/failed') if _version_tuple(getattr(s,'to_version','32.5.26'))>=(32,5,26) else (self.root/'Inbox/failed/rolled_back');failed.mkdir(parents=True,exist_ok=True)
         dst=failed/(p.stem+'.rolled_back.zip');i=1
         while dst.exists():dst=failed/(p.stem+f'.rolled_back.{i}.zip');i+=1
         os.replace(p,dst)
+        try:p.parent.rmdir()
+        except OSError:pass
     def cycle(self):
         state=self._load_state()
         if state and state.status not in {Status.COMPLETE.value,Status.ROLLED_BACK.value}:
@@ -234,10 +287,21 @@ class ReleaseControllerService:
                 post_live_required=release_tuple >= (32,5,5)
                 artifact_retention_required=release_tuple >= (32,5,24)
                 publisher_binding_required=release_tuple >= (32,5,25)
+                publication_quiescence_required=release_tuple >= (32,5,26)
             except ValueError:
                 post_live_required=False
                 artifact_retention_required=False
                 publisher_binding_required=False
+                publication_quiescence_required=False
+            publisher_binding=None
+            publication_quiescence=None
+            if publisher_binding_required and publication_quiescence_required:
+                try:
+                    publisher_binding=ensure_github_publisher_binding_current(self.root)
+                    publication_quiescence=verify_publication_writer_quiescence(self.root,state)
+                except Exception as exc:
+                    self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':f'github_publisher_quiescence_failed:{type(exc).__name__}:{exc}','release_id':state.release_id,'generation':state.generation})
+                    return state
             if post_live_required:
                 audit=write_post_live_audit(self.root,state)
                 if audit.get('status')!='GREEN':
@@ -256,12 +320,12 @@ class ReleaseControllerService:
                         self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':f'release_artifact_retention_failed:{type(exc).__name__}:{exc}','release_id':state.release_id,'generation':state.generation})
                         return state
                     if publisher_binding_required:
-                        try:
-                            publisher_binding=ensure_github_publisher_binding_current(self.root)
-                        except Exception as exc:
-                            self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':f'github_publisher_binding_failed:{type(exc).__name__}:{exc}','release_id':state.release_id,'generation':state.generation})
-                            return state
-                        self._runtime({'status':'COMPLETE','phase':'COMPLETE','reason':'post_live_audit_retention_and_publisher_binding_green','release_id':state.release_id,'generation':state.generation,'artifact_retention':retention,'github_publisher_binding':publisher_binding})
+                        if publisher_binding is None:
+                            try:publisher_binding=ensure_github_publisher_binding_current(self.root)
+                            except Exception as exc:
+                                self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':f'github_publisher_binding_failed:{type(exc).__name__}:{exc}','release_id':state.release_id,'generation':state.generation})
+                                return state
+                        self._runtime({'status':'COMPLETE','phase':'COMPLETE','reason':'post_live_audit_retention_publisher_and_quiescence_green','release_id':state.release_id,'generation':state.generation,'artifact_retention':retention,'github_publisher_binding':publisher_binding,'publication_quiescence':publication_quiescence})
                     else:
                         self._runtime({'status':'COMPLETE','phase':'COMPLETE','reason':'post_live_audit_and_artifact_retention_green','release_id':state.release_id,'generation':state.generation,'artifact_retention':retention})
         if state and state.status==Status.ROLLED_BACK.value:self._settle_rolled_back(state)

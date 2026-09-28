@@ -252,7 +252,7 @@ def _cleanup_result_path(app_module: Any, project_root: Path) -> Path:
     configured = getattr(app_module, "CRASH_RECOVERY_CLEANUP_RESULT_PATH", None)
     if configured is not None:
         return Path(configured)
-    return project_root / "Inbox/crash_recovery_cleanup_result.json"
+    return project_root / "Data/03_Systeem/Projectmanager/CrashRecovery/Cleanup/result.json"
 
 
 def _matching_cleanup_result(app_module: Any, project_root: Path, request_id: str) -> dict[str, Any] | None:

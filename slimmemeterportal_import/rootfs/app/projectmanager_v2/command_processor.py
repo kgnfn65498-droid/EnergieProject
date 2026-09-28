@@ -443,6 +443,42 @@ class CommandProcessor:
                     result['executed'] = True
                     result['action'] = 'clearup_apply'
                     result['transport_intent'] = 'admin_update'
+                elif hint in {'inbox_cleanup_inventory','inbox_cleanup_apply','inbox_cleanup_restore'}:
+                    if not self.project_root:
+                        raise RuntimeError('32.5.26 Inbox cleanup requires project_root')
+                    from inbox_cleanup_32526 import inventory_final_inbox_cleanup, apply_final_inbox_cleanup, restore_final_inbox_cleanup
+                    if hint=='inbox_cleanup_inventory':
+                        result=dict(inventory_final_inbox_cleanup(self.project_root))
+                    elif hint=='inbox_cleanup_apply':
+                        result=dict(apply_final_inbox_cleanup(
+                            self.project_root, explicit_user_text=str(item.get('text') or ''), source=str(item.get('source') or ''),
+                        ))
+                    else:
+                        result=dict(restore_final_inbox_cleanup(
+                            self.project_root, run_id=str(item.get('artifact_path') or ''), explicit_user_text=str(item.get('text') or ''), source=str(item.get('source') or ''),
+                        ))
+                    result['executed']=hint in {'inbox_cleanup_apply','inbox_cleanup_restore'} and result.get('status')=='GREEN'
+                    result['action']=hint
+                    result['transport_intent']='admin_update'
+                elif hint in {'clearup_type3_inventory','clearup_type3_apply','clearup_type3_restore'}:
+                    if not self.project_root:
+                        raise RuntimeError('Type3 ClearUp requires project_root')
+                    from clearup_type3_service import inventory_type3, apply_type3, restore_type3
+                    source=str(item.get('source') or '')
+                    if hint=='clearup_type3_inventory':
+                        result=dict(inventory_type3(self.project_root))
+                    elif hint=='clearup_type3_apply':
+                        result=dict(apply_type3(
+                            self.project_root, explicit_user_text=str(item.get('text') or ''), source=source,
+                        ))
+                    else:
+                        result=dict(restore_type3(
+                            self.project_root, run_id=str(item.get('artifact_path') or ''),
+                            explicit_user_text=str(item.get('text') or ''), source=source,
+                        ))
+                    result['executed']=hint!='clearup_type3_inventory' and result.get('status')=='GREEN'
+                    result['action']=hint
+                    result['transport_intent']='admin_update'
                 elif hint in {
                     'clearup_type2_prepare', 'clearup_type2_refresh_recovery', 'clearup_type2_export_info', 'clearup_type2_export_chunk',
                     'clearup_type2_migrate', 'clearup_type2_validate', 'clearup_type2_external_recovery_confirm', 'clearup_type2_finalize', 'clearup_type2_restore',

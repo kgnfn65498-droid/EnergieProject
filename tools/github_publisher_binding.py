@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import http.client
+import hashlib
 import json
 import socket
 import time
@@ -68,7 +69,22 @@ def _host_root_and_private(info: dict) -> tuple[str, str]:
     return inbox[0][:-len('/Inbox')], private[0]
 
 
-def binding_current(info: dict) -> bool:
+def _sha256(path: Path) -> str:
+    h=hashlib.sha256()
+    with path.open('rb') as handle:
+        for block in iter(lambda: handle.read(1024*1024), b''):
+            h.update(block)
+    return h.hexdigest()
+
+def _code_identity(project_root: Path | str) -> dict[str,str]:
+    root=Path(project_root)
+    script=root/'App/tools/nas_github_publisher.sh'
+    contract=root/'App/tools/system_path_contract.sh'
+    if script.is_symlink() or not script.is_file() or contract.is_symlink() or not contract.is_file():
+        raise RuntimeError('publisher code identity sources missing/unsafe')
+    return {'script_sha256':_sha256(script),'path_contract_sha256':_sha256(contract)}
+
+def binding_current(info: dict, project_root: Path | str | None = None) -> bool:
     try:
         host_root, private_root = _host_root_and_private(info)
     except Exception:
@@ -85,11 +101,20 @@ def binding_current(info: dict) -> bool:
         actual = binds.get(dest)
         if actual is None or actual[0] != src or mode not in str(actual[1]).split(','):
             return False
+    if project_root is not None:
+        try: identity=_code_identity(project_root)
+        except Exception:return False
+        labels=(info.get('Config') or {}).get('Labels') if isinstance(info,dict) else {}
+        labels=labels if isinstance(labels,dict) else {}
+        if labels.get('com.energie.publisher.script_sha256')!=identity['script_sha256']:
+            return False
+        if labels.get('com.energie.publisher.path_contract_sha256')!=identity['path_contract_sha256']:
+            return False
     state = info.get('State') if isinstance(info, dict) else {}
     return isinstance(state, dict) and state.get('Running') is True
 
 
-def _desired_payload(info: dict) -> dict:
+def _desired_payload(info: dict, project_root: Path | str | None = None) -> dict:
     host_root, private_root = _host_root_and_private(info)
     config = info.get('Config') if isinstance(info, dict) else {}
     host = info.get('HostConfig') if isinstance(info, dict) else {}
@@ -97,12 +122,17 @@ def _desired_payload(info: dict) -> dict:
     if not image:
         raise RuntimeError('publisher image ontbreekt')
     network = str((host or {}).get('NetworkMode') or 'bridge')
+    identity=_code_identity(project_root) if project_root is not None else {'script_sha256':'unverified','path_contract_sha256':'unverified'}
     return {
         'Image': image,
         'Entrypoint': ['/bin/sh'],
         'Env': ['ENERGIE_ROOT=/energy', 'ENERGIE_PUBLISHER_PRIVATE_ROOT=/publisher-private'],
         'Cmd': ['-ec', 'while :; do if [ -f /publisher-private/enabled ]; then sh /usr/local/bin/nas_github_publisher.sh || true; fi; sleep 15; done'],
-        'Labels': {'com.energie.component': 'github-publisher', 'com.energie.type2.binding': 'canonical-v1'},
+        'Labels': {
+            'com.energie.component':'github-publisher','com.energie.type2.binding':'canonical-v2',
+            'com.energie.publisher.script_sha256':identity['script_sha256'],
+            'com.energie.publisher.path_contract_sha256':identity['path_contract_sha256'],
+        },
         'HostConfig': {
             'Binds': [
                 f'{host_root}/Inbox:/energy/Inbox:rw',
@@ -140,10 +170,10 @@ def ensure_github_publisher_binding_current(root: Path | str, *, timeout_seconds
     info = _info()
     if info is None:
         return {'status': 'GREEN', 'reason': 'legacy_publisher_absent', 'recreate_performed': False}
-    if binding_current(info):
-        return {'status': 'GREEN', 'reason': 'publisher_binding_current', 'recreate_performed': False}
+    if binding_current(info, root):
+        return {'status':'GREEN','reason':'publisher_binding_current_and_code_exact','recreate_performed':False,'code_identity':_code_identity(root)}
 
-    payload = _desired_payload(info)
+    payload = _desired_payload(info, root)
     backup = f'{CONTAINER}-type2-legacy'
     # Remove a stale backup only before touching the live container. A stale
     # backup can only be from a previously completed/rolled-back bounded attempt.
@@ -169,13 +199,13 @@ def ensure_github_publisher_binding_current(root: Path | str, *, timeout_seconds
         final = None
         while time.monotonic() < deadline:
             final = _info()
-            if final is not None and binding_current(final):
+            if final is not None and binding_current(final, root):
                 break
             time.sleep(0.5)
         else:
             raise RuntimeError('publisher recreated binding did not become current')
         _request('DELETE', f'/containers/{backup}?force=1&v=1', (204, 404))
-        return {'status': 'GREEN', 'reason': 'publisher_binding_recreated', 'recreate_performed': True}
+        return {'status':'GREEN','reason':'publisher_binding_recreated_with_current_code','recreate_performed':True,'code_identity':_code_identity(root)}
     except Exception as exc:
         rollback()
         raise RuntimeError('publisher binding recreate failed and rollback attempted') from exc

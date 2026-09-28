@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 CANONICAL_ROOT_NAMES = frozenset({"App", "Backups", "Inbox", "Data", "Infra", "CLEARUP"})
+KNOWN_HISTORICAL_ROOT_DEBT = frozenset({"32457_release_overlay_transport.zip"})
 
 _RELEASE_ZIP_RE = re.compile(r"^EnergieProject_v\d+(?:\.\d+)+(?:[^/]*)\.zip$", re.IGNORECASE)
 _DEV_DEBT_RE = re.compile(
@@ -31,7 +32,7 @@ def classify_root_entry(path: Path) -> str:
         return "managed_failed_release"
     if _RELEASE_ZIP_RE.fullmatch(name):
         return "release_zip"
-    if name in {".DS_Store", "__pycache__", "_fix_backup_auto"}:
+    if name in {".DS_Store", "__pycache__", "_fix_backup_auto"} or name in KNOWN_HISTORICAL_ROOT_DEBT:
         return "development_debt"
     if _DEV_DEBT_RE.search(name) or _WORKTREE_RE.fullmatch(name):
         return "development_debt"

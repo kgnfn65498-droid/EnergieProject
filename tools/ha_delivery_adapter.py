@@ -16,6 +16,9 @@ def _json(path):
         v=json.loads(p.read_text(encoding='utf-8'))
     except Exception:return {}
     return v if isinstance(v,dict) else {}
+def _version_tuple(value):
+    try:return tuple(int(part) for part in str(value).split('.')[:3])
+    except ValueError:return ()
 def _atomic(path,payload):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     if path.is_symlink():raise RuntimeError('unsafe publication marker')
@@ -45,11 +48,15 @@ class HADelivery:
             if src.is_file():
                 if src.is_symlink() or _sha(src)!=s.artifact_sha256:raise RuntimeError('processing_artifact_hash_mismatch')
                 src.unlink()
+            try:src.parent.rmdir()
+            except OSError:pass
             return dst
         if src.is_symlink() or not src.is_file():raise RuntimeError('processing_artifact_missing')
         if _sha(src)!=s.artifact_sha256:raise RuntimeError('processing_artifact_hash_mismatch')
         os.replace(src,dst)
         if not dst.is_file() or dst.is_symlink() or _sha(dst)!=s.artifact_sha256:raise RuntimeError('processed_archive_readback_failed')
+        try:src.parent.rmdir()
+        except OSError:pass
         return dst
     def _manifest_sha(self,p):
         if not Path(p).is_file():raise RuntimeError('manifest_missing')
@@ -128,12 +135,13 @@ class HADelivery:
         journal=_json(project_system_path(self.root, 'Inbox/atomic_app_swap_state.json'))
         if str(journal.get('state') or '')!='ACCEPTED' or str(journal.get('to_version') or '')!=s.from_version:return False
         rolled_name=old_zip[:-4]+'.rolled_back.zip'
-        rolled=self.root/'Inbox/failed/rolled_back'/rolled_name
+        failed_base=self.root/'Inbox/failed' if _version_tuple(s.to_version)>=(32,5,26) else self.root/'Inbox/failed/rolled_back'
+        rolled=failed_base/rolled_name
         if rolled.is_symlink() or not rolled.is_file() or _sha(rolled)!=old_sha:return False
         pub=_json(project_system_path(self.root, 'Inbox/github_publication_state.json'))
         if pub.get('published') is not True or pub.get('target_exact') is not True:return False
         if not self._identity_matches(pub,existing):return False
-        archive=self.root/'Inbox/failed/rolled_back'/(old_zip[:-4]+'.publication_contract.json')
+        archive=failed_base/(old_zip[:-4]+'.publication_contract.json')
         preserved=dict(existing);preserved['status']='retired_after_proven_rollback';preserved['retired_by_release_id']=s.release_id
         if archive.exists():
             if archive.is_symlink() or _json(archive)!=preserved:return False
@@ -154,7 +162,52 @@ class HADelivery:
             raise RuntimeError('publication_contract_fence_conflict')
         return existing
     def _publisher_exact(self,pub,payload):
-        return bool(pub.get('published') is True and pub.get('target_exact') is True and pub.get('remote_head') and self._identity_matches(pub,payload))
+        remote=str(pub.get('remote_head') or '').strip();local=str(pub.get('local_head') or '').strip()
+        try: version=tuple(int(part) for part in str(payload.get('version') or '').split('.')[:3])
+        except ValueError: version=()
+        commit_exact=bool(remote and local and remote==local) if version >= (32,5,26) else bool(remote and (not local or local==remote))
+        return bool(pub.get('published') is True and pub.get('target_exact') is True and commit_exact and self._identity_matches(pub,payload))
+    def _publication_candidates(self):
+        canonical_pub=self.root/'Data/03_Systeem/Projectmanager/ReleaseController/Publication/github_publication_state.json'
+        canonical_publisher=self.root/'Data/03_Systeem/Projectmanager/ReleaseController/Publication/github_publisher_state.json'
+        legacy_pub=self.root/'Inbox/github_publication_state.json'
+        legacy_publisher=self.root/'Inbox/github_publisher_state.json'
+        out=[]
+        for p in (project_system_path(self.root,'Inbox/github_publication_state.json'),canonical_pub,canonical_publisher,legacy_pub,legacy_publisher):
+            p=Path(p)
+            if p not in out:out.append(p)
+        return out
+    def _reconcile_exact_publication(self,payload):
+        """Promote only fully fenced exact GitHub evidence to canonical publication truth.
+
+        32.5.25 proved GitHub and HA could already be exact while the canonical
+        publication-state write was delayed or landed on a retired Inbox path.
+        This recovery reads every bounded known publication surface, accepts only
+        the exact release/generation/artifact/manifest/commit identity, writes the
+        canonical state atomically and retires matching legacy source files.
+        """
+        target=Path(project_system_path(self.root,'Inbox/github_publication_state.json'))
+        exact=None;source=None
+        for path in self._publication_candidates():
+            value=_json(path)
+            if self._publisher_exact(value,payload):
+                exact=dict(value);source=path;break
+        if exact is None:return _json(target)
+        exact.update({
+            'published':True,'target_exact':True,
+            'publication_reconciled_by':'release_controller',
+            'publication_reconciled_source':source.relative_to(self.root).as_posix() if source and self.root in source.parents else str(source),
+        })
+        if _json(target)!=exact:_atomic(target,exact)
+        readback=_json(target)
+        if not self._publisher_exact(readback,payload):raise RuntimeError('canonical_publication_reconcile_readback_failed')
+        for legacy in (self.root/'Inbox/github_publication_state.json',self.root/'Inbox/github_publisher_state.json'):
+            if legacy==target or not legacy.exists():continue
+            value=_json(legacy)
+            if value and self._publisher_exact(value,payload):
+                legacy.unlink()
+                if legacy.exists():raise RuntimeError('legacy_publication_state_retire_failed')
+        return readback
     def _completed_settlement_expected(self,s:ReleaseState):
         if str(getattr(s,'status',''))!='COMPLETE' or str(getattr(s,'phase',''))!='COMPLETE':
             raise RuntimeError('completed_reconcile_requires_complete_state')
@@ -259,8 +312,9 @@ class HADelivery:
             payload=self._pre_target_contract(s,artifact)
             self._ensure_contract(s,payload,marker)
         except Exception as exc:return Outcome.blocked(str(exc),'inspect exact pre-target publication ownership; do not delete foreign state')
-        pub=_json(project_system_path(self.root, 'Inbox/github_publication_state.json'))
-        if self._publisher_exact(pub,payload):return Outcome.green('github_pre_target_exact')
+        try:pub=self._reconcile_exact_publication(payload)
+        except Exception as exc:return Outcome.blocked('publication_reconcile_failed:'+type(exc).__name__,'preserve exact publisher evidence and retry the same release')
+        if self._publisher_exact(pub,payload):return Outcome.green('github_pre_target_exact','publication_state_reconciled')
         ha=_json(project_system_path(self.root, 'Inbox/ha_runtime/current.json'))
         install_version=str(payload.get('install_predecessor_version') or s.from_version)
         publication_version=str(payload.get('publication_predecessor_version') or payload.get('expected_previous_version') or '')
@@ -302,7 +356,8 @@ class HADelivery:
                 payload=self._pre_target_contract(s,artifact) if existing.get('source_stage')=='processing_pre_target' else self._contract(s,artifact)
                 self._ensure_contract(s,payload,marker)
         except Exception as exc:return Outcome.blocked(str(exc),'inspect exact publication ownership; do not delete foreign state')
-        pub=_json(project_system_path(self.root, 'Inbox/github_publication_state.json'))
+        try:pub=self._reconcile_exact_publication(payload)
+        except Exception as exc:return Outcome.blocked('publication_reconcile_failed:'+type(exc).__name__,'preserve exact publisher evidence and retry the same release')
         ha=_json(project_system_path(self.root, 'Inbox/ha_runtime/current.json'))
         pub_exact=self._publisher_exact(pub,payload)
         ha_exact=str(ha.get('version') or '')==s.to_version

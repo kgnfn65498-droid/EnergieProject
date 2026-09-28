@@ -160,7 +160,19 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
         for path in root.glob("App.__failed_*")
         if path.exists() or path.is_symlink()
     )
-    failed_release_paths += _children_relative(root, "Inbox/failed")
+    failed_root = root / "Inbox/failed"
+    if failed_root.is_dir():
+        current_release_for_failed = _current_release(root)
+        if _version_tuple(current_release_for_failed) >= _version_tuple("32.5.26"):
+            # 32.5.26+: failed is a flat operational archive. Retained files are
+            # evidence, not structural hygiene debt; only legacy nested buckets are.
+            failed_release_paths += sorted(
+                child.relative_to(root).as_posix() for child in failed_root.iterdir()
+                if child.is_dir() and not child.is_symlink()
+            )
+        else:
+            # Preserve historical 32.4 behavior/regressions.
+            failed_release_paths += _children_relative(root, "Inbox/failed")
     failed_release_count = len(failed_release_paths)
     restore_paths = _children_relative(root, "Backups/RestoreStaging")
     release_prepare_paths = _children_relative(root, "Backups/_release_prepare")

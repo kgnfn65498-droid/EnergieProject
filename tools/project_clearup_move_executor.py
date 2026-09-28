@@ -30,6 +30,8 @@ TYPE1_DELETE_RESULT_SCHEMA = "energie_clearup_type1_delete_result_v1"
 TYPE1_CLEARUP_ID = "ClearUp_001"
 TYPE2_SCHEMA = "energie_clearup_type2_request_v1"
 TYPE2_RESULT_SCHEMA = "energie_clearup_type2_result_v1"
+SCOPED_CLEANUP_SCHEMA = "energie_clearup_scoped_request_v1"
+SCOPED_CLEANUP_RESULT_SCHEMA = "energie_clearup_scoped_result_v1"
 TYPE2_ACTIVATION_SCHEMA = "energie_clearup_system_path_contract_v1"
 TYPE2_ACTIVATION_ROOT = Path("Data/03_Systeem/Projectmanager/ClearUp/PathActivation")
 
@@ -1550,6 +1552,273 @@ def _load_clearup_type2_service(root: Path):
         except ValueError: pass
     return clearup_type2_service
 
+
+def _load_inbox_cleanup_service(root: Path):
+    module_root = root / "App/slimmemeterportal_import/rootfs/app/projectmanager_v2"
+    if not module_root.is_dir():
+        raise RequestRejected("projectmanager module-root ontbreekt")
+    sys.path.insert(0, str(module_root))
+    try:
+        import inbox_cleanup_32526  # type: ignore
+    finally:
+        try:
+            sys.path.remove(str(module_root))
+        except ValueError:
+            pass
+    return inbox_cleanup_32526
+
+
+def _scoped_cleanup_manifest_path(root: Path, run_id: str) -> Path:
+    if not RUN_ID_RE.fullmatch(str(run_id or "")):
+        raise RequestRejected("scoped cleanup run_id ongeldig")
+    return root / "Data/03_Systeem/Projectmanager/ClearUp/State" / f"{run_id}.json"
+
+
+def _scoped_cleanup_validate(root: Path, request: dict[str, Any]):
+    if str(request.get("schema") or "") != SCOPED_CLEANUP_SCHEMA:
+        raise RequestRejected("scoped cleanup schema ongeldig")
+    request_id = str(request.get("request_id") or "").strip().lower()
+    if not REQUEST_ID_RE.fullmatch(request_id):
+        raise RequestRejected("scoped cleanup request_id ongeldig")
+    operation = str(request.get("operation") or "").strip()
+    if operation not in {"scoped_apply", "scoped_restore"}:
+        raise RequestRejected("scoped cleanup operation ongeldig")
+    release_version = str(request.get("release_version") or "").strip()
+    try:
+        release_tuple = tuple(int(part) for part in release_version.split(".")[:3])
+    except ValueError as exc:
+        raise RequestRejected("scoped cleanup releaseversie ongeldig") from exc
+    if release_tuple < (32, 5, 26):
+        raise RequestRejected("scoped cleanup vereist release 32.5.26+")
+    try:
+        current_version = (root / "App/VERSIE.txt").read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise RequestRejected(f"actieve release onleesbaar: {exc}") from exc
+    if current_version != release_version:
+        raise RequestRejected("scoped cleanup actieve release mismatch")
+    expires_at = _parse_utc(request.get("expires_at"), "expires_at")
+    if expires_at <= datetime.now(timezone.utc):
+        raise RequestRejected("scoped cleanup request verlopen")
+    if request.get("explicit_user_approval") is not True:
+        raise RequestRejected("scoped cleanup expliciete gebruikersgoedkeuring ontbreekt")
+    service = _load_inbox_cleanup_service(root)
+    if operation == "scoped_apply":
+        supplied = request.get("plan")
+        if not isinstance(supplied, dict) or supplied.get("schema") != service.PLAN_SCHEMA:
+            raise RequestRejected("scoped cleanup plan ontbreekt/ongeldig")
+        supplied_sha = str(request.get("plan_sha256") or "")
+        if supplied_sha != str(supplied.get("plan_sha256") or ""):
+            raise RequestRejected("scoped cleanup request/plan fingerprint mismatch")
+        current = service.build_cleanup_plan(root)
+        if supplied_sha != str(current.get("plan_sha256") or "") or supplied != current:
+            raise RequestRejected("scoped cleanup live plan changed; fresh inventory required")
+        actions = list(current.get("actions") or [])
+        pm_positions = [idx for idx, item in enumerate(actions) if item.get("source") == "Inbox/projectmanager_v2"]
+        if pm_positions and pm_positions != [len(actions) - 1]:
+            raise RequestRejected("projectmanager_v2 must be final scoped cleanup action")
+        return request_id, operation, release_version, current, service
+    run_id = str(request.get("run_id") or "").strip()
+    manifest_path = _scoped_cleanup_manifest_path(root, run_id)
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise RequestRejected("scoped cleanup restore manifest missing/unsafe")
+    manifest = _load_state_json(manifest_path, "scoped cleanup manifest")
+    if manifest.get("schema") != "energie_final_inbox_cleanup_result_v2" or manifest.get("run_id") != run_id:
+        raise RequestRejected("scoped cleanup restore manifest identity mismatch")
+    if manifest.get("status") != "GREEN" or manifest.get("restored_at"):
+        raise RequestRejected("scoped cleanup restore manifest not restorable")
+    return request_id, operation, release_version, manifest, service
+
+
+def _scoped_tree_digest(service, root: Path, path: Path) -> str:
+    return service._tree_digest(service._tree_rows(path, root))
+
+
+def _scoped_rollback(root: Path, journal: list[dict[str, Any]], run_root: Path) -> list[str]:
+    errors: list[str] = []
+    for entry in reversed(journal):
+        try:
+            kind = entry["kind"]
+            source = root / entry["source"]
+            if kind in {"quarantine", "flatten_failed_file"}:
+                target = root / entry["target"]
+                if source.exists() or source.is_symlink():
+                    raise RuntimeError(f"rollback source conflict:{entry['source']}")
+                if target.is_symlink() or not target.exists():
+                    raise RuntimeError(f"rollback target missing/unsafe:{entry['target']}")
+                source.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(target, source)
+            elif kind == "remove_empty_dir":
+                if not source.exists():
+                    source.mkdir(parents=True, exist_ok=False)
+        except Exception as exc:
+            errors.append(f"{entry.get('source')}:{type(exc).__name__}:{exc}")
+    try:
+        if run_root.exists() and not run_root.is_symlink():
+            shutil.rmtree(run_root)
+    except Exception as exc:
+        errors.append(f"run_root:{type(exc).__name__}:{exc}")
+    return errors
+
+
+def execute_scoped_cleanup(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    root = root.resolve()
+    request_id, operation, release_version, payload, service = _scoped_cleanup_validate(root, request)
+    if operation == "scoped_restore":
+        manifest = payload
+        moves = list(manifest.get("moves") or [])
+        # Full preflight before restoring anything.
+        for entry in reversed(moves):
+            kind = str(entry.get("kind") or entry.get("type") or "")
+            source_rel = str(entry.get("source") or "")
+            source = root / source_rel
+            if kind in {"quarantine", "flatten_failed_file"}:
+                target_rel = str(entry.get("target") or "")
+                target = root / target_rel
+                if source.exists() or source.is_symlink():
+                    raise RequestRejected(f"restore source conflict:{source_rel}")
+                if target.is_symlink() or not target.exists():
+                    raise RequestRejected(f"restore target missing/unsafe:{target_rel}")
+                if kind == "flatten_failed_file" and target.is_file() and str(entry.get("sha256") or "") != service._sha(target):
+                    raise RequestRejected(f"restore flat target hash mismatch:{target_rel}")
+                if kind == "quarantine" and str(entry.get("tree_sha256") or "") != _scoped_tree_digest(service, root, target):
+                    raise RequestRejected(f"restore quarantine tree mismatch:{target_rel}")
+            elif kind == "remove_empty_dir" and source.exists():
+                raise RequestRejected(f"restore directory conflict:{source_rel}")
+        restored: list[str] = []
+        for entry in reversed(moves):
+            kind = str(entry.get("kind") or entry.get("type") or "")
+            source = root / str(entry.get("source") or "")
+            if kind in {"quarantine", "flatten_failed_file"}:
+                target = root / str(entry.get("target") or "")
+                source.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(target, source)
+                restored.append(entry["source"])
+            elif kind == "remove_empty_dir":
+                source.mkdir(parents=True, exist_ok=False)
+                restored.append(entry["source"])
+        manifest_path = _scoped_cleanup_manifest_path(root, manifest["run_id"])
+        updated = dict(manifest)
+        updated["restored_at"] = datetime.now(timezone.utc).isoformat()
+        updated["restore_status"] = "GREEN"
+        updated["restored_sources"] = restored
+        _atomic_write_json(manifest_path, updated)
+        return request_id, {
+            "status": "GREEN", "run_id": manifest["run_id"], "restored_count": len(restored),
+            "restored_sources": restored, "delete_performed": False,
+        }
+
+    plan = payload
+    run_id = f"InboxCleanup_32.5.26_{request_id}"
+    run_root = root / "CLEARUP" / run_id
+    original_root = run_root / "original"
+    if run_root.exists() or run_root.is_symlink():
+        raise RequestRejected("scoped cleanup run root already exists/unsafe")
+    original_root.mkdir(parents=True, exist_ok=False)
+    if run_root.stat().st_dev != root.stat().st_dev:
+        shutil.rmtree(run_root, ignore_errors=True)
+        raise RequestRejected("scoped cleanup CLEARUP root is cross-filesystem")
+
+    journal: list[dict[str, Any]] = []
+    try:
+        for action in plan["actions"]:
+            kind = str(action.get("kind") or "")
+            source_rel = str(action.get("source") or "")
+            source = root / source_rel
+            if kind == "flatten_failed_file":
+                target_rel = str(action.get("target") or "")
+                target = root / target_rel
+                allowed_prefixes = tuple(f"Inbox/failed/{name}/" for name in service.FAILED_BUCKETS)
+                if not source_rel.startswith(allowed_prefixes) or target.parent != root / "Inbox/failed":
+                    raise RequestRejected("scoped failed flatten outside allowlist")
+                if source.is_symlink() or not source.is_file():
+                    raise RequestRejected(f"scoped failed source missing/unsafe:{source_rel}")
+                if target.exists() or target.is_symlink():
+                    raise RequestRejected(f"scoped failed target already exists:{target_rel}")
+                if source.stat().st_size != int(action.get("size") or -1) or service._sha(source) != str(action.get("sha256") or ""):
+                    raise RequestRejected(f"scoped failed source changed:{source_rel}")
+                os.replace(source, target)
+                if source.exists() or not target.is_file():
+                    raise RuntimeError(f"scoped failed flatten readback failed:{source_rel}")
+                journal.append({**action, "kind": kind})
+            elif kind == "remove_empty_dir":
+                allowed = {"Inbox/processing", *(f"Inbox/failed/{name}" for name in service.FAILED_BUCKETS)}
+                if source_rel not in allowed:
+                    raise RequestRejected(f"scoped empty-dir removal outside allowlist:{source_rel}")
+                if source.exists():
+                    if source.is_symlink() or not source.is_dir() or any(source.iterdir()):
+                        raise RequestRejected(f"scoped directory not safely empty:{source_rel}")
+                    source.rmdir()
+                    journal.append({**action, "kind": kind})
+            elif kind == "quarantine":
+                if source_rel not in {*service.FINAL_LEGACY, "Inbox/projectmanager_v2"}:
+                    raise RequestRejected(f"scoped quarantine source outside allowlist:{source_rel}")
+                if source.is_symlink() or not source.exists():
+                    raise RequestRejected(f"scoped quarantine source missing/unsafe:{source_rel}")
+                if _scoped_tree_digest(service, root, source) != str(action.get("tree_sha256") or ""):
+                    raise RequestRejected(f"scoped quarantine source changed:{source_rel}")
+                target = original_root / source_rel
+                if target.exists() or target.is_symlink():
+                    raise RequestRejected(f"scoped quarantine target conflict:{source_rel}")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(source, target)
+                if source.exists() or not target.exists():
+                    raise RuntimeError(f"scoped quarantine readback failed:{source_rel}")
+                journal.append({**action, "kind": kind, "target": target.relative_to(root).as_posix()})
+            else:
+                raise RequestRejected(f"unknown scoped cleanup action:{kind}")
+
+        if (root / "Inbox/projectmanager_v2").exists():
+            raise RuntimeError("projectmanager_v2 remains after scoped cleanup")
+        if any((root / rel).exists() for rel in service.FINAL_LEGACY):
+            raise RuntimeError("one or more final legacy paths remain after scoped cleanup")
+        if (root / "Inbox/processing").exists():
+            raise RuntimeError("processing directory remains after scoped cleanup")
+        failed = root / "Inbox/failed"
+        if failed.is_dir() and any(item.is_dir() for item in failed.iterdir()):
+            raise RuntimeError("failed directory is not flat after scoped cleanup")
+
+        soak = float(os.environ.get("ENERGIE_INBOX_CLEANUP_SOAK_SECONDS", "20"))
+        deadline = time.monotonic() + max(0.0, soak)
+        forbidden = [*service.FINAL_LEGACY, "Inbox/processing", "Inbox/projectmanager_v2", "Inbox/ha_publication_required.json"]
+        forbidden.extend(f"Inbox/failed/{name}" for name in service.FAILED_BUCKETS)
+        while time.monotonic() < deadline:
+            appeared = [rel for rel in forbidden if (root / rel).exists()]
+            if appeared:
+                raise RuntimeError("legacy_source_reappeared_during_soak:" + ",".join(appeared))
+            time.sleep(min(0.25, max(0.01, deadline - time.monotonic())))
+        appeared = [rel for rel in forbidden if (root / rel).exists()]
+        if appeared:
+            raise RuntimeError("legacy_source_reappeared_after_soak:" + ",".join(appeared))
+
+        manifest_path = _scoped_cleanup_manifest_path(root, run_id)
+        result = {
+            "schema": "energie_final_inbox_cleanup_result_v2",
+            "status": "GREEN",
+            "release_version": release_version,
+            "run_id": run_id,
+            "plan_sha256": plan["plan_sha256"],
+            "moves": journal,
+            "moved_count": len(journal),
+            "projectmanager_v2_removed_last": bool(not any(x.get("source") == "Inbox/projectmanager_v2" for x in journal) or journal[-1].get("source") == "Inbox/projectmanager_v2"),
+            "failed_flat": True,
+            "processing_directory_absent": True,
+            "legacy_reappearance_proof": "GREEN",
+            "soak_seconds": soak,
+            "clearup_root": run_root.relative_to(root).as_posix(),
+            "manifest": manifest_path.relative_to(root).as_posix(),
+            "delete_performed": False,
+            "privileged_executor": "project_clearup_move_executor.py",
+            "transport": "32.5.x request-scoped sideband",
+        }
+        _atomic_write_json(manifest_path, result)
+        return request_id, result
+    except Exception as exc:
+        rollback_errors = _scoped_rollback(root, journal, run_root)
+        if rollback_errors:
+            raise RuntimeError(f"scoped cleanup failed and rollback was incomplete: {type(exc).__name__}: {exc}; rollback={rollback_errors}") from exc
+        raise
+
+
 def execute_type1_delete(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     root = root.resolve()
     if str(request.get("schema") or "") != TYPE1_DELETE_SCHEMA:
@@ -1750,6 +2019,16 @@ def process(root: Path, request_path: Path, result_path: Path) -> tuple[int, dic
                 "delete_performed": bool(result.get("delete_performed") is True),
                 "finished_at": datetime.now(timezone.utc).isoformat(),
             }
+        elif str(raw.get("schema") or "") == SCOPED_CLEANUP_SCHEMA:
+            request_id, result = execute_scoped_cleanup(root, raw)
+            payload = {
+                "schema": SCOPED_CLEANUP_RESULT_SCHEMA,
+                "request_id": request_id,
+                "status": "completed",
+                "result": result,
+                "delete_performed": False,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }
         else:
             request_id, result = execute_request(root, request_path)
             payload = {
@@ -1763,7 +2042,7 @@ def process(root: Path, request_path: Path, result_path: Path) -> tuple[int, dic
         code = 0
     except RequestRejected as exc:
         payload = {
-            "schema": (TYPE1_DELETE_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE1_DELETE_SCHEMA else TYPE2_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE2_SCHEMA else RESULT_SCHEMA),
+            "schema": (TYPE1_DELETE_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE1_DELETE_SCHEMA else TYPE2_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE2_SCHEMA else SCOPED_CLEANUP_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == SCOPED_CLEANUP_SCHEMA else RESULT_SCHEMA),
             "request_id": request_id,
             "status": "rejected",
             "error": f"{type(exc).__name__}: {exc}",
@@ -1773,7 +2052,7 @@ def process(root: Path, request_path: Path, result_path: Path) -> tuple[int, dic
         code = 2
     except Exception as exc:
         payload = {
-            "schema": (TYPE1_DELETE_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE1_DELETE_SCHEMA else TYPE2_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE2_SCHEMA else RESULT_SCHEMA),
+            "schema": (TYPE1_DELETE_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE1_DELETE_SCHEMA else TYPE2_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE2_SCHEMA else SCOPED_CLEANUP_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == SCOPED_CLEANUP_SCHEMA else RESULT_SCHEMA),
             "request_id": request_id,
             "status": "error",
             "error": f"{type(exc).__name__}: {exc}",

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
+
 import ast
 import hashlib
 import json
@@ -87,5 +89,5 @@ def test_runtime_hotfix_source_of_truth_contains_zero_byte_fix():
 
 
 def test_current_release_identity():
-    assert (ROOT/'VERSIE.txt').read_text().strip() == '32.5.25'
-    assert (ROOT/'slimmemeterportal_import/rootfs/app/projectmanager_v2/VERSION.txt').read_text().strip() == '2.0.0-rc60'
+    assert (ROOT/'VERSIE.txt').read_text().strip() == CURRENT_RELEASE
+    assert (ROOT/'slimmemeterportal_import/rootfs/app/projectmanager_v2/VERSION.txt').read_text().strip() == CURRENT_PM_VERSION

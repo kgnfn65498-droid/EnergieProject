@@ -1,3 +1,18 @@
+# CURRENT HANDOVER — EnergieProject 32.5.26 PRE-INSTALL
+## Autonomous Processing→Processed + originele Type-3/finale Inbox-cleanup
+
+Buildbasis: exact `EnergieProject_v32.5.25.zip`, SHA256 `bc667f11d6a22ef4588add6c213baff21c5b7ebd6591e5b4820732d5a9bbaf4a`. Live 32.5.25 is COMPLETE; ClearUp Type-2 002–012 is 11/11 definitief GREEN en wordt niet opnieuw uitgevoerd.
+
+32.5.26 gebruikt voor Type-3/finale Inbox-cleanup uitsluitend de bewezen **32.5.x** request-scoped privileged sideband/executorarchitectuur. `inbox_cleanup_32526.py` bouwt een exact hash-bound plan en vraagt uitvoering aan; alleen `sideband_bridge.py` + `project_clearup_move_executor.py` muteren de live tree. De oude 32.4 `project_clearup_auto` startup-route is voor deze opdracht HISTORICAL/FORBIDDEN en wordt niet gereactiveerd.
+
+De finale Inbox-scope is: `failed` plat; `release_hold_tmp` + historische publication/HA-restanten weg; crash-cleanup en publisher-lock eerst canoniek omgebonden; `processing` alleen transactioneel en na closure afwezig; `Inbox/projectmanager_v2` als allerlaatste na consumed-receipt bewijs. Alle mutaties zijn bounded, plan-fingerprinted, request-scoped en reversibel via CLEARUP/restore; resurrection tijdens soak = RED + rollback.
+
+De Projectmanager krijgt capability-provenance in development context/handover. Een nieuwe chat moet die capabilitykaart raadplegen vóór de conclusie dat een executor/route ontbreekt. Daarmee wordt ook het hier gevonden continuity-defect structureel afgesloten.
+
+Live-only na installatie: echte Processing→Processed closure, finale Inbox inventory/apply, writer-reappearance soak, tree-readback, retained ZIP retrieval en nieuwe-chat `verder` E2E. Geen handmatige ZIP-move of publication-state-reconciliatie als normale route.
+
+---
+
 # CURRENT HANDOVER — EnergieProject 32.5.25
 ## Type-2 fysieke closure + DS9/Spock continuïteit
 

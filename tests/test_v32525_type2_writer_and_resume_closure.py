@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from release_test_contract import CURRENT_RELEASE, CURRENT_PM_VERSION
+
 import importlib.util
 import json
 import os
@@ -232,12 +234,12 @@ def test_32525_full_kb_and_cross_chat_contract_include_decisions_changelog_spock
     assert bad['ready'] is False and bad['manual_reexplanation_required'] is True
 
 
-def test_32525_release_identity_pm_rc60():
-    assert (ROOT/'VERSIE.txt').read_text(encoding='utf-8').strip()=='32.5.25'
-    assert (PM/'VERSION.txt').read_text(encoding='utf-8').strip()=='2.0.0-rc60'
+def test_current_release_identity_uses_release_contract():
+    assert (ROOT/'VERSIE.txt').read_text(encoding='utf-8').strip()==CURRENT_RELEASE
+    assert (PM/'VERSION.txt').read_text(encoding='utf-8').strip()==CURRENT_PM_VERSION
     contract=(ROOT/'release_test_contract.py').read_text(encoding='utf-8')
-    assert 'CURRENT_RELEASE = "32.5.25"' in contract
-    assert 'CURRENT_PM_VERSION = "2.0.0-rc60"' in contract
+    assert f'CURRENT_RELEASE = "{CURRENT_RELEASE}"' in contract
+    assert f'CURRENT_PM_VERSION = "{CURRENT_PM_VERSION}"' in contract
 
 
 def _runtime_32525():

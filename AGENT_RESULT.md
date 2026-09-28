@@ -1,7 +1,18 @@
-# AGENT_RESULT — EnergieProject 32.5.25 replacement
+# AGENT_RESULT — EnergieProject 32.5.26
 
-Resultaat blijft PRE-INSTALL totdat de finale exact-byte fresh-extract audit is afgerond. De eerdere 32.5.25 SHA `85557cb336c1ca46242ba614f5df8f7db808fbbcab99961b0d4b856cc8473c64` is afgekeurd en mag niet worden geïnstalleerd.
+Status: PRE-INSTALL VERIFICATION.
 
-In deze replacement zijn de resterende Type-2 writer leaks structureel gesloten, de delete/reappearance-proof aangescherpt, de external recovery privilegegrens hersteld en FULL_KB/new-chat governance uitgebreid tot Decision Log, Development Changelog, Spock Context, KB audit/inventory en ticketroutering.
-De overgedragen stale-task-gap is in de replacement eveneens technisch gesloten: de hoogste chat-switch-checkpoint kan de oude ClearUp_001-taak aantoonbaar superseden, waarna een actuele 32.5.25 closure-taak wordt hervat. Een bereikt 32.5.25 target veroorzaakt daarbij geen valse checkpoint/live-conflict meer. De echte nieuwe-chat `verder`-acceptatie blijft terecht LIVE_REQUIRED tot na installatie.
+Exact predecessor: 32.5.25 SHA256 `bc667f11d6a22ef4588add6c213baff21c5b7ebd6591e5b4820732d5a9bbaf4a`.
 
+32.5.26 bevat in één release:
+- autonome evidence-bound Processing -> Processed settlement;
+- vlakke `Inbox/failed` voor 32.5.26+ en alle bekende actieve failed-writers daarop aangepast;
+- `Inbox/processing` uitsluitend transactioneel/on-demand en na settlement weer afwezig;
+- originele vijfdelige Type-3 betekenis hersteld en 13 oorspronkelijke Type-3 groepen expliciet geïnventariseerd;
+- finale Inbox-cleanup via de bewezen 32.5.x request-scoped privileged sideband (`sideband_bridge.py` + `project_clearup_move_executor.py`), dus geen nieuwe parallelle executor en geen heractivatie van de riskante 32.4 auto-ClearUp route;
+- crash-cleanup, publisher-lock en ApprovalIngress naar canonieke systeemlocaties omgebonden;
+- `Inbox/projectmanager_v2` uitsluitend als laatste guarded cleanupstap na receipt-proof;
+- PM capability-provenance/current-truth zodat een nieuwe chat bestaande 32.5.x uitvoerroutes niet opnieuw kan missen;
+- mandatory new-chat resume-context en retention-3 predecessor export/download capability.
+
+Type-2 002-012 blijft CLOSED/GREEN en wordt niet opnieuw uitgevoerd. Productie is tijdens de build niet gemuteerd. Live-only gates blijven LIVE_REQUIRED totdat exact 32.5.26 via de normale Incoming-keten is geïnstalleerd.

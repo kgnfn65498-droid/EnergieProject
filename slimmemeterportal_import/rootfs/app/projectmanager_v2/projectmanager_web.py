@@ -57,11 +57,11 @@ APPROVAL_SCHEMA = 'energie_pmv2_approval_ingress_v1'
 
 
 def _runtime_root(project_root) -> Path:
-    return Path(project_root) / 'Inbox' / 'projectmanager_v2' / 'RuntimeV2'
+    return project_system_path(Path(project_root), 'Inbox/projectmanager_v2/RuntimeV2')
 
 
 def _approval_root(project_root) -> Path:
-    return Path(project_root) / 'Inbox' / 'projectmanager_v2' / 'ApprovalIngress'
+    return Path(project_root) / 'Data/03_Systeem/Projectmanager/ApprovalIngress'
 
 
 def _read_pending(project_root) -> list[dict[str, Any]]:

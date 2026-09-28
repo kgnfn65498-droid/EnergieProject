@@ -642,3 +642,9 @@
 - Fix: proven-root allowlist in QNAP bootstrap; tunnel installs exact carrier SHA `daf47911...ca62e0`, expects `bba109...60e0e`, preserves old source/container/attempt for rollback, and keeps Incoming/Processing empty.
 - Regression: tunnel syntax/check-only/success/rollback + QNAP root aliases; affected control-plane/PM regression bundle GREEN.
 - Permanent prevention: every host command must resolve/verify project root from current/live evidence before mutation; script SHA validation alone is insufficient command proof.
+
+## 2026-09-27 — 32.5.26 complete closure / original Type-3
+- Real new-chat test proved 32.5.25 handover content correct but bootstrap consumption defective; 32.5.26 adds a mandatory canonical resume-context tool.
+- Original five-bucket Type-3 classification was recovered: 13 review groups. Twelve are already canonically resolved by Type-2; the remaining crash-cleanup result path is rebound out of Inbox.
+- Final Inbox target is encoded as a guarded reversible cleanup: flat failed, obsolete hold/historical files retired, processing ephemeral, publisher lock canonical, projectmanager_v2 last after approval receipt proof.
+- Release closure and retained predecessor retrieval are both hard release gates for 32.5.26.

@@ -284,8 +284,13 @@ def _add_candidate(store: dict[str, dict[str, Any]], root: Path, path: Path, *, 
     })
 
 
-def _collect_candidates(root: Path, *, keep_rollbacks: int) -> list[dict[str, Any]]:
+def _collect_candidates(root: Path, *, keep_rollbacks: int, current_version: str | None = None) -> list[dict[str, Any]]:
     items: dict[str, dict[str, Any]] = {}
+    if current_version is None:
+        try:
+            current_version=(root / "App/VERSIE.txt").read_text(encoding="utf-8").strip()
+        except OSError:
+            current_version=""
 
     rollbacks: list[tuple[tuple[int, ...], Path]] = []
     for path in root.glob("App.__rollback_*"):
@@ -344,8 +349,15 @@ def _collect_candidates(root: Path, *, keep_rollbacks: int) -> list[dict[str, An
 
     failed = root / "Inbox/failed"
     if failed.is_dir():
+        flat_failed_archive = _version_tuple(current_version) >= _version_tuple("32.5.26")
         for child in sorted(failed.iterdir(), key=lambda p: p.name):
-            _add_candidate(items, root, child, reason="settled_failed_release", category="failed_release")
+            if flat_failed_archive:
+                # 32.5.26+: flat failed files are intentional operational evidence.
+                # Only the obsolete nested bucket structure is cleanup debt.
+                if child.is_dir() and not child.is_symlink():
+                    _add_candidate(items, root, child, reason="legacy_nested_failed_bucket", category="failed_release_structure")
+            else:
+                _add_candidate(items, root, child, reason="settled_failed_release", category="failed_release")
 
     # 32.4.41: ad-hoc development debris may no longer accumulate directly
     # under Inbox.  Long-lived development material belongs below Inbox/Develop;
@@ -563,7 +575,7 @@ def build_clearup_plan(
 ) -> dict[str, Any]:
     root = Path(project_root).resolve()
     _check_deadline(deadline_monotonic, "candidate_inventory")
-    raw_items = _collect_candidates(root, keep_rollbacks=keep_rollbacks)
+    raw_items = _collect_candidates(root, keep_rollbacks=keep_rollbacks, current_version=current_version)
     _emit_progress(
         progress_callback, phase="candidate_inventory", started_monotonic=started_monotonic,
         candidate_total=len(raw_items),
@@ -702,7 +714,7 @@ def apply_clearup_plan(
     # already carries a full content hash; each CLEARUP item is hashed once more
     # directly before its hard rename below.  This keeps the dependency audit
     # fresh/fail-closed without multiplying multi-GB NAS reads.
-    raw_items = _collect_candidates(root, keep_rollbacks=int(plan.get("keep_rollbacks") or 3))
+    raw_items = _collect_candidates(root, keep_rollbacks=int(plan.get("keep_rollbacks") or 3), current_version=str(plan.get("current_version") or ""))
     _check_deadline(deadline_monotonic, "dependency_index")
     candidate_paths = {item["source_path"] for item in raw_items}
     planned_paths = {str(item.get("source_path") or "") for item in (plan.get("items") or [])}

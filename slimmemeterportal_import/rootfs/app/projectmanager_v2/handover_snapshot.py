@@ -247,6 +247,15 @@ class HandoverSnapshotService:
                 f"- Live overdracht primair: {development_context.get('live_handover_primary', False)}",
                 '',
             ]
+            capability_registry = development_context.get('capability_registry') if isinstance(development_context.get('capability_registry'), dict) else {}
+            capabilities = capability_registry.get('capabilities') if isinstance(capability_registry.get('capabilities'), list) else []
+            if capabilities:
+                lines += ['## Capability continuity']
+                for capability in capabilities:
+                    if not isinstance(capability, dict):
+                        continue
+                    lines.append(f"- {capability.get('key', '')}: {capability.get('status', '')} | executor={capability.get('executor', '')}")
+                lines += ['- Raadpleeg deze capabilitykaart vóór de conclusie dat een uitvoerroute ontbreekt.', '']
         if development_contract:
             lines += [
                 '## Development Build Contract',

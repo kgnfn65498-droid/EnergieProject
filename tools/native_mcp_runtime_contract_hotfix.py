@@ -15,6 +15,180 @@ RESULT_REL = Path("Inbox/logs/native_mcp_runtime_contract_hotfix_32.4.39.json")
 
 # TYPE2_RECOVERY_DOWNLOAD_BRIDGE_VERSION=2026-09-25.v3
 TYPE2_DOWNLOAD_BRIDGE_MARKER = "# TYPE2_RECOVERY_DOWNLOAD_BRIDGE_VERSION=2026-09-25.v3"
+RELEASE_ARTIFACT_EXPORT_BLOCK = r'''
+# RELEASE_ARTIFACT_EXPORT_VERSION=2026-09-27.v1
+RELEASE_ARTIFACT_ROOT = SYSTEM_ROOT / "Projectmanager/ReleaseArtifacts"
+RELEASE_ARTIFACT_CHUNK_MAX = 131072
+
+
+def _release_registry() -> dict[str, Any]:
+    path = RELEASE_ARTIFACT_ROOT / "registry.json"
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("release artifact registry missing/unsafe")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("release artifact registry unreadable") from exc
+    if not isinstance(data, dict) or data.get("schema") != "energie_release_artifact_registry_v1":
+        raise ValueError("release artifact registry schema invalid")
+    entries = data.get("entries")
+    if not isinstance(entries, list) or len(entries) > 3 or int(data.get("retention") or 0) != 3:
+        raise ValueError("release artifact registry retention invalid")
+    return data
+
+
+def _release_entry(name: str = "") -> tuple[dict[str, Any], Path]:
+    registry = _release_registry()
+    entries = [row for row in registry.get("entries") or [] if isinstance(row, dict)]
+    if not entries:
+        raise ValueError("release artifact registry empty")
+    chosen = None
+    requested = str(name or "").strip()
+    if requested:
+        chosen = next((row for row in entries if str(row.get("name") or "") == requested), None)
+    else:
+        chosen = next((row for row in entries if row.get("official_name") is True), entries[0])
+    if not isinstance(chosen, dict):
+        raise ValueError("release artifact not registered")
+    artifact = str(chosen.get("name") or "")
+    if not artifact or Path(artifact).name != artifact or not artifact.endswith(".zip"):
+        raise ValueError("registered release artifact name invalid")
+    path = RELEASE_ARTIFACT_ROOT / artifact
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("registered release artifact missing/unsafe")
+    size = path.stat().st_size
+    sha = _sha(path)
+    if size != int(chosen.get("size") or -1) or sha != str(chosen.get("sha256") or "").lower():
+        raise ValueError("registered release artifact identity mismatch")
+    try:
+        with zipfile.ZipFile(path) as archive:
+            bad = archive.testzip()
+            if bad:
+                raise ValueError(f"release artifact corrupt member: {bad}")
+    except zipfile.BadZipFile as exc:
+        raise ValueError("release artifact is not a valid ZIP") from exc
+    return chosen, path
+
+
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
+def release_artifact_list() -> dict[str, Any]:
+    """List the verified retention-3 release ZIPs available as predecessor build bases."""
+    registry = _release_registry()
+    rows = []
+    for entry in registry.get("entries") or []:
+        chosen, path = _release_entry(str(entry.get("name") or ""))
+        rows.append({
+            "name": path.name,
+            "official_name": chosen.get("official_name") is True,
+            "size": path.stat().st_size,
+            "sha256": _sha(path),
+        })
+    return {"status":"GREEN","retention":3,"count":len(rows),"entries":rows}
+
+
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
+def release_artifact_export_info(name: str = "") -> dict[str, Any]:
+    """Verify one retained release ZIP and return immutable predecessor metadata."""
+    entry, path = _release_entry(name)
+    return {
+        "status":"GREEN","artifact":path.name,"size":path.stat().st_size,
+        "sha256":_sha(path),"official_name":entry.get("official_name") is True,
+        "retention":3,
+    }
+
+
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
+def release_artifact_export_chunk(name: str = "", offset: int = 0, max_bytes: int = RELEASE_ARTIFACT_CHUNK_MAX) -> dict[str, Any]:
+    """Return one bounded verified base64 chunk of a retained release ZIP."""
+    if type(offset) is not int or offset < 0:
+        raise ValueError("offset must be a non-negative integer")
+    if type(max_bytes) is not int or max_bytes < 1 or max_bytes > RELEASE_ARTIFACT_CHUNK_MAX:
+        raise ValueError(f"max_bytes must be 1..{RELEASE_ARTIFACT_CHUNK_MAX}")
+    info = release_artifact_export_info(name)
+    path = RELEASE_ARTIFACT_ROOT / str(info["artifact"])
+    total = path.stat().st_size
+    if offset > total:
+        raise ValueError("offset beyond EOF")
+    with path.open("rb") as handle:
+        handle.seek(offset)
+        data = handle.read(max_bytes)
+    nxt = offset + len(data)
+    return {
+        **info,"offset":offset,"bytes":len(data),"next_offset":nxt,"eof":nxt>=total,
+        "chunk_sha256":hashlib.sha256(data).hexdigest(),"base64":base64.b64encode(data).decode("ascii"),
+    }
+'''
+CLEARUP_EXPORT_MODULE = CLEARUP_EXPORT_MODULE + RELEASE_ARTIFACT_EXPORT_BLOCK
+
+RELEASE_ARTIFACT_HTTP_BLOCK = r'''
+# RELEASE_ARTIFACT_HTTP_EXPORT_VERSION=2026-09-27.v1
+import hmac as _release_hmac
+import secrets as _release_secrets
+import time as _release_time
+from urllib.parse import urlencode as _release_urlencode
+_RELEASE_DOWNLOAD_SECRET = _release_secrets.token_bytes(32)
+_RELEASE_DOWNLOAD_TTL = 300
+
+
+def _release_public_base_url() -> str:
+    compose = PROJECT_ROOT / "Infra/docker-compose.yml"
+    try:
+        lines = compose.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return ""
+    for index, line in enumerate(lines[:-1]):
+        if line.strip() != "- --url":
+            continue
+        candidate = lines[index + 1].strip()
+        if candidate.startswith("- https://"):
+            return candidate[2:].strip().rstrip("/")
+    return ""
+
+
+def _release_signature(name: str, expires: int, sha256: str) -> str:
+    raw=f"{name}|{expires}|{sha256}".encode("utf-8")
+    return _release_hmac.new(_RELEASE_DOWNLOAD_SECRET, raw, hashlib.sha256).hexdigest()
+
+
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
+def release_artifact_download_info(name: str = "") -> dict[str, Any]:
+    """Return a short-lived signed download URL for one verified retention-3 release ZIP."""
+    info=release_artifact_export_info(name)
+    expires=int(_release_time.time())+_RELEASE_DOWNLOAD_TTL
+    artifact=str(info["artifact"]);sha=str(info["sha256"])
+    signature=_release_signature(artifact,expires,sha)
+    query=_release_urlencode({"name":artifact,"expires":str(expires),"sha256":sha,"signature":signature})
+    relative=f"/release-artifacts/download?{query}"
+    base=_release_public_base_url()
+    return {**info,"expires_epoch":expires,"relative_download_url":relative,"download_url":base+relative if base else ""}
+
+
+async def _release_artifact_download_http(request):
+    from starlette.responses import FileResponse, JSONResponse
+    name=str(request.query_params.get("name") or "")
+    try: expires=int(request.query_params.get("expires") or "0")
+    except ValueError: expires=0
+    sha=str(request.query_params.get("sha256") or "").lower()
+    signature=str(request.query_params.get("signature") or "").lower()
+    now=int(_release_time.time())
+    if expires <= now or expires > now + _RELEASE_DOWNLOAD_TTL + 30:
+        return JSONResponse({"status":"error","error":"download link expired"},status_code=403)
+    if not signature or not _release_hmac.compare_digest(signature,_release_signature(name,expires,sha)):
+        return JSONResponse({"status":"error","error":"invalid signature"},status_code=403)
+    try: info=release_artifact_export_info(name)
+    except Exception:
+        return JSONResponse({"status":"error","error":"release artifact verification failed"},status_code=409)
+    if str(info.get("sha256") or "").lower()!=sha:
+        return JSONResponse({"status":"error","error":"release artifact identity changed"},status_code=409)
+    path=RELEASE_ARTIFACT_ROOT/str(info["artifact"])
+    return FileResponse(path,media_type="application/zip",filename=path.name,headers={"Cache-Control":"no-store"})
+
+
+if hasattr(mcp,"custom_route"):
+    mcp.custom_route("/release-artifacts/download",methods=["GET"],include_in_schema=False)(_release_artifact_download_http)
+'''
+CLEARUP_EXPORT_MODULE = CLEARUP_EXPORT_MODULE + RELEASE_ARTIFACT_HTTP_BLOCK
+
 TYPE2_DOWNLOAD_BRIDGE_BLOCK = '# TYPE2_RECOVERY_DOWNLOAD_BRIDGE_VERSION=2026-09-25.v3\nimport hashlib as _type2_hashlib\nimport hmac as _type2_hmac\nimport secrets as _type2_secrets\nimport time as _type2_time\nfrom urllib.parse import urlencode as _type2_urlencode\n\n_TYPE2_DOWNLOAD_IDS = {f"ClearUp_{i:03d}" for i in range(2, 13)}\n_TYPE2_DOWNLOAD_SECRET = _type2_secrets.token_bytes(32)\n_TYPE2_DOWNLOAD_TTL_SECONDS = 300\n_TYPE2_SYSTEM_ROOT = Path(os.environ.get("ENERGIE_SYSTEM_ROOT", "/system")).resolve()\n_TYPE2_PROJECT_ROOT = Path(os.environ.get("ENERGIE_ROOT", "/project")).resolve()\n_TYPE2_EXPORT_ROOT = _TYPE2_SYSTEM_ROOT / "Projectmanager/ClearUp/Exports"\n_TYPE2_GATE_PATH = _TYPE2_SYSTEM_ROOT / "Projectmanager/ClearUp/State/TYPE2_EXTERNAL_RECOVERY_GATE.json"\n\n\ndef _type2_export_info(clearup_id: str) -> dict[str, Any]:\n    if clearup_id not in _TYPE2_DOWNLOAD_IDS:\n        raise ValueError("unsupported Type2 clearup_id")\n    from tools_clearup_export import clearup_type2_recovery_export_info\n    return clearup_type2_recovery_export_info(clearup_id)\n\n\ndef _type2_public_base_url() -> str:\n    compose = _TYPE2_PROJECT_ROOT / "Infra/docker-compose.yml"\n    try:\n        lines = compose.read_text(encoding="utf-8").splitlines()\n    except OSError:\n        return ""\n    for index, line in enumerate(lines[:-1]):\n        if line.strip() != "- --url":\n            continue\n        candidate = lines[index + 1].strip()\n        if candidate.startswith("- https://"):\n            return candidate[2:].strip().rstrip("/")\n    return ""\n\n\ndef _type2_signature(clearup_id: str, expires: int, sha256: str) -> str:\n    payload = f"{clearup_id}|{expires}|{sha256}".encode("utf-8")\n    return _type2_hmac.new(_TYPE2_DOWNLOAD_SECRET, payload, _type2_hashlib.sha256).hexdigest()\n\n\ndef _type2_download_descriptor(clearup_id: str) -> dict[str, Any]:\n    info = _type2_export_info(clearup_id)\n    expires = int(_type2_time.time()) + _TYPE2_DOWNLOAD_TTL_SECONDS\n    sha256 = str(info.get("sha256") or "")\n    signature = _type2_signature(clearup_id, expires, sha256)\n    query = _type2_urlencode({\n        "clearup_id": clearup_id,\n        "expires": str(expires),\n        "sha256": sha256,\n        "signature": signature,\n    })\n    relative_url = f"/clearup/type2/download?{query}"\n    base = _type2_public_base_url()\n    return {\n        **info,\n        "expires_epoch": expires,\n        "relative_download_url": relative_url,\n        "download_url": (base + relative_url) if base else "",\n        "deletion_performed": False,\n    }\n\n\ndef _attach_type2_recovery_downloads(payload: Any) -> Any:\n    if not isinstance(payload, dict):\n        return payload\n    try:\n        gate = json.loads(_TYPE2_GATE_PATH.read_text(encoding="utf-8"))\n    except (OSError, json.JSONDecodeError):\n        return payload\n    if gate.get("status") != "BLOCK_DELETE_UNTIL_EXTERNAL_COPY_CONFIRMED":\n        return payload\n    if gate.get("delete_allowed") is not False:\n        return payload\n    required = gate.get("required_exports") or []\n    expected = [f"ClearUp_{i:03d}_Type2_recovery.zip" for i in range(2, 13)]\n    if required != expected:\n        return payload\n    downloads = []\n    failures = []\n    for i in range(2, 13):\n        clearup_id = f"ClearUp_{i:03d}"\n        try:\n            downloads.append(_type2_download_descriptor(clearup_id))\n        except Exception as exc:\n            failures.append({"clearup_id": clearup_id, "error": f"{type(exc).__name__}: {exc}"})\n    enriched = dict(payload)\n    enriched["type2_external_recovery"] = {\n        "status": "READY_FOR_EXTERNAL_DOWNLOAD" if not failures else "PARTIAL_BLOCKED",\n        "delete_allowed": False,\n        "exports_root": "Data/03_Systeem/Projectmanager/ClearUp/Exports",\n        "downloads": downloads,\n        "failures": failures,\n        "required_count": 11,\n        "verified_count": len(downloads),\n    }\n    return enriched\n\n\nasync def _type2_recovery_download_http(request):\n    from starlette.responses import FileResponse, JSONResponse\n\n    clearup_id = str(request.query_params.get("clearup_id") or "")\n    try:\n        expires = int(request.query_params.get("expires") or "0")\n    except ValueError:\n        expires = 0\n    sha256 = str(request.query_params.get("sha256") or "").lower()\n    signature = str(request.query_params.get("signature") or "").lower()\n    if clearup_id not in _TYPE2_DOWNLOAD_IDS:\n        return JSONResponse({"status": "error", "error": "unsupported clearup_id"}, status_code=404)\n    now = int(_type2_time.time())\n    if expires <= now or expires > now + _TYPE2_DOWNLOAD_TTL_SECONDS + 30:\n        return JSONResponse({"status": "error", "error": "download link expired"}, status_code=403)\n    expected_sig = _type2_signature(clearup_id, expires, sha256)\n    if not signature or not _type2_hmac.compare_digest(signature, expected_sig):\n        return JSONResponse({"status": "error", "error": "invalid signature"}, status_code=403)\n    try:\n        info = _type2_export_info(clearup_id)\n    except Exception:\n        return JSONResponse({"status": "error", "error": "recovery export verification failed"}, status_code=409)\n    if str(info.get("sha256") or "").lower() != sha256:\n        return JSONResponse({"status": "error", "error": "recovery export identity changed"}, status_code=409)\n    path = _TYPE2_EXPORT_ROOT / str(info["artifact"])\n    if not path.is_file() or path.is_symlink():\n        return JSONResponse({"status": "error", "error": "recovery export missing"}, status_code=404)\n    return FileResponse(\n        path,\n        media_type="application/zip",\n        filename=path.name,\n        headers={"Cache-Control": "no-store"},\n    )\n\n\nif hasattr(mcp, "custom_route"):\n    mcp.custom_route(\n        "/clearup/type2/download", methods=["GET"], include_in_schema=False\n    )(_type2_recovery_download_http)\n'
 
 TYPE2_STATUS_OLD = '@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)\ndef projectmanager_status() -> dict[str, Any]:\n    return _api().status()\n'
@@ -93,6 +267,72 @@ def _atomic_json(path: Path, payload: dict) -> None:
     _atomic_text(path, json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
 
 
+
+RESUME_CONTEXT_MARKER = "# PM_RESUME_CONTEXT_TOOL_VERSION=2026-09-27.v1"
+RESUME_CONTEXT_BLOCK = r'''
+# PM_RESUME_CONTEXT_TOOL_VERSION=2026-09-27.v1
+_RESUME_PROJECT_ROOT = Path(os.environ.get("ENERGIE_PROJECT_ROOT", "/project")).resolve()
+_RESUME_SYSTEM_ROOT = Path(os.environ.get("ENERGIE_SYSTEM_ROOT", "/system")).resolve()
+
+
+def _resume_json(path: Path) -> dict[str, Any]:
+    try:
+        value=json.loads(path.read_text(encoding="utf-8"))
+        return value if isinstance(value,dict) else {}
+    except (OSError,json.JSONDecodeError):
+        return {}
+
+
+def _resume_path(reference: str) -> Path:
+    rel=str(reference or "").strip().replace("\\","/").lstrip("/")
+    prefix="Data/03_Systeem/"
+    if rel.startswith(prefix):
+        return (_RESUME_SYSTEM_ROOT/rel[len(prefix):]).resolve()
+    return (_RESUME_PROJECT_ROOT/rel).resolve()
+
+
+@mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
+def projectmanager_resume_context() -> dict[str, Any]:
+    """MANDATORY first call for a new EnergieProject chat or a bare `verder`/resume request.
+
+    Returns live Projectmanager truth plus the current chat-switch pointer,
+    highest checkpoint and handover. Use this before any substantive answer;
+    never resume from chat memory when this canonical preflight is available.
+    """
+    pointer_path=_RESUME_SYSTEM_ROOT/"Projectmanager/Handover/CURRENT_CHAT_SWITCH_POINTER.json"
+    pointer=_resume_json(pointer_path)
+    checkpoint_ref=str(pointer.get("checkpoint") or "")
+    handover_ref=str(pointer.get("handover") or "")
+    checkpoint=_resume_json(_resume_path(checkpoint_ref)) if checkpoint_ref else {}
+    handover_text=""
+    if handover_ref:
+        hp=_resume_path(handover_ref)
+        try: handover_text=hp.read_text(encoding="utf-8")
+        except OSError: handover_text=""
+    live=_api().status()
+    handover=_api().handover()
+    return {
+        "schema":"energie_projectmanager_resume_context_v1",
+        "mandatory_preflight_complete":bool(pointer and checkpoint and handover_text),
+        "pointer":pointer,
+        "checkpoint":checkpoint,
+        "chat_switch_handover":handover_text,
+        "live_status":live,
+        "runtime_handover":handover,
+        "resume_rule":"Canonical live runtime + highest checkpoint + pointer/handover override chat memory. Already proven work must not be repeated.",
+    }
+'''
+
+
+def _ensure_resume_context_tool(tools_text: str) -> tuple[str,bool,str]:
+    if RESUME_CONTEXT_MARKER in tools_text:
+        return tools_text,False,'resume_context_tool_current'
+    anchor="\n\ndef _api() -> ProjectmanagerAPI:\n"
+    if tools_text.count(anchor)!=1:
+        if 'def projectmanager_status(' not in tools_text:
+            return tools_text,False,'resume_context_tool_api_absent'
+        raise RuntimeError('tools_projectmanager resume context insertion anchor mismatch')
+    return tools_text.replace(anchor,"\n\n"+RESUME_CONTEXT_BLOCK+anchor,1),True,'resume_context_tool_added'
 
 PM_RUNTIME_ROOT_MARKER = "# PM_RUNTIME_ROOT_CANONICAL_VERSION=2026-09-25.v1"
 PM_RUNTIME_ROOT_OLD = """RUNTIME_ROOT = Path(os.environ.get(
@@ -226,6 +466,11 @@ def apply(root: Path | str) -> dict:
         _atomic_text(tools_pm, download_tools)
         tools_text = download_tools
         changed.append("tools_projectmanager.py:" + download_change)
+    resume_tools, resume_changed, resume_change = _ensure_resume_context_tool(tools_text)
+    if resume_changed:
+        _atomic_text(tools_pm, resume_tools)
+        tools_text = resume_tools
+        changed.append("tools_projectmanager.py:" + resume_change)
     runtime = native / "runtime_fingerprint.py"
     if not runtime.is_file() or runtime.read_text(encoding="utf-8") != RUNTIME_MODULE:
         _atomic_text(runtime, RUNTIME_MODULE)
@@ -276,6 +521,8 @@ def apply(root: Path | str) -> dict:
         "approval_ingress_tool_present": "def projectmanager_submit_approval(" in tools_text,
         "type2_download_bridge_current": TYPE2_DOWNLOAD_BRIDGE_MARKER in tools_text,
         "pm_runtime_root_canonical": PM_RUNTIME_ROOT_MARKER in tools_text,
+        "resume_context_tool_present": RESUME_CONTEXT_MARKER in tools_text,
+        "release_artifact_export_present": "def release_artifact_download_info(" in CLEARUP_EXPORT_MODULE,
     }
     _atomic_json(project_system_path(root, RESULT_REL.as_posix()), result)
     return result

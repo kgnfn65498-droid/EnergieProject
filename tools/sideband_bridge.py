@@ -8,8 +8,9 @@ from pathlib import Path
 import project_clearup_move_executor
 from system_path_contract import project_system_path
 
-_TYPE2_RESULT_ROOT='Data/03_Systeem/Projectmanager/ClearUp/Runtime/results'
-_TYPE2_RESULT_RE=re.compile(r'^'+re.escape(_TYPE2_RESULT_ROOT)+r'/([0-9a-f]{32})\.json$')
+_SCOPED_RESULT_ROOT='Data/03_Systeem/Projectmanager/ClearUp/Runtime/results'
+_SCOPED_RESULT_RE=re.compile(r'^'+re.escape(_SCOPED_RESULT_ROOT)+r'/([0-9a-f]{32})\.json$')
+_REQUEST_SCOPED_SCHEMAS={'energie_clearup_type2_request_v1','energie_clearup_scoped_request_v1'}
 
 _ALLOWED_RESULTS={
     'Inbox/logs/project_clearup_move_result.json',
@@ -44,8 +45,9 @@ def process_once(root: Path | str) -> dict | None:
     request_id=str(raw.get('request_id') or '') if isinstance(raw,dict) else ''
     requested_result=str(raw.get('result_path') or '').strip() if isinstance(raw,dict) else ''
     if requested_result:
-        is_type2 = isinstance(raw,dict) and str(raw.get('schema') or '') == 'energie_clearup_type2_request_v1'
-        dynamic_match = _TYPE2_RESULT_RE.fullmatch(requested_result) if is_type2 else None
+        schema=str(raw.get('schema') or '') if isinstance(raw,dict) else ''
+        is_request_scoped=schema in _REQUEST_SCOPED_SCHEMAS
+        dynamic_match = _SCOPED_RESULT_RE.fullmatch(requested_result) if is_request_scoped else None
         dynamic_ok = bool(dynamic_match and dynamic_match.group(1) == request_id)
         if requested_result not in _ALLOWED_RESULTS and not dynamic_ok:
             raise RuntimeError('sideband result path outside allowlist')
@@ -55,12 +57,12 @@ def process_once(root: Path | str) -> dict | None:
         if dynamic_ok:
             # 32.5.19: this is shared cross-identity IPC.  The privileged bridge,
             # not the embedded PM, owns creation and permissions of this root.
-            dynamic_root=root/_TYPE2_RESULT_ROOT
+            dynamic_root=root/_SCOPED_RESULT_ROOT
             if dynamic_root.is_symlink():
-                raise RuntimeError('sideband Type2 result root symlink refused')
+                raise RuntimeError('sideband scoped result root symlink refused')
             dynamic_root.mkdir(parents=True,exist_ok=True)
             if dynamic_root.resolve() != result.parent.resolve():
-                raise RuntimeError('sideband Type2 result parent mismatch')
+                raise RuntimeError('sideband scoped result parent mismatch')
             os.chmod(dynamic_root,0o777)
     else:
         result=project_system_path(root,'Inbox/logs/project_clearup_move_result.json')
@@ -71,12 +73,12 @@ def process_once(root: Path | str) -> dict | None:
             return existing
     _,payload=project_clearup_move_executor.process(root,request,result)
     current_result=project_system_path(root,'Inbox/logs/project_clearup_move_result.json').resolve()
-    # Type2 uses a dedicated ClearUp runtime result outside every migratable
-    # source tree. Never mirror a Type2 result back into Inbox/logs.  The
-    # privileged bridge publishes the fixed canonical audit copy as well, so
-    # the PM remains read-only in the privileged ClearUp Runtime area.
-    is_type2 = isinstance(raw,dict) and str(raw.get('schema') or '') == 'energie_clearup_type2_request_v1'
-    if is_type2:
+    # Request-scoped 32.5.x ClearUp protocols keep their result outside every
+    # migratable Inbox source tree. Never mirror a Type2 result back into Inbox/logs;
+    # the same rule applies to the 32.5.26 scoped Type3/final-Inbox protocol.
+    schema=str(raw.get('schema') or '') if isinstance(raw,dict) else ''
+    is_request_scoped=schema in _REQUEST_SCOPED_SCHEMAS
+    if is_request_scoped:
         try:
             os.chmod(result,0o666)
         except OSError:
@@ -85,7 +87,7 @@ def process_once(root: Path | str) -> dict | None:
         if root not in canonical.parents or canonical.is_symlink():
             raise RuntimeError('sideband Type2 canonical result path unsafe')
         _atomic_json(canonical,payload)
-    if not is_type2 and current_result != result:
+    if not is_request_scoped and current_result != result:
         if root not in current_result.parents or current_result.is_symlink():
             raise RuntimeError('sideband activated result path unsafe')
         current_result.parent.mkdir(parents=True,exist_ok=True)

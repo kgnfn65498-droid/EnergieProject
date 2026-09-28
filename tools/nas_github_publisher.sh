@@ -4,14 +4,16 @@ set -eu
 ROOT="${ENERGIE_ROOT:-/energy}"
 . "$ROOT/App/tools/system_path_contract.sh"
 CONTRACT="$ROOT/Inbox/ha_publication_required.json"
+PROCESSING="$ROOT/Inbox/processing"
 PROCESSED="$ROOT/Inbox/processed"
 STATE="$(energie_system_path "$ROOT" github_publisher_state Inbox/github_publisher_state.json Data/03_Systeem/Projectmanager/ReleaseController/Publication/github_publisher_state.json)"
+PUBLICATION_STATE="$(energie_system_path "$ROOT" github_publication_state Inbox/github_publication_state.json Data/03_Systeem/Projectmanager/ReleaseController/Publication/github_publication_state.json)"
 # Legacy pre-Type2 history path retained as audit reference only: HISTORY="$ROOT/Inbox/github_publisher_history.jsonl"
 HISTORY="$(energie_system_path "$ROOT" publisher_history Inbox/github_publisher_history.jsonl Data/03_Systeem/Projectmanager/Logs/Publisher/github_publisher_history.jsonl)"
 PRIVATE_ROOT="${ENERGIE_PUBLISHER_PRIVATE_ROOT:-/publisher-private}"
 KEY="$PRIVATE_ROOT/id_ed25519"
 KNOWN_HOSTS="$PRIVATE_ROOT/known_hosts"
-LOCK="$ROOT/Inbox/.github_publisher.lock"
+LOCK="$ROOT/Data/03_Systeem/Projectmanager/Runtime/Locks/github-publisher.lock"
 TMP_ROOT=""
 VERSION=""
 MODE="${ENERGIE_PUBLISHER_MODE:-publish}"
@@ -29,7 +31,7 @@ write_state() { STATUS="$1"; MESSAGE="$2"; VERSION_VALUE="${3:-}"; TMP_STATE="$S
 fail() { MSG="$1"; VERSION_VALUE="${2:-$VERSION}"; write_state "error" "$MSG" "$VERSION_VALUE" || true; printf '%s\n' "PUBLISHER_ERROR=$MSG" >&2; exit 1; }
 cleanup() { [ -n "$TMP_ROOT" ] && rm -rf "$TMP_ROOT" 2>/dev/null || true; rmdir "$LOCK" 2>/dev/null || true; }
 trap 'cleanup' EXIT INT TERM
-mkdir -p "$ROOT/Inbox" "$PROCESSED"; mkdir "$LOCK" 2>/dev/null || exit 0
+mkdir -p "$ROOT/Inbox" "$PROCESSED" "$(dirname "$STATE")" "$(dirname "$PUBLICATION_STATE")" "$(dirname "$LOCK")"; mkdir "$LOCK" 2>/dev/null || exit 0
 if [ ! -f "$CONTRACT" ]; then write_state "idle" "no publication contract" ""; exit 0; fi
 case "$MODE" in publish|probe) ;; *) fail "invalid publisher mode: $MODE" "" ;; esac
 json_string_field() { FIELD="$1"; VALUE="$(sed -n 's/.*"'"$FIELD"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$CONTRACT" | head -n 1)"; [ -n "$VALUE" ] || return 2; case "$VALUE" in *\\*) return 3 ;; esac; printf '%s' "$VALUE"; }
@@ -41,12 +43,29 @@ ZIP_SHA_EXPECTED="$(json_string_field processed_zip_sha256)" || fail "contract m
 EXPECTED_PREVIOUS_VERSION="$(json_string_field expected_previous_version)" || fail "contract missing/unsafe expected_previous_version"
 EXPECTED_PREVIOUS_MANIFEST_SHA256="$(json_string_field expected_previous_manifest_sha256)" || fail "contract missing/unsafe expected_previous_manifest_sha256"
 TARGET_MANIFEST_SHA256="$(json_string_field target_manifest_sha256)" || fail "contract missing/unsafe target_manifest_sha256"
+RELEASE_ID="$(json_string_field release_id)" || fail "contract missing/unsafe release_id"
+GENERATION="$(json_string_field generation)" || fail "contract missing/unsafe generation"
+SOURCE_STAGE="$(json_string_field source_stage 2>/dev/null || true)"
 case "$VERSION:$EXPECTED_PREVIOUS_VERSION" in *[!0-9A-Za-z._:-]*) fail "contract version fields unsafe" ;; esac
 case "$ZIP_NAME" in */*|*\\*|*..*|*[!A-Za-z0-9._-]*) fail "unsafe processed_zip path" ;; esac
 case "$BRANCH" in ""|/*|*/|*..*|*//*|*[!A-Za-z0-9._/-]*) fail "unsafe branch" ;; esac
 case "$REPOSITORY" in "https://github.com/kgnfn65498-droid/EnergieProject"|"https://github.com/kgnfn65498-droid/EnergieProject.git"|"git@github.com:kgnfn65498-droid/EnergieProject.git") ;; *) fail "repository not allowlisted" ;; esac
 for SHA_VALUE in "$ZIP_SHA_EXPECTED" "$EXPECTED_PREVIOUS_MANIFEST_SHA256" "$TARGET_MANIFEST_SHA256"; do [ "${#SHA_VALUE}" -eq 64 ] || fail "contract SHA256 length invalid"; case "$SHA_VALUE" in *[!0-9a-fA-F]*) fail "contract SHA256 invalid" ;; esac; done
-ZIP_PATH="$PROCESSED/$ZIP_NAME"; [ -f "$ZIP_PATH" ] || fail "processed ZIP missing"; ZIP_SHA_ACTUAL="$(sha256sum "$ZIP_PATH" | awk '{print $1}')"; [ "$ZIP_SHA_ACTUAL" = "$ZIP_SHA_EXPECTED" ] || fail "processed ZIP SHA256 mismatch"
+if [ "$SOURCE_STAGE" = "processing_pre_target" ] && [ -f "$PROCESSING/$ZIP_NAME" ]; then
+  ZIP_PATH="$PROCESSING/$ZIP_NAME"
+elif [ -f "$PROCESSED/$ZIP_NAME" ]; then
+  ZIP_PATH="$PROCESSED/$ZIP_NAME"
+else
+  fail "owned release ZIP missing from processing/processed"
+fi
+ZIP_SHA_ACTUAL="$(sha256sum "$ZIP_PATH" | awk '{print $1}')"; [ "$ZIP_SHA_ACTUAL" = "$ZIP_SHA_EXPECTED" ] || fail "release ZIP SHA256 mismatch"
+write_publication_exact() {
+  LOCAL_HEAD_VALUE="$1"; REMOTE_HEAD_VALUE="$2"; TMP_PUB="$PUBLICATION_STATE.tmp.$$"; NOW_PUB="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  printf '{"schema":"energie_github_publication_state_v2","published":true,"target_exact":true,"status":"published","version":"%s","release_id":"%s","generation":"%s","processed_zip":"%s","processed_zip_sha256":"%s","target_manifest_sha256":"%s","local_head":"%s","remote_head":"%s","publication_contract_removed":false,"publication_contract_settled":false,"publication_contract_active":true,"publisher":"nas_github_publisher","updated_at":"%s"}\n' \
+    "$(json_escape "$VERSION")" "$(json_escape "$RELEASE_ID")" "$(json_escape "$GENERATION")" "$(json_escape "$ZIP_NAME")" "$ZIP_SHA_EXPECTED" "$TARGET_MANIFEST_SHA256" "$(json_escape "$LOCAL_HEAD_VALUE")" "$(json_escape "$REMOTE_HEAD_VALUE")" "$NOW_PUB" > "$TMP_PUB"
+  mv "$TMP_PUB" "$PUBLICATION_STATE"
+}
+
 [ -f "$KEY" ] || fail "dedicated deploy key missing"; KEY_MODE="$(stat -c '%a' "$KEY" 2>/dev/null || true)"; case "$KEY_MODE" in 600|400) ;; *) fail "deploy key permissions are not private" ;; esac
 [ -f "$KNOWN_HOSTS" ] || fail "known_hosts missing"; grep -Fq 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' "$KNOWN_HOSTS" || fail "official GitHub Ed25519 host key not pinned"
 REPO_SSH="git@github.com:kgnfn65498-droid/EnergieProject.git"; export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o UserKnownHostsFile=$KNOWN_HOSTS -o StrictHostKeyChecking=yes -o BatchMode=yes"
@@ -95,8 +114,8 @@ if [ "$REMOTE_VERSION" = "$VERSION" ] && [ "$REMOTE_MANIFEST_SHA256" = "$TARGET_
   fi
   CURRENT_CONTRACT_SHA="$(sha256sum "$CONTRACT" | awk '{print $1}')"
   [ "$CURRENT_CONTRACT_SHA" = "$CONTRACT_SHA_BEFORE" ] || fail "publication contract changed during verification"
-  rm -f "$CONTRACT"
-  write_state "published" "target already exact on GitHub" "$VERSION"
+  write_publication_exact "$REMOTE_HEAD" "$REMOTE_HEAD"
+  write_state "published" "target already exact on GitHub; controller owns contract settlement" "$VERSION"
   printf '%s\n' "PUBLISHER_TARGET_EXACT_OK=$VERSION"
   exit 0
 fi
@@ -121,4 +140,4 @@ cp -R "$SRC"/. "$WORK"/
 (cd "$WORK"; git config user.name "EnergieProject autonomous NAS publisher"; git config user.email "energieproject-publisher@localhost"; git add -A; git diff --cached --quiet && exit 3; git commit -m "v${VERSION}: autonomous NAS publication" >/dev/null) || fail "validated release could not be committed"
 LOCAL_FINAL="$(cd "$WORK" && git rev-parse HEAD)"; (cd "$WORK" && git push origin "HEAD:$BRANCH") || fail "GitHub push failed"
 REMOTE_FINAL_LIST="$(git ls-remote "$REPO_SSH" "refs/heads/$BRANCH")" || fail "post-push remote branch lookup failed"; REMOTE_FINAL="$(printf '%s\n' "$REMOTE_FINAL_LIST" | awk 'NR==1{print $1}')"; [ "$REMOTE_FINAL" = "$LOCAL_FINAL" ] || fail "remote HEAD does not equal published commit"; git clone --quiet --depth 1 --branch "$BRANCH" "$REPO_SSH" "$VERIFY" || fail "post-push verification clone failed"; [ "$(tr -d '\r\n ' < "$VERIFY/VERSIE.txt")" = "$VERSION" ] || fail "post-push version mismatch"; VERIFY_MANIFEST_SHA256="$(sha256sum "$VERIFY/MANIFEST.sha256" | awk '{print $1}')"; [ "$VERIFY_MANIFEST_SHA256" = "$TARGET_MANIFEST_SHA256" ] || fail "post-push manifest SHA mismatch"; (cd "$VERIFY" && sha256sum -c MANIFEST.sha256 >/dev/null) || fail "post-push manifest file validation failed"
-CURRENT_CONTRACT_SHA="$(sha256sum "$CONTRACT" | awk '{print $1}')"; [ "$CURRENT_CONTRACT_SHA" = "$CONTRACT_SHA_BEFORE" ] || fail "publication contract changed before cleanup"; rm -f "$CONTRACT"; write_state "published" "validated release published and remotely verified" "$VERSION"; printf '%s\n' "PUBLISHER_PUBLISHED_OK=$VERSION"
+CURRENT_CONTRACT_SHA="$(sha256sum "$CONTRACT" | awk '{print $1}')"; [ "$CURRENT_CONTRACT_SHA" = "$CONTRACT_SHA_BEFORE" ] || fail "publication contract changed before settlement"; write_publication_exact "$LOCAL_FINAL" "$REMOTE_FINAL"; write_state "published" "validated release published and remotely verified; controller owns contract settlement" "$VERSION"; printf '%s\n' "PUBLISHER_PUBLISHED_OK=$VERSION"

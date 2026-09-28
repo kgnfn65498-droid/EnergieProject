@@ -15,6 +15,16 @@ from typing import Any
 
 SCHEMA = 'energie_release_ingress_recovery_v1'
 DEFAULT_STALE_SECONDS = 600
+
+
+def _version_tuple(value: str):
+    try:return tuple(int(part) for part in str(value).split('.')[:3])
+    except ValueError:return ()
+
+def _flat_failed_layout(root: Path) -> bool:
+    try:version=(root/'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+    except OSError:return False
+    return _version_tuple(version)>=(32,5,26)
 _ALLOWED_LOCK_FILES = {'owner.json', 'heartbeat'}
 
 
@@ -187,13 +197,15 @@ def reconcile(project_root: Path | str, *, stale_seconds: int = DEFAULT_STALE_SE
     incoming = root / 'Inbox/incoming'
     processing = root / 'Inbox/processing'
     failed = root / 'Inbox/failed'
-    for path in (incoming, processing, failed, project_system_path(root, 'Inbox/logs')):
+    for path in (incoming, failed, project_system_path(root, 'Inbox/logs')):
         if path.exists() and (path.is_symlink() or not path.is_dir()):
             raise RuntimeError(f'unsafe recovery directory: {path}')
         path.mkdir(parents=True, exist_ok=True)
+    if processing.exists() and (processing.is_symlink() or not processing.is_dir()):
+        raise RuntimeError(f'unsafe recovery directory: {processing}')
 
     incoming_items = _regular_files(incoming)
-    processing_items = _regular_files(processing)
+    processing_items = _regular_files(processing) if processing.exists() else []
     lock = root / 'Inbox/.installer.lock'
     lock_state, lock_age = _lock_freshness(lock, now=now_value, stale_seconds=stale_seconds)
     if lock_state == 'unsafe':
@@ -223,7 +235,7 @@ def reconcile(project_root: Path | str, *, stale_seconds: int = DEFAULT_STALE_SE
         canonical = incoming_items[0]
         moved: list[str] = []
         for duplicate in incoming_items[1:]:
-            dest = _unique_destination(failed / 'duplicates', duplicate.name, f'duplicate-{hashes[duplicate.name][:12]}')
+            dest = _unique_destination(failed if _flat_failed_layout(root) else failed/'duplicates', duplicate.name, f'duplicate-{hashes[duplicate.name][:12]}')
             os.replace(duplicate, dest)
             moved.append(str(dest.relative_to(root)))
         return _write_result(root, {
@@ -302,7 +314,7 @@ def quarantine_corrupt(project_root: Path | str, name: str, *, stale_seconds: in
         return _write_result(root, {
             'status': 'WAITING', 'reason': 'corrupt_candidate_not_stale', 'source_name': name,
         })
-    destination = _unique_destination(root / 'Inbox/failed/corrupt', name, 'corrupt')
+    destination = _unique_destination((root/'Inbox/failed') if _flat_failed_layout(root) else (root/'Inbox/failed/corrupt'), name, 'corrupt')
     os.replace(source, destination)
     return _write_result(root, {
         'status': 'RECOVERED', 'action': 'QUARANTINED_CORRUPT',
