@@ -438,7 +438,7 @@
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/main.py",
-      "sha256": null
+      "sha256": "f96a9763d09f8d19108f7b468808bbdbdf846a64487dfc4e4107e1f95df9ef19"
     },
     {
       "path": "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
