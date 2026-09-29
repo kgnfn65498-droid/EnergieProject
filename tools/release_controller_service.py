@@ -115,6 +115,31 @@ def ensure_publication_writer_contract(root:Path)->dict:
             os.chmod(path,0o666);touched.append(name)
     return {'status':'GREEN','directory_mode':'0777','state_mode':'0666','files':touched}
 
+def ensure_projectmanager_shared_writer_contract(root:Path)->dict:
+    """Normalize only the known cross-identity PM writer directories.
+
+    The release watcher/controller owns this privileged filesystem boundary.
+    PM itself must never try to chmod these directories.
+    """
+    root=Path(root)
+    rels=(
+        'Data/03_Systeem/Projectmanager/Handover',
+        'Data/03_Systeem/Projectmanager/ClearUp/Recovery',
+        'Data/03_Systeem/Projectmanager/ClearUp/Exports',
+        'Data/03_Systeem/Projectmanager/ClearUp/State',
+    )
+    normalized=[]
+    for rel in rels:
+        path=root/rel
+        if path.exists() and (path.is_symlink() or not path.is_dir()):
+            raise RuntimeError('projectmanager_shared_writer_directory_unsafe:'+rel)
+        path.mkdir(parents=True,exist_ok=True)
+        os.chmod(path,0o777)
+        if (path.stat().st_mode & 0o7777) != 0o777:
+            raise RuntimeError('projectmanager_shared_writer_mode_mismatch:'+rel)
+        normalized.append(rel)
+    return {'status':'GREEN','directory_mode':'0777','directories':normalized}
+
 def verify_publication_writer_quiescence(root:Path,state:ReleaseState,*,soak_seconds:float|None=None)->dict:
     root=Path(root)
     writer_contract=ensure_publication_writer_contract(root)
@@ -309,13 +334,22 @@ class ReleaseControllerService:
                 artifact_retention_required=release_tuple >= (32,5,24)
                 publisher_binding_required=release_tuple >= (32,5,25)
                 publication_quiescence_required=release_tuple >= (32,5,26)
+                shared_pm_writer_contract_required=release_tuple >= (32,5,29)
             except ValueError:
                 post_live_required=False
                 artifact_retention_required=False
                 publisher_binding_required=False
                 publication_quiescence_required=False
+                shared_pm_writer_contract_required=False
             publisher_binding=None
             publication_quiescence=None
+            shared_pm_writer_contract=None
+            if shared_pm_writer_contract_required:
+                try:
+                    shared_pm_writer_contract=ensure_projectmanager_shared_writer_contract(self.root)
+                except Exception as exc:
+                    self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':f'projectmanager_shared_writer_contract_failed:{type(exc).__name__}:{exc}','release_id':state.release_id,'generation':state.generation})
+                    return state
             if publisher_binding_required and publication_quiescence_required:
                 try:
                     publisher_binding=ensure_github_publisher_binding_current(self.root)
@@ -346,9 +380,9 @@ class ReleaseControllerService:
                             except Exception as exc:
                                 self._runtime({'status':'BLOCKED','phase':'COMPLETE','reason':f'github_publisher_binding_failed:{type(exc).__name__}:{exc}','release_id':state.release_id,'generation':state.generation})
                                 return state
-                        self._runtime({'status':'COMPLETE','phase':'COMPLETE','reason':'post_live_audit_retention_publisher_and_quiescence_green','release_id':state.release_id,'generation':state.generation,'artifact_retention':retention,'github_publisher_binding':publisher_binding,'publication_quiescence':publication_quiescence})
+                        self._runtime({'status':'COMPLETE','phase':'COMPLETE','reason':'post_live_audit_retention_publisher_and_quiescence_green','release_id':state.release_id,'generation':state.generation,'artifact_retention':retention,'github_publisher_binding':publisher_binding,'publication_quiescence':publication_quiescence,'shared_pm_writer_contract':shared_pm_writer_contract})
                     else:
-                        self._runtime({'status':'COMPLETE','phase':'COMPLETE','reason':'post_live_audit_and_artifact_retention_green','release_id':state.release_id,'generation':state.generation,'artifact_retention':retention})
+                        self._runtime({'status':'COMPLETE','phase':'COMPLETE','reason':'post_live_audit_and_artifact_retention_green','release_id':state.release_id,'generation':state.generation,'artifact_retention':retention,'shared_pm_writer_contract':shared_pm_writer_contract})
         if state and state.status==Status.ROLLED_BACK.value:self._settle_rolled_back(state)
         recovery=self._reconcile_idle_processing()
         if recovery is not None:

@@ -1,3 +1,9 @@
+## 32.5.29 — final Inbox recovery cross-identity writer contract
+
+- Repairs the live 32.5.28 blocker where `Projectmanager/Handover` and `ClearUp/{Recovery,Exports,State}` existed as 0755 and the embedded PM identity could not create atomic temp files or the final Inbox recovery artifact.
+- The privileged ReleaseController now normalizes only these four exact shared writer directories to 0777 after a completed 32.5.29 release, rejects symlinks/non-directories, and verifies mode readback.
+- No new ClearUp executor, no Type-2 reopen, no Inbox bypass, no delete-before-recovery. Existing 32.5.28 recovery-first confirmation and final Inbox cleanup logic remains unchanged.
+
 ## 32.5.28 — recovery-first final Inbox cleanup + always-current handover
 - Adds pre-mutation recovery packaging/export for the final Inbox cleanup, with source SHA256 manifest, deep ZIP verification, bounded chunks and exact external-confirmation gating.
 - Privileged cleanup apply revalidates current plan, recovery ZIP and live source bytes immediately before mutation; stale/mutated recovery evidence fails closed.

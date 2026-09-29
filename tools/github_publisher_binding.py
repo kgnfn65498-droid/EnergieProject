@@ -7,6 +7,7 @@ import socket
 import time
 from pathlib import Path
 from typing import Any
+from system_path_contract import project_system_path
 
 CONTAINER = 'energie-github-publisher'
 SOCKET = '/var/run/docker.sock'
