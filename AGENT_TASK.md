@@ -30,6 +30,7 @@ Canonical Sources -> Truth Gate -> Mandatory Core -> bounded exact/lexical Task 
 - `projectmanager_api.py`
 - `capability_registry.py`
 - gerichte tests voor PM/KB/context/index/handover/resume
+- één tijdelijke PR-only GitHub Actions testworkflow uitsluitend om deze gerichte tests/compileall uit te voeren; vóór finale merge weer verwijderen
 - AGENT_TASK / AGENT_RESULT / CURRENT_HANDOVER / WORK_LEDGER uitsluitend voor deze taakadministratie
 
 ## Expliciet niet wijzigen
