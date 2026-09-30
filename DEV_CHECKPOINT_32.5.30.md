@@ -25,6 +25,12 @@ Authoritative final build basis remains the exact verified physical 32.5.29 rele
 ## GitHub Actions incident
 A temporary development workflow was added only to the work branch and produced three failed runs/notifications. It has been removed. Do not re-add or rerun it. Existing run logs proved all changed modules compiled; targeted ROOT tests were 2 passed / 2 failed solely because the test fixture did not create active App module paths. The fixture was corrected afterwards without rerunning Actions to avoid further notifications.
 
+## Current work-branch evidence
+- Current head after ROOT/release hardening: 7ad56e0d07003614130d57f3ebe82b8c90f24279.
+- Temporary Actions workflow has been removed and must not be reintroduced.
+- Historical run 36780695606 compiled all changed 32.5.30 modules successfully; its targeted ROOT test result was 2 passed / 2 failed because only the test fixture lacked active App module directories. That fixture has since been corrected.
+- Additional static regressions now cover failed/candidate root debt, unclassified root fail-closed behavior, build-time release identity, publisher system-path binding, bounded pre-target split-state wait, and unbounded manual HA wait.
+- No claim of final GREEN until exact NAS predecessor build + full isolated suite + fresh-extract + live acceptance.
 ## Safety
 - No merge to main.
 - No PR.
