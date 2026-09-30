@@ -349,7 +349,12 @@ class HandoverSnapshotService:
         development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
         context_package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
         preflight = status.get('new_chat_preflight') if isinstance(status.get('new_chat_preflight'), dict) else {}
-        if (
+        gate_release = str((status.get('release') or {}).get('version') or '')
+        try:
+            gate_parts = tuple(int(part) for part in gate_release.split('.')[:3])
+        except ValueError:
+            gate_parts = ()
+        if gate_parts >= (32, 5, 25) and (
             preflight.get('ready') is not True
             or context_package.get('mandatory_context_complete') is not True
             or (context_package.get('resume_contract') or {}).get('fail_closed') is True
