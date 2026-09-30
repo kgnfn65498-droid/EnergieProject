@@ -377,7 +377,11 @@ def prepare_root_recovery(project_root: Path | str) -> dict[str, Any]:
         rows = _tree_rows(source, root)
         if _json_sha(rows) != _json_sha(_tree_rows(source, root)):
             raise RuntimeError(f"recovery source changed during snapshot:{source_rel}")
-        _copy_exact(source, stage / "original" / source_rel)
+        target = stage / "original" / source_rel
+        _copy_exact(source, target)
+        staged_rows = _tree_rows(target, stage / "original")
+        if staged_rows != rows:
+            raise RuntimeError(f"recovery staged payload mismatch:{source_rel}")
         manifest_items.append({"source": source_rel, "source_rows": rows, "tree_sha256": item.get("tree_sha256")})
 
     manifest = {
@@ -404,6 +408,22 @@ def prepare_root_recovery(project_root: Path | str) -> dict[str, Any]:
             bad = archive.testzip()
             if bad:
                 raise RuntimeError(f"recovery ZIP corrupt:{bad}")
+            zipped_manifest = json.loads(archive.read("RECOVERY_MANIFEST.json"))
+            if zipped_manifest != manifest:
+                raise RuntimeError("recovery ZIP manifest mismatch")
+            names = set(archive.namelist())
+            for manifest_item in manifest_items:
+                for row in manifest_item["source_rows"]:
+                    if row.get("type") != "file":
+                        continue
+                    member = "original/" + str(row.get("path") or "")
+                    if member not in names:
+                        raise RuntimeError(f"recovery ZIP payload missing:{member}")
+                    data = archive.read(member)
+                    if len(data) != int(row.get("size") or -1):
+                        raise RuntimeError(f"recovery ZIP payload size mismatch:{member}")
+                    if hashlib.sha256(data).hexdigest() != str(row.get("sha256") or ""):
+                        raise RuntimeError(f"recovery ZIP payload hash mismatch:{member}")
         os.replace(temp, export)
     finally:
         temp.unlink(missing_ok=True)
