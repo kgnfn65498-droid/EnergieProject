@@ -365,7 +365,9 @@ def prepare_root_recovery(project_root: Path | str) -> dict[str, Any]:
         _atomic_json(state_path, state)
         return {**state, "executed": True}
 
-    if stage.exists():
+    if stage.exists() or stage.is_symlink():
+        if stage.is_symlink() or not stage.is_dir():
+            raise RuntimeError("ROOT recovery staging path unsafe")
         shutil.rmtree(stage)
     stage.mkdir(parents=True)
     manifest_items: list[dict[str, Any]] = []
