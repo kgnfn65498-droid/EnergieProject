@@ -21,6 +21,7 @@ from proactive_policy import evaluate_signal
 from progress_truth import build_task_progress
 from development_build_contract import evaluate_build_contract, canonical_contract
 from development_context_enforcement import build_development_context, highest_checkpoint
+from context_package import compact_package
 from development_handover_sync import sync_current_development_handover
 from persistence import atomic_write_json
 from research_queue import ResearchQueue
@@ -637,6 +638,9 @@ class ManagerService:
             'requirements_count': int(development_context.get('requirements_count') or 0),
             'full_kb': development_context.get('full_kb') or {},
             'truth_reconciliation': development_context.get('truth_reconciliation') or {},
+            'context_package': compact_package(development_context.get('context_package') or {}),
+            'inventory_complete': development_context.get('inventory_complete') is True,
+            'mandatory_context_complete': development_context.get('mandatory_context_complete') is True,
             'runtime_truth_primary': True,
         }
         atomic_write_json(self.root / 'development_context' / 'current.json', runtime_context)

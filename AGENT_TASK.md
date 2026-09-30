@@ -1,88 +1,81 @@
-# AGENT_TASK — EnergieProject 32.5.28 recovery-first final Inbox cleanup + always-current handover
+# AGENT_TASK — Projectmanager / Knowledge Base / Index context architecture
 
 - mode: DEVELOPMENT
 - reasoning: HIGH
-- stap: 1/7
-- buildbasis: exact verified EnergieProject_v32.5.27.zip SHA256 ea3674ebc32067a7c71b5798f33cb3e9de03f1d1c178dcb96e0f73e7dc4e89f2
-- live productie: 32.5.27 COMPLETE / IDLE
-- target: 32.5.28
+- stap: 4/7
+- live runtime: 32.5.29 (readback 2026-09-30)
+- release-target: GEEN; 32.5.30 is expliciet buiten scope
 - productieautoriteit: NEE
+- active branch: `pm-kb-index-fix`
+- PR: #11
 
 ## Doel
-1. Maak de finale Type-3/Inbox cleanup recovery-first: vóór enige live mutatie bestaat een volledig geverifieerde, extern leverbare recovery-ZIP die exact aan het current cleanup-plan en de live source-bytes is gebonden.
-2. Maak development-handover vanaf 32.5.28 automatisch en fail-closed actueel: current handover/pointer/checkpoint moeten één machine-verifieerbare generatie vormen; stale/mismatch blokkeert release-ready en nieuwe-chat `verder` gebruikt altijd de nieuwste geldige waarheid.
-3. Borg de ontwikkelstandaard van de releaseketen opnieuw end-to-end: een nieuwe geldige ZIP verlaat `Inbox/incoming`, wordt duurzaam eigenaar in `Inbox/processing`, blijft daar tijdens de handmatige HA-update, en gaat pas na exact bewezen HA-target naar `Inbox/processed`; daarna moet een volgende ZIP dezelfde permanente processing-mailbox opnieuw kunnen gebruiken.
+Los structureel het Projectmanager/Knowledge-Base/index-contextprobleem op dat onafhankelijk is bevestigd door de Codex 6.0 Sol High audit:
+`persistent aanwezig != ontdekt != geselecteerd != geleverd != correct toegepast`.
+
+Doelarchitectuur:
+Canonical Sources -> Truth Gate -> Mandatory Core -> bounded exact/lexical Task Evidence -> Context Package -> invocation-bound Delivery Receipt -> Spock -> Behavioral/E2E Evaluation.
 
 ## Scope — wijzigen toegestaan
-- slimmemeterportal_import/rootfs/app/projectmanager_v2/inbox_cleanup_32526.py
-- slimmemeterportal_import/rootfs/app/projectmanager_v2/command_processor.py
-- slimmemeterportal_import/rootfs/app/projectmanager_v2/development_context_enforcement.py
-- slimmemeterportal_import/rootfs/app/projectmanager_v2/manager_service.py indien nodig voor bestaande PM-sync
-- één nieuwe compacte handover-sync module binnen dezelfde projectmanager_v2 package indien dat aantoonbaar de kleinste structurele oplossing is
-- tools/project_clearup_move_executor.py
-- tools/release_controller_service.py en tools/ha_delivery_adapter.py uitsluitend wanneer een 32.5.28-regressietest een werkelijk ketendefect aantoont
-- tests voor 32.5.28 + bestaande relevante tests
-- release-identiteit/docs/ledger/checkpoint uitsluitend nadat functionele gates GREEN zijn
+- `slimmemeterportal_import/rootfs/app/projectmanager_v2/context_package.py`
+- `context_delivery.py`
+- `context_behavior.py`
+- `development_context_enforcement.py`
+- `development_handover_sync.py`
+- `truth_engine.py`
+- `orchestrator.py`
+- `conversation_runtime.py`
+- `handover_snapshot.py`
+- `manager_service.py`
+- `projectmanager_api.py`
+- `capability_registry.py`
+- gerichte tests voor PM/KB/context/index/handover/resume
+- één tijdelijke PR-only GitHub Actions testworkflow uitsluitend om deze gerichte tests/compileall uit te voeren; vóór finale merge weer verwijderen
+- AGENT_TASK / AGENT_RESULT / CURRENT_HANDOVER / WORK_LEDGER uitsluitend voor deze taakadministratie
 
 ## Expliciet niet wijzigen
-- geen derde filesystem-executor, watcher, daemon of lifecycle-owner;
-- Type-2 ClearUp_002–012 blijft CLOSED;
-- Inbox/processing blijft permanent aanwezig en leeg; nooit cleanup-item;
-- canonical GitHub publication state blijft Data/03_Systeem/Projectmanager/ReleaseController/Publication;
-- geen GitHub/productieboom als buildbasis;
-- geen live cleanup, productie-installatie, restart/recreate, handmatige ZIP move of Terminal als normale route.
+- geen release-identiteit;
+- geen 32.5.30 ontwikkeling;
+- geen Incoming/releasecontroller/HA/GitHub-publicatiepad;
+- geen productieplaatsing, restart, recreate, cleanup of destructive actie;
+- geen tweede KB, ledger, runtime truth, resume-owner of parallelle orchestrator;
+- geen semantische/vector/GraphRAG-laag tenzij latere meting exact/lexical onvoldoende bewijst.
 
 ## Bewezen feiten
-- exacte predecessor-ZIP is lokaal hersteld uit het bestaande retentie-artifact en SHA256 is exact geverifieerd.
-- eerdere 32.5.28 recovery-first implementatie had gerichte 23/23 GREEN; die lokale worktree was niet persistent beschikbaar in deze chat, dus alleen de bewezen requirements/architectuur worden hergebruikt en de herstelde bytes moeten opnieuw volledig worden getest.
-- live = 32.5.27 COMPLETE / IDLE; 32.5.28 is nog geen release.
-- Type-2 002–012 CLOSED; Processing permanent.
+- Beide KB-roots, Requirements, handovers, ledger, checkpoints en PM-runtime bestaan.
+- FULL_KB COMPLETE bewees tot nu toe alleen aanwezigheid/discovery, niet delivery of correcte toepassing.
+- Codex reproduceerde false-GREEN op requirements/context, mtime-checkpointselectie, stale handover en een 116903-byte snapshotregressie.
+- PR #11 eerste versie was daarom NIET voldoende.
+- De oude index/contextversies zijn persistent bewaard onder `Worklogs/PreGate0_20260930/`.
+- Live Projectmanager self-audit is momenteel RED door een bestaande/noncompliant runtime development task; deze taak mag die RED niet als GREEN maskeren.
 
-## Verplichte implementatie — recovery-first
-- prepare exact current cleanup plan;
-- snapshot alle te verplaatsen source-bytes naar staging vóór mutatie;
-- manifest met paths/types/sizes/SHA256 + plan_sha256;
-- ZIP CRC + manifest + payload deep verify;
-- live source na snapshot opnieuw exact verifiëren;
-- prepare/export is non-destructive;
-- projectmanager_submit_command routes: inbox_cleanup_prepare_recovery, inbox_cleanup_export_info, inbox_cleanup_export_chunk;
-- bounded base64 chunks met chunk SHA256/offset/next_offset/eof en immutable artifact identity;
-- apply vereist exact current plan, recovery ZIP opnieuw GREEN, current source==manifest en exacte expliciete bevestiging;
-- privileged executor herverifieert dezelfde gates vlak vóór mutatie;
-- restore request-scoped/hash-bound;
-- projectmanager_v2 absoluut laatste cleanupactie;
-- 20s resurrection soak behouden.
-
-## Verplichte implementatie — always-current handover
-- bestaande DS9/Projectmanager-laag gebruiken; geen parallelle waarheid;
-- een canonieke machine-readable development handover generation/fingerprint;
-- current handover + chat-switch pointer + hoogste checkpoint worden atomisch/projectiematig naar dezelfde generation gesynchroniseerd en teruggelezen;
-- stale/missing/mismatched target/live/predecessor/checkpoint/generation => HANDOVER_STALE/RED;
-- nieuwe-chat `verder` kiest nieuwste geldige checkpoint; oudere statische claims kunnen niet winnen;
-- live release en target-in-development blijven expliciet gescheiden;
-- final_zip_exists/release_ready mogen niet impliciet uit VERSIE.txt volgen;
-- freshness is pre-release/fresh-extract gate en wordt na meaningful checkpoint/statusovergang ververst.
-
-## Verplichte releaseketen — Incoming → Processing → HA → Processed
-- `Inbox/processing` is een permanente mailbox; idle = bestaat als echte directory en is leeg.
-- stabiele geldige nieuwe ZIP mag niet in `Inbox/incoming` blijven hangen: controller claimt hem atomisch naar `Inbox/processing`.
-- tijdens `WAITING_MANUAL_HA_UPDATE` blijft exact dezelfde ZIP in `processing`; geen vroegtijdige archive/move.
-- pas wanneer GitHub/publication exact én HA-runtime exact target bewijzen, archiveert controller exact dezelfde SHA256 naar `Inbox/processed`.
-- COMPLETE mag nooit gelden wanneer de eigen release-ZIP nog in `processing` staat of ontbreekt uit `processed`.
-- regressie omvat minimaal twee opeenvolgende releases zodat processing-hergebruik en volgende ingress aantoonbaar werken.
-- geen handmatige publication-state reconciliatie, processing-map rename, handmatige ZIP move, watcher/restart of Peter-Terminal als normale keten.
-- release acceptance en host-capability Platform Qualification blijven afzonderlijke contracten; een groene platformkwalificatie vervangt geen release acceptance en omgekeerd.
+## Verplichte implementatie
+1. Controlled complete inventory van beide KB-roots + Requirements + current governance.
+2. Claim-level truth/freshness/supersession; gelijkwaardige current conflicts fail-closed.
+3. Mandatory Core bevat actuele claims + toepasselijke bindende rules/HOT lessons; retrieval kan deze kern niet verwijderen.
+4. Task Evidence is bounded exact/lexical, progressive disclosure, en optionele I/O-fout mag Mandatory Core niet breken.
+5. `verder` bepaalt first_unproven_action uit governing checkpoint/runtime evidence; geen brede historie of stale next-action.
+6. Context package heeft canonieke JSON-identiteit, bronhashes, bounded budget en geen stille truncatie.
+7. Eén context gate voor preflight, conversation resume, handover snapshot en API/consumerprojecties.
+8. Delivery receipt alleen GREEN aan echte model-invocation-grens met invocation-ID + final-input hash.
+9. Behavioral evaluator gebruikt machinecontroleerbare observed output/tooltrace; acknowledgement is onvoldoende.
+10. Bestaande Native-MCP resume exposure blijft LIVE_REQUIRED totdat echte cliënt-discovery/call dit contract aantoonbaar levert.
 
 ## Acceptance
-- TDD RED → GREEN voor beide scopes.
-- gerichte 32.5.28 tests + bestaande 32.5.26/27 cleanup regressies GREEN.
-- full applicable regressie GREEN; compileall en shell syntax GREEN.
-- predecessor-boundary bewijs: 32.5.27 kan de definitieve 32.5.28 via normale Incoming-keten verwerken zonder manual publication reconciliation, processing rename, ZIP move of Peter-Terminal.
-- twee-op-een releaseketenregressie GREEN: ZIP A incoming→processing→HA exact→processed, processing blijft leeg/bestaan, daarna ZIP B opnieuw incoming→processing→HA exact→processed.
-- definitive ZIP exact: unique names, CRC, MANIFEST.sha256, SHA256SUMS.json, identity/version correct.
-- fresh-extract voert dezelfde tests/gates uit en bewijst handover freshness.
-- Work self-audit, onafhankelijke Spock-audit en exact één Codex Terra/Medium bounded audit vóór vrijgave.
-- recovery-ZIP voor live cleanup moet in chat zijn geleverd/gedownload en extern exact bevestigd vóór enige live cleanup.
+- alle 12 Codex-scenario's technisch afgedekt;
+- false-GREEN negatieve tests;
+- corrupt/empty/equal-rank checkpoint RED;
+- stale/empty handover RED;
+- nieuwe dynamic requirement ontdekt;
+- ClearUp/capability requirement + capabilitymap gevonden;
+- mandatory-context budget: optional evidence degradeert eerst, mandatory truncation => RED;
+- snapshot blijft <100k zonder Mandatory Core te verliezen;
+- package hash canoniek/stabiel;
+- delivery receipt kan niet zonder echte invocation binding;
+- behavioral evaluator RED bij repeated proven work of forbidden route;
+- bestaande relevante handover/context regressies mogen niet worden verzwakt;
+- onafhankelijke Codex re-audit van nieuwe PR-head vóór merge/activatie;
+- echte model/client E2E blijft vereist vóór runtime-GREEN claim.
 
 ## Stopcriteria
-Stop alleen bij protected productieapproval, echte onoplosbare artifact/safety/model blocker, of volledig geverifieerde 32.5.28 artifact-ready toestand. Checkpointing is geen stopmoment.
+Stop alleen bij echte scope/safety/model blocker of wanneer code + tests + onafhankelijke audit voor deze PM/KB/index-taak gereed zijn. Geen merge, deployment of restart zonder aparte autorisatie.

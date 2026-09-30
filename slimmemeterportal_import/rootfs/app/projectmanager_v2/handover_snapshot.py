@@ -9,6 +9,7 @@ from persistence import atomic_write_json, atomic_write_text, load_json
 from secret_guard import contains_secret_text, redact
 from transition_state_io import read_transition_state, TransitionStateReadError
 from release_controller_state import load_release_controller_state, release_view
+from context_package import compact_package
 
 
 _SCHEMA = 'energie_projectmanager_handover_snapshot_v1'
@@ -19,6 +20,37 @@ _OPEN_HANDOFFS = {'OPEN', 'ACTIVE', 'PENDING', 'BLOCKED'}
 _OPEN_ISSUES = {'OPEN'}
 _PENDING_APPROVALS = {'PENDING', 'WAITING_APPROVAL'}
 _BINDING_CLASSIFICATIONS = {'hard_requirement', 'decision'}
+
+
+def _compact_development_context(value: dict) -> dict:
+    if not isinstance(value, dict):
+        return {}
+    keep = (
+        'runtime_truth','runtime_truth_primary','master_index','active_context','manifest','ledger',
+        'ledger_current_truth','decision_log','development_changelog','spock_context','ticket_issue_index',
+        'knowledgebase_inventory','requirements_dynamic_discovery','requirements_count','inventory_complete',
+        'mandatory_context_complete','handover_freshness','live_handover_primary'
+    )
+    result = {key: value.get(key) for key in keep if key in value}
+    full_kb = value.get('full_kb') if isinstance(value.get('full_kb'), dict) else {}
+    result['full_kb'] = {
+        'status': full_kb.get('status'), 'complete': full_kb.get('complete') is True,
+        'missing': list(full_kb.get('missing') or []), 'checkpoint': full_kb.get('checkpoint') or {},
+        'requirements_count': full_kb.get('requirements_count'),
+        'hard_requirements_count': full_kb.get('hard_requirements_count'),
+    }
+    result['truth_reconciliation'] = value.get('truth_reconciliation') if isinstance(value.get('truth_reconciliation'), dict) else {}
+    result['context_package'] = compact_package(value.get('context_package') or {})
+    capability_registry = value.get('capability_registry') if isinstance(value.get('capability_registry'), dict) else {}
+    caps = capability_registry.get('capabilities') if isinstance(capability_registry.get('capabilities'), list) else []
+    result['capability_registry'] = {
+        'status': capability_registry.get('status'),
+        'capabilities': [
+            {k: item.get(k) for k in ('key','status','executor','reason')}
+            for item in caps if isinstance(item, dict)
+        ],
+    }
+    return result
 
 
 def _utc_now(now=None):
@@ -314,6 +346,22 @@ class HandoverSnapshotService:
             self._record_failure('canonical_status_invalid', 'status/current.json failed handover validation')
             raise RuntimeError('cannot build handover: canonical status is incomplete or invalid')
 
+        development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
+        context_package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
+        preflight = status.get('new_chat_preflight') if isinstance(status.get('new_chat_preflight'), dict) else {}
+        gate_release = str((status.get('release') or {}).get('version') or '')
+        try:
+            gate_parts = tuple(int(part) for part in gate_release.split('.')[:3])
+        except ValueError:
+            gate_parts = ()
+        if gate_parts >= (32, 5, 25) and (
+            preflight.get('ready') is not True
+            or context_package.get('mandatory_context_complete') is not True
+            or (context_package.get('resume_contract') or {}).get('fail_closed') is True
+        ):
+            self._record_failure('context_preflight_not_ready', str(context_package.get('conflicts_missing_evidence') or {}))
+            raise RuntimeError('cannot build handover: Projectmanager context preflight not ready')
+
         release_version = str(status.get('release', {}).get('version') or '').strip()
         project_release = self._project_release_version()
         if project_release and project_release != release_version:
@@ -423,7 +471,7 @@ class HandoverSnapshotService:
             'binding_context': self._binding_context(intake),
             'release_truth': release_truth,
             'test_evidence': test_evidence,
-            'development_context': redact(status.get('development_context', {})) if isinstance(status.get('development_context'), dict) else {},
+            'development_context': redact(_compact_development_context(status.get('development_context', {}))),
             'development_build_contract': redact(status.get('development_build_contract', {})) if isinstance(status.get('development_build_contract'), dict) else {},
             'development_method': redact(status.get('development_method', {})) if isinstance(status.get('development_method'), dict) else {},
             'audit_contract': redact(status.get('audit_contract', {})) if isinstance(status.get('audit_contract'), dict) else {},

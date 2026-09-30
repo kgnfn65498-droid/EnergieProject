@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 
 from secret_guard import redact
+from context_package import compact_package
+from context_delivery import build_delivery_receipt
 
 
 class ProjectmanagerAPI:
@@ -12,8 +14,9 @@ class ProjectmanagerAPI:
     Peter approvals use local Home Assistant ApprovalIngress.
     """
 
-    def __init__(self, runtime_root):
+    def __init__(self, runtime_root, *, project_root=None):
         self.root = Path(runtime_root)
+        self.project_root = Path(project_root) if project_root is not None else None
 
     def _read_dict(self, rel, default=None):
         path = self.root / rel
@@ -45,6 +48,50 @@ class ProjectmanagerAPI:
     def handover(self):
         payload = self._read_dict('handover/current.json')
         return redact(payload) if isinstance(payload, dict) else {'state': 'NOT_READY'}
+
+    @staticmethod
+    def _context_gate(status: dict) -> dict:
+        development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
+        package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
+        preflight = status.get('new_chat_preflight') if isinstance(status.get('new_chat_preflight'), dict) else {}
+        ready = bool(
+            preflight.get('ready') is True
+            and package.get('mandatory_context_complete') is True
+            and (package.get('resume_contract') or {}).get('fail_closed') is not True
+        )
+        return {
+            'ready': ready,
+            'preflight_ready': preflight.get('ready') is True,
+            'inventory_complete': package.get('inventory_complete') is True,
+            'mandatory_context_complete': package.get('mandatory_context_complete') is True,
+            'package_sha256': package.get('package_sha256') or '',
+            'first_unproven_action': (package.get('resume_contract') or {}).get('first_unproven_action') or '',
+            'conflicts_missing_evidence': package.get('conflicts_missing_evidence') or {},
+        }
+
+    def resume_context(self):
+        status = self.status()
+        gate = self._context_gate(status)
+        development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
+        package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
+        return redact({
+            'schema': 'energie_projectmanager_resume_delivery_v1',
+            'state': 'READY' if gate.get('ready') else 'BLOCKED',
+            'context_gate': gate,
+            'context_package': package if gate.get('ready') else compact_package(package),
+            'runtime_handover': self.handover(),
+            'delivery_status': 'UNPROVEN',
+            'delivery_receipt_required_at_model_boundary': True,
+        })
+
+    def delivery_receipt(self, *, invocation_id: str, final_input_sha256: str, consumer: str = 'external_model') -> dict:
+        status = self.status()
+        development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
+        package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
+        return redact(build_delivery_receipt(
+            package, invocation_id=invocation_id, final_input_sha256=final_input_sha256, consumer=consumer,
+            project_root=self.project_root,
+        ))
 
     def decisions(self):
         status = self.status()
@@ -88,6 +135,7 @@ class ProjectmanagerAPI:
             'development_efficiency': status.get('development_efficiency') or {},
             'acceptance_matrix': status.get('acceptance_matrix') or {},
             'development_context': status.get('development_context') or {},
+            'context_gate': self._context_gate(status),
             'next_action': status.get('next_action'),
             'needs_human': status.get('needs_human', False),
             'decisions_needed': status.get('decisions_needed', []),
@@ -104,5 +152,6 @@ class ProjectmanagerAPI:
             'active_task': task.get('title'),
             'blockers': task.get('blockers', []),
             'needs_human': status.get('needs_human', False),
+            'context_gate': self._context_gate(status),
             'open_handoffs': len(status.get('handoffs', [])),
         }

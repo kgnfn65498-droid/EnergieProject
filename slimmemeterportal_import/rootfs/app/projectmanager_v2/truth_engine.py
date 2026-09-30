@@ -44,10 +44,17 @@ def resolve_truth(sources: list) -> dict:
         if not candidates:
             continue
         winner_source, winner_value = candidates[0]
+        top_priority = winner_source.get('priority', 999)
+        equal_priority_conflicts = [(s, v) for s, v in candidates[1:] if s.get('priority', 999) == top_priority and v != winner_value]
+        if equal_priority_conflicts:
+            conflicts.append({'path': path, 'classification': 'EQUAL_PRIORITY_CONFLICT', 'sources': [winner_source.get('name')] + [s.get('name') for s, _ in equal_priority_conflicts], 'values': [winner_value] + [v for _, v in equal_priority_conflicts]})
+            continue
         _assign(truth, path, winner_value)
         provenance[path] = winner_source.get('name')
         chosen[path] = winner_value
         for source, value in candidates[1:]:
+            if source.get('priority', 999) == top_priority:
+                continue
             if value != winner_value:
                 conflicts.append({
                     'path': path,
@@ -57,4 +64,4 @@ def resolve_truth(sources: list) -> dict:
                     'conflicting_value': value,
                     'classification': 'LOWER_PRIORITY_STALE_OR_DRIFT',
                 })
-    return {'truth': truth, 'provenance': provenance, 'conflicts': conflicts}
+    return {'truth': truth, 'provenance': provenance, 'conflicts': conflicts, 'fail_closed': any(c.get('classification') == 'EQUAL_PRIORITY_CONFLICT' for c in conflicts)}

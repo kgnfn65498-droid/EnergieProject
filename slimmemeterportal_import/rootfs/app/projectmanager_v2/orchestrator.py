@@ -56,6 +56,7 @@ def build_new_chat_preflight(status: dict, development_context: dict, active: di
     reconciliation = development_context.get('truth_reconciliation') if isinstance(development_context.get('truth_reconciliation'), dict) else {}
     checkpoint = full_kb.get('checkpoint') if isinstance(full_kb.get('checkpoint'), dict) else {}
     release_version = str((status.get('release') or {}).get('version') or '').strip()
+    package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
     ready = bool(
         full_kb.get('status') == 'COMPLETE'
         and full_kb.get('complete') is True
@@ -63,6 +64,9 @@ def build_new_chat_preflight(status: dict, development_context: dict, active: di
         and reconciliation.get('fail_closed') is not True
         and str(checkpoint.get('path') or '').strip()
         and release_version
+        and package.get('inventory_complete') is True
+        and package.get('mandatory_context_complete') is True
+        and package.get('resume_contract', {}).get('fail_closed') is not True
     )
     return {
         'ready': ready,
@@ -81,6 +85,9 @@ def build_new_chat_preflight(status: dict, development_context: dict, active: di
         'knowledgebase_inventory': development_context.get('knowledgebase_inventory'),
         'requirements_count': int(development_context.get('requirements_count') or 0),
         'truth_reconciliation': reconciliation.get('status'),
+        'context_package_sha256': package.get('package_sha256') or '',
+        'mandatory_context_complete': package.get('mandatory_context_complete') is True,
+        'inventory_complete': package.get('inventory_complete') is True,
         'next_action': (active or {}).get('next_action') or status.get('next_action') or '',
         'protected_approval_required': bool(decisions),
     }

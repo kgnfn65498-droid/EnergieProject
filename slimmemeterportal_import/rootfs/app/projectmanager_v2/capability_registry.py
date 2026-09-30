@@ -55,10 +55,14 @@ def discover_capabilities(project_root: Path | str) -> dict[str, Any]:
     ]
     for row in rows:
         row['files_present'] = {rel: present(rel) for rel in row['files']}
+        if row.get('status') != 'FORBIDDEN_HISTORICAL' and not all(row['files_present'].values()):
+            row['declared_status'] = row.get('status')
+            row['status'] = 'MISSING'
+            row['reason'] = 'declared capability is not fully present in live code'
     return {
-        'schema': 'energie_projectmanager_capability_registry_v1',
+        'schema': 'energie_projectmanager_capability_registry_v2',
         'status': 'GREEN' if all(row['status'] != 'MISSING' for row in rows) else 'RED',
-        'source_of_truth': 'live code + proven 32.5.x provenance',
+        'source_of_truth': 'live code presence + historical provenance labels',
         'capabilities': rows,
         'must_consult_before_unavailable_conclusion': True,
     }
