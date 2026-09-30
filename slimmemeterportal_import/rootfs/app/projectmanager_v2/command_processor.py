@@ -492,6 +492,70 @@ class CommandProcessor:
                     } and result.get('status')=='GREEN'
                     result['action']=hint
                     result['transport_intent']='admin_update'
+                elif hint in {
+                    'root_cleanup_inventory','root_cleanup_preview','root_cleanup_prepare_recovery',
+                    'root_cleanup_export_info','root_cleanup_export_chunk','root_cleanup_external_recovery_confirm',
+                    'root_cleanup_apply','root_cleanup_restore','root_cleanup_finalize'
+                }:
+                    if not self.project_root:
+                        raise RuntimeError('32.5.30 ROOT cleanup requires project_root')
+                    from root_cleanup_32530 import (
+                        inventory_root_cleanup, build_root_cleanup_plan, prepare_root_recovery,
+                        root_recovery_export_info, root_recovery_export_chunk, confirm_root_recovery,
+                        apply_root_cleanup, restore_root_cleanup, finalize_root_cleanup,
+                    )
+                    source=str(item.get('source') or '')
+                    if hint=='root_cleanup_inventory':
+                        result=dict(inventory_root_cleanup(self.project_root))
+                    elif hint=='root_cleanup_preview':
+                        result=dict(build_root_cleanup_plan(self.project_root))
+                    elif hint=='root_cleanup_prepare_recovery':
+                        result=dict(prepare_root_recovery(self.project_root))
+                    elif hint=='root_cleanup_export_info':
+                        result=dict(root_recovery_export_info(self.project_root))
+                    elif hint=='root_cleanup_export_chunk':
+                        raw=str(item.get('text') or '').strip()
+                        try:
+                            args=json.loads(raw) if raw else {}
+                        except json.JSONDecodeError as exc:
+                            raise RuntimeError('ROOT cleanup export chunk text must be JSON') from exc
+                        result=dict(root_recovery_export_chunk(
+                            self.project_root,
+                            offset=int(args.get('offset') or 0),
+                            max_bytes=int(args.get('max_bytes') or 32768),
+                        ))
+                    elif hint=='root_cleanup_external_recovery_confirm':
+                        result=dict(confirm_root_recovery(
+                            self.project_root,
+                            explicit_user_text=str(item.get('text') or ''),
+                            source=source,
+                        ))
+                    elif hint=='root_cleanup_apply':
+                        result=dict(apply_root_cleanup(
+                            self.project_root,
+                            explicit_user_text=str(item.get('text') or ''),
+                            source=source,
+                        ))
+                    elif hint=='root_cleanup_restore':
+                        result=dict(restore_root_cleanup(
+                            self.project_root,
+                            run_id=str(item.get('artifact_path') or ''),
+                            explicit_user_text=str(item.get('text') or ''),
+                            source=source,
+                        ))
+                    else:
+                        result=dict(finalize_root_cleanup(
+                            self.project_root,
+                            run_id=str(item.get('artifact_path') or ''),
+                            explicit_user_text=str(item.get('text') or ''),
+                            source=source,
+                        ))
+                    result['executed']=hint in {
+                        'root_cleanup_prepare_recovery','root_cleanup_external_recovery_confirm',
+                        'root_cleanup_apply','root_cleanup_restore','root_cleanup_finalize'
+                    } and result.get('status')=='GREEN'
+                    result['action']=hint
+                    result['transport_intent']='admin_update'
                 elif hint in {'clearup_type3_inventory','clearup_type3_apply','clearup_type3_restore'}:
                     if not self.project_root:
                         raise RuntimeError('Type3 ClearUp requires project_root')
