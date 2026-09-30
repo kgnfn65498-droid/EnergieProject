@@ -6,6 +6,7 @@ from typing import Any
 
 from capability_registry import discover_capabilities
 from development_handover_sync import evaluate_handover_freshness
+from context_package import build_context_package
 
 MASTER_INDEX = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_MASTER_DEVELOPMENT_INDEX.md'
 ACTIVE_CONTEXT = 'Data/03_Systeem/Projectmanager/KnowledgeBase/Development_Lessons/00_ACTIVE_DEVELOPMENT_CONTEXT.md'
@@ -212,7 +213,14 @@ def build_development_context(project_root: Path | str, status: dict | None = No
     full_kb = evaluate_full_kb(root, development_release=True)
     reconciliation = current_truth_reconciliation(root, status)
     capabilities = discover_capabilities(root)
-    return {
+    source_paths = {
+        'master_index': MASTER_INDEX,
+        'active_context': ACTIVE_CONTEXT,
+        'ledger_current_truth': LEDGER_CURRENT,
+        'spock_context': SPOCK_CONTEXT,
+        'current_handover': HANDOVER,
+    }
+    base = {
         'runtime_truth': 'Inbox/projectmanager_v2/RuntimeV2/development_context/current.json',
         'runtime_truth_primary': True,
         'master_index': MASTER_INDEX,
@@ -236,3 +244,17 @@ def build_development_context(project_root: Path | str, status: dict | None = No
         'capability_registry_required_before_unavailable': True,
         'live_handover_primary': True,
     }
+    package = build_context_package(
+        root,
+        status=status if isinstance(status, dict) else {},
+        source_paths=source_paths,
+        requirements=requirements,
+        full_kb=full_kb,
+        truth=reconciliation,
+    )
+    base['context_package'] = package
+    base['inventory_complete'] = package.get('inventory_complete') is True
+    base['mandatory_context_complete'] = package.get('mandatory_context_complete') is True
+    base['delivery_recorded'] = package.get('delivery_recorded') is True
+    base['behavior_evaluation_passed'] = package.get('behavior_evaluation_passed') is True
+    return base
