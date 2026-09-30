@@ -321,6 +321,27 @@ class ProjectmanagerConversationRuntime:
         status = self._load_status()
 
         if is_new_chat_intent(text) or _RESUME_ONLY.match(text) is not None:
+            development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
+            package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
+            preflight = status.get('new_chat_preflight') if isinstance(status.get('new_chat_preflight'), dict) else {}
+            if (
+                preflight.get('ready') is not True
+                or package.get('mandatory_context_complete') is not True
+                or (package.get('resume_contract') or {}).get('fail_closed') is True
+            ):
+                result = {
+                    'status': 'blocked',
+                    'reason': 'projectmanager_context_preflight_not_ready',
+                    'context_gate': {
+                        'preflight_ready': preflight.get('ready') is True,
+                        'mandatory_context_complete': package.get('mandatory_context_complete') is True,
+                        'package_sha256': package.get('package_sha256') or '',
+                        'conflicts_missing_evidence': package.get('conflicts_missing_evidence') or {},
+                    },
+                    'speech': 'Hervatten is geblokkeerd omdat de actuele Projectmanager-context niet eenduidig en compleet is.',
+                }
+                self._store_result(source_channel, turn_id, result)
+                return result
             snapshot = self.handover.create(
                 source_channel=source_channel,
                 trigger_text=text,
