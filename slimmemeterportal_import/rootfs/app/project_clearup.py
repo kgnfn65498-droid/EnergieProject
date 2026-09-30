@@ -551,6 +551,14 @@ def _active_references(
     blocking, informational = dependency_index
     return list(blocking.get(candidate_rel, [])), list(informational.get(candidate_rel, []))
 
+def _clearup_quarantine_root(root: Path, current_version: str) -> Path:
+    return (
+        root / "Data/03_Systeem/Projectmanager/ClearUp/Quarantine"
+        if _version_tuple(current_version) >= (32, 5, 30)
+        else root / "CLEARUP"
+    )
+
+
 def _atomic_rollback_reference(root: Path) -> str | None:
     path = project_system_path(root, 'Inbox/atomic_app_swap_state.json')
     try:
@@ -753,7 +761,7 @@ def apply_clearup_plan(
         candidate_total=sum(1 for item in fresh["items"] if item["disposition"] == "CLEARUP"),
     )
     run_id = _safe_run_id(run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ"))
-    run_root = root / "CLEARUP" / run_id
+    run_root = _clearup_quarantine_root(root, str(fresh["current_version"])) / run_id
     original_root = run_root / "original"
     if run_root.exists():
         raise FileExistsError(run_root)
@@ -857,7 +865,9 @@ def restore_clearup_run(project_root: Path, run_id: str, *, confirmation: str) -
     run_id = _safe_run_id(run_id)
     if confirmation != f"RESTORE CLEARUP {run_id}":
         raise ValueError(f"Bevestiging ongeldig. Verwacht exact: RESTORE CLEARUP {run_id}")
-    manifest_path = root / "CLEARUP" / run_id / "manifest.json"
+    canonical_manifest = root / "Data/03_Systeem/Projectmanager/ClearUp/Quarantine" / run_id / "manifest.json"
+    legacy_manifest = root / "CLEARUP" / run_id / "manifest.json"
+    manifest_path = canonical_manifest if canonical_manifest.is_file() else legacy_manifest
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("schema") != SCHEMA or manifest.get("run_id") != run_id:
         raise RuntimeError("Ongeldig CLEARUP-manifest")
