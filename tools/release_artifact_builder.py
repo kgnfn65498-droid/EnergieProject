@@ -69,6 +69,20 @@ def _verify_release_identity(source_root: Path) -> str:
     return target
 
 
+def _verify_release_chain_contract(source_root: Path) -> None:
+    binding = source_root / "tools/github_publisher_binding.py"
+    tree = ast.parse(binding.read_text(encoding="utf-8"))
+    has_system_path_import = any(
+        isinstance(statement, ast.ImportFrom)
+        and statement.module == "system_path_contract"
+        and any(alias.name == "project_system_path" for alias in statement.names)
+        for statement in tree.body
+    )
+    if not has_system_path_import:
+        raise ValueError("release publisher binding missing project_system_path import")
+
+
+
 def _filtered_release_path(relative: Path) -> bool:
     return (
         _is_forbidden_release_path(relative)
@@ -142,6 +156,7 @@ def build_release_artifact(source_root: Path | str, output_zip: Path | str) -> d
     if not source.is_dir():
         raise ValueError(f"release source directory missing: {source}")
     release_identity = _verify_release_identity(source)
+    _verify_release_chain_contract(source)
     try:
         output.relative_to(source)
     except ValueError:
