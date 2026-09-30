@@ -176,3 +176,39 @@ def test_32530_root_finalize_requires_recovery_for_nonrollback_debt(tmp_path: Pa
     assert final["status"] == "GREEN"
     assert final["delete_performed"] is True
     assert not recognized.exists()
+
+
+def test_32530_root_plan_includes_failed_and_candidate_release_debt(tmp_path: Path):
+    root = tmp_path / "EnergieProject"
+    _seed_release(root)
+    for version in ("32.5.29", "32.5.28", "32.5.27"):
+        _rollback(root, version)
+    failed = root / "App.__failed_32.5.25"
+    candidate = root / "App.__candidate_32.5.31"
+    failed.mkdir()
+    candidate.mkdir()
+    (failed / "payload.txt").write_text("failed", encoding="utf-8")
+    (candidate / "payload.txt").write_text("candidate", encoding="utf-8")
+
+    plan = root_cleanup.build_root_cleanup_plan(root)
+    assert plan["status"] == "READY"
+    by_source = {item["source"]: item for item in plan["actions"]}
+    assert by_source["App.__failed_32.5.25"]["kind"] == "quarantine"
+    assert by_source["App.__failed_32.5.25"]["recovery_required"] is True
+    assert by_source["App.__candidate_32.5.31"]["kind"] == "quarantine"
+    assert by_source["App.__candidate_32.5.31"]["recovery_required"] is True
+
+
+def test_32530_root_plan_fails_closed_on_unclassified_root_item(tmp_path: Path):
+    root = tmp_path / "EnergieProject"
+    _seed_release(root)
+    for version in ("32.5.29", "32.5.28", "32.5.27"):
+        _rollback(root, version)
+    (root / "mystery").mkdir()
+
+    plan = root_cleanup.build_root_cleanup_plan(root)
+    assert plan["status"] == "REVIEW_REQUIRED"
+    assert any(
+        item.get("kind") == "unclassified_root_item" and item.get("source") == "mystery"
+        for item in plan["review"]
+    )
