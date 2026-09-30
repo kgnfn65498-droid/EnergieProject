@@ -82,6 +82,7 @@ class ProjectmanagerAPI:
             'delivery_status': 'UNPROVEN',
             'delivery_receipt_required_at_model_boundary': True,
         })
+
     def delivery_receipt(self, *, invocation_id: str, final_input_sha256: str, consumer: str = 'external_model') -> dict:
         status = self.status()
         development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
@@ -89,6 +90,7 @@ class ProjectmanagerAPI:
         return redact(build_delivery_receipt(
             package, invocation_id=invocation_id, final_input_sha256=final_input_sha256, consumer=consumer
         ))
+
     def decisions(self):
         status = self.status()
         return redact({'items': status.get('decisions_needed', [])})
@@ -134,7 +136,6 @@ class ProjectmanagerAPI:
             'context_gate': self._context_gate(status),
             'next_action': status.get('next_action'),
             'needs_human': status.get('needs_human', False),
-            'context_gate': self._context_gate(status),
             'decisions_needed': status.get('decisions_needed', []),
         }
 
@@ -149,5 +150,6 @@ class ProjectmanagerAPI:
             'active_task': task.get('title'),
             'blockers': task.get('blockers', []),
             'needs_human': status.get('needs_human', False),
+            'context_gate': self._context_gate(status),
             'open_handoffs': len(status.get('handoffs', [])),
         }
