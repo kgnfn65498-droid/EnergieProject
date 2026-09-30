@@ -153,7 +153,10 @@ def _inventory_root(root: Path, relative: str) -> dict[str, Any]:
     raw = json.dumps(rows, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
     return {
         'status': 'GREEN' if rows and not errors else ('PARTIAL' if rows else 'RED'),
-        'root': relative, 'count': len(rows), 'files': rows, 'errors': errors,
+        'root': relative,
+        'count': len(rows),
+        'paths': [row['path'] for row in rows],
+        'errors': errors,
         'inventory_sha256': __import__('hashlib').sha256(raw).hexdigest() if rows else '',
     }
 
