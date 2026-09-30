@@ -200,14 +200,55 @@ def current_truth_reconciliation(project_root: Path | str, status: dict | None =
                 'checkpoint_path': cp.get('path'),
                 'reasons': list(handover_freshness.get('reasons') or []),
             })
+    active = status.get('active_task') if isinstance(status.get('active_task'), dict) else {}
+    cp_next = str(cp_payload.get('next_action') or '').strip()
+    active_next = str(active.get('next_action') or status.get('next_action') or '').strip()
+    cp_blockers = list(cp_payload.get('blockers') or []) if isinstance(cp_payload.get('blockers'), list) else []
+    active_blockers = list(active.get('blockers') or []) if isinstance(active.get('blockers'), list) else []
+    stale_lower_priority: list[dict[str, Any]] = []
+    if cp_next and active_next and cp_next != active_next:
+        stale_lower_priority.append({
+            'claim': 'next_action',
+            'authoritative_source': cp.get('path') or 'highest_checkpoint',
+            'authoritative_value': cp_next,
+            'lower_priority_source': 'active_task',
+            'lower_priority_value': active_next,
+        })
+    if cp_blockers and active_blockers and cp_blockers != active_blockers:
+        stale_lower_priority.append({
+            'claim': 'blockers',
+            'authoritative_source': cp.get('path') or 'highest_checkpoint',
+            'authoritative_value': cp_blockers,
+            'lower_priority_source': 'active_task',
+            'lower_priority_value': active_blockers,
+        })
+    governing_claims = {
+        'live_release': live,
+        'target_release': cp_target or str(active.get('release_version') or ''),
+        'artifact': str(cp_payload.get('artifact') or cp_payload.get('final_artifact') or cp_payload.get('predecessor_artifact') or ''),
+        'artifact_sha256': str(cp_payload.get('artifact_sha256') or cp_payload.get('final_artifact_sha256') or cp_payload.get('predecessor_sha256') or ''),
+        'checkpoint': cp.get('path') or '',
+        'task_id': active.get('id'),
+        'task_title': active.get('title'),
+        'blockers': cp_blockers if cp_blockers else active_blockers,
+        'completed': list(cp_payload.get('completed') or []) if isinstance(cp_payload.get('completed'), list) else [],
+        'pending': list(cp_payload.get('pending') or []) if isinstance(cp_payload.get('pending'), list) else [],
+        'first_unproven_action': cp_next or active_next,
+    }
+    if not governing_claims['first_unproven_action']:
+        conflicts.append({'kind': 'first_unproven_action_missing', 'checkpoint_path': cp.get('path')})
+
     return {
-        'schema': 'energie_development_truth_reconciliation_v1',
+        'schema': 'energie_development_truth_reconciliation_v2',
         'status': 'RED' if conflicts else 'GREEN',
         'fail_closed': bool(conflicts),
         'live_release': live,
         'status_release': status_release,
         'highest_checkpoint': cp.get('path') or '',
         'handover_freshness': handover_freshness,
+        'governing_claims': governing_claims,
+        'first_unproven_action': governing_claims['first_unproven_action'],
+        'superseded_lower_priority_claims': stale_lower_priority,
         'conflicts': conflicts,
     }
 
