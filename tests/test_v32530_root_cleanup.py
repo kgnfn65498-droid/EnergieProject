@@ -24,7 +24,10 @@ def _write_json(path: Path, payload: dict) -> None:
 
 
 def _seed_release(root: Path) -> None:
-    for rel in ("App", "Backups", "Data", "Inbox/processing", "Inbox/incoming", "Inbox/processed", "Inbox/failed", "Infra"):
+    for rel in (
+        "App/slimmemeterportal_import/rootfs/app/projectmanager_v2",
+        "Backups", "Data", "Inbox/processing", "Inbox/incoming", "Inbox/processed", "Inbox/failed", "Infra",
+    ):
         (root / rel).mkdir(parents=True, exist_ok=True)
     (root / "App/VERSIE.txt").write_text("32.5.30\n", encoding="utf-8")
     _write_json(root / "Inbox/release_controller/current.json", {
