@@ -64,6 +64,12 @@ def root_clearup_candidates(project_root: Path) -> list[dict[str, Any]]:
                 "reason": "settled_candidate_release_root_debt",
                 "category": "root_candidate_release_debt",
             })
+        elif classification == "managed_failed_release":
+            result.append({
+                "source_path": child.name,
+                "reason": "settled_failed_release_root_debt",
+                "category": "failed_release_root_debt",
+            })
         elif classification == "development_debt":
             result.append({
                 "source_path": child.name,
