@@ -27,6 +27,7 @@ def _fixture(tmp_path):
         "requirements/HARD_REQUIREMENT_SILENT_DEVELOPMENT_MODE_20260913.md",
         "requirements/HARD_REQUIREMENT_UNIFIED_DEVELOPMENT_LEDGER.md",
         "requirements/HARD_REQUIREMENT_PROACTIVE_PM_KB_HANDOVER_TRUTH.md",
+        "requirements/HARD_REQUIREMENT_NO_USER_TERMINAL.md",
         "requirements/HARD_REQUIREMENT_CLEARUP_END_TO_END_EXECUTION_PROOF.md",
     ]
     for p in reqs:
@@ -117,7 +118,9 @@ def test_context_package_contains_refs_not_full_source_text(tmp_path):
     import json
     encoded = json.dumps(pkg, ensure_ascii=False).encode("utf-8")
     assert len(encoded) < 100_000
-    assert len(pkg["mandatory_sources"][0]["passage"]) <= 2400
+    assert len(pkg["mandatory_sources"][0]["passage"]) <= 4000
+    assert pkg["mandatory_context_complete"] is False
+    assert pkg["mandatory_sources"][0]["passage_truncated"] is True
 
 
 def test_checkpoint_governing_action_wins_over_stale_active_action(tmp_path):
