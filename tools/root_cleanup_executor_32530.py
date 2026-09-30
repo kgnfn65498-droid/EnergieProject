@@ -57,28 +57,30 @@ def _sha(path: Path) -> str:
 
 
 def _tree_sha(path: Path) -> str:
-    if path.is_symlink():
-        raise RootCleanupRejected(f"symlink refused:{path}")
-    if not path.exists():
-        raise RootCleanupRejected(f"path missing:{path}")
+    path = Path(path)
     digest = hashlib.sha256()
+    if path.is_symlink():
+        digest.update(b"SYMLINK\0")
+        digest.update(os.readlink(path).encode("utf-8", errors="surrogateescape"))
+        return digest.hexdigest()
     if path.is_file():
         digest.update(b"FILE\0")
-        digest.update(path.name.encode("utf-8", errors="surrogateescape"))
-        digest.update(b"\0")
         digest.update(_sha(path).encode("ascii"))
         return digest.hexdigest()
-    for item in [path, *sorted(path.rglob("*"), key=lambda p: p.as_posix())]:
+    if not path.is_dir():
+        raise RootCleanupRejected(f"path missing:{path}")
+    digest.update(b"DIR\0")
+    for item in sorted(path.rglob("*"), key=lambda p: p.relative_to(path).as_posix()):
+        rel = item.relative_to(path).as_posix().encode("utf-8", errors="surrogateescape")
         if item.is_symlink():
-            raise RootCleanupRejected(f"symlink refused:{item}")
-        rel = item.relative_to(path).as_posix()
-        if item.is_dir():
-            digest.update(b"DIR\0" + rel.encode("utf-8", errors="surrogateescape") + b"\0")
+            digest.update(b"L\0" + rel + b"\0")
+            digest.update(os.readlink(item).encode("utf-8", errors="surrogateescape"))
+        elif item.is_dir():
+            digest.update(b"D\0" + rel + b"\0")
         elif item.is_file():
-            digest.update(b"FILE\0" + rel.encode("utf-8", errors="surrogateescape") + b"\0")
+            digest.update(b"F\0" + rel + b"\0")
             digest.update(_sha(item).encode("ascii"))
     return digest.hexdigest()
-
 
 def _load_service(root: Path):
     app_root = root / "App/slimmemeterportal_import/rootfs/app"
