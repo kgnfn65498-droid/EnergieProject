@@ -141,7 +141,8 @@ def test_32530_root_apply_updates_atomic_path_and_restore_roundtrips(tmp_path: P
     assert atomic["rollback_path"] == "App.__rollback_32.5.29"
 
 
-def test_32530_root_finalize_requires_recovery_for_nonrollback_debt(tmp_path: Path):
+def test_32530_root_finalize_requires_recovery_for_nonrollback_debt(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("ENERGIE_ROOT_CLEANUP_POST_DELETE_SOAK_SECONDS", "0.05")
     root = tmp_path / "EnergieProject"
     _seed_release(root)
     for version in ("32.5.29", "32.5.28", "32.5.27", "32.5.26"):
