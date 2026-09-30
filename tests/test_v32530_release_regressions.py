@@ -172,3 +172,32 @@ def test_32530_release_builder_refuses_missing_publisher_system_path_import(tmp_
     target.write_text(text, encoding="utf-8")
     with pytest.raises(ValueError, match="project_system_path import"):
         _verify_release_chain_contract(root)
+
+
+def test_32530_incoming_claim_moves_exact_artifact_to_processing(tmp_path):
+    import hashlib
+    from release_controller import ReleaseController
+    from release_controller_service import ReleaseControllerService
+
+    root = tmp_path
+    (root / "Inbox/incoming").mkdir(parents=True)
+    (root / "Inbox/processing").mkdir(parents=True)
+    (root / "Inbox/processed").mkdir(parents=True)
+    name = "EnergieProject_v32.5.30.zip"
+    incoming = root / "Inbox/incoming" / name
+    incoming.write_bytes(b"exact-32530-artifact")
+    sha = hashlib.sha256(incoming.read_bytes()).hexdigest()
+
+    state = ReleaseController().new_state(
+        from_version="32.5.29",
+        to_version="32.5.30",
+        artifact_sha256=sha,
+        artifact_name=name,
+    )
+    service = ReleaseControllerService(root, adapter=None)
+
+    assert service._claim(state) is True
+    processing = root / "Inbox/processing" / name
+    assert not incoming.exists()
+    assert processing.is_file()
+    assert hashlib.sha256(processing.read_bytes()).hexdigest() == sha
