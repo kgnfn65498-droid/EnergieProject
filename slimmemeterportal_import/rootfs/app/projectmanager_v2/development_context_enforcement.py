@@ -331,6 +331,7 @@ def build_development_context(project_root: Path | str, status: dict | None = No
     source_paths = {
         'master_index': MASTER_INDEX,
         'active_context': ACTIVE_CONTEXT,
+        'manifest': MANIFEST,
         'ledger_current_truth': LEDGER_CURRENT,
         'spock_context': SPOCK_CONTEXT,
         'current_handover': HANDOVER,
