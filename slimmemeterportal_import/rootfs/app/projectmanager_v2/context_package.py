@@ -9,7 +9,7 @@ from typing import Any
 SCHEMA = "energie_pm_context_package_v3"
 COMPILER_VERSION = "2026-09-30.v3"
 MAX_PACKAGE_BYTES = 48_000
-MAX_MANDATORY_PASSAGE_CHARS = 2_400
+MAX_MANDATORY_PASSAGE_CHARS = 4_000
 MAX_EVIDENCE_ITEMS = 8
 MAX_EVIDENCE_SNIPPET_CHARS = 900
 
@@ -75,28 +75,50 @@ def _scope_needles(task_text: str) -> set[str]:
             needles.update(scopes)
     return needles
 
-def _normative_passage(text: str) -> str:
+def _managed_blocks(text: str) -> list[str]:
+    blocks = []
+    lines = text.splitlines()
+    start = None
+    marker = ""
+    for index, line in enumerate(lines):
+        if "<!-- PMV2:" in line and ":BEGIN -->" in line:
+            start = index
+            marker = line.replace(":BEGIN -->", "")
+            continue
+        if start is not None and marker and line.startswith(marker) and ":END -->" in line:
+            blocks.append("\n".join(lines[start:index + 1]).strip())
+            start = None
+            marker = ""
+    return blocks
+
+
+def _normative_passage(text: str) -> tuple[str, bool]:
     if not text.strip():
-        return ""
-    sections: list[str] = []
-    current: list[str] = []
-    for line in text.splitlines():
-        if line.startswith("#") and current:
+        return "", False
+    managed = _managed_blocks(text)
+    if managed:
+        value = "\n\n".join(managed).strip()
+    else:
+        sections: list[str] = []
+        current: list[str] = []
+        for line in text.splitlines():
+            if line.startswith("#") and current:
+                sections.append("\n".join(current).strip())
+                current = [line]
+            else:
+                current.append(line)
+        if current:
             sections.append("\n".join(current).strip())
-            current = [line]
-        else:
-            current.append(line)
-    if current:
-        sections.append("\n".join(current).strip())
-    selected = []
-    for section in sections:
-        lowered = section.lower()
-        if any(marker in lowered for marker in _NORMATIVE):
-            selected.append(section)
-    if not selected and sections:
-        selected = sections[:1]
-    value = "\n\n".join(selected).strip()
-    return value[:MAX_MANDATORY_PASSAGE_CHARS]
+        selected = []
+        for section in sections:
+            lowered = section.lower()
+            if any(marker in lowered for marker in _NORMATIVE):
+                selected.append(section)
+        if not selected and sections:
+            selected = sections[:1]
+        value = "\n\n".join(selected).strip()
+    truncated = len(value) > MAX_MANDATORY_PASSAGE_CHARS
+    return value[:MAX_MANDATORY_PASSAGE_CHARS], truncated
 
 def _select_requirements(root: Path, requirements: list[str], task_text: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     discovered = {Path(p).name: p for p in requirements}
@@ -114,10 +136,11 @@ def _select_requirements(root: Path, requirements: list[str], task_text: str) ->
             reasons.append("lexical")
         if reasons:
             item = _read(root, relative, with_text=True)
-            passage = _normative_passage(str(item.pop("text", "") or ""))
+            passage, passage_truncated = _normative_passage(str(item.pop("text", "") or ""))
             item["selection_reason"] = sorted(set(reasons))
             item["passage"] = passage
             item["passage_sha256"] = hashlib.sha256(passage.encode("utf-8")).hexdigest() if passage else ""
+            item["passage_truncated"] = passage_truncated
             mandatory.append(item)
         else:
             deferred.append(_read(root, relative, with_text=False))
@@ -232,7 +255,7 @@ def compact_package(package: dict[str, Any]) -> dict[str, Any]:
         "active_task": package.get("active_task") or {},
         "resume_contract": package.get("resume_contract") or {},
         "mandatory_source_refs": [
-            {k: item.get(k) for k in ("path", "status", "sha256", "bytes", "selection_reason", "passage_sha256")}
+            {k: item.get(k) for k in ("path", "status", "sha256", "bytes", "selection_reason", "passage_sha256", "passage_truncated")}
             for item in (package.get("mandatory_sources") or []) if isinstance(item, dict)
         ],
         "mandatory_requirement_refs": [
@@ -266,12 +289,13 @@ def build_context_package(
         if not source_paths.get(name):
             continue
         item = _read(root, source_paths[name], with_text=True)
-        passage = _normative_passage(str(item.pop("text", "") or ""))
+        passage, passage_truncated = _normative_passage(str(item.pop("text", "") or ""))
         item["selection_reason"] = ["mandatory_core:" + name]
         item["passage"] = passage
         item["passage_sha256"] = hashlib.sha256(passage.encode("utf-8")).hexdigest() if passage else ""
+        item["passage_truncated"] = passage_truncated
         core_sources.append(item)
-    invalid = [x["path"] for x in core_sources + mandatory_requirements if x.get("status") != "GREEN" or not str(x.get("passage") or "").strip()]
+    invalid = [x["path"] for x in core_sources + mandatory_requirements if x.get("status") != "GREEN" or not str(x.get("passage") or "").strip() or x.get("passage_truncated") is True]
     invalid.extend("requirement:" + name for name in missing_registry)
     invalid.extend("source_key:" + name for name in missing_source_keys)
 
