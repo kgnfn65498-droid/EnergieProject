@@ -98,6 +98,31 @@ def highest_checkpoint(project_root: Path | str) -> dict[str, Any]:
     return {'status': 'GREEN', 'path': selected.relative_to(root).as_posix(), 'mtime_ns': _mtime, 'payload': payload, 'invalid_candidates': invalid}
 
 
+def _inventory_root(root: Path, relative: str) -> dict[str, Any]:
+    base = root / relative
+    if not _safe_dir(base):
+        return {'status': 'MISSING', 'root': relative, 'count': 0, 'files': [], 'inventory_sha256': ''}
+    rows = []
+    errors = []
+    try:
+        for path in sorted(base.rglob('*')):
+            if path.is_symlink() or not path.is_file():
+                continue
+            try:
+                data = path.read_bytes()
+            except OSError as exc:
+                errors.append({'path': path.relative_to(root).as_posix(), 'reason': type(exc).__name__})
+                continue
+            rows.append({'path': path.relative_to(root).as_posix(), 'bytes': len(data), 'sha256': __import__('hashlib').sha256(data).hexdigest()})
+    except OSError as exc:
+        errors.append({'path': relative, 'reason': type(exc).__name__})
+    raw = json.dumps(rows, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    return {
+        'status': 'GREEN' if rows and not errors else ('PARTIAL' if rows else 'RED'),
+        'root': relative, 'count': len(rows), 'files': rows, 'errors': errors,
+        'inventory_sha256': __import__('hashlib').sha256(raw).hexdigest() if rows else '',
+    }
+
 def _has_content(root: Path, relative: str) -> bool:
     path = root / relative
     if not _safe_dir(path):
@@ -122,9 +147,11 @@ def evaluate_full_kb(project_root: Path | str, *, development_release: bool = Tr
     hard = discover_hard_requirements(root)
     cp = highest_checkpoint(root)
     agreements = _project_agreements_path(root)
+    reporting_inventory = _inventory_root(root, REPORT_KB)
+    technical_inventory = _inventory_root(root, PM_KB)
     checks = {
-        'reporting_kb_root': _has_content(root, REPORT_KB),
-        'technical_pm_kb_root': _has_content(root, PM_KB),
+        'reporting_kb_root': reporting_inventory.get('status') == 'GREEN',
+        'technical_pm_kb_root': technical_inventory.get('status') == 'GREEN',
         'requirements_root': _safe_dir(root / REQUIREMENTS_DIR) and bool(requirements),
         'all_hard_requirements_discovered': bool(hard) and set(hard).issubset(set(requirements)),
         'current_handover': _regular(root / HANDOVER),
@@ -164,6 +191,11 @@ def evaluate_full_kb(project_root: Path | str, *, development_release: bool = Tr
         'hard_requirements_count': len(hard),
         'checkpoint': {k: cp.get(k) for k in ('status', 'path', 'mtime_ns')},
         'project_afspraken': agreements,
+        'inventory': {
+            'reporting_kb': reporting_inventory,
+            'technical_pm_kb': technical_inventory,
+            'requirements_inventory_sha256': __import__('hashlib').sha256(json.dumps(requirements, ensure_ascii=False, sort_keys=True).encode('utf-8')).hexdigest(),
+        },
     }
 
 
