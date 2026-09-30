@@ -137,7 +137,9 @@ def evaluate_handover_freshness(project_root: Path | str, *, checkpoint: dict[st
         handover = ""
         reasons.append("handover_missing_or_invalid")
 
-    if pointer:
+    if not pointer:
+        reasons.append("pointer_empty_or_missing")
+    else:
         if str(pointer.get("source_generation") or "") != expected["source_generation"]:
             reasons.append("pointer_generation_mismatch")
         if str(pointer.get("checkpoint") or "") != expected["checkpoint"]:
@@ -151,7 +153,9 @@ def evaluate_handover_freshness(project_root: Path | str, *, checkpoint: dict[st
             if pointer.get(field) is not expected.get(field):
                 reasons.append(f"pointer_{field}_mismatch")
 
-    if handover:
+    if not handover.strip():
+        reasons.append("handover_empty_or_missing")
+    else:
         if f"HANDOVER_GENERATION:{expected['source_generation']}" not in handover:
             reasons.append("handover_generation_mismatch")
         if f"CHECKPOINT_SHA256:{expected['checkpoint_sha256']}" not in handover:
@@ -162,6 +166,9 @@ def evaluate_handover_freshness(project_root: Path | str, *, checkpoint: dict[st
             reasons.append("handover_live_release_mismatch")
         if f"Target release: **{expected['target_release']}**" not in handover:
             reasons.append("handover_target_release_mismatch")
+        expected_next = expected.get('next_action') or 'No next action recorded; fail closed until checkpoint is complete.'
+        if expected_next not in handover:
+            reasons.append("handover_next_action_mismatch")
 
     return {
         "status": "GREEN" if not reasons else "RED",
