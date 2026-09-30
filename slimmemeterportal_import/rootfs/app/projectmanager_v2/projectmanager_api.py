@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from secret_guard import redact
+from context_package import compact_package
 
 
 class ProjectmanagerAPI:
@@ -46,6 +47,40 @@ class ProjectmanagerAPI:
         payload = self._read_dict('handover/current.json')
         return redact(payload) if isinstance(payload, dict) else {'state': 'NOT_READY'}
 
+    @staticmethod
+    def _context_gate(status: dict) -> dict:
+        development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
+        package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
+        preflight = status.get('new_chat_preflight') if isinstance(status.get('new_chat_preflight'), dict) else {}
+        ready = bool(
+            preflight.get('ready') is True
+            and package.get('mandatory_context_complete') is True
+            and (package.get('resume_contract') or {}).get('fail_closed') is not True
+        )
+        return {
+            'ready': ready,
+            'preflight_ready': preflight.get('ready') is True,
+            'inventory_complete': package.get('inventory_complete') is True,
+            'mandatory_context_complete': package.get('mandatory_context_complete') is True,
+            'package_sha256': package.get('package_sha256') or '',
+            'first_unproven_action': (package.get('resume_contract') or {}).get('first_unproven_action') or '',
+            'conflicts_missing_evidence': package.get('conflicts_missing_evidence') or {},
+        }
+
+    def resume_context(self):
+        status = self.status()
+        gate = self._context_gate(status)
+        development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
+        package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
+        return redact({
+            'schema': 'energie_projectmanager_resume_delivery_v1',
+            'state': 'READY' if gate.get('ready') else 'BLOCKED',
+            'context_gate': gate,
+            'context_package': package if gate.get('ready') else compact_package(package),
+            'runtime_handover': self.handover(),
+            'delivery_status': 'UNPROVEN',
+            'delivery_receipt_required_at_model_boundary': True,
+        })
     def decisions(self):
         status = self.status()
         return redact({'items': status.get('decisions_needed', [])})
@@ -88,8 +123,10 @@ class ProjectmanagerAPI:
             'development_efficiency': status.get('development_efficiency') or {},
             'acceptance_matrix': status.get('acceptance_matrix') or {},
             'development_context': status.get('development_context') or {},
+            'context_gate': self._context_gate(status),
             'next_action': status.get('next_action'),
             'needs_human': status.get('needs_human', False),
+            'context_gate': self._context_gate(status),
             'decisions_needed': status.get('decisions_needed', []),
         }
 
