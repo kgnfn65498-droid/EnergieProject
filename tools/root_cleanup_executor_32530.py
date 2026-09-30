@@ -344,6 +344,10 @@ def _restore(root: Path, state: dict[str, Any], service) -> dict[str, Any]:
         if _tree_sha(target) != str(entry.get("tree_sha256") or ""):
             raise RootCleanupRejected(f"ROOT restore hash mismatch:{entry.get('source')}")
 
+    quarantine = root / str(state.get("quarantine_root") or "")
+    if quarantine.is_symlink() or not quarantine.is_dir():
+        raise RootCleanupRejected("ROOT restore quarantine root missing/unsafe")
+
     restored: list[dict[str, Any]] = []
     try:
         for entry in reversed(moves):
@@ -358,8 +362,7 @@ def _restore(root: Path, state: dict[str, Any], service) -> dict[str, Any]:
                 raise RootCleanupRejected("atomic rollback_path changed after ROOT apply; restore refused")
             atomic["rollback_path"] = state.get("atomic_rollback_path_before")
             _atomic_json(_atomic_path(root), atomic)
-        quarantine = root / str(state.get("quarantine_root") or "")
-        if quarantine.exists() and not quarantine.is_symlink():
+        if quarantine.exists():
             shutil.rmtree(quarantine)
         updated = dict(state)
         updated["status"] = "RESTORED"
