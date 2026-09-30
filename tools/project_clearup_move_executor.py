@@ -62,6 +62,44 @@ class RequestRejected(ValueError):
     pass
 
 
+def _version_tuple(value: str) -> tuple[int, ...]:
+    try:
+        return tuple(int(part) for part in str(value).strip().split("."))
+    except ValueError:
+        return ()
+
+
+def _active_release_version(root: Path) -> str:
+    try:
+        return (root / "App/VERSIE.txt").read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise RequestRejected(f"actieve releaseversie onleesbaar: {exc}") from exc
+
+
+def _clearup_quarantine_root(root: Path) -> Path:
+    version = _active_release_version(root)
+    return (
+        root / "Data/03_Systeem/Projectmanager/ClearUp/Quarantine"
+        if _version_tuple(version) >= (32, 5, 30)
+        else root / "CLEARUP"
+    )
+
+
+def _atomic_rollback_path(root: Path, atomic: dict[str, Any], from_version: str) -> Path:
+    raw = str(atomic.get("rollback_path") or "").strip()
+    if not raw:
+        raw = f"App.__rollback_{from_version}"
+    candidate = Path(raw)
+    if candidate.is_absolute():
+        try:
+            candidate = candidate.resolve(strict=False).relative_to(root.resolve())
+        except (OSError, ValueError) as exc:
+            raise RequestRejected("atomic rollback_path ligt buiten projectroot") from exc
+    if ".." in candidate.parts or not candidate.parts:
+        raise RequestRejected("atomic rollback_path ongeldig")
+    return root / candidate
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -148,9 +186,9 @@ def _validate_common(root: Path, request: dict[str, Any]) -> tuple[str, str, str
         from_version = str(atomic.get("from_version") or "").strip()
         if not from_version or from_version == release_version:
             raise RequestRejected("pre-acceptance CLEARUP mist geldige source rollback-versie")
-        rollback = root / f"App.__rollback_{from_version}"
+        rollback = _atomic_rollback_path(root, atomic, from_version)
         if rollback.is_symlink() or not rollback.is_dir():
-            raise RequestRejected("pre-acceptance CLEARUP vereist de exacte rollbackdirectory")
+            raise RequestRejected("pre-acceptance CLEARUP vereist de exacte rollbackdirectory uit atomic state")
         rollback_version = rollback / "VERSIE.txt"
         if not rollback_version.is_file() or rollback_version.read_text(encoding="utf-8").strip() != from_version:
             raise RequestRejected("pre-acceptance CLEARUP rollbackversie is ongeldig")
@@ -168,9 +206,11 @@ def _validate_common(root: Path, request: dict[str, Any]) -> tuple[str, str, str
         if hold.get("active") is not False or str(hold.get("validation_status") or "").lower() != "ok":
             raise RequestRejected("release validation hold is niet vrijgegeven")
 
-    clearup_root = root / "CLEARUP"
+    clearup_root = _clearup_quarantine_root(root)
+    if _version_tuple(release_version) >= (32, 5, 30) and not clearup_root.exists():
+        clearup_root.mkdir(parents=True, exist_ok=False)
     if clearup_root.is_symlink() or not clearup_root.is_dir():
-        raise RequestRejected("CLEARUP-root ontbreekt, is geen directory of is een symlink")
+        raise RequestRejected("CLEARUP-quarantaine ontbreekt, is geen directory of is een symlink")
     try:
         if clearup_root.stat().st_dev != root.stat().st_dev:
             raise RequestRejected("CLEARUP-root staat niet op hetzelfde filesystem")
@@ -1458,7 +1498,7 @@ def execute_type2(root: Path, request: dict[str, Any]) -> tuple[str, dict[str, A
                 marker=_read_json(_type2_activation_path(root,key))
                 if marker.get("active") is not True or marker.get("destination") != item["destination"] or marker.get("plan_sha256") != plan["plan_sha256"]:
                     raise RequestRejected(f"TYPE2 path activation not proven: {key}")
-        clearup_root = root / "CLEARUP"
+        clearup_root = _clearup_quarantine_root(root)
         clearup_root.mkdir(parents=True, exist_ok=True)
         if clearup_root.is_symlink() or clearup_root.stat().st_dev != root.stat().st_dev:
             raise RequestRejected("TYPE2 CLEARUP root unsafe")
@@ -1772,7 +1812,7 @@ def execute_scoped_cleanup(root: Path, request: dict[str, Any]) -> tuple[str, di
 
     plan = payload
     run_id = f"InboxCleanup_32.5.26_{request_id}"
-    run_root = root / "CLEARUP" / run_id
+    run_root = _clearup_quarantine_root(root) / run_id
     original_root = run_root / "original"
     if run_root.exists() or run_root.is_symlink():
         raise RequestRejected("scoped cleanup run root already exists/unsafe")
@@ -1927,7 +1967,7 @@ def execute_type1_delete(root: Path, request: dict[str, Any]) -> tuple[str, dict
     if not isinstance(expected_rows, list) or expected_rows != live_rows or staged_rows != live_rows:
         raise RequestRejected("TYPE1 recovery/live hashrevalidatie mismatch")
 
-    clearup_root = root / "CLEARUP"
+    clearup_root = _clearup_quarantine_root(root)
     clearup_root.mkdir(parents=True, exist_ok=True)
     if clearup_root.is_symlink() or not clearup_root.is_dir():
         raise RequestRejected("TYPE1 CLEARUP-root ongeldig")
