@@ -1,0 +1,76 @@
+from pathlib import Path
+import sys
+
+PM = Path(__file__).resolve().parents[1] / "slimmemeterportal_import/rootfs/app/projectmanager_v2"
+sys.path.insert(0, str(PM))
+
+from context_package import build_context_package
+
+def _write(root, relative, text="ok"):
+    p = root / relative
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text, encoding="utf-8")
+
+def _fixture(tmp_path):
+    paths = {
+        "master_index": "kb/00_MASTER_DEVELOPMENT_INDEX.md",
+        "active_context": "kb/00_ACTIVE_DEVELOPMENT_CONTEXT.md",
+        "ledger_current_truth": "kb/01A_LEDGER_CURRENT_TRUTH.md",
+        "spock_context": "kb/04_SPOCK_CONTEXT.md",
+        "current_handover": "handover/CURRENT_DEVELOPMENT_HANDOVER.md",
+    }
+    for p in paths.values():
+        _write(tmp_path, p)
+    reqs = [
+        "requirements/HARD_REQUIREMENT_NEW_CHAT_IMMEDIATE_RESUME.md",
+        "requirements/HARD_REQUIREMENT_STABLE_DEVELOPMENT_METHOD.md",
+        "requirements/HARD_REQUIREMENT_SILENT_DEVELOPMENT_MODE_20260913.md",
+        "requirements/HARD_REQUIREMENT_UNIFIED_DEVELOPMENT_LEDGER.md",
+        "requirements/HARD_REQUIREMENT_PROACTIVE_PM_KB_HANDOVER_TRUTH.md",
+        "requirements/HARD_REQUIREMENT_CLEARUP_END_TO_END_EXECUTION_PROOF.md",
+    ]
+    for p in reqs:
+        _write(tmp_path, p, p)
+    status = {
+        "release": {"version": "9.9.9"},
+        "active_task": {"id": "t1", "title": "index", "status": "ACTIVE", "next_action": "continue index work", "blockers": []},
+    }
+    full = {"complete": True, "checkpoint": {"path": "checkpoint.json"}}
+    truth = {"status": "GREEN", "fail_closed": False, "live_release": "9.9.9", "conflicts": []}
+    return paths, reqs, status, full, truth
+
+def test_mandatory_core_is_complete_and_history_is_deferred(tmp_path):
+    paths, reqs, status, full, truth = _fixture(tmp_path)
+    pkg = build_context_package(tmp_path, status=status, source_paths=paths, requirements=reqs, full_kb=full, truth=truth)
+    assert pkg["inventory_complete"] is True
+    assert pkg["mandatory_context_complete"] is True
+    assert pkg["resume_contract"]["command"] == "verder"
+    assert pkg["resume_contract"]["first_unproven_action"] == "continue index work"
+    mandatory = {Path(x["path"]).name for x in pkg["mandatory_requirements"]}
+    assert "HARD_REQUIREMENT_NEW_CHAT_IMMEDIATE_RESUME.md" in mandatory
+    assert "HARD_REQUIREMENT_STABLE_DEVELOPMENT_METHOD.md" in mandatory
+    assert any(Path(x["path"]).name == "HARD_REQUIREMENT_CLEARUP_END_TO_END_EXECUTION_PROOF.md" for x in pkg["task_evidence"])
+
+def test_missing_mandatory_source_fails_closed(tmp_path):
+    paths, reqs, status, full, truth = _fixture(tmp_path)
+    (tmp_path / paths["active_context"]).unlink()
+    pkg = build_context_package(tmp_path, status=status, source_paths=paths, requirements=reqs, full_kb=full, truth=truth)
+    assert pkg["mandatory_context_complete"] is False
+    assert pkg["resume_contract"]["fail_closed"] is True
+    assert paths["active_context"] in pkg["conflicts_missing_evidence"]["missing"]
+
+def test_truth_conflict_fails_closed(tmp_path):
+    paths, reqs, status, full, truth = _fixture(tmp_path)
+    truth["status"] = "RED"
+    truth["fail_closed"] = True
+    truth["conflicts"] = [{"kind": "test"}]
+    pkg = build_context_package(tmp_path, status=status, source_paths=paths, requirements=reqs, full_kb=full, truth=truth)
+    assert pkg["mandatory_context_complete"] is False
+    assert pkg["resume_contract"]["fail_closed"] is True
+    assert pkg["conflicts_missing_evidence"]["conflicts"] == [{"kind": "test"}]
+
+def test_package_has_source_hashes(tmp_path):
+    paths, reqs, status, full, truth = _fixture(tmp_path)
+    pkg = build_context_package(tmp_path, status=status, source_paths=paths, requirements=reqs, full_kb=full, truth=truth)
+    assert len(pkg["package_sha256"]) == 64
+    assert all(len(x["sha256"]) == 64 for x in pkg["mandatory_sources"])
