@@ -61,6 +61,26 @@ def discover_hard_requirements(project_root: Path | str) -> list[str]:
     return [p for p in discover_requirements(project_root) if Path(p).name.startswith('HARD_REQUIREMENT_')]
 
 
+def _checkpoint_rank(payload: dict[str, Any], mtime_ns: int) -> tuple[int, float, str]:
+    sequence = payload.get('checkpoint_sequence')
+    try:
+        if sequence not in (None, ''):
+            return (3, float(sequence), 'checkpoint_sequence')
+    except (TypeError, ValueError):
+        pass
+    for key in ('generated_at', 'created_at', 'updated_at', 'timestamp'):
+        value = str(payload.get(key) or '').strip()
+        if not value:
+            continue
+        try:
+            from datetime import datetime
+            parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            return (2, parsed.timestamp(), key)
+        except ValueError:
+            continue
+    return (1, float(mtime_ns), 'legacy_mtime_fallback')
+
+
 def highest_checkpoint(project_root: Path | str) -> dict[str, Any]:
     root = Path(project_root)
     cp_root = root / CHECKPOINT_DIR
@@ -83,19 +103,33 @@ def highest_checkpoint(project_root: Path | str) -> dict[str, Any]:
             if not str(raw.get('status') or '').strip():
                 invalid.append({'path': path.name, 'reason': 'status_missing'})
                 continue
-            valid.append((st.st_mtime_ns, path.name, path, raw))
+            rank = _checkpoint_rank(raw, st.st_mtime_ns)
+            valid.append((rank, path.name, path, raw, st.st_mtime_ns))
         except (OSError, ValueError, json.JSONDecodeError, UnicodeError) as exc:
             invalid.append({'path': path.name, 'reason': type(exc).__name__})
     if not valid:
         return {'status': 'RED' if invalid else 'MISSING', 'path': '', 'mtime_ns': None, 'payload': {}, 'reasons': invalid}
-    newest_mtime = max(item[0] for item in valid)
-    newest = [item for item in valid if item[0] == newest_mtime]
+
+    best_rank = max(item[0][:2] for item in valid)
+    newest = [item for item in valid if item[0][:2] == best_rank]
     if len(newest) > 1:
         fingerprints = {json.dumps(item[3], ensure_ascii=False, sort_keys=True, separators=(',', ':')) for item in newest}
         if len(fingerprints) > 1:
-            return {'status': 'RED', 'path': '', 'mtime_ns': newest_mtime, 'payload': {}, 'reasons': [{'reason': 'equal_rank_checkpoint_conflict', 'paths': [item[1] for item in newest]}]}
-    _mtime, _name, selected, payload = sorted(newest, key=lambda item: item[1])[-1]
-    return {'status': 'GREEN', 'path': selected.relative_to(root).as_posix(), 'mtime_ns': _mtime, 'payload': payload, 'invalid_candidates': invalid}
+            return {
+                'status': 'RED', 'path': '', 'mtime_ns': max(item[4] for item in newest), 'payload': {},
+                'reasons': [{'reason': 'equal_rank_checkpoint_conflict', 'paths': [item[1] for item in newest], 'ranking_basis': newest[0][0][2]}],
+            }
+    rank, _name, selected, payload, mtime_ns = sorted(newest, key=lambda item: item[1])[-1]
+    return {
+        'status': 'GREEN',
+        'path': selected.relative_to(root).as_posix(),
+        'mtime_ns': mtime_ns,
+        'payload': payload,
+        'ranking_basis': rank[2],
+        'ranking_value': rank[1],
+        'legacy_rank_fallback': rank[2] == 'legacy_mtime_fallback',
+        'invalid_candidates': invalid,
+    }
 
 
 def _inventory_root(root: Path, relative: str) -> dict[str, Any]:
