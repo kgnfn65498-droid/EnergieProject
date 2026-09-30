@@ -32,6 +32,8 @@ TYPE2_SCHEMA = "energie_clearup_type2_request_v1"
 TYPE2_RESULT_SCHEMA = "energie_clearup_type2_result_v1"
 SCOPED_CLEANUP_SCHEMA = "energie_clearup_scoped_request_v1"
 SCOPED_CLEANUP_RESULT_SCHEMA = "energie_clearup_scoped_result_v1"
+ROOT_CLEANUP_SCHEMA = "energie_root_cleanup_request_v1"
+ROOT_CLEANUP_RESULT_SCHEMA = "energie_root_cleanup_result_v1"
 TYPE2_ACTIVATION_SCHEMA = "energie_clearup_system_path_contract_v1"
 TYPE2_ACTIVATION_ROOT = Path("Data/03_Systeem/Projectmanager/ClearUp/PathActivation")
 
@@ -2133,6 +2135,20 @@ def process(root: Path, request_path: Path, result_path: Path) -> tuple[int, dic
                 "delete_performed": False,
                 "finished_at": datetime.now(timezone.utc).isoformat(),
             }
+        elif str(raw.get("schema") or "") == ROOT_CLEANUP_SCHEMA:
+            import root_cleanup_executor_32530
+            try:
+                request_id, result = root_cleanup_executor_32530.execute(root, raw)
+            except root_cleanup_executor_32530.RootCleanupRejected as exc:
+                raise RequestRejected(str(exc)) from exc
+            payload = {
+                "schema": ROOT_CLEANUP_RESULT_SCHEMA,
+                "request_id": request_id,
+                "status": "completed",
+                "result": result,
+                "delete_performed": bool(result.get("delete_performed") is True),
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }
         else:
             request_id, result = execute_request(root, request_path)
             payload = {
@@ -2146,7 +2162,7 @@ def process(root: Path, request_path: Path, result_path: Path) -> tuple[int, dic
         code = 0
     except RequestRejected as exc:
         payload = {
-            "schema": (TYPE1_DELETE_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE1_DELETE_SCHEMA else TYPE2_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE2_SCHEMA else SCOPED_CLEANUP_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == SCOPED_CLEANUP_SCHEMA else RESULT_SCHEMA),
+            "schema": (TYPE1_DELETE_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE1_DELETE_SCHEMA else TYPE2_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE2_SCHEMA else SCOPED_CLEANUP_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == SCOPED_CLEANUP_SCHEMA else ROOT_CLEANUP_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == ROOT_CLEANUP_SCHEMA else RESULT_SCHEMA),
             "request_id": request_id,
             "status": "rejected",
             "error": f"{type(exc).__name__}: {exc}",
@@ -2156,7 +2172,7 @@ def process(root: Path, request_path: Path, result_path: Path) -> tuple[int, dic
         code = 2
     except Exception as exc:
         payload = {
-            "schema": (TYPE1_DELETE_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE1_DELETE_SCHEMA else TYPE2_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE2_SCHEMA else SCOPED_CLEANUP_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == SCOPED_CLEANUP_SCHEMA else RESULT_SCHEMA),
+            "schema": (TYPE1_DELETE_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE1_DELETE_SCHEMA else TYPE2_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == TYPE2_SCHEMA else SCOPED_CLEANUP_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == SCOPED_CLEANUP_SCHEMA else ROOT_CLEANUP_RESULT_SCHEMA if str(locals().get("raw", {}).get("schema") or "") == ROOT_CLEANUP_SCHEMA else RESULT_SCHEMA),
             "request_id": request_id,
             "status": "error",
             "error": f"{type(exc).__name__}: {exc}",
