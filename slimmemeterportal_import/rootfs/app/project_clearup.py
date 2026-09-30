@@ -118,6 +118,7 @@ PROTECTED_PREFIXES = (
     "Data/01_Input/",
     "Data/02_Output/Rapportages/KnowledgeBase",
     "Data/02_Output/Rapportages/Verbruikshistorie",
+    "Data/03_Systeem/Projectmanager/ClearUp/Quarantine",
     "Inbox/incoming",
     "Inbox/processing",
     "Inbox/processed",
@@ -293,8 +294,13 @@ def _collect_candidates(root: Path, *, keep_rollbacks: int, current_version: str
             current_version=""
 
     rollbacks: list[tuple[tuple[int, ...], Path]] = []
-    for path in root.glob("App.__rollback_*"):
-        if not path.is_dir():
+    rollback_paths = list(root.glob("App.__rollback_*"))
+    if _version_tuple(current_version) >= (32, 5, 30):
+        canonical_rollback_root = root / "Rollback"
+        if canonical_rollback_root.is_dir() and not canonical_rollback_root.is_symlink():
+            rollback_paths.extend(canonical_rollback_root.glob("App.__rollback_*"))
+    for path in rollback_paths:
+        if not path.is_dir() or path.is_symlink():
             continue
         version_file = path / "VERSIE.txt"
         version = version_file.read_text(encoding="utf-8").strip() if version_file.is_file() else path.name.split("App.__rollback_", 1)[-1]
