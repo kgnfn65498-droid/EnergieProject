@@ -15,6 +15,7 @@ def _fixture(tmp_path):
     paths = {
         "master_index": "kb/00_MASTER_DEVELOPMENT_INDEX.md",
         "active_context": "kb/00_ACTIVE_DEVELOPMENT_CONTEXT.md",
+        "manifest": "kb/00_DEVELOPMENT_MANIFEST.md",
         "ledger_current_truth": "kb/01A_LEDGER_CURRENT_TRUTH.md",
         "spock_context": "kb/04_SPOCK_CONTEXT.md",
         "current_handover": "handover/CURRENT_DEVELOPMENT_HANDOVER.md",
