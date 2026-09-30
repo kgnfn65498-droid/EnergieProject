@@ -74,3 +74,47 @@ def test_package_has_source_hashes(tmp_path):
     pkg = build_context_package(tmp_path, status=status, source_paths=paths, requirements=reqs, full_kb=full, truth=truth)
     assert len(pkg["package_sha256"]) == 64
     assert all(len(x["sha256"]) == 64 for x in pkg["mandatory_sources"])
+
+
+def test_missing_always_requirement_from_inventory_fails_closed(tmp_path):
+    paths, reqs, status, full, truth = _fixture(tmp_path)
+    reqs = [p for p in reqs if not p.endswith("HARD_REQUIREMENT_NEW_CHAT_IMMEDIATE_RESUME.md")]
+    pkg = build_context_package(tmp_path, status=status, source_paths=paths, requirements=reqs, full_kb=full, truth=truth)
+    assert pkg["mandatory_context_complete"] is False
+    assert "requirement:HARD_REQUIREMENT_NEW_CHAT_IMMEDIATE_RESUME.md" in pkg["conflicts_missing_evidence"]["missing"]
+
+def test_empty_source_map_fails_closed(tmp_path):
+    _, reqs, status, full, truth = _fixture(tmp_path)
+    pkg = build_context_package(tmp_path, status=status, source_paths={}, requirements=reqs, full_kb=full, truth=truth)
+    assert pkg["mandatory_context_complete"] is False
+    assert pkg["resume_contract"]["fail_closed"] is True
+
+def test_empty_mandatory_file_fails_closed(tmp_path):
+    paths, reqs, status, full, truth = _fixture(tmp_path)
+    (tmp_path / paths["master_index"]).write_text("", encoding="utf-8")
+    pkg = build_context_package(tmp_path, status=status, source_paths=paths, requirements=reqs, full_kb=full, truth=truth)
+    assert pkg["mandatory_context_complete"] is False
+
+def test_missing_active_action_fails_closed(tmp_path):
+    paths, reqs, status, full, truth = _fixture(tmp_path)
+    status["active_task"] = {}
+    pkg = build_context_package(tmp_path, status=status, source_paths=paths, requirements=reqs, full_kb=full, truth=truth)
+    assert pkg["mandatory_context_complete"] is False
+    assert pkg["resume_contract"]["deterministic"] is False
+
+def test_clearup_scope_selects_clearup_requirement(tmp_path):
+    paths, reqs, status, full, truth = _fixture(tmp_path)
+    status["active_task"]["title"] = "ClearUp capability check"
+    pkg = build_context_package(tmp_path, status=status, source_paths=paths, requirements=reqs, full_kb=full, truth=truth)
+    names = {Path(x["path"]).name for x in pkg["mandatory_requirement_refs"]}
+    assert "HARD_REQUIREMENT_CLEARUP_END_TO_END_EXECUTION_PROOF.md" in names
+
+def test_context_package_contains_refs_not_full_source_text(tmp_path):
+    paths, reqs, status, full, truth = _fixture(tmp_path)
+    huge = "x" * 1_500_000
+    (tmp_path / paths["master_index"]).write_text(huge, encoding="utf-8")
+    pkg = build_context_package(tmp_path, status=status, source_paths=paths, requirements=reqs, full_kb=full, truth=truth)
+    import json
+    encoded = json.dumps(pkg, ensure_ascii=False).encode("utf-8")
+    assert len(encoded) < 100_000
+    assert "content" not in pkg["mandatory_source_refs"][0]
