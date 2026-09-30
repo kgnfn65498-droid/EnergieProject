@@ -187,6 +187,8 @@ def _same_filesystem(root: Path, path: Path) -> None:
         relative = path.relative_to(root)
     except ValueError as exc:
         raise RootCleanupRejected(f"target outside project root refused:{path}") from exc
+    if any(part in {"", ".", ".."} for part in relative.parts):
+        raise RootCleanupRejected(f"unsafe target path refused:{path}")
     current = root
     for part in relative.parts[:-1]:
         current = current / part
