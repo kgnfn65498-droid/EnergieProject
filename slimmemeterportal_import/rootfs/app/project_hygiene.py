@@ -139,8 +139,12 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
     """Report structural cleanup debt without mutating or recursively hashing it."""
     root = Path(project_root)
     rollbacks: list[tuple[tuple[int, ...], str]] = []
+    rollback_paths = []
     try:
-        rollback_paths = list(root.glob("App.__rollback_*"))
+        canonical_rollback_root = root / "Rollback"
+        if canonical_rollback_root.is_dir() and not canonical_rollback_root.is_symlink():
+            rollback_paths.extend(canonical_rollback_root.glob("App.__rollback_*"))
+        rollback_paths.extend(root.glob("App.__rollback_*"))
     except OSError:
         rollback_paths = []
     for path in rollback_paths:
@@ -180,7 +184,7 @@ def project_hygiene_check(project_root: Path, *, keep_rollbacks: int = 3) -> dic
     restore_count = len(restore_paths)
     release_prepare_count = len(release_prepare_paths)
     release_builder_count = len(release_builder_paths)
-    clearup_run_count = _count_children(root / "CLEARUP")
+    clearup_run_count = _count_children(root / "CLEARUP") + _count_children(root / "Data/03_Systeem/Projectmanager/ClearUp/Quarantine")
     inbox_develop_count, inbox_root_debt_count, inbox_root_debt = _inbox_development_debt(root)
     process_workspace = inspect_process_workspace(root)
     root_structure = root_structure_snapshot(root)
