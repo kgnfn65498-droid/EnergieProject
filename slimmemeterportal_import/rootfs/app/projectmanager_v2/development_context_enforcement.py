@@ -65,32 +65,37 @@ def highest_checkpoint(project_root: Path | str) -> dict[str, Any]:
     root = Path(project_root)
     cp_root = root / CHECKPOINT_DIR
     if not _safe_dir(cp_root):
-        return {'status': 'MISSING', 'path': '', 'mtime_ns': None, 'payload': {}}
-    candidates = []
+        return {'status': 'MISSING', 'path': '', 'mtime_ns': None, 'payload': {}, 'reasons': ['checkpoint_dir_missing']}
+    valid = []
+    invalid = []
     for path in cp_root.glob('CHECKPOINT*'):
         if path.is_symlink() or not path.is_file():
             continue
         try:
             st = path.stat()
-        except OSError:
-            continue
-        candidates.append((st.st_mtime_ns, path.name, path))
-    if not candidates:
-        return {'status': 'MISSING', 'path': '', 'mtime_ns': None, 'payload': {}}
-    _mtime, _name, selected = max(candidates)
-    payload: dict[str, Any] = {}
-    if selected.suffix.lower() == '.json':
-        try:
-            raw = json.loads(selected.read_text(encoding='utf-8'))
-            payload = raw if isinstance(raw, dict) else {}
-        except (OSError, ValueError, json.JSONDecodeError):
-            payload = {}
-    return {
-        'status': 'GREEN',
-        'path': selected.relative_to(root).as_posix(),
-        'mtime_ns': selected.stat().st_mtime_ns,
-        'payload': payload,
-    }
+            if path.suffix.lower() != '.json':
+                invalid.append({'path': path.name, 'reason': 'unsupported_checkpoint_format'})
+                continue
+            raw = json.loads(path.read_text(encoding='utf-8'))
+            if not isinstance(raw, dict) or not raw:
+                invalid.append({'path': path.name, 'reason': 'empty_or_invalid_payload'})
+                continue
+            if not str(raw.get('status') or '').strip():
+                invalid.append({'path': path.name, 'reason': 'status_missing'})
+                continue
+            valid.append((st.st_mtime_ns, path.name, path, raw))
+        except (OSError, ValueError, json.JSONDecodeError, UnicodeError) as exc:
+            invalid.append({'path': path.name, 'reason': type(exc).__name__})
+    if not valid:
+        return {'status': 'RED' if invalid else 'MISSING', 'path': '', 'mtime_ns': None, 'payload': {}, 'reasons': invalid}
+    newest_mtime = max(item[0] for item in valid)
+    newest = [item for item in valid if item[0] == newest_mtime]
+    if len(newest) > 1:
+        fingerprints = {json.dumps(item[3], ensure_ascii=False, sort_keys=True, separators=(',', ':')) for item in newest}
+        if len(fingerprints) > 1:
+            return {'status': 'RED', 'path': '', 'mtime_ns': newest_mtime, 'payload': {}, 'reasons': [{'reason': 'equal_rank_checkpoint_conflict', 'paths': [item[1] for item in newest]}]}
+    _mtime, _name, selected, payload = sorted(newest, key=lambda item: item[1])[-1]
+    return {'status': 'GREEN', 'path': selected.relative_to(root).as_posix(), 'mtime_ns': _mtime, 'payload': payload, 'invalid_candidates': invalid}
 
 
 def _has_content(root: Path, relative: str) -> bool:
