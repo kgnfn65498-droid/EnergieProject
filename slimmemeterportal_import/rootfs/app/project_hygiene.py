@@ -85,8 +85,10 @@ def _current_clearup_review_paths(root: Path, *, release_version: str) -> tuple[
     if not manifest_rel or not plan_id:
         return set(), False, "runtime_manifest_or_plan_missing"
     manifest_path = (root / manifest_rel).resolve(strict=False)
-    clearup_root = (root / "CLEARUP").resolve(strict=False)
-    if manifest_path == clearup_root or clearup_root not in manifest_path.parents:
+    allowed_roots = [(root / "CLEARUP").resolve(strict=False)]
+    if _version_tuple(release_version) >= _version_tuple("32.5.30"):
+        allowed_roots.append((root / "Data/03_Systeem/Projectmanager/ClearUp/Quarantine").resolve(strict=False))
+    if not any(manifest_path != clearup_root and clearup_root in manifest_path.parents for clearup_root in allowed_roots):
         return set(), False, "manifest_outside_clearup"
     manifest = _read_json(manifest_path) or {}
     if (
