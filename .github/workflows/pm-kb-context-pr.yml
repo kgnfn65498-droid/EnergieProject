@@ -1,0 +1,33 @@
+name: PM KB Context PR
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'slimmemeterportal_import/rootfs/app/projectmanager_v2/**'
+      - 'tests/test_pm_kb_context_*.py'
+      - 'tests/test_v32528_always_current_handover.py'
+      - 'tests/test_v32415_handover_snapshot.py'
+      - 'AGENT_TASK.md'
+      - 'CURRENT_HANDOVER.md'
+      - 'AGENT_RESULT.md'
+  workflow_dispatch:
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check pytest
+      - run: python -m compileall -q slimmemeterportal_import/rootfs/app/projectmanager_v2
+      - run: >
+          python -m pytest -q
+          tests/test_pm_kb_context_package.py
+          tests/test_pm_kb_context_delivery.py
+          tests/test_pm_kb_context_behavior.py
+          tests/test_v32528_always_current_handover.py
+          tests/test_v32415_handover_snapshot.py
