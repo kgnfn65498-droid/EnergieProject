@@ -152,3 +152,23 @@ def test_32530_release_builder_refuses_split_runtime_identity(tmp_path):
     import pytest
     with pytest.raises(ValueError, match="release identity mismatch"):
         _verify_release_identity(root)
+
+
+def test_32530_release_builder_refuses_missing_publisher_system_path_import(tmp_path):
+    import shutil
+    import pytest
+    from release_artifact_builder import _verify_release_chain_contract
+
+    root = tmp_path / "release"
+    (root / "tools").mkdir(parents=True)
+    source = ROOT / "tools/github_publisher_binding.py"
+    target = root / "tools/github_publisher_binding.py"
+    shutil.copy2(source, target)
+
+    _verify_release_chain_contract(root)
+
+    text = target.read_text(encoding="utf-8")
+    text = text.replace("from system_path_contract import project_system_path\n", "")
+    target.write_text(text, encoding="utf-8")
+    with pytest.raises(ValueError, match="project_system_path import"):
+        _verify_release_chain_contract(root)
