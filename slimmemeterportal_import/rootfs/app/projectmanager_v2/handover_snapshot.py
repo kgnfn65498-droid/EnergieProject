@@ -346,6 +346,17 @@ class HandoverSnapshotService:
             self._record_failure('canonical_status_invalid', 'status/current.json failed handover validation')
             raise RuntimeError('cannot build handover: canonical status is incomplete or invalid')
 
+        development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
+        context_package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
+        preflight = status.get('new_chat_preflight') if isinstance(status.get('new_chat_preflight'), dict) else {}
+        if (
+            preflight.get('ready') is not True
+            or context_package.get('mandatory_context_complete') is not True
+            or (context_package.get('resume_contract') or {}).get('fail_closed') is True
+        ):
+            self._record_failure('context_preflight_not_ready', str(context_package.get('conflicts_missing_evidence') or {}))
+            raise RuntimeError('cannot build handover: Projectmanager context preflight not ready')
+
         release_version = str(status.get('release', {}).get('version') or '').strip()
         project_release = self._project_release_version()
         if project_release and project_release != release_version:
