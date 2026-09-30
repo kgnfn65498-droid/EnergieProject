@@ -128,3 +128,27 @@ def test_32530_manual_ha_wait_remains_unbounded_by_delivery_timeout(tmp_path):
     waiting_pos = align.index("WAITING_MANUAL_HA_UPDATE")
     timeout_pos = align.index("elapsed=max")
     assert waiting_pos < timeout_pos
+
+
+def test_32530_release_builder_refuses_split_runtime_identity(tmp_path):
+    import shutil
+    from release_artifact_builder import _verify_release_identity
+
+    root = tmp_path / "release"
+    (root / "slimmemeterportal_import/rootfs/app").mkdir(parents=True)
+    shutil.copy2(ROOT / "VERSIE.txt", root / "VERSIE.txt")
+    shutil.copy2(ROOT / "release_test_contract.py", root / "release_test_contract.py")
+    shutil.copy2(ROOT / "slimmemeterportal_import/config.yaml", root / "slimmemeterportal_import/config.yaml")
+    shutil.copy2(APP / "main.py", root / "slimmemeterportal_import/rootfs/app/main.py")
+    shutil.copy2(APP / "mode_entrypoint.py", root / "slimmemeterportal_import/rootfs/app/mode_entrypoint.py")
+
+    assert _verify_release_identity(root) == "32.5.30"
+
+    main_path = root / "slimmemeterportal_import/rootfs/app/main.py"
+    main_path.write_text(
+        main_path.read_text(encoding="utf-8").replace('APP_VERSION = "32.5.30"', 'APP_VERSION = "32.5.29"', 1),
+        encoding="utf-8",
+    )
+    import pytest
+    with pytest.raises(ValueError, match="release identity mismatch"):
+        _verify_release_identity(root)
