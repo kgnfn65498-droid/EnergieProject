@@ -230,9 +230,7 @@ def _apply(root: Path, request_id: str, plan: dict[str, Any], recovery: dict[str
                     raise RuntimeError(f"ROOT cleanup migration identity mismatch:{source_rel}")
                 journal.append({**action, "target": target_rel})
                 if kind == "migrate_rollback" and str(atomic_before.get("rollback_path") or "").strip() == source_rel:
-                    atomic_after["rollback_path_previous"] = source_rel
                     atomic_after["rollback_path"] = target_rel
-                    atomic_after["rollback_path_migrated_at"] = datetime.now(timezone.utc).isoformat()
                     atomic_changed = True
             elif kind == "quarantine":
                 target = original / source_rel
@@ -338,7 +336,6 @@ def _restore(root: Path, state: dict[str, Any], service) -> dict[str, Any]:
         if state.get("atomic_rollback_path_changed") is True:
             atomic = _json(_atomic_path(root))
             atomic["rollback_path"] = state.get("atomic_rollback_path_before")
-            atomic["rollback_path_restored_at"] = datetime.now(timezone.utc).isoformat()
             _atomic_json(_atomic_path(root), atomic)
         quarantine = root / str(state.get("quarantine_root") or "")
         if quarantine.exists() and not quarantine.is_symlink():
