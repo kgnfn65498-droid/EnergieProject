@@ -337,9 +337,21 @@ def _current_release_cr_gate(root: Path, *, app_version: str) -> dict[str, Any]:
     return payload
 
 
-def _clearup_destination_gate(root: Path) -> dict[str, Any]:
+def _clearup_destination_path(root: Path, app_version: str) -> Path:
+    try:
+        parts = tuple(int(part) for part in str(app_version).split("."))
+    except ValueError:
+        parts = ()
+    return (
+        root / "Data/03_Systeem/Projectmanager/ClearUp/Quarantine"
+        if parts >= (32, 5, 30)
+        else root / "CLEARUP"
+    )
+
+
+def _clearup_destination_gate(root: Path, *, app_version: str) -> dict[str, Any]:
     """Prove the pre-created quarantine root is safe and writable before heavy scans."""
-    clearup_root = root / "CLEARUP"
+    clearup_root = _clearup_destination_path(root, app_version)
     if clearup_root.is_symlink():
         return {"ok": False, "reason": "clearup_root_symlink", "path": str(clearup_root)}
     if not clearup_root.exists():
@@ -400,7 +412,7 @@ def clearup_auto_gate(
             "clearup_destination": {
                 "ok": False,
                 "reason": "deferred_by_project_close_state",
-                "path": str(root / "CLEARUP"),
+                "path": str(_clearup_destination_path(root, str(app_version))),
             },
             "crash_recovery": {"ok": False, "reason": "deferred_by_project_close_state"},
             "current_release_cr": {"ok": False, "reason": "deferred_by_project_close_state", "fingerprint": None},
@@ -423,11 +435,11 @@ def clearup_auto_gate(
     # hashing Crash Recovery or any CLEARUP candidate so a permission problem
     # fails quickly and never after minutes of expensive NAS reads.
     if approval and release_phase_ok:
-        clearup_destination = _clearup_destination_gate(root)
+        clearup_destination = _clearup_destination_gate(root, app_version=str(app_version))
         if not clearup_destination.get("ok"):
             blockers.append("clearup_root_not_ready")
     else:
-        clearup_destination = {"ok": False, "reason": "deferred_until_release_acceptance", "path": str(root / "CLEARUP")}
+        clearup_destination = {"ok": False, "reason": "deferred_until_release_acceptance", "path": str(_clearup_destination_path(root, str(app_version)))}
 
     # 32.4.38+ uses the current-release canonical project+NAS CR pair as the
     # authoritative prerequisite. Older releases preserve the historical
@@ -494,7 +506,7 @@ def run_approved_clearup_once(
     if not gate["ready"]:
         return {"status": "blocked", "gate": gate, "delete_performed": False}
 
-    clearup_root = root / "CLEARUP"
+    clearup_root = _clearup_destination_path(root, str(app_version))
     current_prerequisite_fingerprint = (gate.get("current_release_cr") or {}).get("fingerprint")
     if clearup_root.is_dir():
         for manifest_path in sorted(clearup_root.glob("*/manifest.json")):
