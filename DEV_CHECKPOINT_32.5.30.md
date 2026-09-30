@@ -26,7 +26,7 @@ Authoritative final build basis remains the exact verified physical 32.5.29 rele
 A temporary development workflow was added only to the work branch and produced three failed runs/notifications. It has been removed. Do not re-add or rerun it. Existing run logs proved all changed modules compiled; targeted ROOT tests were 2 passed / 2 failed solely because the test fixture did not create active App module paths. The fixture was corrected afterwards without rerunning Actions to avoid further notifications.
 
 ## Current work-branch evidence
-- Current head after ROOT/release hardening: d38310ce5434ac86a068576738ba2f042f7ff9b5.
+- Current head after ROOT/release hardening: ba31734ca8a405560d9502a048dce732fff06902.
 - Temporary Actions workflow has been removed and must not be reintroduced.
 - Historical run 36780695606 compiled all changed 32.5.30 modules successfully; its targeted ROOT test result was 2 passed / 2 failed because only the test fixture lacked active App module directories. That fixture has since been corrected.
 - Additional static regressions now cover failed/candidate root debt, unclassified root fail-closed behavior, build-time release identity, publisher system-path binding, bounded pre-target split-state wait, and unbounded manual HA wait.
