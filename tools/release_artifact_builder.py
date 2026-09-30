@@ -7,9 +7,11 @@ runs the same ZIP-member safety gate used by ``atomic_app_swap``.  MANIFEST and
 SHA256SUMS are regenerated from the exact payload bytes that go into the ZIP.
 """
 
+import ast
 import hashlib
 import json
 import os
+import re
 import tempfile
 import zipfile
 from pathlib import Path
@@ -24,6 +26,47 @@ _EXCLUDED_DIR_PARTS = {".git"}
 
 def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _python_constant(path: Path, name: str) -> str:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for statement in tree.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        if any(isinstance(target, ast.Name) and target.id == name for target in statement.targets):
+            if not isinstance(statement.value, ast.Constant) or not isinstance(statement.value.value, str):
+                raise ValueError(f"release identity {name} must be a string constant: {path}")
+            return statement.value.value.strip()
+    raise ValueError(f"release identity {name} missing: {path}")
+
+
+def _verify_release_identity(source_root: Path) -> str:
+    target = (source_root / "VERSIE.txt").read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"\d+(?:\.\d+){2}", target):
+        raise ValueError(f"invalid VERSIE.txt release identity: {target!r}")
+
+    config_text = (source_root / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
+    match = re.search(r"(?m)^version:\s*[\"']?([^\"'\s]+)[\"']?\s*$", config_text)
+    config_version = match.group(1).strip() if match else ""
+
+    values = {
+        "VERSIE.txt": target,
+        "config.yaml": config_version,
+        "main.APP_VERSION": _python_constant(
+            source_root / "slimmemeterportal_import/rootfs/app/main.py", "APP_VERSION"
+        ),
+        "mode_entrypoint.TARGET_RELEASE_VERSION": _python_constant(
+            source_root / "slimmemeterportal_import/rootfs/app/mode_entrypoint.py", "TARGET_RELEASE_VERSION"
+        ),
+        "release_test_contract.CURRENT_RELEASE": _python_constant(
+            source_root / "release_test_contract.py", "CURRENT_RELEASE"
+        ),
+    }
+    mismatched = {name: value for name, value in values.items() if value != target}
+    if mismatched:
+        detail = ", ".join(f"{name}={value!r}" for name, value in mismatched.items())
+        raise ValueError(f"release identity mismatch for target {target}: {detail}")
+    return target
 
 
 def _filtered_release_path(relative: Path) -> bool:
@@ -98,6 +141,7 @@ def build_release_artifact(source_root: Path | str, output_zip: Path | str) -> d
     output = Path(output_zip).resolve()
     if not source.is_dir():
         raise ValueError(f"release source directory missing: {source}")
+    release_identity = _verify_release_identity(source)
     try:
         output.relative_to(source)
     except ValueError:
@@ -140,6 +184,7 @@ def build_release_artifact(source_root: Path | str, output_zip: Path | str) -> d
         "status": "GREEN",
         "artifact": str(output),
         "artifact_sha256": artifact_sha,
+        "release_identity": release_identity,
         "payload_count": len(payload),
         "filtered_count": len(filtered),
         "filtered": filtered,
