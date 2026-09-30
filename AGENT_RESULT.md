@@ -1,14 +1,44 @@
-# AGENT_RESULT — 32.5.28
+# AGENT_RESULT — Projectmanager / Knowledge Base / Index
 
-Status: PREPACKAGE GREEN / FINAL ZIP NOT BUILT YET
+Status: IN DEVELOPMENT / NOT ACCEPTED
+Branch: `pm-kb-index-fix`
+PR: #11
 
-- Buildbasis: exact verified 32.5.27 SHA256 `ea3674ebc32067a7c71b5798f33cb3e9de03f1d1c178dcb96e0f73e7dc4e89f2`.
-- Recovery-first final Inbox cleanup implemented with pre-mutation recovery ZIP, manifest/hash/CRC verification, bounded export chunks and exact external-confirmation gate.
-- Privileged apply revalidates plan, recovery ZIP and live source bytes immediately before mutation.
-- `Inbox/processing` is permanent: incoming -> processing -> HA exact -> processed; two consecutive releases reuse the mailbox.
-- Exact 32.5.27 predecessor release-path bytes prove the 32.5.28 candidate is claimed from Incoming and archives only after HA target exact.
-- Always-current development handover is automatic and fail-closed on stale/mismatched generation.
-- Type-2 002–012 remains CLOSED; Type-3 inventory GREEN; final Inbox inventory READY; no live cleanup executed.
-- Full collected test set covered with zero open failures; compileall GREEN; shell syntax GREEN.
-- PM target `2.0.0-rc63`.
-- Remaining: final package/manifests, fresh-extract acceptance and final audits.
+## Bronset gelezen
+- AGENTS.md
+- PROJECT_CONSTITUTION.md
+- CURRENT_HANDOVER.md
+- WORK_LEDGER.md
+- AGENT_TASK.md
+- WORK_KNOWLEDGE_BOOTSTRAP.md
+- live Master Development Index
+- Development Manifest
+- Unified Development Ledger
+- HARD_REQUIREMENT_NEW_CHAT_IMMEDIATE_RESUME
+- HARD_REQUIREMENT_STABLE_DEVELOPMENT_METHOD
+- HARD_REQUIREMENT_PROACTIVE_PM_KB_HANDOVER_TRUTH
+- HARD_REQUIREMENT_UNIFIED_DEVELOPMENT_LEDGER
+- HARD_REQUIREMENT_32_5_26_PM_CAPABILITY_CONTINUITY
+- HARD_REQUIREMENT_MCP_TOOL_EXPOSURE_E2E
+- independent Codex 6.0 Sol High audit of PR #11 first implementation
+
+## Implemented on branch
+- Context package v3 with canonical JSON hashing, bounded mandatory passages, no silent truncation, bounded lexical evidence, known-issue/capability evidence and deterministic resume contract.
+- FULL_KB changed from root-presence check to controlled inventory with path-set/fingerprint.
+- Truth reconciliation compiles governing claims and first unproven action from higher-authority checkpoint/runtime evidence.
+- Checkpoint parser rejects invalid payloads and equal-rank conflicting candidates; explicit generation/timestamps outrank legacy mtime fallback.
+- Handover freshness rejects empty pointer/handover and next-action drift.
+- Capability registry no longer reports ACTIVE/CLOSED_GREEN when required live code files are missing.
+- Context gate is consumed by new-chat preflight, conversation resume, handover snapshot and Projectmanager API.
+- Handover snapshot stores a compact context projection to preserve the <100k contract.
+- Delivery receipt requires invocation ID + final input SHA256 and cannot prove delivery from server intent alone.
+- Behavioral evaluator separately checks correct truth/action/blockers and rejects repeated proven work / forbidden routes.
+- Negative tests added for reproduced Codex failures.
+
+## Not yet claimed
+- No test-suite GREEN claim for current head.
+- No merge.
+- No runtime activation.
+- No Native-MCP client exposure proof.
+- No behavioral/model E2E GREEN.
+- No 32.5.30 work.
