@@ -33,7 +33,9 @@ _SCOPE_RULES = {
     "recovery": ("RECOVERY", "DANGEROUS_COMMAND", "NO_USER_TERMINAL"),
     "terminal": ("NO_USER_TERMINAL", "DANGEROUS_COMMAND", "COMMAND_PROOF"),
     "index": ("NEW_CHAT", "UNIFIED_DEVELOPMENT_LEDGER", "PROACTIVE_PM_KB_HANDOVER_TRUTH"),
-    "knowledge": ("NEW_CHAT", "UNIFIED_DEVELOPMENT_LEDGER", "PROACTIVE_PM_KB_HANDOVER_TRUTH"),
+    "knowledge": ("NEW_CHAT", "UNIFIED_DEVELOPMENT_LEDGER", "PROACTIVE_PM_KB_HANDOVER_TRUTH", "DS9", "SPOCK", "FULL_KB", "FULLKB", "PROJECTMANAGER"),
+    "projectmanager": ("PROJECTMANAGER", "DS9", "SPOCK", "FULL_KB", "FULLKB", "NEW_CHAT", "UNIFIED_DEVELOPMENT_LEDGER"),
+    "context": ("NEW_CHAT", "HANDOVER", "FULL_KB", "FULLKB", "DEVELOPMENT_CONTINUITY"),
 }
 _NORMATIVE = (
     "harde regel", "verplicht", "verboden", "altijd", "fail closed", "fail-closed",
@@ -282,7 +284,7 @@ def build_context_package(
     task_text = " ".join(str(active.get(k) or "") for k in ("title", "goal", "next_action"))
     mandatory_requirements, deferred_requirements, missing_registry = _select_requirements(root, requirements, task_text)
 
-    core_names = ("master_index", "active_context", "ledger_current_truth", "spock_context", "current_handover")
+    core_names = ("master_index", "active_context", "manifest", "ledger_current_truth", "spock_context", "current_handover")
     missing_source_keys = [name for name in core_names if not source_paths.get(name)]
     core_sources = []
     for name in core_names:
