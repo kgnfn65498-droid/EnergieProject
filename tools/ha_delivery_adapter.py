@@ -346,9 +346,14 @@ class HADelivery:
             and str(ha.get('version') or '')==publication_version
             and str(pub.get('remote_head') or '') and str(pub.get('remote_head') or '')==str(pub.get('local_head') or '')
         )
-        if remote_predecessor_exact:
-            return Outcome.waiting('github_pre_target_pending','remote_predecessor_exact','split_state_recovery_active','pre_target_publication_contract_ready')
         elapsed=max(0.0,time.time()-float(s.phase_started_at_epoch or time.time()))
+        if remote_predecessor_exact:
+            if elapsed>=self.timeout:
+                return Outcome.blocked(
+                    'github_pre_target_target_timeout',
+                    'publisher retained the exact predecessor but did not publish the fenced target within timeout',
+                )
+            return Outcome.waiting('github_pre_target_pending','remote_predecessor_exact','split_state_recovery_active','pre_target_publication_contract_ready')
         if elapsed>=self.timeout:
             if pub.get('published') is False and self._identity_matches(pub,payload):
                 return Outcome.blocked('github_pre_target_publication_failed','inspect exact publisher evidence; do not create a second release')
