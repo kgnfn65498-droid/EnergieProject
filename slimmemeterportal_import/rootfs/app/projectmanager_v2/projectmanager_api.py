@@ -3,6 +3,7 @@ from pathlib import Path
 
 from secret_guard import redact
 from context_package import compact_package
+from context_delivery import build_delivery_receipt
 
 
 class ProjectmanagerAPI:
@@ -81,6 +82,13 @@ class ProjectmanagerAPI:
             'delivery_status': 'UNPROVEN',
             'delivery_receipt_required_at_model_boundary': True,
         })
+    def delivery_receipt(self, *, invocation_id: str, final_input_sha256: str, consumer: str = 'external_model') -> dict:
+        status = self.status()
+        development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
+        package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
+        return redact(build_delivery_receipt(
+            package, invocation_id=invocation_id, final_input_sha256=final_input_sha256, consumer=consumer
+        ))
     def decisions(self):
         status = self.status()
         return redact({'items': status.get('decisions_needed', [])})
