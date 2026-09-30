@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -180,7 +181,25 @@ def _validate(root: Path, request: dict[str, Any]):
 
 
 def _same_filesystem(root: Path, path: Path) -> None:
+    root = Path(root).resolve()
+    path = Path(path)
+    try:
+        relative = path.relative_to(root)
+    except ValueError as exc:
+        raise RootCleanupRejected(f"target outside project root refused:{path}") from exc
+    current = root
+    for part in relative.parts[:-1]:
+        current = current / part
+        if current.is_symlink():
+            raise RootCleanupRejected(f"symlink parent refused:{current}")
+        if current.exists() and not current.is_dir():
+            raise RootCleanupRejected(f"non-directory parent refused:{current}")
     path.parent.mkdir(parents=True, exist_ok=True)
+    current = root
+    for part in relative.parts[:-1]:
+        current = current / part
+        if current.is_symlink():
+            raise RootCleanupRejected(f"symlink parent refused:{current}")
     if path.parent.stat().st_dev != root.stat().st_dev:
         raise RootCleanupRejected(f"cross-filesystem target refused:{path}")
 
@@ -335,6 +354,8 @@ def _restore(root: Path, state: dict[str, Any], service) -> dict[str, Any]:
             restored.append(entry)
         if state.get("atomic_rollback_path_changed") is True:
             atomic = _json(_atomic_path(root))
+            if str(atomic.get("rollback_path") or "") != str(state.get("atomic_rollback_path_after") or ""):
+                raise RootCleanupRejected("atomic rollback_path changed after ROOT apply; restore refused")
             atomic["rollback_path"] = state.get("atomic_rollback_path_before")
             _atomic_json(_atomic_path(root), atomic)
         quarantine = root / str(state.get("quarantine_root") or "")
@@ -373,13 +394,21 @@ def _finalize(root: Path, state: dict[str, Any], service) -> dict[str, Any]:
             raise RootCleanupRejected("ROOT finalize recovery artifact identity mismatch")
 
     quarantine = root / str(state.get("quarantine_root") or "")
-    quarantine_moves = [entry for entry in state.get("moves") or [] if entry.get("kind") == "quarantine"]
-    for entry in quarantine_moves:
+    moves = [entry for entry in state.get("moves") or [] if isinstance(entry, dict)]
+    quarantine_moves = [entry for entry in moves if entry.get("kind") == "quarantine"]
+    for entry in moves:
+        source = root / str(entry.get("source") or "")
         target = root / str(entry.get("target") or "")
+        if source.exists() or source.is_symlink():
+            raise RootCleanupRejected(f"ROOT finalize source reappeared:{entry.get('source')}")
         if target.is_symlink() or not target.exists():
-            raise RootCleanupRejected(f"ROOT finalize quarantine item missing:{entry.get('source')}")
+            raise RootCleanupRejected(f"ROOT finalize target missing:{entry.get('target')}")
         if _tree_sha(target) != str(entry.get("tree_sha256") or ""):
-            raise RootCleanupRejected(f"ROOT finalize quarantine hash mismatch:{entry.get('source')}")
+            raise RootCleanupRejected(f"ROOT finalize target hash mismatch:{entry.get('source')}")
+    if state.get("atomic_rollback_path_changed") is True:
+        atomic = _json(_atomic_path(root))
+        if str(atomic.get("rollback_path") or "") != str(state.get("atomic_rollback_path_after") or ""):
+            raise RootCleanupRejected("atomic rollback_path changed after ROOT apply; finalize refused")
 
     if quarantine.exists():
         if quarantine.is_symlink() or not quarantine.is_dir():
@@ -387,6 +416,15 @@ def _finalize(root: Path, state: dict[str, Any], service) -> dict[str, Any]:
         shutil.rmtree(quarantine)
     if quarantine.exists():
         raise RuntimeError("ROOT finalize delete readback failed")
+
+    soak = max(0.05, float(os.environ.get("ENERGIE_ROOT_CLEANUP_POST_DELETE_SOAK_SECONDS", "20.0")))
+    deadline = time.monotonic() + soak
+    while time.monotonic() < deadline:
+        for entry in moves:
+            source = root / str(entry.get("source") or "")
+            if source.exists() or source.is_symlink():
+                raise RootCleanupRejected(f"ROOT source resurrected after finalize:{entry.get('source')}")
+        time.sleep(min(0.5, max(0.01, deadline - time.monotonic())))
 
     post = service.build_root_cleanup_plan(root)
     if post.get("status") != "READY" or int(post.get("action_count") or 0) != 0 or int(post.get("review_count") or 0) != 0:
@@ -404,6 +442,7 @@ def _finalize(root: Path, state: dict[str, Any], service) -> dict[str, Any]:
         "deleted_count": len(quarantine_moves),
         "delete_performed": True,
         "root_clean": True,
+        "post_delete_soak_seconds": soak,
     }
 
 
