@@ -14,8 +14,9 @@ class ProjectmanagerAPI:
     Peter approvals use local Home Assistant ApprovalIngress.
     """
 
-    def __init__(self, runtime_root):
+    def __init__(self, runtime_root, *, project_root=None):
         self.root = Path(runtime_root)
+        self.project_root = Path(project_root) if project_root is not None else None
 
     def _read_dict(self, rel, default=None):
         path = self.root / rel
@@ -88,7 +89,8 @@ class ProjectmanagerAPI:
         development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
         package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
         return redact(build_delivery_receipt(
-            package, invocation_id=invocation_id, final_input_sha256=final_input_sha256, consumer=consumer
+            package, invocation_id=invocation_id, final_input_sha256=final_input_sha256, consumer=consumer,
+            project_root=self.project_root,
         ))
 
     def decisions(self):
