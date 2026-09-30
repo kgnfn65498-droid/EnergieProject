@@ -231,7 +231,10 @@ def compact_package(package: dict[str, Any]) -> dict[str, Any]:
         "current_truth": package.get("current_truth") or {},
         "active_task": package.get("active_task") or {},
         "resume_contract": package.get("resume_contract") or {},
-        "mandatory_source_refs": package.get("mandatory_source_refs") or [],
+        "mandatory_source_refs": [
+            {k: item.get(k) for k in ("path", "status", "sha256", "bytes", "selection_reason", "passage_sha256")}
+            for item in (package.get("mandatory_sources") or []) if isinstance(item, dict)
+        ],
         "mandatory_requirement_refs": [
             {k: item.get(k) for k in ("path", "status", "sha256", "bytes", "selection_reason", "passage_sha256")}
             for item in (package.get("mandatory_requirements") or []) if isinstance(item, dict)
@@ -258,8 +261,17 @@ def build_context_package(
 
     core_names = ("master_index", "active_context", "ledger_current_truth", "spock_context", "current_handover")
     missing_source_keys = [name for name in core_names if not source_paths.get(name)]
-    core_sources = [_read(root, source_paths[name], with_text=False) for name in core_names if source_paths.get(name)]
-    invalid = [x["path"] for x in core_sources + mandatory_requirements if x.get("status") != "GREEN"]
+    core_sources = []
+    for name in core_names:
+        if not source_paths.get(name):
+            continue
+        item = _read(root, source_paths[name], with_text=True)
+        passage = _normative_passage(str(item.pop("text", "") or ""))
+        item["selection_reason"] = ["mandatory_core:" + name]
+        item["passage"] = passage
+        item["passage_sha256"] = hashlib.sha256(passage.encode("utf-8")).hexdigest() if passage else ""
+        core_sources.append(item)
+    invalid = [x["path"] for x in core_sources + mandatory_requirements if x.get("status") != "GREEN" or not str(x.get("passage") or "").strip()]
     invalid.extend("requirement:" + name for name in missing_registry)
     invalid.extend("source_key:" + name for name in missing_source_keys)
 
@@ -299,7 +311,7 @@ def build_context_package(
             "step": active.get("step"), "steps_total": active.get("steps_total"),
             "first_unproven_action": first_action, "blockers": list(active.get("blockers") or []),
         },
-        "mandatory_source_refs": core_sources,
+        "mandatory_sources": core_sources,
         "mandatory_requirements": mandatory_requirements,
         "task_evidence": evidence,
         "known_issue_evidence": _issue_evidence(root, task_text),
