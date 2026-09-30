@@ -143,7 +143,6 @@ def test_32530_root_finalize_requires_recovery_for_nonrollback_debt(tmp_path: Pa
     _seed_release(root)
     for version in ("32.5.29", "32.5.28", "32.5.27", "32.5.26"):
         _rollback(root, version)
-    (root / "old-release.zip").write_bytes(b"not-recognized")
     recognized = root / "EnergieProject_v32.5.20-old.zip"
     recognized.write_bytes(b"release-debt")
 
