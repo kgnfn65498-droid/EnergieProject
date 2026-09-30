@@ -256,6 +256,7 @@ def build_development_context(project_root: Path | str, status: dict | None = No
         requirements=requirements,
         full_kb=full_kb,
         truth=reconciliation,
+        capabilities=capabilities,
     )
     base['context_package'] = package
     base['inventory_complete'] = package.get('inventory_complete') is True
