@@ -52,6 +52,12 @@ class ProjectmanagerAPI:
         preflight = status.get('new_chat_preflight') if isinstance(status.get('new_chat_preflight'), dict) else {}
         self_audit = status.get('self_audit') if isinstance(status.get('self_audit'), dict) else {}
         self_audit_status = str(self_audit.get('status') or '').strip().upper()
+        release_version = str(((status.get('release') or {}).get('version')) or '').strip()
+        try:
+            release_tuple = tuple(int(part) for part in release_version.split('.'))
+        except ValueError:
+            release_tuple = ()
+        budget_contract = len(release_tuple) == 3 and release_tuple >= (32, 5, 31)
         reasons = []
         if preflight.get('ready') is not True:
             reasons.append('preflight_not_ready')
@@ -61,6 +67,8 @@ class ProjectmanagerAPI:
             reasons.append('inventory_incomplete')
         if package.get('mandatory_context_complete') is not True:
             reasons.append('mandatory_context_incomplete')
+        if budget_contract and package.get('delivery_within_budget') is not True:
+            reasons.append('delivery_budget_exceeded')
         if (package.get('resume_contract') or {}).get('fail_closed') is True:
             reasons.append('resume_contract_fail_closed')
         if not str(package.get('package_sha256') or '').strip():
@@ -71,6 +79,7 @@ class ProjectmanagerAPI:
             'self_audit_status': self_audit_status or 'MISSING',
             'inventory_complete': package.get('inventory_complete') is True,
             'mandatory_context_complete': package.get('mandatory_context_complete') is True,
+            'delivery_within_budget': package.get('delivery_within_budget'),
             'package_sha256': package.get('package_sha256') or '',
             'first_unproven_action': (package.get('resume_contract') or {}).get('first_unproven_action') or '',
             'conflicts_missing_evidence': package.get('conflicts_missing_evidence') or {},
