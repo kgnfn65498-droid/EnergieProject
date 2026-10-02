@@ -6,6 +6,7 @@ import json
 import os
 import re
 import tempfile
+import time
 from pathlib import Path
 
 REQUEST_SCHEMA = 'energie_platformtest_run_request_v1'
@@ -187,4 +188,220 @@ class ConfiguredPlatformTestService:
             'request_id': request_id, 'candidate_sha': candidate,
             'source_sha256': source_sha256,
             'test_profile': profile, 'request_path': str(self.request_path),
+        }
+
+
+PREPARED_REQUEST_SCHEMA = 'energie_prepared_job_request_v2'
+PREPARED_AUTH_SCHEMA = 'energie_prepared_job_authorization_v1'
+PREPARED_MANIFEST_SCHEMA = 'energie_prepared_job_manifest_v1'
+PREPARED_RESULT_SCHEMA = 'energie_prepared_job_result_v2'
+PREPARED_ACTION = 'prepared_job_run'
+PREPARED_OPERATIONS = {'AUDIT', 'TEST', 'BUILD'}
+PREPARED_ID_RE = re.compile(r'^[0-9a-f]{32}$')
+PREPARED_SHA_RE = re.compile(r'^[0-9a-f]{64}$')
+PREPARED_VERSION_RE = re.compile(r'^[0-9]+[.][0-9]+[.][0-9]+$')
+PREPARED_LEASE_SECONDS = 900
+
+
+class ConfiguredPreparedJobService:
+    """Typed PM bridge to the bounded prepared-job executor."""
+
+    def __init__(self, project_root: Path | str):
+        self.project_root = Path(project_root).resolve()
+        self.jobs_root = self.project_root / 'Data/03_Systeem/Projectmanager/Staging/PreparedJobs'
+        self.artifacts_root = self.project_root / 'Data/03_Systeem/Projectmanager/ReleaseArtifacts'
+
+    @staticmethod
+    def _sha256(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open('rb') as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b''):
+                digest.update(block)
+        return digest.hexdigest()
+
+    @staticmethod
+    def _canonical(payload: dict) -> bytes:
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
+
+    @staticmethod
+    def _load_json(path: Path) -> dict | None:
+        if path.is_symlink() or not path.is_file():
+            return None
+        try:
+            value = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return None
+        return value if isinstance(value, dict) else None
+
+    @staticmethod
+    def _write_immutable_json(path: Path, payload: dict, *, mode: int = 0o644) -> None:
+        if path.is_symlink():
+            raise RuntimeError('prepared_job unsafe symlink target')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        existing = ConfiguredPreparedJobService._load_json(path)
+        if existing is not None:
+            if existing != payload:
+                raise RuntimeError('prepared_job immutable identity conflict')
+            return
+        if path.exists():
+            raise RuntimeError('prepared_job existing non-JSON target')
+        raw = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n').encode('utf-8')
+        fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+        try:
+            with os.fdopen(fd, 'wb') as handle:
+                handle.write(raw)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.chmod(path, mode)
+        except Exception:
+            try:
+                path.unlink()
+            except OSError:
+                pass
+            raise
+
+    def _runtime_path(self, kind: str, request_id: str) -> Path:
+        return project_system_path(
+            self.project_root,
+            f'Inbox/control_plane/{kind}/prepared_job_run.{request_id}.json',
+        )
+
+    def _live_release(self) -> str:
+        path = self.project_root / 'App/VERSIE.txt'
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError('prepared_job live release authority missing/unsafe')
+        value = path.read_text(encoding='utf-8').strip()
+        if PREPARED_VERSION_RE.fullmatch(value) is None:
+            raise RuntimeError('prepared_job live release invalid')
+        return value
+
+    @staticmethod
+    def _result_exact(result: dict, request: dict) -> bool:
+        return bool(
+            result.get('schema') == PREPARED_RESULT_SCHEMA
+            and result.get('action') == PREPARED_ACTION
+            and result.get('request_id') == request['request_id']
+            and result.get('task_id') == request['task_id']
+            and result.get('operation') == request['operation']
+            and result.get('target_release') == request['target_release']
+            and result.get('predecessor_release') == request['predecessor_release']
+            and result.get('predecessor_sha256') == request['predecessor_sha256']
+            and result.get('runner_sha256') == request['runner_sha256']
+            and result.get('manifest_sha256') == request['manifest_sha256']
+            and result.get('authorization_sha256') == request['authorization_sha256']
+            and result.get('network_mode') == 'none'
+            and result.get('project_mount') == 'read_only'
+            and result.get('production_modified') is False
+            and result.get('container_removed') is True
+        )
+
+    def run(
+        self,
+        *,
+        task: dict,
+        artifact_path: str,
+        artifact_sha256: str,
+        target_release: str,
+        operation: str,
+    ) -> dict:
+        task = task if isinstance(task, dict) else {}
+        task_id = str(task.get('id') or '').strip()
+        if not task_id or task.get('mode') != 'DEVELOPMENT' or task.get('status') != 'ACTIVE':
+            raise RuntimeError('prepared_job active DEVELOPMENT task required')
+
+        operation = str(operation or '').strip().upper()
+        if operation not in PREPARED_OPERATIONS:
+            raise RuntimeError('prepared_job operation invalid')
+        target_release = str(target_release or '').strip()
+        if PREPARED_VERSION_RE.fullmatch(target_release) is None:
+            raise RuntimeError('prepared_job target release invalid')
+        runner_sha = str(artifact_sha256 or '').strip().lower()
+        if PREPARED_SHA_RE.fullmatch(runner_sha) is None:
+            raise RuntimeError('prepared_job runner SHA invalid')
+
+        relative = Path(str(artifact_path or '').replace('\\', '/'))
+        if relative.is_absolute() or '..' in relative.parts or relative.name != 'runner.py':
+            raise RuntimeError('prepared_job runner path invalid')
+        runner = (self.project_root / relative).resolve()
+        jobs_root = self.jobs_root.resolve()
+        if runner.parent.parent != jobs_root or PREPARED_ID_RE.fullmatch(runner.parent.name) is None:
+            raise RuntimeError('prepared_job runner path outside bounded job root')
+        request_id = runner.parent.name
+        if runner.is_symlink() or not runner.is_file() or self._sha256(runner) != runner_sha:
+            raise RuntimeError('prepared_job runner identity mismatch')
+
+        predecessor_release = self._live_release()
+        predecessor = self.artifacts_root / f'EnergieProject_v{predecessor_release}.zip'
+        if predecessor.is_symlink() or not predecessor.is_file():
+            raise RuntimeError('prepared_job predecessor artifact missing/unsafe')
+        predecessor_sha = self._sha256(predecessor)
+
+        manifest_path = runner.parent / 'job_manifest.json'
+        manifest = self._load_json(manifest_path)
+        expected_manifest = {
+            'schema': PREPARED_MANIFEST_SCHEMA,
+            'request_id': request_id,
+            'task_id': task_id,
+            'operation': operation,
+            'target_release': target_release,
+            'predecessor_release': predecessor_release,
+            'predecessor_sha256': predecessor_sha,
+            'runner_sha256': runner_sha,
+        }
+        if manifest != expected_manifest:
+            raise RuntimeError('prepared_job manifest identity mismatch')
+        manifest_sha = self._sha256(manifest_path)
+
+        issued = time.time()
+        authorization = {
+            **expected_manifest,
+            'schema': PREPARED_AUTH_SCHEMA,
+            'status': 'AUTHORIZED',
+            'issued_by': 'projectmanager',
+            'issued_at_epoch': issued,
+            'expires_at_epoch': issued + PREPARED_LEASE_SECONDS,
+        }
+        authorization_sha = hashlib.sha256(self._canonical(authorization)).hexdigest()
+        authorization['authorization_sha256'] = authorization_sha
+        request = {
+            **expected_manifest,
+            'schema': PREPARED_REQUEST_SCHEMA,
+            'action': PREPARED_ACTION,
+            'manifest_sha256': manifest_sha,
+            'authorization_sha256': authorization_sha,
+        }
+
+        result_path = self._runtime_path('results', request_id)
+        result = self._load_json(result_path)
+        if result is not None:
+            if not self._result_exact(result, request):
+                raise RuntimeError('prepared_job result identity/safety mismatch')
+            return dict(result)
+
+        auth_path = self._runtime_path('authorizations', request_id)
+        claim_path = self._runtime_path('claims', request_id)
+        existing_claim = self._load_json(claim_path)
+        if existing_claim is not None:
+            if existing_claim != authorization:
+                raise RuntimeError('prepared_job claimed authorization identity mismatch')
+        else:
+            self._write_immutable_json(auth_path, authorization, mode=0o644)
+
+        request_path = self._runtime_path('requests', request_id)
+        self._write_immutable_json(request_path, request, mode=0o644)
+        return {
+            'status': 'PENDING',
+            'ok': None,
+            'executed': False,
+            'awaiting_executor': True,
+            'request_id': request_id,
+            'task_id': task_id,
+            'operation': operation,
+            'target_release': target_release,
+            'predecessor_release': predecessor_release,
+            'predecessor_sha256': predecessor_sha,
+            'runner_sha256': runner_sha,
+            'manifest_sha256': manifest_sha,
+            'authorization_sha256': authorization_sha,
+            'request_path': str(request_path),
         }
