@@ -10,7 +10,7 @@ from uuid import uuid4
 from approval_ingress import ApprovalIngressConsumer
 from approved_action_store import ApprovedActionStore
 from command_ingress import CommandIngressConsumer
-from command_processor import CommandProcessor
+from prepared_job_command_processor import PreparedJobCommandProcessor as CommandProcessor
 from command_store import CommandStore
 from conversation_intake import ConversationIntakeBridge
 from conversation_approval import ConversationApprovalCoordinator
