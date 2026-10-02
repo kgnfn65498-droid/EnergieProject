@@ -1,0 +1,27 @@
+name: 32.5.31 corrected audit
+
+on:
+  push:
+    branches:
+      - work/32.5.31-corrected-audit
+
+permissions:
+  contents: read
+
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install targeted test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Compile changed Python modules
+        run: |
+          python -m py_compile             slimmemeterportal_import/rootfs/app/projectmanager_v2/prepared_job_service.py             slimmemeterportal_import/rootfs/app/projectmanager_v2/prepared_job_command_processor.py             slimmemeterportal_import/rootfs/app/projectmanager_v2/orchestrator.py             slimmemeterportal_import/rootfs/app/projectmanager_v2/development_handover_sync.py             slimmemeterportal_import/rootfs/app/projectmanager_v2/development_context_enforcement.py             slimmemeterportal_import/rootfs/app/projectmanager_v2/development_build_contract.py             slimmemeterportal_import/rootfs/app/projectmanager_v2/context_package.py             slimmemeterportal_import/rootfs/app/projectmanager_v2/context_delivery.py             slimmemeterportal_import/rootfs/app/projectmanager_v2/projectmanager_api.py             slimmemeterportal_import/rootfs/app/projectmanager_v2/self_audit.py             slimmemeterportal_import/rootfs/app/projectmanager_v2/state_reconciliation.py             slimmemeterportal_import/rootfs/app/projectmanager_v2/runtime_sources.py             tools/control_plane/prepared_job_extension.py             tools/control_plane/control_plane.py             tools/control_plane/qnap_control_plane_bootstrap.py             tools/control_plane_source_sync.py             tools/control_plane_runtime_guard.py             tools/pm_shared_writer_contract.py             tools/release_artifact_builder.py             tools/release_artifact_retention.py
+      - name: Run 32.5.31 targeted regressions
+        run: |
+          python -m pytest -q -p no:cacheprovider             tests/test_v32531_codex_audit_contract.py             tests/test_v32531_prepared_job_security.py             tests/test_v32531_prepared_job_processor.py             tests/test_v32529_shared_pm_writer_contract.py
