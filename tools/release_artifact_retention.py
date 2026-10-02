@@ -42,7 +42,11 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
     tmp = Path(tmp_name)
     try:
         tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+        os.chmod(tmp, 0o644)
         os.replace(tmp, path)
+        os.chmod(path, 0o644)
+        if path.stat().st_mode & 0o777 != 0o644:
+            raise RuntimeError('release artifact registry mode readback mismatch')
     finally:
         tmp.unlink(missing_ok=True)
 
@@ -103,6 +107,10 @@ def retain_release_artifact(
             current = _read_registry(registry_path)
             entries = current.get('entries') if isinstance(current.get('entries'), list) else []
             if entries and entries[0].get('sha256') == actual_sha and entries[0].get('name') == source.name:
+                os.chmod(official_path, 0o644)
+                os.chmod(registry_path, 0o644)
+                if official_path.stat().st_mode & 0o777 != 0o644 or registry_path.stat().st_mode & 0o777 != 0o644:
+                    raise RuntimeError('idempotent release artifact mode normalization failed')
                 return {'status': 'GREEN', 'idempotent': True, 'store': str(store), 'registry': current}
 
     # First copy and verify new bytes before changing existing official/archive names.
@@ -110,6 +118,7 @@ def retain_release_artifact(
     if staged.exists():
         staged.unlink()
     shutil.copy2(source, staged)
+    os.chmod(staged, 0o644)
     if staged.stat().st_size != int(expected_size) or _sha(staged) != actual_sha or not _zip_green(staged):
         staged.unlink(missing_ok=True)
         raise RuntimeError('staged release artifact verification failed')
@@ -164,6 +173,9 @@ def retain_release_artifact(
             temp_old_paths.append(tmp)
 
     os.replace(staged, official_path)
+    os.chmod(official_path, 0o644)
+    if official_path.stat().st_mode & 0o777 != 0o644:
+        raise RuntimeError('official release artifact mode readback failed')
     if _sha(official_path) != actual_sha or official_path.stat().st_size != int(expected_size) or not _zip_green(official_path):
         raise RuntimeError('official release artifact readback failed')
 
@@ -181,6 +193,9 @@ def retain_release_artifact(
             src.unlink(missing_ok=True)
         else:
             os.replace(src, dst)
+        os.chmod(dst, 0o644)
+        if dst.stat().st_mode & 0o777 != 0o644:
+            raise RuntimeError('archived release artifact mode readback failed')
         kept_previous.append({
             **item,
             'name': archive_name,
