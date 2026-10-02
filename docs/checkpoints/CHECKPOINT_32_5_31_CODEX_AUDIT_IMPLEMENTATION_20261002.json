@@ -1,0 +1,52 @@
+{
+  "schema": "energie_spock_git_checkpoint_v1",
+  "saved_at": "2026-10-02",
+  "branch": "work/32.5.31-corrected-audit",
+  "head_before_checkpoint": "a918d038be155821dcfb3b53b42331edd5b8e855",
+  "live_release": "32.5.30",
+  "main_modified": false,
+  "production_modified": false,
+  "old_32531_candidate": "REJECTED_DO_NOT_USE",
+  "codex_audit": "binding verification baseline; final result must be rechecked against it",
+  "implemented": [
+    "PM shared-writer directories changed from 0777 to sticky 1777 contract with regression expectation",
+    "PM-owned ACCEPTED_LIVE reconciliation requires ReleaseController COMPLETE + atomic ACCEPTED + exact artifact SHA + exact HA runtime",
+    "manager cycle reconciles ACCEPTED_LIVE before current pointer/handover sync",
+    "CURRENT_CHAT_SWITCH_POINTER becomes fail-closed current authority for 32.5.31+; no normal historical fallback",
+    "Resume task reconstruction accepts accepted-live checkpoint and creates post-live closure task",
+    "no-user-terminal enforced in development build contract as CAPABILITY_BLOCKED for 32.5.31+",
+    "rollback_version derived from exact accepted atomic transaction before retained-directory fallback",
+    "final release artifact and retention registry normalized to 0644 with readback",
+    "context compiler v5 separates context-content validity from self-audit",
+    "context package identity no longer hashes self-referential package_sha256/package_bytes fields",
+    "context delivery budget is explicit and <= 48000 bytes gate for 32.5.31+",
+    "Resume/new-chat/self-audit downstream gates require delivery budget separately from mandatory context"
+  ],
+  "in_progress": [
+    "typed prepared_job_run path via existing PM CommandIngress/CommandProcessor/ControlPlane architecture",
+    "single-use short-lived authorization binding request/task/operation/runner/predecessor/manifest",
+    "per-request executor requests/results rather than mutable single slot",
+    "canonical prepared_job_extension source-sync/runtime fingerprint parity",
+    "native MCP existing submit-command surface must expose typed fields without new tool-name/catalog drift",
+    "32.5.31 targeted P0/P1 regression and failure-injection tests"
+  ],
+  "still_required_before_build_green": [
+    "finish typed executor path and tests",
+    "syntax/static audit all changed files",
+    "targeted tests RED then GREEN",
+    "historical regressions",
+    "full suite",
+    "build from exact retained 32.5.30 predecessor SHA 2d46536e3a0416700eebc13ac4ada5476404af9706858930229533c91a486125",
+    "fresh-extract targeted + full suite",
+    "FINAL_HASH",
+    "independent Codex re-audit against original audit recommendations"
+  ],
+  "release_constraints": [
+    "no Peter Terminal/sudo fallback",
+    "no GitHub main mutation before accepted release path",
+    "no Incoming/Processing/HA production action before build/fresh-extract acceptance",
+    "no ROOT cleanup in 32.5.31",
+    "no NAS/HA/container restart without governed need/approval"
+  ],
+  "next_action": "Finish typed prepared-job architecture using existing platform-test bridge pattern, then create targeted security/governance tests."
+}
