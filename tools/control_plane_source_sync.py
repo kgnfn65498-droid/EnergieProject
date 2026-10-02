@@ -10,6 +10,7 @@ from pathlib import Path
 
 FILES = (
     'control_plane.py',
+    'prepared_job_extension.py',
     'qnap_control_plane_bootstrap.py',
     'control_plane_release_bridge.py',
     'release_scoped_auth.py',
