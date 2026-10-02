@@ -60,6 +60,12 @@ def build_new_chat_preflight(status: dict, development_context: dict, active: di
     self_audit = status.get('self_audit') if isinstance(status.get('self_audit'), dict) else {}
     self_audit_status = str(self_audit.get('status') or '').strip().upper()
     release_version = str((status.get('release') or {}).get('version') or '').strip()
+    try:
+        release_tuple = tuple(int(part) for part in release_version.split('.'))
+    except ValueError:
+        release_tuple = ()
+    budget_contract = len(release_tuple) == 3 and release_tuple >= (32, 5, 31)
+    delivery_budget_ready = package.get('delivery_within_budget') is True if budget_contract else True
     legacy_ready = bool(
         full_kb.get('status') == 'COMPLETE'
         and full_kb.get('complete') is True
@@ -83,6 +89,7 @@ def build_new_chat_preflight(status: dict, development_context: dict, active: di
             and package.get('mandatory_context_complete') is True
             and resume_contract.get('fail_closed') is not True
             and str(package.get('package_sha256') or '').strip()
+            and delivery_budget_ready
             and self_audit_status == 'GREEN'
         )
     else:
@@ -106,6 +113,7 @@ def build_new_chat_preflight(status: dict, development_context: dict, active: di
         'truth_reconciliation': reconciliation.get('status'),
         'inventory_complete': package.get('inventory_complete') is True,
         'mandatory_context_complete': package.get('mandatory_context_complete') is True,
+        'delivery_within_budget': package.get('delivery_within_budget'),
         'context_package_sha256': package.get('package_sha256') or '',
         'resume_fail_closed': resume_contract.get('fail_closed') is True,
         'self_audit_status': self_audit_status or 'MISSING',
