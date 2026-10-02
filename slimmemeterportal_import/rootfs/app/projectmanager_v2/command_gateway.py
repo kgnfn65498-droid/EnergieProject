@@ -11,6 +11,7 @@ COMMANDS = {
     'nas_container_cr_create': {'action': 'nas_container_cr_create', 'allowed_without_approval': True},
     'release_recover': {'action': 'release_recover', 'allowed_without_approval': True},
     'platformtest_run': {'action': 'platformtest_run', 'allowed_without_approval': True},
+    'prepared_job_run': {'action': 'prepared_job_run', 'allowed_without_approval': True},
     'native_mcp_reload': {'action': 'native_mcp_reload', 'allowed_without_approval': False, 'decision_kind': 'PRODUCTION_RESTART'},
     'watcher_recreate': {'action': 'watcher_recreate', 'allowed_without_approval': False, 'decision_kind': 'PRODUCTION_RESTART'},
     'production_deploy': {'action': 'production_deploy', 'allowed_without_approval': False, 'decision_kind': 'PRODUCTION_DEPLOY'},
