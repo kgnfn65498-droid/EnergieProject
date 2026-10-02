@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, urlencode
 from control_plane_release_bridge import authorize_release_native_reconcile, authorize_release_native_request, release_result_fields
+import prepared_job_extension
 
 ALLOWED_ACTIONS = {'watcher_recreate', 'native_mcp_reload', 'platformtest_run'}
 WATCHER_CONTAINER = 'energie-release-watcher'
@@ -65,7 +66,7 @@ PLATFORMTEST_COMMAND = ['python3', '-c', PLATFORMTEST_RUNNER]
 PLATFORMTEST_REQUEST_SCHEMA = 'energie_platformtest_run_request_v1'
 PLATFORMTEST_RESULT_SCHEMA = 'energie_platformtest_run_result_v1'
 PLATFORMTEST_TIMEOUT_SECONDS = 3 * 60 * 60
-RUNTIME_FINGERPRINT_FILES = ('control_plane.py', 'qnap_control_plane_bootstrap.py', 'control_plane_release_bridge.py', 'release_scoped_auth.py')
+RUNTIME_FINGERPRINT_FILES = ('control_plane.py', 'qnap_control_plane_bootstrap.py', 'control_plane_release_bridge.py', 'release_scoped_auth.py', 'prepared_job_extension.py')
 
 def _loaded_runtime_fingerprint() -> str:
     root = Path(__file__).resolve().parent
@@ -1062,6 +1063,7 @@ class ControlPlane:
                         'error': str(exc),
                         'finished_at': datetime.now(timezone.utc).isoformat(),
                     })
+        results.extend(prepared_job_extension.process_pending(self, max_items=1))
         return results
 
 
