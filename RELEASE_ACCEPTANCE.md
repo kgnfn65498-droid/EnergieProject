@@ -1,26 +1,20 @@
-# Release Acceptance — 32.5.28
+# Release Acceptance — 32.5.30
 
 ## Pre-install verplicht
-- exact 32.5.27 buildbasis SHA256 `ea3674ebc32067a7c71b5798f33cb3e9de03f1d1c178dcb96e0f73e7dc4e89f2`;
-- recovery-first prepare/export/confirm/apply-gates GREEN;
-- live source mutation na recovery => fail-closed;
-- privileged executor herverifieert recovery + plan + sourcebytes vóór mutatie;
-- `Inbox/processing` permanente mailbox; nooit cleanup-item;
-- twee opeenvolgende releases Incoming -> Processing -> HA exact -> Processed GREEN;
-- exact predecessor-boundary 32.5.27 -> 32.5.28 GREEN zonder manual reconciliatie/rename/move/Terminal;
-- split-state tussen live/predecessor/target/publication/HA wordt fail-closed gedetecteerd en mag nooit als COMPLETE worden gepresenteerd;
-- always-current handover generation/freshness + ManagerService auto-sync GREEN;
-- volledige toepasselijke regressie zonder open failures; compileall/shell syntax GREEN;
+- exact 32.5.29 predecessor artifact + SHA256/size bewezen;
+- alle release-identiteiten onderling consistent;
+- targeted, historische regressies en volledige toepasselijke suite GREEN;
+- mandatory context fail-closed bij echt ontbrekende/foutieve context; optional evidence-budget is geen mandatory failure;
+- split-state tussen live/predecessor/target/publication/HA wordt fail-closed gedetecteerd;
+- release-ingress recovery blijft bounded, single-owner en fail-closed bij ambiguïteit;
 - exacte ZIP CRC/unique/safe paths/MANIFEST/SHA256SUMS GREEN;
 - fresh-extract herhaalt dezelfde acceptance.
 
 ## Live-required na installatie
-1. Incoming -> Processing -> HA exact -> Processed; 32.5.28 exact.
-2. Processing blijft daarna bestaan en is leeg.
-3. Canonieke publication-state blijft onder Data/03_Systeem; geen legacy Inbox-publication-state.
-4. ReleaseController/post-live audit GREEN.
-5. Eerst recovery-ZIP van exact finale Inbox-cleanupplan in chat leveren/downloaden en extern exact bevestigen.
-6. Pas daarna live cleanup: `failed` plat, allowlist-restanten reversibel quarantaine, `Inbox/projectmanager_v2` als laatste; Processing onaangeroerd.
-7. 20 s resurrection soak + post-cleanup readback GREEN.
+1. ReleaseController target 32.5.30 exact.
+2. GitHub/publication identity exact.
+3. Home Assistant handmatig bijgewerkt en runtime exact target.
+4. Processing daarna leeg en artifact naar Processed met dezelfde SHA256.
+5. Post-live audit en benodigde recovery/cleanup-gates GREEN.
 
 Geen PRE-INSTALL bewijs mag als LIVE_PROVEN worden gepresenteerd.

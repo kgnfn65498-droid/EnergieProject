@@ -7,6 +7,7 @@ from pathlib import Path
 import atomic_app_swap
 import native_mcp_runtime_guard
 import sideband_bridge
+import release_ingress_recovery_executor_32530
 from atomic_release_adapter import AtomicReleaseAdapter
 from controller_lock import controller_lease
 from control_plane_bootstrap import ensure_control_plane_current
@@ -14,6 +15,7 @@ from ha_delivery_adapter import HADelivery
 from github_publisher_binding import ensure_github_publisher_binding_current
 from ingress_policy import IncomingItem,IngressDecision,decide_incoming
 from minimal_release_preflight import verify_candidate
+from pm_shared_writer_contract import normalize_pm_shared_writer_contract
 from release_controller import ReleaseController,ReleaseState,Status
 from release_runtime_adapter import NativeRuntimeCoordinator
 from release_artifact_retention import retain_release_artifact
@@ -116,29 +118,8 @@ def ensure_publication_writer_contract(root:Path)->dict:
     return {'status':'GREEN','directory_mode':'0777','state_mode':'0666','files':touched}
 
 def ensure_projectmanager_shared_writer_contract(root:Path)->dict:
-    """Normalize only the known cross-identity PM writer directories.
-
-    The release watcher/controller owns this privileged filesystem boundary.
-    PM itself must never try to chmod these directories.
-    """
-    root=Path(root)
-    rels=(
-        'Data/03_Systeem/Projectmanager/Handover',
-        'Data/03_Systeem/Projectmanager/ClearUp/Recovery',
-        'Data/03_Systeem/Projectmanager/ClearUp/Exports',
-        'Data/03_Systeem/Projectmanager/ClearUp/State',
-    )
-    normalized=[]
-    for rel in rels:
-        path=root/rel
-        if path.exists() and (path.is_symlink() or not path.is_dir()):
-            raise RuntimeError('projectmanager_shared_writer_directory_unsafe:'+rel)
-        path.mkdir(parents=True,exist_ok=True)
-        os.chmod(path,0o777)
-        if (path.stat().st_mode & 0o7777) != 0o777:
-            raise RuntimeError('projectmanager_shared_writer_mode_mismatch:'+rel)
-        normalized.append(rel)
-    return {'status':'GREEN','directory_mode':'0777','directories':normalized}
+    """Preserve the release-service API while delegating PM filesystem policy."""
+    return normalize_pm_shared_writer_contract(root)
 
 def verify_publication_writer_quiescence(root:Path,state:ReleaseState,*,soak_seconds:float|None=None)->dict:
     root=Path(root)
@@ -300,6 +281,18 @@ class ReleaseControllerService:
         while dst.exists():dst=failed/(p.stem+f'.rolled_back.{i}.zip');i+=1
         os.replace(p,dst)
     def cycle(self):
+        ingress_admin=release_ingress_recovery_executor_32530.process_pending_request(self.root)
+        if ingress_admin is not None:
+            result=ingress_admin.get('result') if isinstance(ingress_admin,dict) else {}
+            self._runtime({
+                'status':'SIDEBAND',
+                'phase':'INGRESS_RECOVERY',
+                'sideband_status':ingress_admin.get('status') if isinstance(ingress_admin,dict) else 'error',
+                'request_id':ingress_admin.get('request_id') if isinstance(ingress_admin,dict) else '',
+                'recovery_status':result.get('status') if isinstance(result,dict) else '',
+                'recovery_action':result.get('action') if isinstance(result,dict) else '',
+            })
+            return self._load_state()
         state=self._load_state()
         if state and state.status not in {Status.COMPLETE.value,Status.ROLLED_BACK.value}:
             if not self._claim(state):

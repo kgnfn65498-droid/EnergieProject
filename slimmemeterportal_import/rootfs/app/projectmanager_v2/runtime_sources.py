@@ -348,7 +348,12 @@ class RuntimeCollector:
             except OSError:
                 nas_version = None
         rollback_versions = []
-        for path in sorted(self.project_root.glob('App.__rollback_*')):
+        rollback_paths = []
+        canonical_rollback_root = self.project_root / 'Rollback'
+        if canonical_rollback_root.is_dir() and not canonical_rollback_root.is_symlink():
+            rollback_paths.extend(sorted(canonical_rollback_root.glob('App.__rollback_*')))
+        rollback_paths.extend(sorted(self.project_root.glob('App.__rollback_*')))
+        for path in rollback_paths:
             version_file = path / 'VERSIE.txt'
             try:
                 version = version_file.read_text(encoding='utf-8').strip() if version_file.is_file() else ''

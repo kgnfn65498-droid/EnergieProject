@@ -4,6 +4,7 @@ from pathlib import Path
 from system_path_contract import project_system_path
 from release_controller import Outcome,ReleaseState
 import native_mcp_runtime_contract_hotfix
+import mcp_path_health_runtime_hotfix
 
 MCP_CONTAINER='energie-filesystem-mcp'
 CONTROL_PLANE_CONTAINER='energie-control-plane'
@@ -57,6 +58,19 @@ class NativeRuntimeCoordinator:
                 contract=native_mcp_runtime_contract_hotfix.apply(self.root)
                 if contract.get('status') != 'GREEN' or contract.get('command_forwarding_current') is not True:
                     return Outcome.blocked('native_mcp_command_bridge_contract_red')
+                # The project-root alias + bounded health-scan contract is a
+                # 32.5.30 addition. Historical release fixtures must continue
+                # to exercise their own bridge/control-plane contracts without
+                # requiring files that did not yet exist in those releases.
+                if release_parts >= (32,5,30):
+                    path_health=mcp_path_health_runtime_hotfix.apply(self.root)
+                    if (
+                        path_health.get('status') != 'GREEN'
+                        or path_health.get('project_root_alias_current') is not True
+                        or path_health.get('health_scan_guard_current') is not True
+                        or path_health.get('fingerprint_covers_fix') is not True
+                    ):
+                        return Outcome.blocked('native_mcp_path_health_contract_red')
             except Exception as exc:
                 return Outcome.blocked('native_mcp_command_bridge_prepare_failed:'+type(exc).__name__)
         if requires_control_plane_binding_proof:

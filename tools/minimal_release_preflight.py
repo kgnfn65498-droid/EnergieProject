@@ -50,7 +50,7 @@ def verify_candidate(root:Path,candidate:Path)->dict:
                 if hashlib.sha256(z.read(name)).hexdigest()!=sha:raise RuntimeError()
     except Exception:blockers.append('candidate_integrity_invalid')
     if not current or not version or _num(version)<=_num(current):blockers.append('candidate_version_not_newer')
-    rollback=root/f'App.__rollback_{current}' if current else root/'App.__rollback_unknown'
+    rollback=(root/'Rollback'/f'App.__rollback_{current}' if _num(version)>=(32,5,30) else root/f'App.__rollback_{current}') if current else root/'Rollback'/'App.__rollback_unknown'
     candidate_dir=root/f'App.__candidate_{version}' if version else root/'App.__candidate_unknown'
     if rollback.exists():blockers.append('rollback_collision')
     if candidate_dir.exists():blockers.append('candidate_collision')

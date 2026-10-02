@@ -614,9 +614,14 @@ class ManagerService:
             status['development_context'] = development_context
         else:
             development_context = status.get('development_context') if isinstance(status.get('development_context'), dict) else {}
+        runtime_release = str((status.get('release') or {}).get('version') or '')
+        try:
+            runtime_release_tuple = tuple(int(part) for part in runtime_release.split('.')[:3])
+        except ValueError:
+            runtime_release_tuple = ()
         runtime_context = {
-            'schema': 'energie_pmv2_runtime_development_context_v2',
-            'release_version': str((status.get('release') or {}).get('version') or ''),
+            'schema': 'energie_pmv2_runtime_development_context_v3',
+            'release_version': runtime_release,
             'contract_version': str(contract.get('contract_version') or ''),
             'process_rules': list(contract.get('process_rules') or []),
             'static_paths': {
@@ -637,8 +642,15 @@ class ManagerService:
             'requirements_count': int(development_context.get('requirements_count') or 0),
             'full_kb': development_context.get('full_kb') or {},
             'truth_reconciliation': development_context.get('truth_reconciliation') or {},
+            'context_package': development_context.get('context_package') or {},
+            'inventory_complete': development_context.get('inventory_complete') is True,
+            'mandatory_context_complete': development_context.get('mandatory_context_complete') is True,
+            'delivery_recorded': False,
+            'behavior_evaluation_passed': False,
             'runtime_truth_primary': True,
         }
+        if runtime_release_tuple and runtime_release_tuple < (32, 5, 30):
+            runtime_context['schema'] = 'energie_pmv2_runtime_development_context_v2'
         atomic_write_json(self.root / 'development_context' / 'current.json', runtime_context)
         results = []
         for name, writer in (

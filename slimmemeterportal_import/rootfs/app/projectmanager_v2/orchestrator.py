@@ -55,8 +55,12 @@ def build_new_chat_preflight(status: dict, development_context: dict, active: di
     full_kb = development_context.get('full_kb') if isinstance(development_context.get('full_kb'), dict) else {}
     reconciliation = development_context.get('truth_reconciliation') if isinstance(development_context.get('truth_reconciliation'), dict) else {}
     checkpoint = full_kb.get('checkpoint') if isinstance(full_kb.get('checkpoint'), dict) else {}
+    package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
+    resume_contract = package.get('resume_contract') if isinstance(package.get('resume_contract'), dict) else {}
+    self_audit = status.get('self_audit') if isinstance(status.get('self_audit'), dict) else {}
+    self_audit_status = str(self_audit.get('status') or '').strip().upper()
     release_version = str((status.get('release') or {}).get('version') or '').strip()
-    ready = bool(
+    legacy_ready = bool(
         full_kb.get('status') == 'COMPLETE'
         and full_kb.get('complete') is True
         and reconciliation.get('status') == 'GREEN'
@@ -64,6 +68,25 @@ def build_new_chat_preflight(status: dict, development_context: dict, active: di
         and str(checkpoint.get('path') or '').strip()
         and release_version
     )
+    # Current 32.5.30 callers are identified by the new semantic contract
+    # fields themselves, not by the live release value. During a 32.5.30 build
+    # the live predecessor is intentionally still 32.5.29. Historical fixtures
+    # that predate context_package/self_audit continue to use the legacy gate.
+    strict_context_contract = (
+        'context_package' in development_context
+        or 'self_audit' in status
+    )
+    if strict_context_contract:
+        ready = bool(
+            legacy_ready
+            and package.get('inventory_complete') is True
+            and package.get('mandatory_context_complete') is True
+            and resume_contract.get('fail_closed') is not True
+            and str(package.get('package_sha256') or '').strip()
+            and self_audit_status == 'GREEN'
+        )
+    else:
+        ready = legacy_ready
     return {
         'ready': ready,
         'manual_reexplanation_required': not ready,
@@ -81,6 +104,11 @@ def build_new_chat_preflight(status: dict, development_context: dict, active: di
         'knowledgebase_inventory': development_context.get('knowledgebase_inventory'),
         'requirements_count': int(development_context.get('requirements_count') or 0),
         'truth_reconciliation': reconciliation.get('status'),
+        'inventory_complete': package.get('inventory_complete') is True,
+        'mandatory_context_complete': package.get('mandatory_context_complete') is True,
+        'context_package_sha256': package.get('package_sha256') or '',
+        'resume_fail_closed': resume_contract.get('fail_closed') is True,
+        'self_audit_status': self_audit_status or 'MISSING',
         'next_action': (active or {}).get('next_action') or status.get('next_action') or '',
         'protected_approval_required': bool(decisions),
     }

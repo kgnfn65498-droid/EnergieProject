@@ -26,6 +26,29 @@ def _atomic(path,payload):
     try:tmp.write_text(json.dumps(payload,ensure_ascii=False,indent=2,sort_keys=True)+'\n',encoding='utf-8');os.replace(tmp,path)
     finally:tmp.unlink(missing_ok=True)
 
+def _rollback_path(root: Path, s: ReleaseState) -> Path:
+    atomic = _json(project_system_path(root, 'Inbox/atomic_app_swap_state.json'))
+    if (
+        str(atomic.get('from_version') or '') == str(s.from_version)
+        and str(atomic.get('to_version') or '') == str(s.to_version)
+    ):
+        raw = str(atomic.get('rollback_path') or '').strip()
+        if raw:
+            candidate = Path(raw)
+            if candidate.is_absolute():
+                try:
+                    candidate = candidate.resolve(strict=False).relative_to(root.resolve())
+                except (OSError, ValueError):
+                    candidate = Path()
+            if candidate.parts and '..' not in candidate.parts:
+                resolved = root / candidate
+                if resolved.is_dir() and not resolved.is_symlink():
+                    return resolved
+    if _version_tuple(s.to_version) >= (32, 5, 30):
+        return root/'Rollback'/f'App.__rollback_{s.from_version}'
+    return root/f'App.__rollback_{s.from_version}'
+
+
 class HADelivery:
     def __init__(self,root:Path,*,timeout_seconds=600):self.root=Path(root);self.timeout=float(timeout_seconds)
     def _active_artifact(self,s):
@@ -65,7 +88,7 @@ class HADelivery:
     def _pre_target_contract(self,s,artifact):
         active=self.root/'App'
         active_version=(active/'VERSIE.txt').read_text(encoding='utf-8').strip() if (active/'VERSIE.txt').is_file() else ''
-        install_predecessor=active if active_version==s.from_version else self.root/f'App.__rollback_{s.from_version}'
+        install_predecessor=active if active_version==s.from_version else _rollback_path(self.root,s)
         install_manifest=self._manifest_sha(install_predecessor/'MANIFEST.sha256')
         publication_version=s.from_version
         publication_manifest=install_manifest
@@ -101,7 +124,7 @@ class HADelivery:
             'processed_zip':artifact.name,'processed_zip_sha256':s.artifact_sha256,
             'release_id':s.release_id,'generation':s.generation}
     def _contract(self,s,artifact):
-        rollback=self.root/f'App.__rollback_{s.from_version}'
+        rollback=_rollback_path(self.root,s)
         return {'schema':'energie_ha_publication_contract_v2','status':'publication_required','version':s.to_version,
             'repository':'https://github.com/kgnfn65498-droid/EnergieProject','branch':'main',
             'expected_previous_version':s.from_version,
@@ -323,9 +346,14 @@ class HADelivery:
             and str(ha.get('version') or '')==publication_version
             and str(pub.get('remote_head') or '') and str(pub.get('remote_head') or '')==str(pub.get('local_head') or '')
         )
-        if remote_predecessor_exact:
-            return Outcome.waiting('github_pre_target_pending','remote_predecessor_exact','split_state_recovery_active','pre_target_publication_contract_ready')
         elapsed=max(0.0,time.time()-float(s.phase_started_at_epoch or time.time()))
+        if remote_predecessor_exact:
+            if elapsed>=self.timeout:
+                return Outcome.blocked(
+                    'github_pre_target_target_timeout',
+                    'publisher retained the exact predecessor but did not publish the fenced target within timeout',
+                )
+            return Outcome.waiting('github_pre_target_pending','remote_predecessor_exact','split_state_recovery_active','pre_target_publication_contract_ready')
         if elapsed>=self.timeout:
             if pub.get('published') is False and self._identity_matches(pub,payload):
                 return Outcome.blocked('github_pre_target_publication_failed','inspect exact publisher evidence; do not create a second release')

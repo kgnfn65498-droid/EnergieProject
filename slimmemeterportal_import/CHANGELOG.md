@@ -1,15 +1,14 @@
-## 32.5.29 — final Inbox recovery cross-identity writer contract
-
-- Repairs the live 32.5.28 blocker where `Projectmanager/Handover` and `ClearUp/{Recovery,Exports,State}` existed as 0755 and the embedded PM identity could not create atomic temp files or the final Inbox recovery artifact.
-- The privileged ReleaseController now normalizes only these four exact shared writer directories to 0777 after a completed 32.5.29 release, rejects symlinks/non-directories, and verifies mode readback.
-- No new ClearUp executor, no Type-2 reopen, no Inbox bypass, no delete-before-recovery. Existing 32.5.28 recovery-first confirmation and final Inbox cleanup logic remains unchanged.
-
 # Changelog
 
-## 32.5.28 — recovery-first final Inbox cleanup + always-current handover
-- Adds pre-mutation recovery packaging/export for the final Inbox cleanup, with source SHA256 manifest, deep ZIP verification, bounded chunks and exact external-confirmation gating.
-- Privileged cleanup apply revalidates current plan, recovery ZIP and live source bytes immediately before mutation; stale/mutated recovery evidence fails closed.
-- Re-proves the release standard `Incoming -> processing -> HA exact -> processed` for two consecutive releases while preserving the permanent Processing mailbox.
-- Adds exact 32.5.27 predecessor-boundary proof: the unchanged predecessor release-path bytes claim 32.5.28 from Incoming and archive only after exact HA target settlement.
-- Adds automatic development-handover generation/freshness reconciliation; stale pointer/handover/checkpoint truth blocks release-ready and ManagerService self-heals partial generations.
-- PM target `2.0.0-rc63`; Type-2 002–012 remains CLOSED.
+## 32.5.30 — deterministic context, ROOT ClearUp en release-chain hardening
+
+- Projectmanager + Knowledge Base + Master Index vormen één fail-closed deterministische contextketen.
+- Nieuwe chat / 'verder' hervat alleen vanuit actuele runtime + geldig checkpoint + verplichte requirements/HOT-lessons.
+- Canonieke project-ROOT: nieuwe rollbacks onder Rollback/, gezamenlijke retentie maximaal 3; legacy root-debt via guarded ROOT cleanup.
+- ROOT cleanup levert inventory, preview, recovery-export, apply, restore en finalize via de bestaande privileged ClearUp-sideband.
+- 32.5.30+ ClearUp-quarantaine staat onder Data/03_Systeem/Projectmanager/ClearUp/Quarantine; top-level CLEARUP wordt niet opnieuw aangemaakt.
+- 32.5.29 ingress-regressies afgevangen: exacte release-identiteit, publisher system-path binding en begrensde pre-target split-state wait.
+- Autonoom Incoming/Processing-herstel via PM/MCP + single-owner ReleaseController JSON-sideband, uitsluitend bij ondubbelzinnig veilige state.
+- Handmatige Home Assistant update blijft bewust onbeperkt wachten; geen autonome HA-update toegevoegd.
+- Native MCP: /project root-alias correctie en begrensde master-health scan; live readback vereist na installatie.
+- Definitieve build is uitsluitend gebaseerd op de exact geverifieerde fysieke 32.5.29 predecessor-ZIP.

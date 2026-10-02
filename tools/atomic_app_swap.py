@@ -34,11 +34,20 @@ class SwapPaths:
     def for_release(cls, root: Path, from_version: str, to_version: str) -> "SwapPaths":
         root = Path(root)
         inbox = root / "Inbox"
+        try:
+            target_tuple = tuple(int(part) for part in str(to_version).split("."))
+        except ValueError:
+            target_tuple = ()
+        rollback = (
+            root / "Rollback" / f"App.__rollback_{from_version}"
+            if target_tuple >= (32, 5, 30)
+            else root / f"App.__rollback_{from_version}"
+        )
         return cls(
             root=root,
             app=root / "App",
             candidate=root / f"App.__candidate_{to_version}",
-            rollback=root / f"App.__rollback_{from_version}",
+            rollback=rollback,
             inbox=inbox,
             journal=project_system_path(root, 'Inbox/atomic_app_swap_state.json'),
             lock=project_system_path(root, 'Inbox/release_controller/State/atomic_app_swap.lock'),
@@ -61,7 +70,7 @@ def write_journal_atomic(
         "to_version": paths.to_version,
         "artifact_sha256": artifact_sha256,
         "candidate_path": paths.candidate.name,
-        "rollback_path": paths.rollback.name,
+        "rollback_path": paths.rollback.relative_to(paths.root).as_posix(),
         "error": error,
     }
 
@@ -526,6 +535,13 @@ def perform_swap(
     _event(event_hook, "journal:PREPARED")
 
     try:
+        rollback_parent = paths.rollback.parent
+        if rollback_parent != paths.root:
+            if rollback_parent.exists() and (rollback_parent.is_symlink() or not rollback_parent.is_dir()):
+                raise RecoveryRequired(f"rollback parent unsafe: {rollback_parent}")
+            rollback_parent.mkdir(parents=True, exist_ok=True)
+            if rollback_parent.stat().st_dev != paths.root.stat().st_dev:
+                raise RecoveryRequired("rollback parent must be on the project filesystem")
         paths.app.rename(paths.rollback)
         phase = "OLD_RENAMED_PHYSICAL"
         _event(event_hook, "rename:App->rollback")

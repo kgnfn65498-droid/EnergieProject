@@ -7,9 +7,11 @@ runs the same ZIP-member safety gate used by ``atomic_app_swap``.  MANIFEST and
 SHA256SUMS are regenerated from the exact payload bytes that go into the ZIP.
 """
 
+import ast
 import hashlib
 import json
 import os
+import re
 import tempfile
 import zipfile
 from pathlib import Path
@@ -18,12 +20,96 @@ from typing import Any
 from atomic_app_swap import _is_forbidden_release_path, _safe_zip_infos
 
 _GENERATED_METADATA = {"MANIFEST.sha256", "SHA256SUMS.json"}
-_BUILD_EVIDENCE = {"fulltest.log", "fulltest.exit"}
+_BUILD_EVIDENCE = {"fulltest.log", "fulltest.exit", ".energie-32530-workspace.json"}
 _EXCLUDED_DIR_PARTS = {".git"}
 
 
 def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _python_constant(path: Path, name: str) -> str:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for statement in tree.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        if any(isinstance(target, ast.Name) and target.id == name for target in statement.targets):
+            if not isinstance(statement.value, ast.Constant) or not isinstance(statement.value.value, str):
+                raise ValueError(f"release identity {name} must be a string constant: {path}")
+            return statement.value.value.strip()
+    raise ValueError(f"release identity {name} missing: {path}")
+
+
+_EXTENDED_IDENTITY_PATHS = (
+    "slimmemeterportal_import/config.yaml",
+    "slimmemeterportal_import/rootfs/app/main.py",
+    "slimmemeterportal_import/rootfs/app/mode_entrypoint.py",
+    "release_test_contract.py",
+)
+
+
+def _extended_identity_mode(source_root: Path) -> bool:
+    present = [(source_root / relative).is_file() for relative in _EXTENDED_IDENTITY_PATHS]
+    if any(present) and not all(present):
+        missing = [
+            relative for relative, exists in zip(_EXTENDED_IDENTITY_PATHS, present)
+            if not exists
+        ]
+        raise ValueError("incomplete release identity contract: " + ", ".join(missing))
+    return all(present)
+
+
+def _verify_release_identity(source_root: Path) -> str:
+    target = (source_root / "VERSIE.txt").read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"\d+(?:\.\d+){2}", target):
+        raise ValueError(f"invalid VERSIE.txt release identity: {target!r}")
+
+    # Historical packaging-unit fixtures intentionally model the older minimal
+    # release contract. Current/full releases become strict as soon as any
+    # extended identity file exists: partial extended identity is never accepted.
+    if not _extended_identity_mode(source_root):
+        return target
+
+    config_text = (source_root / "slimmemeterportal_import/config.yaml").read_text(encoding="utf-8")
+    match = re.search(r"(?m)^version:\s*[\"']?([^\"'\s]+)[\"']?\s*$", config_text)
+    config_version = match.group(1).strip() if match else ""
+
+    values = {
+        "VERSIE.txt": target,
+        "config.yaml": config_version,
+        "main.APP_VERSION": _python_constant(
+            source_root / "slimmemeterportal_import/rootfs/app/main.py", "APP_VERSION"
+        ),
+        "mode_entrypoint.TARGET_RELEASE_VERSION": _python_constant(
+            source_root / "slimmemeterportal_import/rootfs/app/mode_entrypoint.py", "TARGET_RELEASE_VERSION"
+        ),
+        "release_test_contract.CURRENT_RELEASE": _python_constant(
+            source_root / "release_test_contract.py", "CURRENT_RELEASE"
+        ),
+    }
+    mismatched = {name: value for name, value in values.items() if value != target}
+    if mismatched:
+        detail = ", ".join(f"{name}={value!r}" for name, value in mismatched.items())
+        raise ValueError(f"release identity mismatch for target {target}: {detail}")
+    return target
+
+
+def _verify_release_chain_contract(source_root: Path) -> None:
+    binding = source_root / "tools/github_publisher_binding.py"
+    if not binding.is_file():
+        if _extended_identity_mode(source_root):
+            raise ValueError("release publisher binding missing")
+        return
+    tree = ast.parse(binding.read_text(encoding="utf-8"))
+    has_system_path_import = any(
+        isinstance(statement, ast.ImportFrom)
+        and statement.module == "system_path_contract"
+        and any(alias.name == "project_system_path" for alias in statement.names)
+        for statement in tree.body
+    )
+    if not has_system_path_import:
+        raise ValueError("release publisher binding missing project_system_path import")
+
 
 
 def _filtered_release_path(relative: Path) -> bool:
@@ -98,6 +184,8 @@ def build_release_artifact(source_root: Path | str, output_zip: Path | str) -> d
     output = Path(output_zip).resolve()
     if not source.is_dir():
         raise ValueError(f"release source directory missing: {source}")
+    release_identity = _verify_release_identity(source)
+    _verify_release_chain_contract(source)
     try:
         output.relative_to(source)
     except ValueError:
@@ -140,6 +228,7 @@ def build_release_artifact(source_root: Path | str, output_zip: Path | str) -> d
         "status": "GREEN",
         "artifact": str(output),
         "artifact_sha256": artifact_sha,
+        "release_identity": release_identity,
         "payload_count": len(payload),
         "filtered_count": len(filtered),
         "filtered": filtered,

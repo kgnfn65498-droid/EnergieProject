@@ -98,6 +98,20 @@ def release_task_semantic_guard(status, running_release_version=None):
     return None
 
 
+def _stable_build_contract(value):
+    """Return only coordination invariants; exclude elapsed/ETA/runtime-derived fields."""
+    if not isinstance(value, dict):
+        return {}
+    fields = (
+        'contract_version', 'thinking_level', 'release_version',
+        'estimated_total_seconds', 'estimated_test_verification_seconds',
+        'step_estimates_seconds', 'original_estimate_recorded_at',
+        'required', 'compliant', 'missing', 'terminal_compliant',
+        'step', 'steps_total',
+    )
+    return {field: value.get(field) for field in fields}
+
+
 class SelfAuditor:
     def __init__(self, runtime_root, *, max_age_seconds=900, production_version_path=None,
                  quarantine_warning_seconds=86400, canonical_roadmap_path=None,
@@ -306,11 +320,12 @@ class SelfAuditor:
                     ('acceptance_matrix', 'acceptance_matrix_mismatch'),
                     ('development_efficiency', 'development_efficiency_mismatch'),
                     ('development_context', 'development_context_mismatch'),
-                    ('development_build_contract', 'development_build_contract_mismatch'),
                 ])
             for field, reason in coordination_fields:
                 if status.get(field) != handover.get(field):
                     invalid.append({'path': 'handover/current.json', 'reason': reason})
+            if coordination_v2 and _stable_build_contract(status.get('development_build_contract')) != _stable_build_contract(handover.get('development_build_contract')):
+                invalid.append({'path': 'handover/current.json', 'reason': 'development_build_contract_mismatch'})
 
             status_issue_ids = sorted(
                 str(item.get('id')) for item in (status.get('open_issues') or [])
@@ -340,8 +355,16 @@ class SelfAuditor:
                     invalid.append({'path': 'status/current.json', 'reason': 'development_truth_conflict'})
                 if _release_at_least(self.running_release_version or ((status.get('release') or {}).get('version')), '32.5.25'):
                     preflight = status.get('new_chat_preflight') if isinstance(status.get('new_chat_preflight'), dict) else {}
-                    if preflight.get('ready') is not True or preflight.get('manual_reexplanation_required') is not False:
-                        invalid.append({'path': 'status/current.json', 'reason': 'new_chat_resume_preflight_not_ready'})
+                    preflight_ready = preflight.get('ready') is True
+                    if preflight.get('manual_reexplanation_required') is not (not preflight_ready):
+                        invalid.append({'path': 'status/current.json', 'reason': 'new_chat_resume_preflight_flag_mismatch'})
+                    package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
+                    package_ready = bool(
+                        package.get('mandatory_context_complete') is True
+                        and (package.get('resume_contract') or {}).get('fail_closed') is not True
+                    )
+                    if preflight_ready and not package_ready:
+                        invalid.append({'path': 'status/current.json', 'reason': 'new_chat_resume_preflight_false_green'})
                     for field in ('highest_checkpoint','master_index','active_context','ledger','ledger_current_truth','decision_log','development_changelog','spock_context','ticket_issue_index','knowledgebase_inventory'):
                         if not str(preflight.get(field) or '').strip():
                             invalid.append({'path': 'status/current.json', 'reason': f'new_chat_resume_context_missing:{field}'})

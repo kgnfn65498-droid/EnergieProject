@@ -11,7 +11,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-CANONICAL_ROOT_NAMES = frozenset({"App", "Backups", "Inbox", "Data", "Infra", "CLEARUP"})
+CANONICAL_ROOT_NAMES = frozenset({"App", "Backups", "Inbox", "Data", "Infra", "Rollback"})
+TRANSIENT_ROOT_NAMES = frozenset({"CLEARUP"})
 KNOWN_HISTORICAL_ROOT_DEBT = frozenset({"32457_release_overlay_transport.zip"})
 
 _RELEASE_ZIP_RE = re.compile(r"^EnergieProject_v\d+(?:\.\d+)+(?:[^/]*)\.zip$", re.IGNORECASE)
@@ -26,10 +27,14 @@ def classify_root_entry(path: Path) -> str:
     name = Path(path).name
     if name in CANONICAL_ROOT_NAMES:
         return "canonical"
+    if name in TRANSIENT_ROOT_NAMES:
+        return "transient_root_debt"
     if name.startswith("App.__rollback_"):
         return "managed_rollback"
     if name.startswith("App.__failed_"):
         return "managed_failed_release"
+    if name.startswith("App.__candidate_"):
+        return "managed_candidate_release"
     if _RELEASE_ZIP_RE.fullmatch(name):
         return "release_zip"
     if name in {".DS_Store", "__pycache__", "_fix_backup_auto"} or name in KNOWN_HISTORICAL_ROOT_DEBT:
@@ -56,6 +61,18 @@ def root_clearup_candidates(project_root: Path) -> list[dict[str, Any]]:
                 "reason": "root_release_zip_leftover",
                 "category": "root_release_debt",
             })
+        elif classification == "managed_candidate_release":
+            result.append({
+                "source_path": child.name,
+                "reason": "settled_candidate_release_root_debt",
+                "category": "root_candidate_release_debt",
+            })
+        elif classification == "managed_failed_release":
+            result.append({
+                "source_path": child.name,
+                "reason": "settled_failed_release_root_debt",
+                "category": "failed_release_root_debt",
+            })
         elif classification == "development_debt":
             result.append({
                 "source_path": child.name,
@@ -69,6 +86,11 @@ def root_structure_snapshot(project_root: Path) -> dict[str, Any]:
     root = Path(project_root)
     known: list[str] = []
     unknown: list[str] = []
+    try:
+        version_text = (root / "App/VERSIE.txt").read_text(encoding="utf-8").strip()
+        current_version = tuple(int(part) for part in version_text.split("."))
+    except (OSError, ValueError):
+        current_version = ()
     if not root.is_dir():
         return {
             "known_debt_count": 0,
@@ -88,6 +110,10 @@ def root_structure_snapshot(project_root: Path) -> dict[str, Any]:
     for child in children:
         classification = classify_root_entry(child)
         if classification in {"release_zip", "development_debt"}:
+            known.append(child.name)
+        elif current_version >= (32, 5, 30) and classification in {
+            "managed_rollback", "managed_failed_release", "managed_candidate_release", "transient_root_debt"
+        }:
             known.append(child.name)
         elif classification == "unclassified":
             unknown.append(child.name)

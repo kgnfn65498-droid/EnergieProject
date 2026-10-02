@@ -268,59 +268,28 @@ def _atomic_json(path: Path, payload: dict) -> None:
 
 
 
-RESUME_CONTEXT_MARKER = "# PM_RESUME_CONTEXT_TOOL_VERSION=2026-09-27.v1"
+RESUME_CONTEXT_PREVIOUS_MARKER = "# PM_RESUME_CONTEXT_TOOL_VERSION=2026-09-27.v1"
+RESUME_CONTEXT_MARKER = "# PM_RESUME_CONTEXT_TOOL_VERSION=2026-09-30.v2"
 RESUME_CONTEXT_BLOCK = r'''
-# PM_RESUME_CONTEXT_TOOL_VERSION=2026-09-27.v1
+# PM_RESUME_CONTEXT_TOOL_VERSION=2026-09-30.v2
 _RESUME_PROJECT_ROOT = Path(os.environ.get("ENERGIE_PROJECT_ROOT", "/project")).resolve()
-_RESUME_SYSTEM_ROOT = Path(os.environ.get("ENERGIE_SYSTEM_ROOT", "/system")).resolve()
 
 
-def _resume_json(path: Path) -> dict[str, Any]:
-    try:
-        value=json.loads(path.read_text(encoding="utf-8"))
-        return value if isinstance(value,dict) else {}
-    except (OSError,json.JSONDecodeError):
-        return {}
-
-
-def _resume_path(reference: str) -> Path:
-    rel=str(reference or "").strip().replace("\\","/").lstrip("/")
-    prefix="Data/03_Systeem/"
-    if rel.startswith(prefix):
-        return (_RESUME_SYSTEM_ROOT/rel[len(prefix):]).resolve()
-    return (_RESUME_PROJECT_ROOT/rel).resolve()
+def _api() -> ProjectmanagerAPI:
+    return ProjectmanagerAPI(RUNTIME_ROOT, project_root=_RESUME_PROJECT_ROOT)
 
 
 @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
 def projectmanager_resume_context() -> dict[str, Any]:
-    """MANDATORY first call for a new EnergieProject chat or a bare `verder`/resume request.
+    """MANDATORY first call for a new EnergieProject chat or bare `verder`.
 
-    Returns live Projectmanager truth plus the current chat-switch pointer,
-    highest checkpoint and handover. Use this before any substantive answer;
-    never resume from chat memory when this canonical preflight is available.
+    Returns one compact fail-closed semantic context package. The API creates
+    the invocation id and binds a delivery receipt to the exact semantic MCP
+    response payload. CURRENT_CHAT_SWITCH_POINTER.json remains part of the
+    continuity authority consumed behind this server-bound API. Behavioral E2E
+    remains a separate acceptance gate.
     """
-    pointer_path=_RESUME_SYSTEM_ROOT/"Projectmanager/Handover/CURRENT_CHAT_SWITCH_POINTER.json"
-    pointer=_resume_json(pointer_path)
-    checkpoint_ref=str(pointer.get("checkpoint") or "")
-    handover_ref=str(pointer.get("handover") or "")
-    checkpoint=_resume_json(_resume_path(checkpoint_ref)) if checkpoint_ref else {}
-    handover_text=""
-    if handover_ref:
-        hp=_resume_path(handover_ref)
-        try: handover_text=hp.read_text(encoding="utf-8")
-        except OSError: handover_text=""
-    live=_api().status()
-    handover=_api().handover()
-    return {
-        "schema":"energie_projectmanager_resume_context_v1",
-        "mandatory_preflight_complete":bool(pointer and checkpoint and handover_text),
-        "pointer":pointer,
-        "checkpoint":checkpoint,
-        "chat_switch_handover":handover_text,
-        "live_status":live,
-        "runtime_handover":handover,
-        "resume_rule":"Canonical live runtime + highest checkpoint + pointer/handover override chat memory. Already proven work must not be repeated.",
-    }
+    return _api().resume_context(consumer="chatgpt_mcp")
 '''
 
 
@@ -328,11 +297,28 @@ def _ensure_resume_context_tool(tools_text: str) -> tuple[str,bool,str]:
     if RESUME_CONTEXT_MARKER in tools_text:
         return tools_text,False,'resume_context_tool_current'
     anchor="\n\ndef _api() -> ProjectmanagerAPI:\n"
+    if RESUME_CONTEXT_PREVIOUS_MARKER in tools_text:
+        start = tools_text.index(RESUME_CONTEXT_PREVIOUS_MARKER)
+        end = tools_text.find(anchor, start)
+        if end < 0:
+            raise RuntimeError('tools_projectmanager previous resume block end anchor mismatch')
+        upgraded = tools_text[:start] + RESUME_CONTEXT_BLOCK + tools_text[end:]
+        # The v2 block owns the canonical _api; remove the old duplicate _api body
+        # directly following the inserted block.
+        duplicate = anchor + "    return ProjectmanagerAPI(RUNTIME_ROOT)\n"
+        if duplicate in upgraded:
+            upgraded = upgraded.replace(duplicate, "\n", 1)
+        return upgraded,True,'resume_context_tool_upgraded_v2'
     if tools_text.count(anchor)!=1:
         if 'def projectmanager_status(' not in tools_text:
             return tools_text,False,'resume_context_tool_api_absent'
         raise RuntimeError('tools_projectmanager resume context insertion anchor mismatch')
-    return tools_text.replace(anchor,"\n\n"+RESUME_CONTEXT_BLOCK+anchor,1),True,'resume_context_tool_added'
+    # Replace the existing API helper as part of the insertion so project_root
+    # is always bound for source revalidation.
+    api_old = anchor + "    return ProjectmanagerAPI(RUNTIME_ROOT)\n"
+    if api_old not in tools_text:
+        raise RuntimeError('tools_projectmanager api helper mismatch for resume context v2')
+    return tools_text.replace(api_old, "\n\n"+RESUME_CONTEXT_BLOCK+"\n", 1),True,'resume_context_tool_added_v2'
 
 PM_RUNTIME_ROOT_MARKER = "# PM_RUNTIME_ROOT_CANONICAL_VERSION=2026-09-25.v1"
 PM_RUNTIME_ROOT_OLD = """RUNTIME_ROOT = Path(os.environ.get(

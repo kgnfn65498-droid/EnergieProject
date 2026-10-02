@@ -3,7 +3,7 @@ import json
 from transition_state_io import read_transition_state
 from approval_gate import PROTECTED_ACTIONS, can_execute
 from command_gateway import plan_command
-from development_build_contract import build_metadata_from_command
+from development_build_contract import build_metadata_from_command, evaluate_build_contract
 from release_controller_state import load_release_controller_state, release_active, release_view
 
 
@@ -30,6 +30,29 @@ class CommandProcessor:
             return (Path(self.project_root) / 'App' / 'VERSIE.txt').read_text(encoding='utf-8').strip()
         except OSError:
             return ''
+
+    @staticmethod
+    def _release_tuple(value):
+        try:
+            parts = tuple(int(part) for part in str(value or '').split('.'))
+        except ValueError:
+            return ()
+        return parts if len(parts) == 3 else ()
+
+    def _build_metadata_for_task(self, item, *, mode):
+        metadata = build_metadata_from_command(item)
+        release = str((item or {}).get('release_version') or '').strip()
+        if str(mode or '').upper() == 'DEVELOPMENT' and self._release_tuple(release) >= (32, 5, 30):
+            probe = {
+                'build_contract_required': True,
+                'build_metadata': metadata or {},
+                'steps_total': max(1, int((item or {}).get('steps_total') or 1)),
+            }
+            contract = evaluate_build_contract(probe)
+            if contract.get('compliant') is not True:
+                missing = ','.join(contract.get('missing') or []) or 'invalid_metadata'
+                raise RuntimeError('development_build_contract_required:' + missing)
+        return metadata
 
     def _release_controller_enabled(self):
         active = self._active_release()
@@ -237,7 +260,7 @@ class CommandProcessor:
             mode=target_mode,
             steps_total=max(1, int(item.get('steps_total') or 1)),
             priority=int(item.get('priority') or 2),
-            build_metadata=build_metadata_from_command(item),
+            build_metadata=self._build_metadata_for_task(item, mode=target_mode),
         )
         if item.get('next_action'):
             task = self.tasks.progress(task['id'], next_action=item['next_action'])
@@ -280,7 +303,7 @@ class CommandProcessor:
                 mode='DEVELOPMENT',
                 steps_total=max(1, int(item.get('steps_total') or 1)),
                 priority=int(item.get('priority') or 2),
-                build_metadata=build_metadata_from_command(item),
+                build_metadata=self._build_metadata_for_task(item, mode='DEVELOPMENT'),
             )
             next_action = item.get('next_action') or 'continue approved architecture work in isolated staging and verify before deployment'
             task = self.tasks.progress(task['id'], next_action=next_action, change='Peter approved architecture_change')
@@ -403,7 +426,7 @@ class CommandProcessor:
                     mode='DEVELOPMENT',
                     steps_total=max(1, int(item.get('steps_total') or 1)),
                     priority=int(item.get('priority') or 2),
-                    build_metadata=build_metadata_from_command(item),
+                    build_metadata=self._build_metadata_for_task(item, mode='DEVELOPMENT'),
                 )
                 if item.get('next_action'):
                     task = self.tasks.progress(task['id'], next_action=item['next_action'])
@@ -489,6 +512,81 @@ class CommandProcessor:
                     result['executed']=hint in {
                         'inbox_cleanup_prepare_recovery','inbox_cleanup_external_recovery_confirm',
                         'inbox_cleanup_apply','inbox_cleanup_restore'
+                    } and result.get('status')=='GREEN'
+                    result['action']=hint
+                    result['transport_intent']='admin_update'
+                elif hint in {'release_ingress_recovery_inspect','release_ingress_recovery_recover'}:
+                    if not self.project_root:
+                        raise RuntimeError('32.5.30 release ingress recovery requires project_root')
+                    from release_ingress_recovery_32530 import inspect_release_ingress, recover_release_ingress
+                    if hint=='release_ingress_recovery_inspect':
+                        result=dict(inspect_release_ingress(self.project_root))
+                    else:
+                        result=dict(recover_release_ingress(self.project_root))
+                    result['executed']=bool(result.get('executed') is True)
+                    result['action']=hint
+                    result['transport_intent']='admin_update'
+                elif hint in {
+                    'root_cleanup_inventory','root_cleanup_preview','root_cleanup_prepare_recovery',
+                    'root_cleanup_export_info','root_cleanup_export_chunk','root_cleanup_external_recovery_confirm',
+                    'root_cleanup_apply','root_cleanup_restore','root_cleanup_finalize'
+                }:
+                    if not self.project_root:
+                        raise RuntimeError('32.5.30 ROOT cleanup requires project_root')
+                    from root_cleanup_32530 import (
+                        inventory_root_cleanup, build_root_cleanup_plan, prepare_root_recovery,
+                        root_recovery_export_info, root_recovery_export_chunk, confirm_root_recovery,
+                        apply_root_cleanup, restore_root_cleanup, finalize_root_cleanup,
+                    )
+                    source=str(item.get('source') or '')
+                    if hint=='root_cleanup_inventory':
+                        result=dict(inventory_root_cleanup(self.project_root))
+                    elif hint=='root_cleanup_preview':
+                        result=dict(build_root_cleanup_plan(self.project_root))
+                    elif hint=='root_cleanup_prepare_recovery':
+                        result=dict(prepare_root_recovery(self.project_root))
+                    elif hint=='root_cleanup_export_info':
+                        result=dict(root_recovery_export_info(self.project_root))
+                    elif hint=='root_cleanup_export_chunk':
+                        raw=str(item.get('text') or '').strip()
+                        try:
+                            args=json.loads(raw) if raw else {}
+                        except json.JSONDecodeError as exc:
+                            raise RuntimeError('ROOT cleanup export chunk text must be JSON') from exc
+                        result=dict(root_recovery_export_chunk(
+                            self.project_root,
+                            offset=int(args.get('offset') or 0),
+                            max_bytes=int(args.get('max_bytes') or 32768),
+                        ))
+                    elif hint=='root_cleanup_external_recovery_confirm':
+                        result=dict(confirm_root_recovery(
+                            self.project_root,
+                            explicit_user_text=str(item.get('text') or ''),
+                            source=source,
+                        ))
+                    elif hint=='root_cleanup_apply':
+                        result=dict(apply_root_cleanup(
+                            self.project_root,
+                            explicit_user_text=str(item.get('text') or ''),
+                            source=source,
+                        ))
+                    elif hint=='root_cleanup_restore':
+                        result=dict(restore_root_cleanup(
+                            self.project_root,
+                            run_id=str(item.get('artifact_path') or ''),
+                            explicit_user_text=str(item.get('text') or ''),
+                            source=source,
+                        ))
+                    else:
+                        result=dict(finalize_root_cleanup(
+                            self.project_root,
+                            run_id=str(item.get('artifact_path') or ''),
+                            explicit_user_text=str(item.get('text') or ''),
+                            source=source,
+                        ))
+                    result['executed']=hint in {
+                        'root_cleanup_prepare_recovery','root_cleanup_external_recovery_confirm',
+                        'root_cleanup_apply','root_cleanup_restore','root_cleanup_finalize'
                     } and result.get('status')=='GREEN'
                     result['action']=hint
                     result['transport_intent']='admin_update'
