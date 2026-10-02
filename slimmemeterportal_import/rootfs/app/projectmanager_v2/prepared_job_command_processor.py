@@ -41,13 +41,10 @@ class PreparedJobCommandProcessor(CommandProcessor):
             active_task = self.tasks.active()
             result = dict(self.prepared_job_service.run(
                 task=active_task or {},
-                request_id=str(item.get('request_id') or ''),
-                operation=str(item.get('classification_hint') or '').upper(),
+                artifact_path=str(item.get('artifact_path') or ''),
+                artifact_sha256=str(item.get('artifact_sha256') or ''),
                 target_release=str(item.get('release_version') or ''),
-                predecessor_release=str(item.get('predecessor_release') or ''),
-                predecessor_sha256=str(item.get('predecessor_sha256') or ''),
-                runner_sha256=str(item.get('artifact_sha256') or ''),
-                manifest_sha256=str(item.get('manifest_sha256') or ''),
+                operation=str(item.get('classification_hint') or '').upper(),
             ) or {})
 
             if result.get('status') == 'PENDING':
