@@ -24,7 +24,7 @@ def test_shared_pm_writer_contract_normalizes_exact_allowlist(tmp_path):
     assert result['status']=='GREEN'
     assert result['directories']==list(rels)
     for rel in rels:
-        assert stat.S_IMODE((tmp_path/rel).stat().st_mode)==0o777
+        assert stat.S_IMODE((tmp_path/rel).stat().st_mode)==0o1777
 
 def test_shared_pm_writer_contract_refuses_symlink(tmp_path):
     m=load()
