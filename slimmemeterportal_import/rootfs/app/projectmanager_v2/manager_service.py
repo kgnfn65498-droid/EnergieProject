@@ -21,7 +21,7 @@ from proactive_policy import evaluate_signal
 from progress_truth import build_task_progress
 from development_build_contract import evaluate_build_contract, canonical_contract
 from development_context_enforcement import build_development_context, highest_checkpoint
-from development_handover_sync import sync_current_development_handover
+from development_handover_sync import reconcile_accepted_live, sync_current_development_handover
 from persistence import atomic_write_json
 from research_queue import ResearchQueue
 from retention import retention_candidates, apply_retention
@@ -595,15 +595,35 @@ class ManagerService:
         errors = []
         handover_sync = {'status': 'NOT_REQUIRED'}
         if project_root is not None:
-            checkpoint = highest_checkpoint(project_root)
-            cp_payload = checkpoint.get('payload') if isinstance(checkpoint.get('payload'), dict) else {}
-            target = str(cp_payload.get('target_release') or '')
             live = str((status.get('release') or {}).get('version') or '')
+            try:
+                live_tuple = tuple(int(part) for part in live.split('.')[:3])
+            except ValueError:
+                live_tuple = ()
+            checkpoint = None
+            if live_tuple >= (32, 5, 31):
+                try:
+                    checkpoint = reconcile_accepted_live(project_root, status)
+                except Exception as exc:
+                    handover_sync = {'status': 'RED', 'fail_closed': True, 'error': f'{type(exc).__name__}: {exc}'}
+                    errors.append({'writer': 'accepted_live_reconciliation', 'error': handover_sync['error']})
+                if checkpoint is None and handover_sync.get('status') != 'RED':
+                    handover_sync = {
+                        'status': 'RED',
+                        'fail_closed': True,
+                        'error': 'accepted_live_unproven_from_release_controller_atomic_ha_artifact_truth',
+                    }
+                    errors.append({'writer': 'accepted_live_reconciliation', 'error': handover_sync['error']})
+            else:
+                checkpoint = highest_checkpoint(project_root)
+
+            cp_payload = checkpoint.get('payload') if isinstance(checkpoint, dict) and isinstance(checkpoint.get('payload'), dict) else {}
+            target = str(cp_payload.get('target_release') or '')
             try:
                 versions = [tuple(int(part) for part in value.split('.')[:3]) for value in (live, target) if value]
             except ValueError:
                 versions = []
-            if versions and max(versions) >= (32, 5, 28):
+            if checkpoint is not None and versions and max(versions) >= (32, 5, 28):
                 try:
                     handover_sync = sync_current_development_handover(project_root, status, checkpoint=checkpoint)
                 except Exception as exc:
