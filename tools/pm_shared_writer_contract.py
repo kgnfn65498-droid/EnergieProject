@@ -21,8 +21,8 @@ def normalize_pm_shared_writer_contract(root: Path | str) -> dict:
         if path.exists() and (path.is_symlink() or not path.is_dir()):
             raise RuntimeError("projectmanager_shared_writer_directory_unsafe:" + rel)
         path.mkdir(parents=True, exist_ok=True)
-        os.chmod(path, 0o777)
-        if (path.stat().st_mode & 0o7777) != 0o777:
+        os.chmod(path, 0o1777)
+        if (path.stat().st_mode & 0o7777) != 0o1777:
             raise RuntimeError("projectmanager_shared_writer_mode_mismatch:" + rel)
         normalized.append(rel)
-    return {"status": "GREEN", "directory_mode": "0777", "directories": normalized}
+    return {"status": "GREEN", "directory_mode": "1777", "directories": normalized}
