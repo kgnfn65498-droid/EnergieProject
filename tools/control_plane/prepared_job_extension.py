@@ -199,7 +199,7 @@ def _claim_authorization(control_plane, request: dict) -> dict:
         if str(value.get(key) or "")!=str(expected):
             raise RuntimeError("prepared job authorization binding mismatch:"+key)
     expires=float(value.get("expires_at_epoch") or 0)
-    if expires<=time.time():
+    if path==auth and expires<=time.time():
         raise RuntimeError("prepared job authorization expired")
     identity=dict(value); identity.pop("authorization_sha256",None)
     canonical=json.dumps(identity,ensure_ascii=False,sort_keys=True,separators=(",",":")).encode()
