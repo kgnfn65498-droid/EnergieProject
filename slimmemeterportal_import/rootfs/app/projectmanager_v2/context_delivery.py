@@ -123,6 +123,7 @@ def build_delivery_receipt(
     package_sha = str(package.get("package_sha256") or "").strip().lower()
     final_input_sha256 = str(final_input_sha256 or "").strip().lower()
     source_validation = validate_sources(package, project_root)
+    budget_ready = package.get("delivery_within_budget") is True if package.get("schema") == "energie_pm_context_package_v5" else True
 
     response_bound = isinstance(delivered_payload, dict)
     delivered_payload_sha256 = _sha(delivered_payload) if response_bound else ""
@@ -135,6 +136,7 @@ def build_delivery_receipt(
         and _valid_sha256(package_sha)
         and package_bound
         and package.get("mandatory_context_complete") is True
+        and budget_ready
         and (package.get("resume_contract") or {}).get("fail_closed") is not True
         and source_validation.get("current") is True
     )
@@ -161,6 +163,7 @@ def build_delivery_receipt(
         "caller_asserted_final_input_sha256": final_input_sha256,
         "compiler_version": package.get("compiler_version"),
         "mandatory_context_complete": package.get("mandatory_context_complete") is True,
+        "delivery_within_budget": package.get("delivery_within_budget"),
         "truth_snapshot_sha256": _sha(current_truth),
         "checkpoint_identity": governing_claims.get("checkpoint") or current_truth.get("highest_checkpoint") or "",
         "first_unproven_action": (package.get("resume_contract") or {}).get("first_unproven_action") or "",
