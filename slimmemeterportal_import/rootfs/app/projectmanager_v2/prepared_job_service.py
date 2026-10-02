@@ -171,6 +171,7 @@ class ConfiguredPreparedJobService:
 
         bindings=dict(expected_manifest)
         bindings.pop('schema',None)
+        bindings['manifest_sha256']=manifest_sha
         claim_path=self._runtime_path('claims',request_id)
         auth_path=self._runtime_path('authorizations',request_id)
         claim=_load(claim_path)
