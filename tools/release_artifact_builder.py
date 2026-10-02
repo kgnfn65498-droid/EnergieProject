@@ -219,6 +219,9 @@ def build_release_artifact(source_root: Path | str, output_zip: Path | str) -> d
             archive.writestr("SHA256SUMS.json", sums)
         _verify_exact_archive(temp, payload)
         temp.replace(output)
+        os.chmod(output, 0o644)
+        if output.stat().st_mode & 0o777 != 0o644:
+            raise ValueError('release artifact mode readback mismatch')
     finally:
         if temp.exists():
             temp.unlink()
