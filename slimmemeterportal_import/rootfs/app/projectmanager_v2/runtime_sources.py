@@ -362,6 +362,30 @@ class RuntimeCollector:
             if version and version not in rollback_versions:
                 rollback_versions.append(version)
         active_version = self.running_release_version
+        release_chain = self._release_chain(now=now)
+        atomic_view = release_chain.get('atomic_swap') if isinstance(release_chain.get('atomic_swap'), dict) else {}
+        atomic_raw = atomic_view.get('raw') if isinstance(atomic_view.get('raw'), dict) else {}
+        transaction_rollback = None
+        transaction_rollback_source = None
+        if (
+            atomic_raw.get('state') == 'ACCEPTED'
+            and str(atomic_raw.get('to_version') or '').strip() == str(active_version or '').strip()
+        ):
+            from_version = str(atomic_raw.get('from_version') or '').strip()
+            rollback_rel = str(atomic_raw.get('rollback_path') or '').strip()
+            rollback_path = self.project_root / rollback_rel if rollback_rel else None
+            try:
+                rollback_version_file = rollback_path / 'VERSIE.txt' if rollback_path is not None else None
+                rollback_readback = (
+                    rollback_version_file.read_text(encoding='utf-8').strip()
+                    if rollback_version_file is not None and rollback_version_file.is_file() and not rollback_version_file.is_symlink()
+                    else ''
+                )
+            except OSError:
+                rollback_readback = ''
+            if from_version and rollback_readback == from_version:
+                transaction_rollback = from_version
+                transaction_rollback_source = 'atomic_accepted_transaction'
         native_guard_path = project_system_path(self.project_root, 'Inbox/native_mcp_runtime/runtime_guard.json')
         native_guard = self._read_json(native_guard_path) or {}
         if native_guard:
@@ -373,13 +397,14 @@ class RuntimeCollector:
                 'ha_runtime_version': active_version,
                 'nas_version': nas_version,
                 'available_update': nas_version if active_version and nas_version and active_version != nas_version else None,
-                'rollback_version': rollback_versions[0] if rollback_versions else None,
+                'rollback_version': transaction_rollback or (rollback_versions[0] if rollback_versions else None),
+                'rollback_version_source': transaction_rollback_source or ('retained_fallback' if rollback_versions else None),
                 'rollback_versions': rollback_versions,
                 'active_verified': bool(active_version),
                 'active_version_source': 'running_addon' if active_version else 'unknown',
                 'source': str(version_path),
             },
-            'release_chain': self._release_chain(now=now),
+            'release_chain': release_chain,
             'native_mcp_runtime': native_guard,
             'projectmanager_liveness': self._projectmanager_liveness(now=now),
         }
