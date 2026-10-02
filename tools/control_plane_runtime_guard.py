@@ -12,7 +12,7 @@ from typing import Any
 
 SCHEMA = 'energie_control_plane_runtime_guard_v1'
 RUNTIME_SCHEMA = 'energie_control_plane_runtime_v1'
-FINGERPRINT_FILES = ('control_plane.py', 'qnap_control_plane_bootstrap.py', 'control_plane_release_bridge.py', 'release_scoped_auth.py')
+FINGERPRINT_FILES = ('control_plane.py', 'qnap_control_plane_bootstrap.py', 'control_plane_release_bridge.py', 'release_scoped_auth.py', 'prepared_job_extension.py')
 DEFAULT_STALE_SECONDS = 30
 
 
