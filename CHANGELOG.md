@@ -1,3 +1,15 @@
+## 32.5.31 — PM/Spock acceptance, autonomous executor en governance closure
+
+- Sluit ReleaseController COMPLETE + atomic ACCEPTED + exacte HA/artifact-identiteit idempotent af als PM `ACCEPTED_LIVE`.
+- Maakt `CURRENT_CHAT_SWITCH_POINTER` de enige normale current-authoriteit; ontbrekende/corrupte/stale pointer faalt gesloten.
+- Ontkoppelt context-contentvaliditeit van self-audit, met zelfstandige <=48 kB delivery-budgetgate en niet-circulaire pakketidentiteit.
+- Herleidt actuele rollback uit de accepted atomic transaction; historische rollbackmappen blijven alleen inventory/fallback.
+- Verankert `NO_USER_TERMINAL` als codegate: vereiste gebruikers-Terminal wordt `CAPABILITY_BLOCKED`.
+- Normaliseert gedeelde PM-writermappen naar sticky `1777` en definitieve niet-geheime artifacts/registry naar `0644`.
+- Verduurzaamt prepared jobs als typed, per-request, hash-gebonden uitvoering met actieve DEVELOPMENT-task, manifest/predecessor-binding en short-lived single-use authorization.
+- Sluit de on-demand ControlPlane-gap: PM vraagt typed `ensure_running`; de bestaande release-watcher/Docker-owner start uitsluitend de exact gebonden `energie-control-plane` en bewijst fingerprint + health.
+- Geen nieuwe algemene shell/RCE, geen nieuwe MCP-toolnaam en geen clientcatalogusuitbreiding.
+
 ## 32.5.30 — deterministic context, ROOT ClearUp en release-chain hardening
 
 - Projectmanager + Knowledge Base + Master Index vormen één fail-closed deterministische contextketen.
