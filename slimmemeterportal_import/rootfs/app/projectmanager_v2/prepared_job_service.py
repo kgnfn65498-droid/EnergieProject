@@ -18,6 +18,9 @@ REQUEST_ID_RE=re.compile(r'^[0-9a-f]{32}$')
 SHA256_RE=re.compile(r'^[0-9a-f]{64}$')
 VERSION_RE=re.compile(r'^[0-9]+[.][0-9]+[.][0-9]+$')
 LEASE_SECONDS=900
+CONTROL_PLANE_ENSURE_SCHEMA='energie_control_plane_ensure_request_v1'
+CONTROL_PLANE_ENSURE_RESULT_SCHEMA='energie_control_plane_ensure_result_v1'
+CONTROL_PLANE_TARGET='energie-control-plane'
 
 
 def _sha(path:Path)->str:
@@ -81,6 +84,36 @@ class ConfiguredPreparedJobService:
             self.project_root,
             f'Inbox/control_plane/{group}/prepared_job_run.{request_id}.json',
         )
+
+    def _ensure_path(self,group:str,request_id:str)->Path:
+        return project_system_path(
+            self.project_root,
+            f'Inbox/control_plane/{group}/control_plane_ensure.{request_id}.json',
+        )
+
+    def _ensure_control_plane(self,request_id:str)->bool:
+        result_path=self._ensure_path('results',request_id)
+        result=_load(result_path)
+        if result is not None:
+            if (
+                result.get('schema')!=CONTROL_PLANE_ENSURE_RESULT_SCHEMA
+                or result.get('request_id')!=request_id
+                or result.get('target')!=CONTROL_PLANE_TARGET
+                or result.get('production_modified') is not False
+            ):
+                raise RuntimeError('control-plane ensure result identity/safety mismatch')
+            if result.get('status')=='GREEN' and result.get('ok') is True:
+                return True
+            if result.get('status')=='RED':
+                raise RuntimeError('control-plane ensure failed:'+str(result.get('error') or 'unknown'))
+        request={
+            'schema':CONTROL_PLANE_ENSURE_SCHEMA,
+            'request_id':request_id,
+            'action':'ensure_running',
+            'target':CONTROL_PLANE_TARGET,
+        }
+        _write_immutable(self._ensure_path('requests',request_id),request,mode=0o644)
+        return False
 
     def _live_release(self)->str:
         path=self.project_root/'App/VERSIE.txt'
@@ -168,6 +201,16 @@ class ConfiguredPreparedJobService:
         if manifest!=expected_manifest:
             raise RuntimeError('prepared_job manifest identity mismatch')
         manifest_sha=_sha(manifest_path)
+
+        if not self._ensure_control_plane(request_id):
+            return {
+                'status':'PENDING','ok':None,'executed':False,
+                'awaiting_control_plane':True,'awaiting_executor':False,
+                'request_id':request_id,'task_id':task_id,'operation':operation,
+                'target_release':target_release,'predecessor_release':predecessor_release,
+                'predecessor_sha256':predecessor_sha,'runner_sha256':runner_sha,
+                'manifest_sha256':manifest_sha,
+            }
 
         bindings=dict(expected_manifest)
         bindings.pop('schema',None)
