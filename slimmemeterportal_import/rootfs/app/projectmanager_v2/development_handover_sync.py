@@ -7,10 +7,15 @@ from pathlib import Path
 from typing import Any
 
 from persistence import atomic_write_json, atomic_write_text
+from system_path_contract import project_system_path
 
 HANDOVER_REL = Path("Data/03_Systeem/Projectmanager/Handover/CURRENT_DEVELOPMENT_HANDOVER.md")
 POINTER_REL = Path("Data/03_Systeem/Projectmanager/Handover/CURRENT_CHAT_SWITCH_POINTER.json")
 SYNC_STATE_REL = Path("Data/03_Systeem/Projectmanager/Handover/CURRENT_HANDOVER_SYNC_STATE.json")
+ACCEPTED_LIVE_DIR = Path("Data/03_Systeem/Projectmanager/ClearUp/State")
+RELEASE_CONTROLLER_CURRENT = Path("Data/03_Systeem/Projectmanager/ReleaseController/current.json")
+ATOMIC_SWAP_STATE = Path("Data/03_Systeem/Projectmanager/ReleaseController/State/atomic_app_swap_state.json")
+RELEASE_ARTIFACTS = Path("Data/03_Systeem/Projectmanager/ReleaseArtifacts")
 
 
 def _sha(path: Path) -> str:
@@ -35,6 +40,142 @@ def _live_release(root: Path, status: dict[str, Any] | None = None) -> str:
     if status_release and status_release != live:
         raise RuntimeError("handover live/status release mismatch")
     return live
+
+
+def _version_tuple(value: str) -> tuple[int, ...]:
+    try:
+        parts = tuple(int(part) for part in str(value or "").strip().split("."))
+    except ValueError:
+        return ()
+    return parts if len(parts) == 3 else ()
+
+
+def _json_object(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _checkpoint_result(root: Path, path: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    stat = path.stat()
+    return {
+        "status": "GREEN",
+        "path": path.relative_to(root).as_posix(),
+        "mtime_ns": stat.st_mtime_ns,
+        "payload": payload,
+        "ranking_basis": "accepted_live",
+        "ranking_value": float(payload.get("checkpoint_sequence") or 0),
+        "legacy_rank_fallback": False,
+        "invalid_candidates": [],
+    }
+
+
+def reconcile_accepted_live(project_root: Path | str, status: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Create/read one idempotent PM-owned accepted-live checkpoint from immutable live evidence."""
+    root = Path(project_root).resolve()
+    live = _live_release(root, status)
+    if _version_tuple(live) < (32, 5, 31):
+        return None
+
+    rc = _json_object(root / RELEASE_CONTROLLER_CURRENT)
+    atomic = _json_object(root / ATOMIC_SWAP_STATE)
+    ha = _json_object(Path(project_system_path(root, "Inbox/ha_runtime/current.json")))
+    release_status = (status or {}).get("release") if isinstance((status or {}).get("release"), dict) else {}
+
+    artifact_sha = str(rc.get("artifact_sha256") or "").strip().lower()
+    artifact_name = str(rc.get("artifact_name") or f"EnergieProject_v{live}.zip").strip()
+    rc_exact = bool(
+        rc.get("status") == "COMPLETE"
+        and rc.get("phase") == "COMPLETE"
+        and int(rc.get("step") or 0) == int(rc.get("total") or 0)
+        and int(rc.get("total") or 0) > 0
+        and str(rc.get("to_version") or "") == live
+        and str(rc.get("release_id") or "").strip()
+        and str(rc.get("generation") or "").strip()
+        and len(artifact_sha) == 64
+        and all(ch in "0123456789abcdef" for ch in artifact_sha)
+        and release_status.get("active_verified") is True
+    )
+    atomic_exact = bool(
+        atomic.get("state") == "ACCEPTED"
+        and str(atomic.get("to_version") or "") == live
+        and str(atomic.get("artifact_sha256") or "").strip().lower() == artifact_sha
+        and str(atomic.get("from_version") or "").strip() == str(rc.get("from_version") or "").strip()
+    )
+    ha_exact = str(ha.get("version") or "").strip() == live
+    if not (rc_exact and atomic_exact and ha_exact):
+        return None
+
+    candidates = (
+        root / RELEASE_ARTIFACTS / artifact_name,
+        root / "Inbox/processed" / artifact_name,
+    )
+    artifact = next((item for item in candidates if item.is_file() and not item.is_symlink()), None)
+    if artifact is None or _sha(artifact) != artifact_sha:
+        return None
+
+    checkpoint_path = root / ACCEPTED_LIVE_DIR / f"CHECKPOINT_{live}_ACCEPTED_LIVE.json"
+    existing = _json_object(checkpoint_path)
+    identity = {
+        "release_id": str(rc.get("release_id") or ""),
+        "generation": str(rc.get("generation") or ""),
+        "artifact_sha256": artifact_sha,
+        "from_version": str(atomic.get("from_version") or ""),
+        "rollback_path": str(atomic.get("rollback_path") or ""),
+        "ha_runtime_version": live,
+    }
+    if existing:
+        exact = bool(
+            existing.get("schema") == "energie_accepted_live_checkpoint_v1"
+            and existing.get("status") == "ACCEPTED_LIVE"
+            and str(existing.get("live_release") or "") == live
+            and str(existing.get("target_release") or "") == live
+            and all(str(existing.get(key) or "") == value for key, value in identity.items())
+        )
+        if not exact:
+            raise RuntimeError("accepted-live checkpoint identity conflict")
+        return _checkpoint_result(root, checkpoint_path, existing)
+
+    version = _version_tuple(live)
+    sequence = version[0] * 1000000 + version[1] * 10000 + version[2] * 100 + 99
+    payload = {
+        "schema": "energie_accepted_live_checkpoint_v1",
+        "checkpoint_sequence": sequence,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "status": "ACCEPTED_LIVE",
+        "live_release": live,
+        "target_release": live,
+        **identity,
+        "artifact": artifact.relative_to(root).as_posix(),
+        "artifact_size": artifact.stat().st_size,
+        "final_zip_exists": True,
+        "release_ready": True,
+        "live_cleanup_executed": False,
+        "completed": [
+            "ReleaseController COMPLETE exact identity",
+            "atomic app swap ACCEPTED exact identity",
+            "Home Assistant runtime exact/current",
+            "governing release artifact SHA readback exact",
+        ],
+        "pending": [
+            "clean new-chat/verder behavioral E2E",
+            "client MCP catalog parity receipt",
+        ],
+        "blockers": [],
+        "next_action": (
+            f"Run clean new-chat/verder acceptance for {live}; verify client MCP parity; "
+            "then continue the first unresolved governed roadmap item."
+        ),
+    }
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(checkpoint_path, payload, mode=0o644)
+    if _json_object(checkpoint_path) != payload:
+        raise RuntimeError("accepted-live checkpoint readback mismatch")
+    if checkpoint_path.stat().st_mode & 0o777 != 0o644:
+        raise RuntimeError("accepted-live checkpoint mode mismatch")
+    return _checkpoint_result(root, checkpoint_path, payload)
 
 
 def _checkpoint_projection(root: Path, status: dict[str, Any] | None, checkpoint: dict[str, Any]) -> dict[str, Any]:
@@ -188,8 +329,8 @@ def sync_current_development_handover(project_root: Path | str, status: dict[str
         "instruction": "Read live runtime first, then this pointer, the exact checkpoint and CURRENT_DEVELOPMENT_HANDOVER. Resume next_action only when this projection is GREEN/fresh; never infer release-ready from VERSIE.txt.",
     }
     handover = _handover_markdown(projection, generated_at)
-    atomic_write_json(root / POINTER_REL, pointer)
-    atomic_write_text(root / HANDOVER_REL, handover)
+    atomic_write_json(root / POINTER_REL, pointer, mode=0o644)
+    atomic_write_text(root / HANDOVER_REL, handover, mode=0o644)
     readback = evaluate_handover_freshness(root, checkpoint=checkpoint, status=status)
     sync_state = {
         "schema": "energie_current_handover_sync_state_v1",
@@ -203,7 +344,7 @@ def sync_current_development_handover(project_root: Path | str, status: dict[str
         "synced_at": generated_at,
         "readback_reasons": readback.get("reasons") or [],
     }
-    atomic_write_json(root / SYNC_STATE_REL, sync_state)
+    atomic_write_json(root / SYNC_STATE_REL, sync_state, mode=0o644)
     if readback["status"] != "GREEN":
         raise RuntimeError("handover sync readback failed:" + ",".join(readback.get("reasons") or []))
     return {**readback, "synced_at": generated_at, "sync_state": SYNC_STATE_REL.as_posix()}
