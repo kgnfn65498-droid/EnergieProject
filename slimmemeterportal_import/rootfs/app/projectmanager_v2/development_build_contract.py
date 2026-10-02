@@ -1,7 +1,7 @@
 import json
 import re
 
-CONTRACT_VERSION = '2026-09-11.v3'
+CONTRACT_VERSION = '2026-10-02.v4'
 VALID_THINKING_LEVELS = {'MIDDEL', 'HOOG'}
 TERMINAL_REQUIRED_FIELDS = (
     'terminal', 'step_label', 'expected_duration_seconds', 'max_wait_seconds',
@@ -39,7 +39,7 @@ def canonical_contract():
             'audit_root_cause_before_structural_repair',
             'clean_staging_canonical_builder_exact_artifact_fresh_extract_atomic',
             'no_qnap_host_python3_assumption',
-            'no_unnecessary_terminal_sudo_password_steps',
+            'no_user_terminal_or_sudo_fallback',
             'no_autonomous_reboot_reset_destructive_admin',
             'explicit_save_requires_write_and_readback',
             'check_roadmap_kb_tasks_dependencies_before_completion_or_next_claims',
@@ -184,6 +184,13 @@ def _release_at_least(value, minimum):
 
 
 def _enforce_command_proof(metadata, terminal_instruction):
+    if _release_at_least(metadata.get('release_version'), '32.5.31') and terminal_instruction.get('required') is True:
+        terminal_instruction['proof_missing'] = ['user_terminal_forbidden']
+        terminal_instruction['proof_compliant'] = False
+        terminal_instruction['compliant'] = False
+        terminal_instruction['capability_status'] = 'CAPABILITY_BLOCKED'
+        terminal_instruction['reason'] = terminal_instruction.get('reason') or 'NO_USER_TERMINAL'
+        return terminal_instruction
     if terminal_instruction.get('required') is not True:
         terminal_instruction['proof_missing'] = []
         terminal_instruction['proof_compliant'] = True
