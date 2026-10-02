@@ -96,15 +96,57 @@ def ensure_control_plane_current(root:Path|str,*,timeout_seconds=90.0)->dict:
     sync=sync_control_plane_source(root)
     first=control_plane_runtime_guard.probe(root,stale_seconds=30)
     container_info=_existing_container_info();running,healthy=_container_health(container_info)
-    if not running:
-        raise RuntimeError('existing control-plane container is not running')
-
     expected=str(first.get('expected_fingerprint') or '').lower()
     loaded=str(first.get('loaded_fingerprint') or '').lower()
     if len(expected)!=64 or any(c not in '0123456789abcdef' for c in expected):
         raise RuntimeError('control-plane expected fingerprint invalid')
 
     attempt_path=project_system_path(root, 'Inbox/release_controller/control_plane_restart_attempt.json')
+    start_performed=False
+    if not running:
+        if not _binding_current(root, container_info):
+            raise RuntimeError('stopped control-plane binding is not current; fail closed')
+        previous=_optional_json(attempt_path)
+        if (
+            str(previous.get('expected_fingerprint') or '').lower()==expected
+            and previous.get('retry_allowed') is False
+            and previous.get('operation')=='START'
+        ):
+            raise RuntimeError('control-plane bounded start already attempted for expected fingerprint')
+        attempt={
+            'schema':'energie_control_plane_start_attempt_v1',
+            'operation':'START',
+            'expected_fingerprint':expected,
+            'status':'ATTEMPTING',
+            'retry_allowed':False,
+            'started_at_epoch':time.time(),
+        }
+        _atomic(attempt_path,attempt)
+        try:
+            _request('POST',f'/containers/{CONTAINER}/start',(204,304))
+        except Exception as exc:
+            _atomic(attempt_path,{**attempt,'status':'RED','error':f'{type(exc).__name__}:{exc}'})
+            raise RuntimeError('control-plane bounded start failed') from exc
+        deadline=time.monotonic()+max(1.0,float(timeout_seconds));final={}
+        final_healthy=False
+        while time.monotonic()<deadline:
+            final=control_plane_runtime_guard.probe(root,stale_seconds=30)
+            try:
+                container_info=_existing_container_info()
+                running,final_healthy=_container_health(container_info)
+            except Exception:
+                running,final_healthy=False,False
+            if running and final_healthy and final.get('ready') is True:
+                break
+            time.sleep(0.5)
+        if final.get('ready') is not True or not final_healthy:
+            _atomic(attempt_path,{**attempt,'status':'RED','side_effect_state':'START_PERFORMED_UNPROVEN','final_reason':final.get('reason')})
+            raise RuntimeError('control-plane bounded start did not prove runtime health/fingerprint')
+        start_performed=True
+        healthy=True
+        first=final
+        _clear_attempt(attempt_path)
+
     stale_but_exact=(
         first.get('ready') is not True
         and first.get('reason')=='runtime_heartbeat_stale'
@@ -178,7 +220,8 @@ def ensure_control_plane_current(root:Path|str,*,timeout_seconds=90.0)->dict:
         _clear_attempt(attempt_path)
 
     result={'schema':'energie_release_controller_control_plane_bootstrap_v1','status':'GREEN',
-            'source_sync_changed':sync.get('changed') or [],'restart_performed':restarted,'recreate_performed':recreated,
+            'source_sync_changed':sync.get('changed') or [],'start_performed':start_performed,
+            'restart_performed':restarted,'recreate_performed':recreated,
             'binding_current':True,'direct_runtime_probe':direct_runtime_probe,
             'expected_fingerprint':final.get('expected_fingerprint'),'loaded_fingerprint':final.get('loaded_fingerprint')}
     _atomic(project_system_path(root, 'Inbox/release_controller/control_plane_bootstrap.json'),result)
