@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "energie_pm_context_package_v4"
-COMPILER_VERSION = "2026-09-30.v4"
+SCHEMA = "energie_pm_context_package_v5"
+COMPILER_VERSION = "2026-10-02.v5"
 MAX_PACKAGE_BYTES = 48_000
 MAX_MANDATORY_PASSAGE_CHARS = 4_000
 MAX_EVIDENCE_ITEMS = 8
@@ -383,6 +383,7 @@ def compact_package(package: dict[str, Any]) -> dict[str, Any]:
         "package_sha256": package.get("package_sha256"),
         "inventory_complete": package.get("inventory_complete") is True,
         "mandatory_context_complete": package.get("mandatory_context_complete") is True,
+        "delivery_within_budget": package.get("delivery_within_budget"),
         "current_truth": package.get("current_truth") or {},
         "active_task": package.get("active_task") or {},
         "resume_contract": package.get("resume_contract") or {},
@@ -404,6 +405,39 @@ def compact_package(package: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _compact_delivery_passages(package: dict[str, Any], limit: int) -> None:
+    for collection in ("mandatory_sources", "mandatory_requirements", "binding_hot_lessons"):
+        items = package.get(collection) if isinstance(package.get(collection), list) else []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            passage = str(item.get("passage") or "")
+            if len(passage) <= limit:
+                continue
+            item["passage_delivery_original_chars"] = len(passage)
+            item["passage"] = passage[:limit]
+            item["passage_delivery_truncated"] = True
+
+
+def _package_identity_payload(package: dict[str, Any]) -> dict[str, Any]:
+    identity = dict(package)
+    identity.pop("package_sha256", None)
+    identity.pop("package_bytes", None)
+    return identity
+
+
+def _finalize_package_identity(package: dict[str, Any]) -> None:
+    package["package_sha256"] = _canonical_sha(_package_identity_payload(package))
+    package["package_bytes"] = 0
+    for _ in range(12):
+        size = len(_canonical_bytes(package))
+        if package.get("package_bytes") == size:
+            break
+        package["package_bytes"] = size
+    if len(_canonical_bytes(package)) != package["package_bytes"]:
+        raise RuntimeError("context package byte identity did not converge")
+
+
 def build_context_package(
     project_root: Path | str,
     *,
@@ -415,6 +449,8 @@ def build_context_package(
     capabilities: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     root = Path(project_root)
+    current_release = str(((status.get("release") or {}).get("version")) or "").strip()
+    delivery_contract_v2 = _version_tuple(current_release) >= (32, 5, 31)
     active = status.get("active_task") if isinstance(status.get("active_task"), dict) else {}
     task_text = " ".join(str(active.get(k) or "") for k in ("title", "goal", "next_action"))
     mandatory_requirements, deferred_requirements, missing_registry = _select_requirements(root, requirements, task_text)
@@ -437,7 +473,8 @@ def build_context_package(
     binding_hot_lessons, hot_errors = _binding_hot_lessons(root, task_text)
     invalid = [
         x["path"] for x in core_sources + mandatory_requirements + binding_hot_lessons
-        if x.get("status") != "GREEN" or not str(x.get("passage") or "").strip() or x.get("passage_truncated") is True
+        if x.get("status") != "GREEN" or not str(x.get("passage") or "").strip()
+        or (x.get("passage_truncated") is True and not delivery_contract_v2)
     ]
     invalid.extend("requirement:" + name for name in missing_registry)
     invalid.extend("source_key:" + name for name in missing_source_keys)
@@ -451,10 +488,14 @@ def build_context_package(
 
     self_audit = status.get("self_audit") if isinstance(status.get("self_audit"), dict) else {}
     self_audit_status = str(self_audit.get("status") or "").strip().upper()
-    if self_audit_status == "RED":
-        conflicts.append({"kind": "projectmanager_self_audit_red", "invalid": list(self_audit.get("invalid") or [])})
-    elif self_audit_status not in {"GREEN", "ORANGE"}:
-        conflicts.append({"kind": "projectmanager_self_audit_missing_or_invalid"})
+    # From 32.5.31 the package proves content/truth independently. Self-audit
+    # remains a separate Resume/new-chat acceptance gate and cannot invalidate
+    # the package that it is itself auditing.
+    if not delivery_contract_v2:
+        if self_audit_status == "RED":
+            conflicts.append({"kind": "projectmanager_self_audit_red", "invalid": list(self_audit.get("invalid") or [])})
+        elif self_audit_status not in {"GREEN", "ORANGE"}:
+            conflicts.append({"kind": "projectmanager_self_audit_missing_or_invalid"})
 
     governing_claims = truth.get("governing_claims") if isinstance(truth.get("governing_claims"), dict) else {}
     artifact_path = str(governing_claims.get("artifact") or "").strip()
@@ -507,7 +548,7 @@ def build_context_package(
         "inventory_complete": full_kb.get("complete") is True,
         "mandatory_context_complete": complete,
         "authority_contract": {
-            "governing_truth": "live_runtime_plus_highest_valid_checkpoint",
+            "governing_truth": ("live_runtime_plus_current_chat_switch_pointer" if delivery_contract_v2 else "live_runtime_plus_highest_valid_checkpoint"),
             "requirements": "binding_when_selected",
             "documents": "supporting_evidence_only",
             "history": "never_governing_without_explicit_current_promotion",
@@ -556,6 +597,9 @@ def build_context_package(
         "behavior_status": "UNPROVEN",
     }
 
+    # Reserve final identity fields while budgeting the actual delivered object.
+    package["package_sha256"] = "0" * 64
+    package["package_bytes"] = 0
     while len(_canonical_bytes(package)) > MAX_PACKAGE_BYTES and package["task_evidence"]:
         item = package["task_evidence"].pop()
         package["deferred_evidence"].append({"collection": "task_evidence", "identity": item.get("path"), "reason": "context_budget"})
@@ -565,9 +609,29 @@ def build_context_package(
     while len(_canonical_bytes(package)) > MAX_PACKAGE_BYTES and package["capability_evidence"]:
         item = package["capability_evidence"].pop()
         package["deferred_evidence"].append({"collection": "capability_evidence", "identity": item.get("key"), "reason": "context_budget"})
-    if len(_canonical_bytes(package)) > MAX_PACKAGE_BYTES:
+
+    if delivery_contract_v2:
+        if len(_canonical_bytes(package)) > MAX_PACKAGE_BYTES:
+            package["optional_evidence_errors"].append({"reason": "optional_context_budget_exceeded"})
+        for limit in (1800, 1200, 800, 500, 320):
+            if len(_canonical_bytes(package)) <= MAX_PACKAGE_BYTES:
+                break
+            _compact_delivery_passages(package, limit)
+        package["delivery_within_budget"] = len(_canonical_bytes(package)) <= MAX_PACKAGE_BYTES
+        package["resume_contract"]["delivery_within_budget"] = package["delivery_within_budget"]
+        if package["delivery_within_budget"] is not True:
+            package["optional_evidence_errors"].append({"reason": "mandatory_delivery_budget_exceeded"})
+    elif len(_canonical_bytes(package)) > MAX_PACKAGE_BYTES:
         package["optional_evidence_errors"].append({"reason": "optional_context_budget_exceeded"})
 
-    package["package_sha256"] = _canonical_sha(package)
-    package["package_bytes"] = len(_canonical_bytes(package))
+    _finalize_package_identity(package)
+    if delivery_contract_v2:
+        package["delivery_within_budget"] = package["package_bytes"] <= MAX_PACKAGE_BYTES
+        package["resume_contract"]["delivery_within_budget"] = package["delivery_within_budget"]
+        if package["delivery_within_budget"] is not True and not any(
+            isinstance(item, dict) and item.get("reason") == "mandatory_delivery_budget_exceeded"
+            for item in package["optional_evidence_errors"]
+        ):
+            package["optional_evidence_errors"].append({"reason": "mandatory_delivery_budget_exceeded"})
+            _finalize_package_identity(package)
     return package
