@@ -40,7 +40,8 @@ from mode_bridge import ModeBridge
 from native_mcp_self_heal import NativeMcpSelfHealAuthorizer
 from nas_container_cr_service import ConfiguredNasContainerCrService
 from project_cr_service import ConfiguredProjectCrService
-from platform_test_service import ConfiguredPlatformTestService, ConfiguredPreparedJobService
+from platform_test_service import ConfiguredPlatformTestService
+from prepared_job_service import ConfiguredPreparedJobService
 from project_close_state import write_project_close
 from series_324_live_closure import evaluate as evaluate_324_closure
 from persistence import atomic_write_json, load_json
