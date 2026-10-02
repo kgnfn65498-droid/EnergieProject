@@ -161,10 +161,17 @@ def _chat_switch_resume_checkpoint(project_root):
     except Exception:
         return None
     payload = cp.get('payload') if isinstance(cp, dict) and isinstance(cp.get('payload'), dict) else {}
+    old_ready = bool(
+        payload.get('schema') == 'energie_chat_switch_checkpoint_v2'
+        and payload.get('status') == 'READY_FOR_NEW_CHAT'
+    )
+    accepted_live = bool(
+        payload.get('schema') == 'energie_accepted_live_checkpoint_v1'
+        and payload.get('status') == 'ACCEPTED_LIVE'
+    )
     if (
         cp.get('status') != 'GREEN'
-        or payload.get('schema') != 'energie_chat_switch_checkpoint_v2'
-        or payload.get('status') != 'READY_FOR_NEW_CHAT'
+        or not (old_ready or accepted_live)
         or not str(payload.get('target_release') or '').strip()
     ):
         return None
@@ -204,9 +211,35 @@ def _checkpoint_resume_task_spec(checkpoint, *, runtime, now):
     live = str(((runtime or {}).get('release') or {}).get('version') or '').strip()
     if not target or live != target:
         return None
+    accepted_live = bool(
+        payload.get('schema') == 'energie_accepted_live_checkpoint_v1'
+        and payload.get('status') == 'ACCEPTED_LIVE'
+    )
     type2 = payload.get('type2') if isinstance(payload.get('type2'), dict) else {}
     scope = str(type2.get('scope') or 'post-live release closure').strip()
     evidence = _clean_refs([checkpoint.get('path')])
+    if accepted_live:
+        return {
+            'title': f'{target} accepted-live closure hervatten',
+            'goal': 'accepted-live PM continuity, clean Resume acceptance and client parity proof',
+            'mode': 'DEVELOPMENT',
+            'steps_total': 3,
+            'priority': 1,
+            'build_metadata': {
+                'thinking_level': 'HOOG',
+                'release_version': target,
+                'estimated_total_seconds': 3600,
+                'estimated_test_verification_seconds': 1800,
+                'step_estimates_seconds': [900, 1200, 1500],
+                'original_estimate_recorded_at': now.isoformat(),
+                'terminal_instruction': {'required': False},
+            },
+            'next_action': str(payload.get('next_action') or '').strip() or (
+                f'Run clean new-chat/verder acceptance for {target}; verify client MCP parity; '
+                'then continue the first unresolved governed roadmap item.'
+            ),
+            'evidence_refs': evidence,
+        }
     return {
         'title': f'{target} replacement closure hervatten',
         'goal': f'{scope}; DS9/Spock continuity and new-chat closure',
