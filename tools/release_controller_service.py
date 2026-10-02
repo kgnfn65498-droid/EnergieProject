@@ -22,6 +22,70 @@ from release_artifact_retention import retain_release_artifact
 from state_store import StateStore
 
 CONTROL_PLANE_CONTAINER='energie-control-plane'
+CONTROL_PLANE_ENSURE_SCHEMA='energie_control_plane_ensure_request_v1'
+CONTROL_PLANE_ENSURE_RESULT_SCHEMA='energie_control_plane_ensure_result_v1'
+
+def _valid_request_id(value:str)->bool:
+    value=str(value or '').strip().lower()
+    return len(value)==32 and all(ch in '0123456789abcdef' for ch in value)
+
+def process_control_plane_ensure_requests(root:Path|str,*,max_items:int=1)->list[dict]:
+    root=Path(root).resolve()
+    request_root=project_system_path(root,'Inbox/control_plane/requests')
+    result_root=project_system_path(root,'Inbox/control_plane/results')
+    if request_root.is_symlink() or not request_root.is_dir():
+        return []
+    out=[]
+    for request_path in sorted(request_root.glob('control_plane_ensure.*.json')):
+        if len(out)>=max(1,int(max_items)):break
+        request_id=request_path.name.removeprefix('control_plane_ensure.').removesuffix('.json')
+        if not _valid_request_id(request_id) or request_path.is_symlink() or not request_path.is_file():
+            continue
+        result_path=result_root/f'control_plane_ensure.{request_id}.json'
+        existing=_optional_json(result_path)
+        if (
+            existing.get('schema')==CONTROL_PLANE_ENSURE_RESULT_SCHEMA
+            and existing.get('request_id')==request_id
+            and existing.get('status') in {'GREEN','RED'}
+        ):
+            continue
+        try:
+            request=_optional_json(request_path)
+            allowed={'schema','request_id','action','target'}
+            if set(request)!=allowed:
+                raise RuntimeError('control-plane ensure request fields mismatch')
+            if (
+                request.get('schema')!=CONTROL_PLANE_ENSURE_SCHEMA
+                or request.get('request_id')!=request_id
+                or request.get('action')!='ensure_running'
+                or request.get('target')!=CONTROL_PLANE_CONTAINER
+            ):
+                raise RuntimeError('control-plane ensure request identity mismatch')
+            ensured=ensure_control_plane_current(root)
+            result={
+                'schema':CONTROL_PLANE_ENSURE_RESULT_SCHEMA,
+                'request_id':request_id,
+                'status':'GREEN',
+                'ok':True,
+                'target':CONTROL_PLANE_CONTAINER,
+                'bootstrap':ensured,
+                'production_modified':False,
+                'finished_at_epoch':time.time(),
+            }
+        except Exception as exc:
+            result={
+                'schema':CONTROL_PLANE_ENSURE_RESULT_SCHEMA,
+                'request_id':request_id,
+                'status':'RED',
+                'ok':False,
+                'target':CONTROL_PLANE_CONTAINER,
+                'error':f'{type(exc).__name__}:{exc}',
+                'production_modified':False,
+                'finished_at_epoch':time.time(),
+            }
+        _atomic_json(result_path,result)
+        out.append(result)
+    return out
 
 def live_release_version(root:Path)->str:
     path=Path(root)/'App/VERSIE.txt'
@@ -281,6 +345,16 @@ class ReleaseControllerService:
         while dst.exists():dst=failed/(p.stem+f'.rolled_back.{i}.zip');i+=1
         os.replace(p,dst)
     def cycle(self):
+        control_plane_ensure=process_control_plane_ensure_requests(self.root,max_items=1)
+        if control_plane_ensure:
+            latest=control_plane_ensure[-1]
+            self._runtime({
+                'status':'SIDEBAND',
+                'phase':'CONTROL_PLANE_ENSURE',
+                'request_id':latest.get('request_id'),
+                'ensure_status':latest.get('status'),
+            })
+            return self._load_state()
         ingress_admin=release_ingress_recovery_executor_32530.process_pending_request(self.root)
         if ingress_admin is not None:
             result=ingress_admin.get('result') if isinstance(ingress_admin,dict) else {}
