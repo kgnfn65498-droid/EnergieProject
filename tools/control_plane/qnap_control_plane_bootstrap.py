@@ -76,7 +76,7 @@ def _ensure_control_plane_mailboxes(runtime_root: Path, inbox: Path | None = Non
     )
     security_marker_root = Path(security_root) if security_root is not None else release_controller_root
     migration_current = _security_migration_current(inbox, security_marker_root)
-    modes = {root: 0o755, root / 'requests': 0o1733, root / 'results': 0o755}
+    modes = {root: 0o755, root / 'requests': 0o1733, root / 'authorizations': 0o1733, root / 'claims': 0o700, root / 'results': 0o755}
     for path, mode in modes.items():
         if path.is_symlink():
             raise RuntimeError(f'onveilige control-plane mailbox symlink: {path}')
