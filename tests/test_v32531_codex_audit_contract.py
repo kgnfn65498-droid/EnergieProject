@@ -111,19 +111,21 @@ def test_32531_context_validity_does_not_depend_on_self_audit(tmp_path):
 def test_32531_user_terminal_is_capability_blocked():
     result = evaluate_build_contract(
         {
-            "release_version": "32.5.31",
-            "terminal_instruction": {
-                "required": True,
-                "command": "sudo something",
-                "risk": "manual",
-                "why_needed": "missing capability",
-                "expected_output": "ok",
-                "success_criteria": "green",
+            "build_metadata": {
+                "release_version": "32.5.31",
+                "terminal_instruction": {
+                    "required": True,
+                    "command": "sudo something",
+                    "risk": "manual",
+                    "why_needed": "missing capability",
+                    "expected_output": "ok",
+                    "success_criteria": "green",
+                },
             },
         }
     )
     terminal = result["terminal_instruction"]
-    assert result["status"] == "RED"
+    assert result["compliant"] is False
     assert terminal["capability_status"] == "CAPABILITY_BLOCKED"
     assert terminal["proof_compliant"] is False
     assert terminal["compliant"] is False
