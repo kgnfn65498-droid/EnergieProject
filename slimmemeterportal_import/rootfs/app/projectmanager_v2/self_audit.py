@@ -359,9 +359,15 @@ class SelfAuditor:
                     if preflight.get('manual_reexplanation_required') is not (not preflight_ready):
                         invalid.append({'path': 'status/current.json', 'reason': 'new_chat_resume_preflight_flag_mismatch'})
                     package = development_context.get('context_package') if isinstance(development_context.get('context_package'), dict) else {}
+                    package_budget_ready = (
+                        package.get('delivery_within_budget') is True
+                        if _release_at_least(self.running_release_version or ((status.get('release') or {}).get('version')), '32.5.31')
+                        else True
+                    )
                     package_ready = bool(
                         package.get('mandatory_context_complete') is True
                         and (package.get('resume_contract') or {}).get('fail_closed') is not True
+                        and package_budget_ready
                     )
                     if preflight_ready and not package_ready:
                         invalid.append({'path': 'status/current.json', 'reason': 'new_chat_resume_preflight_false_green'})
