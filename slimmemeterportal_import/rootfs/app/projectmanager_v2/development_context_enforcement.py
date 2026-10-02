@@ -26,6 +26,7 @@ HANDOVER = 'Data/03_Systeem/Projectmanager/Handover/CURRENT_DEVELOPMENT_HANDOVER
 REPORT_KB = 'Data/02_Output/Rapportages/KnowledgeBase'
 PM_KB = 'Data/03_Systeem/Projectmanager/KnowledgeBase'
 CHECKPOINT_DIR = 'Data/03_Systeem/Projectmanager/ClearUp/State'
+CURRENT_POINTER = 'Data/03_Systeem/Projectmanager/Handover/CURRENT_CHAT_SWITCH_POINTER.json'
 PROJECT_AFSPRAKEN = 'App/PROJECT_AFSPRAKEN.md'
 PROJECT_AFSPRAKEN_FALLBACK = 'PROJECT_AFSPRAKEN.md'
 APP_CHANGELOG = 'App/CHANGELOG.md'
@@ -81,8 +82,64 @@ def _checkpoint_rank(payload: dict[str, Any], mtime_ns: int) -> tuple[int, float
     return (1, float(mtime_ns), 'legacy_mtime_fallback')
 
 
+def _pointer_checkpoint(root: Path) -> dict[str, Any] | None:
+    pointer_path = root / CURRENT_POINTER
+    if pointer_path.is_symlink() or not pointer_path.is_file():
+        return None
+    try:
+        pointer = json.loads(pointer_path.read_text(encoding='utf-8'))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(pointer, dict) or pointer.get('schema') != 'energie_current_chat_switch_pointer_v2':
+        return None
+    relative = str(pointer.get('checkpoint') or '').strip()
+    expected_sha = str(pointer.get('checkpoint_sha256') or '').strip().lower()
+    if not relative or len(expected_sha) != 64 or any(ch not in '0123456789abcdef' for ch in expected_sha):
+        return None
+    checkpoint_root = (root / CHECKPOINT_DIR).resolve()
+    path = (root / relative).resolve()
+    if checkpoint_root not in path.parents or path.is_symlink() or not path.is_file():
+        return None
+    try:
+        raw = path.read_bytes()
+        payload = json.loads(raw.decode('utf-8'))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or hashlib.sha256(raw).hexdigest() != expected_sha:
+        return None
+    live_path = root / 'App/VERSIE.txt'
+    try:
+        live = live_path.read_text(encoding='utf-8').strip()
+    except OSError:
+        return None
+    checkpoint_live = str(payload.get('live_release') or payload.get('live_production') or '').strip()
+    checkpoint_target = str(payload.get('target_release') or '').strip()
+    if checkpoint_live != live or checkpoint_target != live:
+        return None
+    stat = path.stat()
+    return {
+        'status': 'GREEN',
+        'path': path.relative_to(root.resolve()).as_posix(),
+        'mtime_ns': stat.st_mtime_ns,
+        'payload': payload,
+        'ranking_basis': 'current_chat_switch_pointer',
+        'ranking_value': float(stat.st_mtime_ns),
+        'legacy_rank_fallback': False,
+        'invalid_candidates': [],
+    }
+
+
 def highest_checkpoint(project_root: Path | str) -> dict[str, Any]:
     root = Path(project_root)
+    try:
+        live = (root / 'App/VERSIE.txt').read_text(encoding='utf-8').strip()
+    except OSError:
+        live = ''
+    if _version_tuple(live) >= (32, 5, 31):
+        pointed = _pointer_checkpoint(root)
+        if pointed is not None:
+            return pointed
+        return {'status': 'RED', 'path': '', 'mtime_ns': None, 'payload': {}, 'reasons': ['current_pointer_missing_corrupt_or_stale']}
     cp_root = root / CHECKPOINT_DIR
     if not _safe_dir(cp_root):
         return {'status': 'MISSING', 'path': '', 'mtime_ns': None, 'payload': {}, 'reasons': ['checkpoint_dir_missing']}
@@ -243,11 +300,17 @@ def current_truth_reconciliation(project_root: Path | str, status: dict | None =
     cp_payload = cp.get('payload') if isinstance(cp.get('payload'), dict) else {}
     cp_live = str(cp_payload.get('live_release') or cp_payload.get('live_production') or '').strip()
     cp_target = str(cp_payload.get('target_release') or '').strip()
-    target_reached = bool(
-        live and cp_target and live == cp_target
-        and cp_payload.get('schema') == 'energie_chat_switch_checkpoint_v2'
-        and cp_payload.get('status') == 'READY_FOR_NEW_CHAT'
+    checkpoint_current = bool(
+        (
+            cp_payload.get('schema') == 'energie_chat_switch_checkpoint_v2'
+            and cp_payload.get('status') == 'READY_FOR_NEW_CHAT'
+        )
+        or (
+            cp_payload.get('schema') == 'energie_accepted_live_checkpoint_v1'
+            and cp_payload.get('status') == 'ACCEPTED_LIVE'
+        )
     )
+    target_reached = bool(live and cp_target and live == cp_target and checkpoint_current)
     if live and cp_live and live != cp_live and not target_reached:
         conflicts.append({'kind': 'checkpoint_live_release_conflict', 'live': live, 'checkpoint': cp_live, 'checkpoint_path': cp.get('path')})
 
