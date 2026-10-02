@@ -72,6 +72,21 @@ def _fixture(tmp_path, *, operation="TEST", target="32.5.31"):
     }
 
 
+def _mark_control_plane_green(tmp_path):
+    runtime = tmp_path / "Inbox/control_plane/results"
+    runtime.mkdir(parents=True, exist_ok=True)
+    path = runtime / f"control_plane_ensure.{REQ_ID}.json"
+    path.write_text(json.dumps({
+        "schema": "energie_control_plane_ensure_result_v1",
+        "request_id": REQ_ID,
+        "status": "GREEN",
+        "ok": True,
+        "target": "energie-control-plane",
+        "production_modified": False,
+    }), encoding="utf-8")
+    return path
+
+
 def test_prepared_job_derives_identity_from_existing_submit_fields(tmp_path):
     fx = _fixture(tmp_path)
     result = fx["service"].run(
@@ -82,11 +97,32 @@ def test_prepared_job_derives_identity_from_existing_submit_fields(tmp_path):
         operation=fx["operation"],
     )
     assert result["status"] == "PENDING"
+    assert result["awaiting_control_plane"] is True
+    assert result["awaiting_executor"] is False
     assert result["request_id"] == REQ_ID
     assert result["predecessor_release"] == "32.5.30"
     assert result["predecessor_sha256"] == fx["predecessor_sha"]
 
     runtime = tmp_path / "Inbox/control_plane"
+    ensure_request = json.loads((runtime / f"requests/control_plane_ensure.{REQ_ID}.json").read_text())
+    assert ensure_request == {
+        "schema": "energie_control_plane_ensure_request_v1",
+        "request_id": REQ_ID,
+        "action": "ensure_running",
+        "target": "energie-control-plane",
+    }
+    assert not (runtime / f"authorizations/prepared_job_run.{REQ_ID}.json").exists()
+    assert not (runtime / f"requests/prepared_job_run.{REQ_ID}.json").exists()
+
+    _mark_control_plane_green(tmp_path)
+    result = fx["service"].run(
+        task=fx["task"],
+        artifact_path=fx["artifact_path"],
+        artifact_sha256=fx["runner_sha"],
+        target_release=fx["target"],
+        operation=fx["operation"],
+    )
+    assert result["awaiting_executor"] is True
     auth = json.loads((runtime / f"authorizations/prepared_job_run.{REQ_ID}.json").read_text())
     request = json.loads((runtime / f"requests/prepared_job_run.{REQ_ID}.json").read_text())
     assert auth["task_id"] == fx["task"]["id"]
@@ -105,6 +141,9 @@ def test_prepared_job_is_idempotent_while_authorization_is_live(tmp_path):
         target_release=fx["target"],
         operation=fx["operation"],
     )
+    first = fx["service"].run(**kwargs)
+    assert first["awaiting_control_plane"] is True
+    _mark_control_plane_green(tmp_path)
     first = fx["service"].run(**kwargs)
     auth_path = tmp_path / f"Inbox/control_plane/authorizations/prepared_job_run.{REQ_ID}.json"
     auth_before = auth_path.read_bytes()
@@ -147,6 +186,9 @@ def test_prepared_job_rejects_expired_unclaimed_authorization(tmp_path):
         target_release=fx["target"],
         operation=fx["operation"],
     )
+    first = fx["service"].run(**kwargs)
+    assert first["awaiting_control_plane"] is True
+    _mark_control_plane_green(tmp_path)
     fx["service"].run(**kwargs)
     auth_path = tmp_path / f"Inbox/control_plane/authorizations/prepared_job_run.{REQ_ID}.json"
     auth = json.loads(auth_path.read_text())
@@ -161,6 +203,15 @@ def test_prepared_job_rejects_expired_unclaimed_authorization(tmp_path):
 
 def test_control_plane_claim_is_binding_checked_and_single_use(tmp_path):
     fx = _fixture(tmp_path)
+    first = fx["service"].run(
+        task=fx["task"],
+        artifact_path=fx["artifact_path"],
+        artifact_sha256=fx["runner_sha"],
+        target_release=fx["target"],
+        operation=fx["operation"],
+    )
+    assert first["awaiting_control_plane"] is True
+    _mark_control_plane_green(tmp_path)
     result = fx["service"].run(
         task=fx["task"],
         artifact_path=fx["artifact_path"],
