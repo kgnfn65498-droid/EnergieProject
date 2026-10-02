@@ -40,7 +40,7 @@ from mode_bridge import ModeBridge
 from native_mcp_self_heal import NativeMcpSelfHealAuthorizer
 from nas_container_cr_service import ConfiguredNasContainerCrService
 from project_cr_service import ConfiguredProjectCrService
-from platform_test_service import ConfiguredPlatformTestService
+from platform_test_service import ConfiguredPlatformTestService, ConfiguredPreparedJobService
 from project_close_state import write_project_close
 from series_324_live_closure import evaluate as evaluate_324_closure
 from persistence import atomic_write_json, load_json
@@ -183,6 +183,7 @@ class ProjectmanagerRuntime:
         self.project_cr_service = project_cr_service
         self.nas_container_cr_service = nas_container_cr_service
         self.platform_test_service = ConfiguredPlatformTestService(config.project_root)
+        self.prepared_job_service = ConfiguredPreparedJobService(config.project_root)
         self.processor = CommandProcessor(
             self.commands,
             self.base.decisions,
@@ -194,6 +195,7 @@ class ProjectmanagerRuntime:
             project_cr_service=self.project_cr_service,
             nas_container_cr_service=self.nas_container_cr_service,
             platform_test_service=self.platform_test_service,
+            prepared_job_service=self.prepared_job_service,
             conversation_intake=self.conversation_intake,
             project_root=config.project_root,
         )
